@@ -1,0 +1,29 @@
+# Datasets e dados derivados
+dados/raw/*
+dados/processed/*
+!dados/**/.gitkeep
+*.pcap
+*.pcapng
+*.csv.gz
+
+# Modelos treinados
+*.pkl
+*.joblib
+*.h5
+modelos/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# Segredos e ambiente
+.env
+.env.local
+*.key
+
+# Sistema
+.DS_Store
