@@ -15,10 +15,15 @@ integrado via **MCP**, traduzindo alertas técnicos em recomendações de mitiga
 - **Equipe:** Bernardo Souza Oliveira, Matheus Queiroz Gregorin, José Victor Roling,
   Pedro Henrique Cagnoni Guimarães.
 - **Orientador:** Prof. Rodrigo Cardoso Silva.
-- **Datasets:** CICIoT2023 (primário), N-BaIoT (secundário).
+- **Datasets:** CICIoT2023 (primário, confirmado). **Secundário em definição** — o N-BaIoT,
+  declarado no TCC I, não cobre a lacuna que motivaria um segundo dataset: é Mirai/BASHLITE,
+  todas as classes volumétricas, sem exfiltração, com 115 features incompatíveis com as 39 do
+  CICIoT2023 e sem PCAP distribuído (o que conflita com a Decisão B). Ver `ROADMAP.md`.
 - **Stack:** Python, Pandas, scikit-learn, Scapy, (Wireshark), servidor MCP, agente LLM.
 - **PoC:** cenários de DDoS, port scan, brute force e exfiltração de dados; comparação entre a
-  saída isolada do classificador e a saída integrada (MCP + agentes).
+  saída isolada do classificador e a saída integrada (MCP + agentes). **Atenção:** o CICIoT2023
+  não tem exfiltração e cobre brute force com uma variante só — o 4º cenário depende de decisão
+  pendente com o orientador (`ROADMAP.md`).
 - **Métricas:** acurácia, precisão, recall, F1-score e taxa de falso positivo (FPR).
 
 ## Correções vindas da banca do TCC I (obrigatórias, valem nota)
