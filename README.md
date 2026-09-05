@@ -8,7 +8,7 @@ Equipe: Bernardo Souza Oliveira, Matheus Queiroz Gregorin, José Victor Roling e
 Pedro Henrique Cagnoni Guimarães.
 Orientador: Prof. Rodrigo Cardoso Silva.
 
-Este repositório é o trabalho: código, experimentos, artigo e reports. O painel de acompanhamento
+Este repositório é o trabalho: código, experimentos e artigo. O painel de acompanhamento
 fica em outro repositório e é o espelho do andamento, não o trabalho.
 
 ---
@@ -81,7 +81,8 @@ caber nisso, com a redação correndo em paralelo desde já.
 3. Ser proativo — reunião com o orientador sozinha não produz a pesquisa.
 4. Escrita do artigo em paralelo com o desenvolvimento, desde já.
 
-Os reports ficam em `reports/`, um arquivo por semana (`AAAA-MM-DD.md`, data da segunda-feira).
+Os reports semanais são montados e exportados pelo próprio painel de acompanhamento, que já
+agrupa as tarefas concluídas por semana e por responsável.
 
 ---
 
@@ -97,7 +98,6 @@ Os reports ficam em `reports/`, um arquivo por semana (`AAAA-MM-DD.md`, data da 
 | `dados/` | **`README.md` com a receita completa do ambiente e o mapa de arquivos** |
 | `experimentos/` | `notebooks/` de exploração e `resultados/` com métricas e tabelas |
 | `referencias/` | bibliografia e material de apoio |
-| `reports/` | reports semanais para o orientador |
 
 O dataset não é versionado (~17 GB). `dados/README.md` diz de onde baixar e onde colocar.
 
