@@ -157,6 +157,100 @@ mal numa classe rara, dizer isso no artigo com o número de amostras ao lado.
 
 ---
 
+## Mapa completo de arquivos
+
+Tudo que existe hoje e tudo que vamos criar. Quem for começar numa frente, procure a sua seção.
+
+### O que já existe — dataset e código de referência (não versionado)
+
+```
+CICIoT2023/
+├── MERGED_CSV/                      63 arquivos, 8,7 GB — O DATASET DE TREINO
+│   └── Merged01.csv … Merged63.csv  39 features + Label, embaralhado
+│
+├── DictionaryBruteForce.pcap        38 MB  — pcap da calibração (use este)
+├── Recon-PortScan.pcap              192 MB — segundo pcap, para conferência
+│
+├── <34 pastas por ataque>/          CSVs de 39 features SEM rótulo.
+│   ├── DictionaryBruteForce/          Servem de gabarito da calibração:
+│   ├── Recon-PortScan/                é com eles que se compara a saída
+│   ├── DDoS-ICMP_Flood/               do nosso extrator.
+│   └── …
+│
+├── pcap2csv/                        O EXTRATOR DOS AUTORES — base do nosso
+│   ├── Feature_extraction.py          27 KB, o principal. n_rows = 10 na linha 477
+│   ├── Generating_dataset.py          orquestra: fatia com tcpdump e paraleliza
+│   ├── Communication_features.py      features de Wi-Fi e Zigbee
+│   ├── Connectivity_features.py       features de conexão, tempo e flags
+│   ├── Dynamic_features.py            magnitude, raio, covariância (COMENTADAS no uso)
+│   ├── Layered_features.py            features por camada (L1 a L4)
+│   ├── Supporting_functions.py        auxiliares: protocolo, fluxo, flags
+│   └── output/ split_temp/ csv_files/ pastas de trabalho do script
+│
+├── example.ipynb                    notebook de ML dos autores — REFERÊNCIA, tem 3 bugs
+├── tools/                           notas das ferramentas: dpkt, tcpdump, mergecap, PySpark
+├── README.pdf                       documentação geral do dataset
+└── README_CSV.pdf                   documentação da parte de CSVs
+```
+
+### O que vamos criar — no repositório (versionado)
+
+**Frente de captura** — `codigo/captura/`
+
+| Arquivo | O que faz |
+|---|---|
+| `extrator.py` | O extrator adaptado do `pcap2csv`. Lê de arquivo **ou de interface de rede ao vivo** e produz as 39 features a cada 10 pacotes |
+| `calibrar.py` | Roda o extrator no `DictionaryBruteForce.pcap` e compara com o CSV oficial. Confere contagem de linhas (alvo: ~13.064), nomes e ordem das colunas, e valores linha a linha |
+
+**Frente de dados e classificador** — `codigo/classificador/`
+
+| Arquivo | O que faz |
+|---|---|
+| `mapeamento.py` | O `dict_7classes` dos autores, com os rótulos normalizados (o `MERGED_CSV` usa MAIÚSCULAS) |
+| `amostrar.py` | Percorre os 63 arquivos do `MERGED_CSV`, guarda todas as linhas das classes raras e limita as gigantes. **Semente fixa.** Gera o conjunto de treino |
+| `preparar.py` | Aplica o agrupamento em 8 categorias e separa treino e teste. Grava a divisão usada |
+| `treinar.py` | Treina o Random Forest e salva o modelo. Sem `StandardScaler` |
+| `avaliar.py` | Recall por classe, matriz de confusão, taxa de falso positivo, importância das features, tempo de inferência e tamanho do modelo |
+
+**Frente de MCP e agentes** — `codigo/mcp/` e `codigo/agente/`
+
+| Arquivo | O que faz |
+|---|---|
+| `mcp/contrato.json` | O contrato da tool: o que o classificador recebe e devolve. **Primeiro artefato a existir** — é ele que destrava as duas frentes em paralelo |
+| `mcp/stub.py` | Devolve predições falsas no formato do contrato, para a frente de agentes trabalhar antes de o modelo existir |
+| `mcp/servidor.py` | O servidor MCP de verdade, expondo o classificador como tool |
+| `agente/agentes.py` | O sistema multiagente: triagem, contexto e mitigação |
+| `agente/prompts/` | Os prompts de cada agente, em arquivos separados |
+| `agente/acionamento.py` | A política de acionamento: agrega, deduplica e decide quando vale chamar a LLM. Sem isso, um DDoS gera milhares de chamadas por segundo |
+| `agente/teste_tool_poisoning.py` | O experimento de segurança do MCP: uma tool com descrição envenenada, para medir se o agente cai |
+
+**Resultados** — `experimentos/`
+
+| Arquivo | O que faz |
+|---|---|
+| `resultados/calibracao.md` | O relatório da calibração: o que bateu, o que divergiu e quanto |
+| `resultados/metricas_classificador.csv` | Recall, precisão e F1 por classe |
+| `resultados/matriz_confusao.png` | O que o modelo confunde com o quê |
+| `resultados/avaliacao_agentes.csv` | A qualidade das recomendações — **a tabela que ainda não tem métrica definida** |
+| `resultados/custo_latencia.csv` | Tokens e tempo de resposta por alerta |
+| `notebooks/` | Exploração livre. Nada que vá para o artigo nasce aqui sem virar script |
+
+**Raiz do repositório**
+
+| Arquivo | O que faz |
+|---|---|
+| `requirements.txt` | As dependências fixadas, para todo mundo rodar igual |
+| `.env.example` | Modelo das variáveis de ambiente (chave da LLM). O `.env` de verdade nunca entra no git |
+
+### Ordem em que essas coisas nascem
+
+1. `mcp/contrato.json` — destrava as duas frentes
+2. `captura/extrator.py` e `captura/calibrar.py` — caminho crítico
+3. `classificador/amostrar.py` → `preparar.py` → `treinar.py` → `avaliar.py`
+4. `mcp/stub.py` (em paralelo a tudo, desde o contrato) → `mcp/servidor.py`
+5. `agente/` — depois que o servidor responde
+6. `experimentos/resultados/` — as tabelas vazias devem existir **antes** dos experimentos
+
 ## Ambiente Python
 
 ```bash
