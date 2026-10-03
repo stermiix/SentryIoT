@@ -16,6 +16,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Os jobs usam ubuntu-24.04, e nao ubuntu-latest, pelo mesmo motivo das versoes
+# fixadas abaixo: o rotulo "latest" troca de sistema sem aviso no repositorio.
 env:
   PYTHON_VERSION: "3.11"
   # Versoes fixadas: o resultado do CI nao muda sozinho de um dia para o outro.
@@ -26,7 +28,7 @@ env:
 jobs:
   lint:
     name: Lint (ruff)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Baixar o repositorio
@@ -42,13 +44,13 @@ jobs:
       - name: Instalar o ruff
         run: python -m pip install "ruff==${RUFF_VERSION}"
 
-      # Regras padrao do ruff; o ruff.toml so diz o que fica de fora.
+      # Regras padrao do ruff; o ruff.toml so fixa o Python 3.11 e diz o que fica de fora.
       - name: Conferir o codigo
         run: ruff check --output-format=github .
 
   testes:
     name: Testes (pytest)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Baixar o repositorio
@@ -91,7 +93,7 @@ jobs:
 
   auditoria:
     name: Auditoria de dependencias (pip-audit)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Baixar o repositorio
