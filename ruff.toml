@@ -1,0 +1,12 @@
+# Lint com as regras padrao do ruff. Este arquivo so fixa a versao do Python
+# e diz o que fica de fora.
+
+# O projeto roda em Python 3.11: sintaxe que so existe em versoes mais novas
+# passa a ser apontada como erro.
+target-version = "py311"
+
+extend-exclude = [
+    "CICIoT2023", # dataset e codigo dos autores: nao e nosso e nao e versionado
+    ".venv",
+    "*.ipynb",    # notebooks sao exploracao livre
+]

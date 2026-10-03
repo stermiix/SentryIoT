@@ -1,0 +1,118 @@
+# CI do SentryIoT: roda em todo PR e em todo push na main.
+# Tres conferencias independentes: lint, testes e auditoria das dependencias.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Permissao minima: os jobs so leem o repositorio.
+permissions:
+  contents: read
+
+# Um push novo no mesmo PR cancela a execucao anterior. Na main nada e cancelado.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Os jobs usam ubuntu-24.04, e nao ubuntu-latest, pelo mesmo motivo das versoes
+# fixadas abaixo: o rotulo "latest" troca de sistema sem aviso no repositorio.
+env:
+  PYTHON_VERSION: "3.11"
+  # Versoes fixadas: o resultado do CI nao muda sozinho de um dia para o outro.
+  RUFF_VERSION: "0.16.10"
+  PYTEST_VERSION: "9.1.1"
+  PIP_AUDIT_VERSION: "2.10.1"
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Baixar o repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Preparar o Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Instalar o ruff
+        run: python -m pip install "ruff==${RUFF_VERSION}"
+
+      # Regras padrao do ruff; o ruff.toml so fixa o Python 3.11 e diz o que fica de fora.
+      - name: Conferir o codigo
+        run: ruff check --output-format=github .
+
+  testes:
+    name: Testes (pytest)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Baixar o repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Preparar o Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          # A chave do cache exige pelo menos um arquivo. Enquanto o
+          # requirements.txt nao existe, este proprio workflow cumpre o papel.
+          cache-dependency-path: |
+            requirements.txt
+            .github/workflows/ci.yml
+
+      # O requirements.txt vem depois: se ele fixar o pytest, vale a versao dele.
+      - name: Instalar o pytest e as dependencias do projeto
+        run: |
+          python -m pip install "pytest==${PYTEST_VERSION}"
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          fi
+
+      # O dataset (CICIoT2023/) nunca esta no CI: os testes que dependem dele
+      # sao pulados, e o resumo (-ra) mostra quais foram.
+      - name: Rodar os testes
+        run: |
+          codigo=0
+          python -m pytest -ra || codigo=$?
+          # Codigo 5 = nenhum teste coletado. So ele vira sucesso; qualquer
+          # outro (teste falhando, erro de coleta, uso incorreto) derruba o job.
+          if [ "$codigo" -eq 5 ]; then
+            echo "::warning title=pytest::Nenhum teste coletado. Aceito enquanto o repositorio nao tem testes."
+            exit 0
+          fi
+          exit "$codigo"
+
+  auditoria:
+    name: Auditoria de dependencias (pip-audit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Baixar o repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Preparar o Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Job separado dos testes: o pip-audit fica num ambiente so dele e nao
+      # mistura as proprias dependencias com as do projeto.
+      - name: Procurar vulnerabilidades conhecidas no requirements.txt
+        run: |
+          if [ ! -f requirements.txt ]; then
+            echo "::notice title=pip-audit::Ainda nao existe requirements.txt; nada a auditar."
+            exit 0
+          fi
+          python -m pip install "pip-audit==${PIP_AUDIT_VERSION}"
+          pip-audit --progress-spinner off -r requirements.txt

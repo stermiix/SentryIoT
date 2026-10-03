@@ -1,0 +1,45 @@
+# Analise de seguranca do codigo Python com o CodeQL.
+# So dispara quando algum arquivo .py muda: sem codigo Python no repositorio a
+# analise falha. Pelo mesmo motivo ainda nao ha agendamento semanal.
+name: CodeQL
+
+on:
+  pull_request:
+    paths: ["**.py"]
+  push:
+    branches: [main]
+    paths: ["**.py"]
+
+# Permissao minima no topo; so o job abaixo recebe a permissao de escrita.
+permissions:
+  contents: read
+
+# Um push novo no mesmo PR cancela a execucao anterior. Na main nada e cancelado.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analisar:
+    name: Analise de codigo (Python)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write # envia os resultados para a aba Security
+    steps:
+      - name: Baixar o repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Preparar o CodeQL
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          languages: python
+          build-mode: none
+
+      - name: Analisar
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          category: /language:python

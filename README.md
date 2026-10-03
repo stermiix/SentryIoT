@@ -131,3 +131,9 @@ de enviar ao orientador.
   por que escolheu 39 features em vez de 46.
 - **Toda mudança de plano vai para o `ROADMAP.md`** com a ação correspondente no painel, marcada
   como `pendente` até alguém aplicar na interface.
+
+**Todo PR passa pelo CI** (GitHub Actions, Python 3.11). O `ruff` procura erros no código, o
+`pytest` roda os testes — os que precisam do dataset são pulados, porque ele não existe lá — e o
+`pip-audit` confere se alguma dependência do `requirements.txt` tem vulnerabilidade conhecida.
+PR que mexe em arquivo `.py` passa também pelo CodeQL, que procura falhas de segurança no código.
+Para conferir antes de abrir o PR: `ruff check .` e `python -m pytest`.
