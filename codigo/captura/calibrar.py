@@ -24,6 +24,7 @@ from codigo.captura.extrator import COLUNAS, extrair, ler_pcap
 
 LIMITE_PEDACO = 10_000_000  # tcpdump -C 10: a unidade é 1.000.000 de bytes
 TOLERANCIA = 1e-9
+TOLERANCIA_ABSOLUTA = 1e-12
 _CABECALHO_ARQUIVO, _CABECALHO_PACOTE = 24, 16
 
 
@@ -63,7 +64,7 @@ def valores_iguais(a, b):
         return math.isnan(a) and math.isnan(b)
     if math.isinf(a) or math.isinf(b):
         return a == b
-    return math.isclose(a, b, rel_tol=TOLERANCIA, abs_tol=1e-12)
+    return math.isclose(a, b, rel_tol=TOLERANCIA, abs_tol=TOLERANCIA_ABSOLUTA)
 
 
 def colunas_divergentes(minha, oficial):
@@ -80,21 +81,42 @@ def _linhas_iguais(bloco, trecho):
     return sum(1 for minha, dele in zip(bloco, trecho) if _linha_igual(minha, dele))
 
 
+def _celulas_iguais(bloco, trecho):
+    """Quantos valores do bloco batem com o trecho do oficial, posição a posição."""
+    return sum(
+        valores_iguais(float(minha[c]), dele[c]) for minha, dele in zip(bloco, trecho) for c in COLUNAS
+    )
+
+
 def encaixar(blocos, oficial):
     """Põe os blocos na ordem em que aparecem no CSV oficial e devolve as linhas em sequência.
 
     A cada passo escolhe, entre os blocos ainda não usados, o que tem mais linhas iguais ao
-    trecho seguinte do oficial. Assim uma linha divergente, mesmo a primeira do bloco, não
-    impede o encaixe.
+    trecho seguinte do oficial. Se menos da metade das linhas do melhor candidato bate, há um
+    erro que atinge quase todas as linhas, e a escolha passa a ser feita pela quantidade de
+    valores iguais. Assim uma coluna errada aparece sozinha no relatório.
     """
     livres = list(range(len(blocos)))
     alinhadas = []
     while livres:
         trecho = oficial[len(alinhadas):]
-        escolhido = max(livres, key=lambda i: (_linhas_iguais(blocos[i], trecho), -i))
+        pontos = {i: _linhas_iguais(blocos[i], trecho) for i in livres}
+        escolhido = max(livres, key=lambda i: (pontos[i], -i))
+        if 2 * pontos[escolhido] < len(blocos[escolhido]):
+            escolhido = max(livres, key=lambda i: (_celulas_iguais(blocos[i], trecho), -i))
         livres.remove(escolhido)
         alinhadas.extend(blocos[escolhido])
     return alinhadas
+
+
+def janela_do_oficial(oficial):
+    """Tamanho da janela usado num CSV oficial: o maior valor da coluna Number.
+
+    Só a última janela de cada pedaço fica incompleta, então o maior valor é o da janela cheia.
+    """
+    if not oficial:
+        return 10
+    return int(max(registro["Number"] for registro in oficial))
 
 
 _NOMES_DE_TIPO = {0x0800: "IPv4", 0x0806: "ARP", 0x86DD: "IPv6", 0x9000: "teste de enlace (loopback)"}
@@ -114,6 +136,8 @@ class Resultado:
     linhas_iguais: int = 0
     divergencias: dict = field(default_factory=dict)
     maior_desvio: float = 0.0
+    coluna_do_maior_desvio: str = ""
+    janela: int = 10
 
     @property
     def aprovado(self):
@@ -130,16 +154,19 @@ def _desvio_relativo(a, b):
     return abs(a - b) / max(abs(a), abs(b))
 
 
-def calibrar_pcap(pcap, csv_oficial, limite=LIMITE_PEDACO):
-    """Extrai as features do pcap como os autores fizeram e compara com o CSV oficial."""
-    resultado = Resultado(nome=Path(pcap).stem)
+def calibrar_pcap(pcap, csv_oficial, limite=LIMITE_PEDACO, janela=None):
+    """Extrai as features do pcap como os autores fizeram e compara com o CSV oficial.
+
+    Sem `janela`, usa o tamanho de janela do próprio CSV oficial (10 ou 100, conforme a classe).
+    """
+    oficial = ler_oficial(csv_oficial)
+    resultado = Resultado(nome=Path(pcap).stem, janela=janela or janela_do_oficial(oficial))
     blocos = []
     for pedaco in fatiar(ler_pcap(pcap), limite):
         resultado.pedacos += 1
         resultado.pacotes += len(pedaco)
         resultado.tipos.update(_tipo_ethernet(quadro) for _, quadro in pedaco)
-        blocos.append(list(extrair(pedaco)))
-    oficial = ler_oficial(csv_oficial)
+        blocos.append(list(extrair(pedaco, resultado.janela)))
     alinhadas = encaixar(blocos, oficial)
     resultado.linhas_extraidas = len(alinhadas)
     resultado.linhas_oficiais = len(oficial)
@@ -156,6 +183,7 @@ def calibrar_pcap(pcap, csv_oficial, limite=LIMITE_PEDACO):
             desvio = _desvio_relativo(float(minha[coluna]), dele[coluna])
             if coluna not in ruins and desvio > resultado.maior_desvio:
                 resultado.maior_desvio = desvio
+                resultado.coluna_do_maior_desvio = coluna
     return resultado
 
 
@@ -174,6 +202,8 @@ def _nome_do_tipo(tipo):
 def montar_relatorio(resultados):
     """Monta o relatório de calibração em Markdown."""
     hoje = datetime.datetime.now(tz=datetime.UTC).astimezone().strftime("%d/%m/%Y")
+    quantos = "1 pcap" if len(resultados) == 1 else f"{len(resultados)} pcaps"
+    conferidos = ", ".join(f"`{r.nome}` (janela de {r.janela})" for r in resultados)
     linhas = [
         "# Calibração do extrator",
         "",
@@ -182,27 +212,46 @@ def montar_relatorio(resultados):
             f"{platform.python_version()} e dpkt {dpkt.__version__}."
         ),
         "",
-        "O extrator (`codigo/captura/extrator.py`) foi executado sobre os pcaps do CICIoT2023 e a",
-        "saída foi comparada, coluna a coluna, com os CSVs publicados pelos autores do dataset.",
+        "O extrator (`codigo/captura/extrator.py`) foi executado sobre pcaps do CICIoT2023 e a saída",
+        "foi comparada, coluna a coluna, com os CSVs publicados pelos autores do dataset.",
+        "",
+        "## Escopo",
+        "",
+        (
+            f"A comparação cobre {quantos}, os que estão disponíveis localmente com o CSV oficial "
+            f"correspondente: {conferidos}."
+        ),
+        "",
+        "O CICIoT2023 tem 34 classes. Os autores agregam os quadros em janelas de 10 em 15 delas e em",
+        "janelas de 100 nas 19 classes de DDoS, DoS e Mirai. O resultado abaixo vale para os pcaps e",
+        "para os tamanhos de janela listados. As classes sem pcap disponível não foram conferidas.",
         "",
         "## Resultado",
         "",
-        "| pcap | pacotes | quadros IPv4 e ARP | pedaços de 10 MB | linhas extraídas | linhas oficiais | linhas iguais |",
-        "|---|---|---|---|---|---|---|",
+        (
+            "| pcap | janela | pacotes | quadros IPv4 e ARP | pedaços de 10 MB | linhas extraídas "
+            "| linhas oficiais | linhas iguais |"
+        ),
+        "|---|---|---|---|---|---|---|---|",
     ]
     for r in resultados:
         linhas.append(
-            f"| `{r.nome}` | {_milhar(r.pacotes)} | {_milhar(r.mantidos)} | {r.pedacos} | "
+            f"| `{r.nome}` | {r.janela} | {_milhar(r.pacotes)} | {_milhar(r.mantidos)} | {r.pedacos} | "
             f"{_milhar(r.linhas_extraidas)} | {_milhar(r.linhas_oficiais)} | {_milhar(r.linhas_iguais)} |"
         )
-    maior = max((r.maior_desvio for r in resultados), default=0.0)
+    tolerancia = (
+        f"As 39 colunas são comparadas com tolerância relativa de {TOLERANCIA:g} e absoluta de "
+        f"{TOLERANCIA_ABSOLUTA:g}."
+    )
+    pior = max(resultados, key=lambda r: r.maior_desvio, default=None)
+    if pior is not None and pior.maior_desvio > 0:
+        tolerancia += (
+            f" Maior desvio relativo observado entre valores considerados iguais: {pior.maior_desvio:.2e}, "
+            f"na coluna `{pior.coluna_do_maior_desvio}` de `{pior.nome}`."
+        )
     linhas += [
         "",
-        (
-            f"Tolerância usada nos valores decimais: {TOLERANCIA:g} (relativa). Maior desvio relativo "
-            f"observado entre valores considerados iguais: {maior:.2e}. Valores inteiros são comparados "
-            "sem tolerância."
-        ),
+        tolerancia,
         "",
         "## Quadros fora do filtro",
         "",
@@ -220,27 +269,48 @@ def montar_relatorio(resultados):
             linhas.append(f"| `{r.nome}` | {nome} | {_milhar(quantidade)} |")
     linhas += ["", "## Divergências", ""]
     if all(not r.divergencias and r.aprovado for r in resultados):
-        linhas.append("Nenhuma divergência: todas as linhas dos CSVs oficiais foram reproduzidas nas 39 colunas.")
+        linhas.append(
+            "Nenhuma divergência: todas as linhas dos CSVs oficiais conferidos foram reproduzidas nas "
+            "39 colunas."
+        )
     else:
-        linhas += ["| pcap | coluna | linhas divergentes | exemplo (linha do CSV oficial) | extraído | oficial |", "|---|---|---|---|---|---|"]
+        linhas += [
+            "| pcap | coluna | linhas divergentes | exemplo (linha do CSV oficial) | extraído | oficial |",
+            "|---|---|---|---|---|---|",
+        ]
         for r in resultados:
             for coluna, (quantas, (numero, meu, dele)) in r.divergencias.items():
-                linhas.append(f"| `{r.nome}` | `{coluna}` | {_milhar(quantas)} | {numero} | {meu!r} | {dele!r} |")
+                linhas.append(
+                    f"| `{r.nome}` | `{coluna}` | {_milhar(quantas)} | {numero} | {meu!r} | {dele!r} |"
+                )
             if r.linhas_extraidas != r.linhas_oficiais:
                 linhas.append(
-                    f"| `{r.nome}` | (quantidade de linhas) | | | {_milhar(r.linhas_extraidas)} | {_milhar(r.linhas_oficiais)} |"
+                    f"| `{r.nome}` | (quantidade de linhas) | | | {_milhar(r.linhas_extraidas)} | "
+                    f"{_milhar(r.linhas_oficiais)} |"
                 )
+        incertos = [f"`{r.nome}`" for r in resultados if 2 * r.linhas_iguais < r.linhas_oficiais]
+        if incertos:
+            linhas += [
+                "",
+                (
+                    f"Em {', '.join(incertos)}, menos da metade das linhas é igual. O encaixe dos blocos "
+                    "foi feito pela quantidade de valores iguais e pode estar errado, então a contagem "
+                    "por coluna deve ser lida com cautela."
+                ),
+            ]
     linhas += [
         "",
         "## Como a comparação é feita",
         "",
-        "1. O pcap é dividido em pedaços como faz o `tcpdump -C 10`: um pedaço novo começa quando o",
+        "1. O tamanho da janela de cada pcap é lido do CSV oficial: é o maior valor da coluna",
+        "   `Number`, o de uma janela completa.",
+        "2. O pcap é dividido em pedaços como faz o `tcpdump -C 10`: um pedaço novo começa quando o",
         "   atual já passou de 10.000.000 de bytes.",
-        "2. Cada pedaço é processado por um extrator novo, de modo que a janela de 10 quadros e o",
-        "   intervalo entre quadros recomeçam a cada pedaço, como no processamento original.",
-        "3. Os autores juntam os CSVs dos pedaços sem ordem definida. Por isso os blocos de linhas são",
+        "3. Cada pedaço é processado por um extrator novo, de modo que a janela e o intervalo entre",
+        "   quadros recomeçam a cada pedaço, como no processamento original.",
+        "4. Os autores juntam os CSVs dos pedaços sem ordem definida. Por isso os blocos de linhas são",
         "   encaixados no CSV oficial na ordem em que ele os traz, cada bloco usado uma vez.",
-        "4. As 39 colunas são comparadas linha a linha. Campo vazio só é igual a campo vazio, e",
+        "5. As 39 colunas são comparadas linha a linha. Campo vazio só é igual a campo vazio, e",
         "   infinito só é igual a infinito.",
         "",
         "## Particularidades do código dos autores reproduzidas pelo extrator",
@@ -251,24 +321,49 @@ def montar_relatorio(resultados):
         "- A coluna `LLC` vale 1 em todo quadro IPv4, igual à coluna `IPv`.",
         "- A coluna `SMTP` só é marcada em TCP; tráfego UDP na porta 25 não a ativa.",
         "- Quadros IPv6 não geram linha.",
-        "- A última janela de cada pedaço pode ter menos de 10 quadros. Com um único quadro, `Std` e",
+        "- A última janela de cada pedaço pode ficar incompleta. Com um único quadro, `Std` e",
         "  `Variance` ficam vazios e `Rate` é infinito.",
+        "",
+        "## Diferenças conhecidas em relação ao código dos autores",
+        "",
+        "- Quadro IPv4 com cabeçalho ilegível é ignorado pelo extrator. No código dos autores ele",
+        "  interrompe o processamento do pedaço inteiro. Como a quantidade de linhas bate, isso não",
+        "  ocorreu nos pcaps conferidos.",
+        "- O código dos autores trata o instante 0 como ausência de quadro anterior. O extrator só",
+        "  considera ausente o quadro anterior no início da leitura. A diferença só aparece em",
+        "  capturas com instante exatamente igual a zero.",
+        "- O extrator lê capturas com fração de tempo em nanossegundos. Não há referência dos autores",
+        "  para esse formato.",
         "",
     ]
     return "\n".join(linhas)
 
 
+def _csv_oficial(pasta, pcap):
+    """CSV oficial de um pcap: NOME.pcap.csv em alguma subpasta do dataset."""
+    candidatos = sorted(pasta.glob(f"*/{pcap.name}.csv"))
+    return candidatos[0] if candidatos else None
+
+
 def main(argv=None):
     analisador = argparse.ArgumentParser(description="Compara o extrator com os CSVs oficiais do CICIoT2023.")
-    analisador.add_argument("--dataset", default="CICIoT2023", help="pasta com NOME.pcap e NOME/NOME.pcap.csv")
+    analisador.add_argument(
+        "--dataset", default="CICIoT2023", help="pasta com NOME.pcap e, em alguma subpasta, NOME.pcap.csv"
+    )
     analisador.add_argument("--saida", default="experimentos/resultados/calibracao.md")
     argumentos = analisador.parse_args(argv)
     pasta = Path(argumentos.dataset)
-    pares = [(p, pasta / p.stem / (p.name + ".csv")) for p in sorted(pasta.glob("*.pcap"))]
-    pares = [(p, oficial) for p, oficial in pares if oficial.exists()]
+    pares, sem_csv = [], []
+    for caminho_pcap in sorted(pasta.glob("*.pcap")):
+        oficial = _csv_oficial(pasta, caminho_pcap)
+        if oficial is None:
+            sem_csv.append(caminho_pcap.name)
+        else:
+            pares.append((caminho_pcap, oficial))
     if not pares:
         print(
-            f"erro: nenhum pcap com CSV oficial em {pasta}/ (esperado: NOME.pcap e NOME/NOME.pcap.csv)",
+            f"erro: nenhum pcap com CSV oficial em {pasta}/ "
+            "(esperado: NOME.pcap e, em alguma subpasta, NOME.pcap.csv)",
             file=sys.stderr,
         )
         return 2
@@ -281,9 +376,14 @@ def main(argv=None):
     destino.write_text(montar_relatorio(resultados), encoding="utf-8")
     for r in resultados:
         situacao = "igual ao oficial" if r.aprovado else "com divergências"
-        print(f"{r.nome}: {r.linhas_iguais} de {r.linhas_oficiais} linhas iguais ({situacao})", file=sys.stderr)
+        print(
+            f"{r.nome}: {r.linhas_iguais} de {r.linhas_oficiais} linhas iguais, janela de {r.janela} ({situacao})",
+            file=sys.stderr,
+        )
+    for nome in sem_csv:
+        print(f"aviso: {nome} não tem CSV oficial em {pasta}/ e ficou fora da calibração", file=sys.stderr)
     print(f"relatório em {destino}", file=sys.stderr)
-    return 0 if all(r.aprovado for r in resultados) else 1
+    return 0 if all(r.aprovado for r in resultados) and not sem_csv else 1
 
 
 if __name__ == "__main__":

@@ -228,10 +228,11 @@ def test_janela_invalida():
 
 PCAP_LE = b"\xd4\xc3\xb2\xa1"
 PCAP_BE = b"\xa1\xb2\xc3\xd4"
+PCAP_NANO = b"\x4d\x3c\xb2\xa1"
 
 
 def pcap(registros, magico=PCAP_LE, rede=1):
-    ordem = "<" if magico == PCAP_LE else ">"
+    ordem = ">" if magico[:1] == b"\xa1" else "<"
     corpo = magico + struct.pack(ordem + "HHiIII", 2, 4, 0, 0, 262144, rede)
     for segundos, micros, quadro in registros:
         corpo += struct.pack(ordem + "IIII", segundos, micros, len(quadro), len(quadro)) + quadro
@@ -267,7 +268,8 @@ def test_ler_pcap_big_endian_e_leituras_curtas():
 def test_ler_pcap_de_captura_interrompida(corte):
     a, b = quadro_tcp(), quadro_udp()
     dados = pcap([(1, 0, a), (2, 0, b)])
-    assert list(ler_pcap(io.BytesIO(dados[:-corte]))) == [(1.0, a)]
+    with pytest.warns(UserWarning, match="incompleto"):
+        assert list(ler_pcap(io.BytesIO(dados[:-corte]))) == [(1.0, a)]
 
 
 @pytest.mark.parametrize("dados,trecho", [
@@ -314,3 +316,78 @@ def test_main_explica_erros_de_entrada(tmp_path, capsys):
     assert "pcapng" in capsys.readouterr().err
     assert main([str(tmp_path / "nao_existe.pcap"), str(tmp_path / "saida.csv")]) == 1
     assert main([]) == 2
+
+
+def test_contagens_de_fin_e_rst_somam_as_flags_certas():
+    medidas = [
+        medir_quadro(0.0, quadro_tcp(flags=0x01)),
+        medir_quadro(1.0, quadro_tcp(flags=0x01), 0.0),
+        medir_quadro(2.0, quadro_tcp(flags=0x04), 1.0),
+    ]
+    linha = agregar(medidas)
+    assert (linha["fin_count"], linha["rst_count"], linha["syn_count"], linha["ack_count"]) == (2, 1, 0, 0)
+
+
+def test_dns_vale_para_a_porta_de_origem_e_so_em_udp():
+    assert medir_quadro(0.0, quadro_udp(origem=53, destino=40000))["DNS"] == 1
+    assert medir_quadro(0.0, quadro_tcp(origem=40000, destino=53))["DNS"] == 0
+
+
+def test_tamanho_inclui_o_preenchimento_ethernet():
+    quadro = quadro_tcp() + b"\x00" * 6  # 54 bytes de cabeçalhos e 6 de preenchimento
+    m = medir_quadro(0.0, quadro)
+    assert m["Tot size"] == 60
+    assert m["TCP"] == 1
+
+
+def test_rate_usa_o_intervalo_entre_o_menor_e_o_maior_instante():
+    medidas = [
+        medir_quadro(10.0, quadro_tcp()),
+        medir_quadro(9.0, quadro_tcp(), 10.0),
+        medir_quadro(9.5, quadro_tcp(), 9.0),
+    ]
+    assert agregar(medidas)["Rate"] == 3.0
+
+
+def test_ler_pcap_com_fracao_em_nanossegundos():
+    a = quadro_tcp()
+    assert list(ler_pcap(io.BytesIO(pcap([(7, 500_000_000, a)], magico=PCAP_NANO)))) == [(7.5, a)]
+
+
+def test_ler_pcap_usa_o_tamanho_capturado_e_nao_o_original():
+    a, b = quadro_tcp(), quadro_udp()
+    dados = pcap([])
+    dados += struct.pack("<IIII", 1, 0, len(a), len(a) + 100) + a
+    dados += struct.pack("<IIII", 2, 0, len(b), len(b)) + b
+    assert list(ler_pcap(io.BytesIO(dados))) == [(1.0, a), (2.0, b)]
+
+
+def test_ler_pcap_recusa_registro_com_tamanho_impossivel():
+    dados = pcap([(1, 0, quadro_tcp())]) + struct.pack("<IIII", 2, 0, 0x7FFFFFFF, 0x7FFFFFFF) + b"\x00" * 50
+    with pytest.raises(ValueError, match="corrompido"):
+        list(ler_pcap(io.BytesIO(dados)))
+
+
+def test_main_le_da_entrada_padrao(tmp_path, monkeypatch):
+    dados = pcap([(i, 0, quadro_tcp()) for i in range(10)])
+    monkeypatch.setattr("sys.stdin", type("Entrada", (), {"buffer": io.BytesIO(dados)})())
+    saida = tmp_path / "saida.csv"
+    assert main(["-", str(saida)]) == 0
+    assert len(saida.read_text().splitlines()) == 2
+
+
+def test_main_aceita_o_tamanho_da_janela(tmp_path):
+    entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
+    entrada.write_bytes(pcap([(i, 0, quadro_tcp()) for i in range(10)]))
+    assert main(["--janela", "5", str(entrada), str(saida)]) == 0
+    linhas = saida.read_text().splitlines()
+    assert len(linhas) == 3
+    assert linhas[1].split(",")[COLUNAS.index("Number")] == "5"
+
+
+def test_main_avisa_captura_cortada_e_termina_bem(tmp_path, capsys):
+    entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
+    entrada.write_bytes(pcap([(i, 0, quadro_tcp()) for i in range(12)])[:-5])
+    assert main([str(entrada), str(saida)]) == 0
+    assert "aviso" in capsys.readouterr().err
+    assert len(saida.read_text().splitlines()) == 3

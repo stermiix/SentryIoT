@@ -7,11 +7,14 @@ os mesmos números com que foi treinado.
 
 Uso, a partir da raiz do repositório:
     python -m codigo.captura.extrator entrada.pcap saida.csv
+    python -m codigo.captura.extrator --janela 100 entrada.pcap saida.csv
 """
+import argparse
 import csv
 import math
 import struct
 import sys
+import warnings
 from collections import Counter
 
 import dpkt
@@ -58,8 +61,8 @@ def medir_quadro(ts, quadro, ts_anterior=None):
     Devolve um dicionário com as colunas de MEDIAS, mais "Protocol Type" e "ts". Devolve None
     se o quadro não entra na conta: não é IPv4 nem ARP, ou não pôde ser decodificado.
     """
-    # Quadro que o dpkt não decodifica é descartado, qualquer que seja o erro: um quadro
-    # malformado não pode derrubar a extração. O código dos autores faz o mesmo.
+    # Quadro que o dpkt não decodifica como Ethernet é descartado, qualquer que seja o erro:
+    # um quadro malformado não pode derrubar a extração. O código dos autores também o descarta.
     try:
         eth = dpkt.ethernet.Ethernet(quadro)
     except Exception:  # noqa: BLE001
@@ -68,6 +71,8 @@ def medir_quadro(ts, quadro, ts_anterior=None):
     medida["Protocol Type"] = 0
     if eth.type == dpkt.ethernet.ETH_TYPE_IP:
         ip = eth.data
+        # IPv4 com cabeçalho ilegível: o dpkt devolve os bytes crus. Aqui o quadro é ignorado;
+        # no código dos autores ele interrompe o processamento do pedaço inteiro.
         if not isinstance(ip, dpkt.ip.IP):
             return None
         medida["Protocol Type"] = ip.p
@@ -189,6 +194,9 @@ _MAGICOS = {
 }
 _PCAPNG = b"\x0a\x0d\x0d\x0a"
 _ETHERNET = 1
+_AVISO_INCOMPLETO = (
+    "pacote {} incompleto: a captura foi interrompida, e a leitura parou no último pacote inteiro"
+)
 
 
 def _ler_exato(fluxo, n):
@@ -207,7 +215,8 @@ def ler_pcap(origem):
     """Gera (instante, quadro) de um pcap, sem carregar o arquivo inteiro na memória.
 
     `origem` é um caminho ou um fluxo binário já aberto, como a entrada padrão. Se a captura
-    foi interrompida no meio de um pacote, a leitura termina no último pacote completo.
+    foi interrompida no meio de um pacote, a leitura termina no último pacote completo e emite
+    um aviso. Um registro com tamanho maior que o limite da captura indica arquivo corrompido.
     """
     if not hasattr(origem, "read"):
         with open(origem, "rb") as arquivo:
@@ -221,16 +230,27 @@ def ler_pcap(origem):
     if len(cabecalho) < 24 or cabecalho[:4] not in _MAGICOS:
         raise ValueError("a entrada não é um arquivo pcap")
     ordem, divisor = _MAGICOS[cabecalho[:4]]
-    (enlace,) = struct.unpack(ordem + "I", cabecalho[20:24])
+    limite, enlace = struct.unpack(ordem + "II", cabecalho[16:24])
     if enlace != _ETHERNET:
         raise ValueError(f"a captura não é Ethernet (tipo de enlace {enlace}); capture em uma interface Ethernet ou Wi-Fi")
+    numero = 0
     while True:
         registro = _ler_exato(origem, 16)
+        if not registro:
+            return
+        numero += 1
         if len(registro) < 16:
+            warnings.warn(_AVISO_INCOMPLETO.format(numero), stacklevel=2)
             return
         segundos, fracao, capturado, _ = struct.unpack(ordem + "IIII", registro)
+        if limite and capturado > limite:
+            raise ValueError(
+                f"pacote {numero} com tamanho impossível ({capturado} bytes, limite da captura "
+                f"{limite}): arquivo corrompido"
+            )
         quadro = _ler_exato(origem, capturado)
         if len(quadro) < capturado:
+            warnings.warn(_AVISO_INCOMPLETO.format(numero), stacklevel=2)
             return
         yield segundos + fracao / divisor, quadro
 
@@ -253,23 +273,38 @@ def gravar_csv(linhas, destino):
     return total
 
 
+def _mostrar_aviso(mensagem, *_resto, **_opcoes):
+    print(f"aviso: {mensagem}", file=sys.stderr)
+
+
 def main(argv=None):
-    argumentos = sys.argv[1:] if argv is None else argv
-    if len(argumentos) != 2:
-        print(
-            "uso: python -m codigo.captura.extrator entrada.pcap saida.csv\n"
-            "     use - no lugar da entrada para ler da entrada padrão",
-            file=sys.stderr,
-        )
-        return 2
-    entrada = sys.stdin.buffer if argumentos[0] == "-" else argumentos[0]
+    analisador = argparse.ArgumentParser(
+        prog="python -m codigo.captura.extrator",
+        description="Extrai as 39 features do CICIoT2023 de um arquivo pcap.",
+    )
+    analisador.add_argument("entrada", help="arquivo pcap, ou - para ler da entrada padrão")
+    analisador.add_argument("saida", help="arquivo CSV de saída")
+    analisador.add_argument(
+        "--janela",
+        type=int,
+        default=10,
+        help="quadros por linha: 10 (padrão) ou 100, como nas classes de flood do dataset",
+    )
     try:
-        with open(argumentos[1], "w", newline="") as saida:
-            total = gravar_csv(extrair(ler_pcap(entrada)), saida)
-    except (OSError, ValueError) as erro:
-        print(f"erro: {erro}", file=sys.stderr)
-        return 1
-    print(f"{total} linhas gravadas em {argumentos[1]}", file=sys.stderr)
+        argumentos = analisador.parse_args(argv)
+    except SystemExit as encerramento:
+        return encerramento.code
+    entrada = sys.stdin.buffer if argumentos.entrada == "-" else argumentos.entrada
+    with warnings.catch_warnings():
+        warnings.simplefilter("always")
+        warnings.showwarning = _mostrar_aviso
+        try:
+            with open(argumentos.saida, "w", newline="") as saida:
+                total = gravar_csv(extrair(ler_pcap(entrada), argumentos.janela), saida)
+        except (OSError, ValueError) as erro:
+            print(f"erro: {erro}", file=sys.stderr)
+            return 1
+    print(f"{total} linhas gravadas em {argumentos.saida}", file=sys.stderr)
     return 0
 
 

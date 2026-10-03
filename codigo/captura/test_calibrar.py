@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from codigo.captura.calibrar import (
+    LIMITE_PEDACO,
     calibrar_pcap,
     colunas_divergentes,
     encaixar,
@@ -117,7 +118,7 @@ def test_relatorio_e_saida_do_main(tmp_path, capsys):
     # Com o limite real de 10 MB o caso vira um pedaço só, e o CSV em ordem inversa deixa de bater.
     assert main(["--dataset", str(tmp_path), "--saida", str(saida)]) == 1
     texto = saida.read_text(encoding="utf-8")
-    assert "Caso" in texto and "## Divergências" in texto
+    assert "Caso" in texto and "| pcap | coluna |" in texto
 
 
 def test_main_sem_dataset(tmp_path, capsys):
@@ -142,3 +143,66 @@ def test_dictionary_brute_force_reproduz_o_oficial():
     assert (r.pacotes, r.mantidos, r.pedacos) == (133138, 130632, 4)
     assert r.linhas_oficiais == 13064
     assert r.aprovado, r.divergencias
+
+
+def test_tolerancia_da_comparacao():
+    assert valores_iguais(1.0, 1.0 + 1e-10) is True
+    assert valores_iguais(1.0, 1.0 + 1e-8) is False
+
+
+def test_fatiar_conta_os_cabecalhos_do_arquivo_e_de_cada_pacote():
+    quadros = [(float(i), b"\x00" * 22) for i in range(7)]  # cada pacote ocupa 22 + 16 bytes
+    assert [len(p) for p in fatiar(quadros, limite=99)] == [2, 2, 2, 1]
+    assert [len(p) for p in fatiar(quadros, limite=100)] == [3, 3, 1]
+    assert LIMITE_PEDACO == 10_000_000
+
+
+def test_reprovado_quando_sobra_linha_extraida(tmp_path):
+    caminho_pcap, caminho_csv, _, n_linhas = montar_caso(tmp_path)
+    linhas = caminho_csv.read_text().splitlines()
+    caminho_csv.write_text("\n".join(linhas[:-1]) + "\n")
+    r = calibrar_pcap(caminho_pcap, caminho_csv, limite=1000)
+    assert (r.linhas_extraidas, r.linhas_oficiais) == (n_linhas, n_linhas - 1)
+    assert not r.aprovado
+
+
+def test_encaixar_com_uma_coluna_errada_em_todas_as_linhas():
+    a, b, c = [linha(0), linha(1), linha(2)], [linha(3), linha(4)], [linha(5), linha(6)]
+    oficial = [registro | {"IAT": registro["IAT"] * 1000 + 1} for registro in c + b + a]
+    alinhadas = encaixar([a, b, c], oficial)
+    assert alinhadas == c + b + a
+    erradas = {col for minha, dele in zip(alinhadas, oficial) for col in colunas_divergentes(minha, dele)}
+    assert erradas == {"IAT"}
+
+
+def test_calibrar_descobre_a_janela_pelo_csv_oficial(tmp_path):
+    caminho_pcap = tmp_path / "Flood.pcap"
+    caminho_pcap.write_bytes(pcap([(i, 0, quadro_tcp(flags=0x10)) for i in range(250)]))
+    (tmp_path / "Flood").mkdir()
+    caminho_csv = tmp_path / "Flood" / "Flood.pcap.csv"
+    with open(caminho_csv, "w", newline="") as arquivo:
+        gravar_csv(extrair(ler_pcap(caminho_pcap), janela=100), arquivo)
+    r = calibrar_pcap(caminho_pcap, caminho_csv)
+    assert r.janela == 100
+    assert r.aprovado and r.linhas_oficiais == 3
+
+
+def test_main_acha_csv_de_pcap_numerado_e_reclama_do_que_nao_tem_csv(tmp_path, capsys):
+    dados = pcap([(i, 0, quadro_tcp()) for i in range(30)])
+    (tmp_path / "Flood1.pcap").write_bytes(dados)
+    (tmp_path / "Solto.pcap").write_bytes(dados)
+    (tmp_path / "Flood").mkdir()
+    with open(tmp_path / "Flood" / "Flood1.pcap.csv", "w", newline="") as arquivo:
+        gravar_csv(extrair(ler_pcap(tmp_path / "Flood1.pcap")), arquivo)
+    saida = tmp_path / "relatorio.md"
+    assert main(["--dataset", str(tmp_path), "--saida", str(saida)]) == 1
+    assert "Solto.pcap" in capsys.readouterr().err
+    assert "Flood1" in saida.read_text(encoding="utf-8")
+
+
+def test_relatorio_declara_escopo_tolerancia_e_diferencas(tmp_path):
+    caminho_pcap, caminho_csv, _, _ = montar_caso(tmp_path)
+    texto = montar_relatorio([calibrar_pcap(caminho_pcap, caminho_csv, limite=1000)])
+    assert "## Escopo" in texto and "janela de 10" in texto
+    assert "## Diferenças conhecidas" in texto
+    assert "sem tolerância" not in texto
