@@ -8,7 +8,10 @@ os mesmos números com que foi treinado.
 Uso, a partir da raiz do repositório:
     python -m codigo.captura.extrator entrada.pcap saida.csv
 """
+import csv
 import math
+import struct
+import sys
 from collections import Counter
 
 import dpkt
@@ -175,3 +178,100 @@ def extrair(quadros, janela=10):
     linha = extrator.finalizar()
     if linha is not None:
         yield linha
+
+
+# Número mágico do pcap clássico: ordem dos bytes e divisor da fração de segundo.
+_MAGICOS = {
+    b"\xd4\xc3\xb2\xa1": ("<", 1e6),
+    b"\xa1\xb2\xc3\xd4": (">", 1e6),
+    b"\x4d\x3c\xb2\xa1": ("<", 1e9),
+    b"\xa1\xb2\x3c\x4d": (">", 1e9),
+}
+_PCAPNG = b"\x0a\x0d\x0d\x0a"
+_ETHERNET = 1
+
+
+def _ler_exato(fluxo, n):
+    """Lê n bytes de um fluxo que pode entregar menos por chamada. Devolve menos só no fim."""
+    partes = []
+    while n > 0:
+        parte = fluxo.read(n)
+        if not parte:
+            break
+        partes.append(parte)
+        n -= len(parte)
+    return b"".join(partes)
+
+
+def ler_pcap(origem):
+    """Gera (instante, quadro) de um pcap, sem carregar o arquivo inteiro na memória.
+
+    `origem` é um caminho ou um fluxo binário já aberto, como a entrada padrão. Se a captura
+    foi interrompida no meio de um pacote, a leitura termina no último pacote completo.
+    """
+    if not hasattr(origem, "read"):
+        with open(origem, "rb") as arquivo:
+            yield from ler_pcap(arquivo)
+        return
+    cabecalho = _ler_exato(origem, 24)
+    if cabecalho[:4] == _PCAPNG:
+        raise ValueError(
+            "a entrada está em pcapng; converta para pcap com: editcap -F pcap origem.pcapng destino.pcap"
+        )
+    if len(cabecalho) < 24 or cabecalho[:4] not in _MAGICOS:
+        raise ValueError("a entrada não é um arquivo pcap")
+    ordem, divisor = _MAGICOS[cabecalho[:4]]
+    (enlace,) = struct.unpack(ordem + "I", cabecalho[20:24])
+    if enlace != _ETHERNET:
+        raise ValueError(f"a captura não é Ethernet (tipo de enlace {enlace}); capture em uma interface Ethernet ou Wi-Fi")
+    while True:
+        registro = _ler_exato(origem, 16)
+        if len(registro) < 16:
+            return
+        segundos, fracao, capturado, _ = struct.unpack(ordem + "IIII", registro)
+        quadro = _ler_exato(origem, capturado)
+        if len(quadro) < capturado:
+            return
+        yield segundos + fracao / divisor, quadro
+
+
+def _texto(valor):
+    if isinstance(valor, float):
+        return "" if math.isnan(valor) else repr(valor)
+    return str(valor)
+
+
+def gravar_csv(linhas, destino):
+    """Grava as linhas no formato do CSV oficial e devolve quantas gravou."""
+    escritor = csv.writer(destino, lineterminator="\n")
+    escritor.writerow(COLUNAS)
+    total = 0
+    for linha in linhas:
+        escritor.writerow([_texto(linha[coluna]) for coluna in COLUNAS])
+        destino.flush()
+        total += 1
+    return total
+
+
+def main(argv=None):
+    argumentos = sys.argv[1:] if argv is None else argv
+    if len(argumentos) != 2:
+        print(
+            "uso: python -m codigo.captura.extrator entrada.pcap saida.csv\n"
+            "     use - no lugar da entrada para ler da entrada padrão",
+            file=sys.stderr,
+        )
+        return 2
+    entrada = sys.stdin.buffer if argumentos[0] == "-" else argumentos[0]
+    try:
+        with open(argumentos[1], "w", newline="") as saida:
+            total = gravar_csv(extrair(ler_pcap(entrada)), saida)
+    except (OSError, ValueError) as erro:
+        print(f"erro: {erro}", file=sys.stderr)
+        return 1
+    print(f"{total} linhas gravadas em {argumentos[1]}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

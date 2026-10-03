@@ -1,9 +1,19 @@
+import io
 import math
 import struct
 
 import pytest
 
-from codigo.captura.extrator import COLUNAS, Extrator, agregar, extrair, medir_quadro
+from codigo.captura.extrator import (
+    COLUNAS,
+    Extrator,
+    agregar,
+    extrair,
+    gravar_csv,
+    ler_pcap,
+    main,
+    medir_quadro,
+)
 
 CABECALHO_OFICIAL = (
     "Header_Length,Protocol Type,Time_To_Live,Rate,fin_flag_number,syn_flag_number,"
@@ -214,3 +224,93 @@ def test_extrair_sem_quadros_uteis():
 def test_janela_invalida():
     with pytest.raises(ValueError):
         Extrator(janela=0)
+
+
+PCAP_LE = b"\xd4\xc3\xb2\xa1"
+PCAP_BE = b"\xa1\xb2\xc3\xd4"
+
+
+def pcap(registros, magico=PCAP_LE, rede=1):
+    ordem = "<" if magico == PCAP_LE else ">"
+    corpo = magico + struct.pack(ordem + "HHiIII", 2, 4, 0, 0, 262144, rede)
+    for segundos, micros, quadro in registros:
+        corpo += struct.pack(ordem + "IIII", segundos, micros, len(quadro), len(quadro)) + quadro
+    return corpo
+
+
+class FluxoAosPoucos:
+    """Entrega no máximo 7 bytes por leitura, como um pipe pode fazer."""
+
+    def __init__(self, dados):
+        self._fluxo = io.BytesIO(dados)
+
+    def read(self, n):
+        return self._fluxo.read(min(n, 7))
+
+
+def test_ler_pcap_de_fluxo_e_de_arquivo(tmp_path):
+    a, b = quadro_tcp(), quadro_udp()
+    dados = pcap([(1, 500000, a), (2, 0, b)])
+    assert list(ler_pcap(io.BytesIO(dados))) == [(1.5, a), (2.0, b)]
+    caminho = tmp_path / "captura.pcap"
+    caminho.write_bytes(dados)
+    assert list(ler_pcap(caminho)) == [(1.5, a), (2.0, b)]
+
+
+def test_ler_pcap_big_endian_e_leituras_curtas():
+    a = quadro_tcp()
+    assert list(ler_pcap(io.BytesIO(pcap([(3, 250000, a)], magico=PCAP_BE)))) == [(3.25, a)]
+    assert list(ler_pcap(FluxoAosPoucos(pcap([(3, 250000, a)])))) == [(3.25, a)]
+
+
+@pytest.mark.parametrize("corte", [5, 40, 60])
+def test_ler_pcap_de_captura_interrompida(corte):
+    a, b = quadro_tcp(), quadro_udp()
+    dados = pcap([(1, 0, a), (2, 0, b)])
+    assert list(ler_pcap(io.BytesIO(dados[:-corte]))) == [(1.0, a)]
+
+
+@pytest.mark.parametrize("dados,trecho", [
+    (b"\x0a\x0d\x0d\x0a" + b"\x00" * 28, "pcapng"),
+    (b"", "pcap"),
+    (pcap([], rede=113), "Ethernet"),
+])
+def test_ler_pcap_recusa_o_que_nao_sabe_ler(dados, trecho):
+    with pytest.raises(ValueError, match=trecho):
+        list(ler_pcap(io.BytesIO(dados)))
+
+
+def test_gravar_csv_segue_o_formato_oficial():
+    quadros = [(0.0, quadro_tcp()), (0.5, quadro_tcp()), (1.0, quadro_tcp())]
+    saida = io.StringIO()
+    assert gravar_csv(extrair(quadros, janela=2), saida) == 2
+    cabecalho, completa, parcial = saida.getvalue().splitlines()
+    assert cabecalho == CABECALHO_OFICIAL
+    assert completa.split(",")[COLUNAS.index("Number")] == "2"
+    campos = parcial.split(",")
+    assert campos[COLUNAS.index("Std")] == "" and campos[COLUNAS.index("Variance")] == ""
+    assert campos[COLUNAS.index("Rate")] == "inf"
+
+
+def test_main_converte_pcap_em_csv(tmp_path, capsys):
+    entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
+    entrada.write_bytes(pcap([(i, 0, quadro_tcp()) for i in range(20)]))
+    assert main([str(entrada), str(saida)]) == 0
+    assert len(saida.read_text().splitlines()) == 3
+    assert "2 linhas" in capsys.readouterr().err
+
+
+def test_main_com_pcap_sem_quadros_uteis_grava_so_o_cabecalho(tmp_path):
+    entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
+    entrada.write_bytes(pcap([(1, 0, QUADRO_IPV6)]))
+    assert main([str(entrada), str(saida)]) == 0
+    assert saida.read_text().splitlines() == [CABECALHO_OFICIAL]
+
+
+def test_main_explica_erros_de_entrada(tmp_path, capsys):
+    ruim = tmp_path / "captura.pcapng"
+    ruim.write_bytes(b"\x0a\x0d\x0d\x0a" + b"\x00" * 28)
+    assert main([str(ruim), str(tmp_path / "saida.csv")]) == 1
+    assert "pcapng" in capsys.readouterr().err
+    assert main([str(tmp_path / "nao_existe.pcap"), str(tmp_path / "saida.csv")]) == 1
+    assert main([]) == 2
