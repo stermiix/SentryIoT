@@ -1,0 +1,23 @@
+# Atualizacoes automaticas de dependencias: um lote por semana, poucos PRs abertos.
+# O prefixo deixa o titulo do PR e do commit no padrao do repositorio; o resto
+# da mensagem ("bump X from A to B") e gerado pelo Dependabot e nao se traduz.
+version: 2
+updates:
+  # Bibliotecas Python do requirements.txt (passa a valer quando ele existir).
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "Atualiza dependencia"
+
+  # Actions usadas nos workflows (fixadas por SHA; o Dependabot atualiza o SHA
+  # e o comentario com a versao).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "Atualiza action"
