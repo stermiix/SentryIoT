@@ -26,7 +26,7 @@ Já está no `.gitignore`.
 TCC/CICIoT2023/
 ├── MERGED_CSV/                  <- O DATASET DE TREINO (63 arquivos, 8,7 GB)
 ├── <34 pastas, uma por ataque>/ <- CSVs por ataque, sem rótulo (usados na calibração)
-├── DictionaryBruteForce.pcap    <- 38 MB — o pcap da calibração
+├── DictionaryBruteForce.pcap    <- 39 MB, um dos pcaps da calibração
 ├── Recon-PortScan.pcap          <- 192 MB
 ├── pcap2csv/                    <- o extrator DOS AUTORES (código de referência)
 ├── example.ipynb                <- notebook de ML dos autores (ler as ressalvas abaixo)
@@ -38,11 +38,12 @@ TCC/CICIoT2023/
 
 ## O dataset de treino: `MERGED_CSV/`
 
-**É este que se usa para treinar.** 63 arquivos, ~44,5 milhões de linhas no total, 8,7 GB.
+**É este que se usa para treinar.** 63 arquivos, cerca de 45,0 milhões de linhas no total, 8,7 GB.
 
 - **40 colunas: as 39 features + `Label`** (com L maiúsculo).
-- As 39 features são **idênticas** às dos CSVs por ataque e às que o `pcap2csv` produz —
-  conferido coluna por coluna. É isso que garante que treino e operação usem os mesmos números.
+- As 39 features são **idênticas** às dos CSVs por ataque e às que o `pcap2csv` produz,
+  conferido coluna por coluna. É a base para treino e operação usarem os mesmos números, com a
+  ressalva do tamanho da janela (ver "Janela de 10 ou de 100 pacotes").
 - Já vem mesclado entre ataques e embaralhado: cada arquivo contém linhas de todas as 34 classes.
 
 **Por que 63 arquivos e não um só:** é saída do PySpark (cada trabalhador grava a sua parte), e
@@ -80,10 +81,12 @@ direto não casa com nada e zera tudo em silêncio. **Normalizar antes.**
 
 ## Decisões já tomadas
 
-**Usamos as 39 features do `MERGED_CSV`.** Treino e operação usam exatamente o mesmo conjunto de
-números, e o extrator consegue reproduzi-los ao vivo. (Havia uma versão de 46 features; as 7
-extras não saem do código publicado pelos autores — as linhas que as calculariam estão comentadas
-no `Feature_extraction.py`, linhas 132 e 171. Por isso ela foi descartada.)
+**Usamos as 39 features do `MERGED_CSV`.** Treino e operação partem do mesmo conjunto de colunas,
+e o extrator reproduz os valores oficiais nas classes já calibradas, que usam janela de 10. A
+leitura é de arquivo pcap; a captura ao vivo ainda não foi entregue. (Havia uma versão de 46
+features; as 7 extras não saem do código publicado pelos autores, porque as linhas que as
+calculariam estão comentadas no `Feature_extraction.py`, linhas 132 e 171. Por isso ela foi
+descartada.)
 
 **Classificamos em 8 categorias, não em 34 variantes.** O F1 é bem melhor, e os agentes não
 precisam da variante exata — a mitigação de um `DDoS-ICMP_Flood` e de um `DDoS-UDP_Flood` é a
@@ -152,7 +155,8 @@ tipos de quadro ficam de fora. A soma da coluna `Number` do CSV oficial é igual
 quadros IPv4 e ARP nos dois pcaps.
 
 Os dois pcaps disponíveis são de classes com janela de 10. A janela de 100 ainda não foi
-calibrada, porque não temos pcap de nenhuma classe de flood.
+calibrada, porque não temos pcap de nenhuma classe de flood. O calibrador lê o tamanho da janela
+do próprio CSV oficial, então basta acrescentar o pcap à pasta do dataset.
 
 ---
 
@@ -190,7 +194,8 @@ Saídas em avaliação, a decidir antes do treino:
    com dez vezes menos linhas.
 3. Manter como está e declarar a limitação no artigo.
 
-O extrator aceita qualquer tamanho de janela (`Extrator(janela=100)`).
+O extrator aceita qualquer tamanho de janela: `--janela 100` na linha de comando ou
+`Extrator(janela=100)` no código.
 
 Duas outras diferenças entre o artigo do dataset e os arquivos publicados, para não citar errado:
 
@@ -225,7 +230,7 @@ CICIoT2023/
 ├── MERGED_CSV/                      63 arquivos, 8,7 GB — O DATASET DE TREINO
 │   └── Merged01.csv … Merged63.csv  39 features + Label, embaralhado
 │
-├── DictionaryBruteForce.pcap        38 MB  — pcap da calibração (use este)
+├── DictionaryBruteForce.pcap        39 MB, pcap da calibração
 ├── Recon-PortScan.pcap              192 MB — segundo pcap, para conferência
 │
 ├── <34 pastas por ataque>/          CSVs de 39 features SEM rótulo.
@@ -234,7 +239,7 @@ CICIoT2023/
 │   ├── DDoS-ICMP_Flood/               do nosso extrator.
 │   └── …
 │
-├── pcap2csv/                        O EXTRATOR DOS AUTORES — base do nosso
+├── pcap2csv/                        O EXTRATOR DOS AUTORES, usado como referência
 │   ├── Feature_extraction.py          27 KB, o principal. n_rows = 10 na linha 475
 │   ├── Generating_dataset.py          orquestra: fatia com tcpdump e paraleliza
 │   ├── Communication_features.py      features de Wi-Fi e Zigbee
