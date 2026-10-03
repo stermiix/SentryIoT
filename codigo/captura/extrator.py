@@ -11,7 +11,9 @@ Uso, a partir da raiz do repositório:
 """
 import argparse
 import csv
+import itertools
 import math
+import os
 import struct
 import sys
 import warnings
@@ -49,6 +51,13 @@ COLUNAS = (
     *INDICADORES,
     "Tot sum", "Min", "Max", "AVG", "Std", "Tot size", "IAT", "Number", "Variance",
 )
+# A medição só usa cabeçalhos, então basta decodificar o começo do quadro. Em alguns protocolos
+# (SCTP, por exemplo) o dpkt gasta memória e tempo que crescem com o quadrado do tamanho do quadro.
+PREFIXO_DECODIFICADO = 1600
+JANELA_MAXIMA = 10_000
+# Maior registro aceito num pcap: é o limite de captura mais alto do tcpdump e do Wireshark.
+MAIOR_REGISTRO = 262_144
+
 # Colunas que a janela resume pela média dos quadros.
 MEDIAS = (
     "Header_Length", "Time_To_Live", *(nome for nome, _ in FLAGS), *INDICADORES, "Tot size", "IAT",
@@ -64,7 +73,7 @@ def medir_quadro(ts, quadro, ts_anterior=None):
     # Quadro que o dpkt não decodifica como Ethernet é descartado, qualquer que seja o erro:
     # um quadro malformado não pode derrubar a extração. O código dos autores também o descarta.
     try:
-        eth = dpkt.ethernet.Ethernet(quadro)
+        eth = dpkt.ethernet.Ethernet(quadro[:PREFIXO_DECODIFICADO])
     except Exception:  # noqa: BLE001
         return None
     medida = dict.fromkeys(MEDIAS, 0)
@@ -153,6 +162,9 @@ class Extrator:
 
     def alimentar(self, ts, quadro):
         """Entrega um quadro. Devolve a linha da janela se ele a completou, senão None."""
+        ts = float(ts)
+        if not math.isfinite(ts):
+            raise ValueError("o instante do quadro precisa ser um número finito")
         medida = medir_quadro(ts, quadro, self._ts_anterior)
         if medida is None:
             self.ignorados += 1
@@ -216,7 +228,7 @@ def ler_pcap(origem):
 
     `origem` é um caminho ou um fluxo binário já aberto, como a entrada padrão. Se a captura
     foi interrompida no meio de um pacote, a leitura termina no último pacote completo e emite
-    um aviso. Um registro com tamanho maior que o limite da captura indica arquivo corrompido.
+    um aviso. Um registro maior que o limite da captura indica arquivo corrompido e é recusado.
     """
     if not hasattr(origem, "read"):
         with open(origem, "rb") as arquivo:
@@ -231,6 +243,7 @@ def ler_pcap(origem):
         raise ValueError("a entrada não é um arquivo pcap")
     ordem, divisor = _MAGICOS[cabecalho[:4]]
     limite, enlace = struct.unpack(ordem + "II", cabecalho[16:24])
+    limite = min(limite or MAIOR_REGISTRO, MAIOR_REGISTRO)
     if enlace != _ETHERNET:
         raise ValueError(f"a captura não é Ethernet (tipo de enlace {enlace}); capture em uma interface Ethernet ou Wi-Fi")
     numero = 0
@@ -243,10 +256,10 @@ def ler_pcap(origem):
             warnings.warn(_AVISO_INCOMPLETO.format(numero), stacklevel=2)
             return
         segundos, fracao, capturado, _ = struct.unpack(ordem + "IIII", registro)
-        if limite and capturado > limite:
+        if capturado > limite:
             raise ValueError(
-                f"pacote {numero} com tamanho impossível ({capturado} bytes, limite da captura "
-                f"{limite}): arquivo corrompido"
+                f"pacote {numero} com tamanho impossível ({capturado} bytes, limite de {limite}): "
+                "arquivo corrompido"
             )
         quadro = _ler_exato(origem, capturado)
         if len(quadro) < capturado:
@@ -277,6 +290,20 @@ def _mostrar_aviso(mensagem, *_resto, **_opcoes):
     print(f"aviso: {mensagem}", file=sys.stderr)
 
 
+def _janela(texto):
+    try:
+        valor = int(texto)
+    except ValueError:
+        raise argparse.ArgumentTypeError("a janela precisa ser um número inteiro") from None
+    if not 1 <= valor <= JANELA_MAXIMA:
+        raise argparse.ArgumentTypeError(f"a janela precisa estar entre 1 e {JANELA_MAXIMA}")
+    return valor
+
+
+def _mesmo_arquivo(entrada, saida):
+    return entrada != "-" and os.path.exists(saida) and os.path.samefile(entrada, saida)
+
+
 def main(argv=None):
     analisador = argparse.ArgumentParser(
         prog="python -m codigo.captura.extrator",
@@ -286,7 +313,7 @@ def main(argv=None):
     analisador.add_argument("saida", help="arquivo CSV de saída")
     analisador.add_argument(
         "--janela",
-        type=int,
+        type=_janela,
         default=10,
         help="quadros por linha: 10 (padrão) ou 100, como nas classes de flood do dataset",
     )
@@ -294,16 +321,26 @@ def main(argv=None):
         argumentos = analisador.parse_args(argv)
     except SystemExit as encerramento:
         return encerramento.code
-    entrada = sys.stdin.buffer if argumentos.entrada == "-" else argumentos.entrada
     with warnings.catch_warnings():
         warnings.simplefilter("always")
         warnings.showwarning = _mostrar_aviso
         try:
+            if _mesmo_arquivo(argumentos.entrada, argumentos.saida):
+                raise ValueError("a entrada e a saída são o mesmo arquivo")
+            entrada = sys.stdin.buffer if argumentos.entrada == "-" else argumentos.entrada
+            # Lê o primeiro quadro antes de abrir a saída: se a entrada não existe ou não é um
+            # pcap, o arquivo de saída não chega a ser criado nem sobrescrito.
+            quadros = ler_pcap(entrada)
+            primeiro = list(itertools.islice(quadros, 1))
             with open(argumentos.saida, "w", newline="") as saida:
-                total = gravar_csv(extrair(ler_pcap(entrada), argumentos.janela), saida)
+                linhas = extrair(itertools.chain(primeiro, quadros), argumentos.janela)
+                total = gravar_csv(linhas, saida)
         except (OSError, ValueError) as erro:
             print(f"erro: {erro}", file=sys.stderr)
             return 1
+        except KeyboardInterrupt:
+            print("interrompido: as linhas já gravadas ficam no arquivo de saída", file=sys.stderr)
+            return 130
     print(f"{total} linhas gravadas em {argumentos.saida}", file=sys.stderr)
     return 0
 

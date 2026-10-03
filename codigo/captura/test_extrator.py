@@ -1,6 +1,7 @@
 import io
 import math
 import struct
+from decimal import Decimal
 
 import pytest
 
@@ -391,3 +392,55 @@ def test_main_avisa_captura_cortada_e_termina_bem(tmp_path, capsys):
     assert main([str(entrada), str(saida)]) == 0
     assert "aviso" in capsys.readouterr().err
     assert len(saida.read_text().splitlines()) == 3
+
+
+def test_main_nao_toca_na_saida_quando_a_entrada_e_invalida(tmp_path):
+    captura, csv_antigo = tmp_path / "captura.pcap", tmp_path / "features.csv"
+    conteudo = pcap([(1, 0, quadro_tcp())])
+    captura.write_bytes(conteudo)
+    csv_antigo.write_text("conteudo anterior\n")
+    assert main([str(csv_antigo), str(captura)]) == 1  # argumentos trocados
+    assert captura.read_bytes() == conteudo
+    assert main([str(tmp_path / "nao_existe.pcap"), str(csv_antigo)]) == 1
+    assert csv_antigo.read_text() == "conteudo anterior\n"
+
+
+def test_main_recusa_entrada_e_saida_no_mesmo_arquivo(tmp_path, capsys):
+    captura = tmp_path / "captura.pcap"
+    conteudo = pcap([(1, 0, quadro_tcp())])
+    captura.write_bytes(conteudo)
+    assert main([str(captura), str(captura)]) == 1
+    assert captura.read_bytes() == conteudo
+    assert "mesmo arquivo" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("janela", ["0", "-3", "abc", "100000000"])
+def test_main_recusa_janela_invalida_sem_abrir_a_saida(tmp_path, janela):
+    entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
+    entrada.write_bytes(pcap([(1, 0, quadro_tcp())]))
+    assert main(["--janela", janela, str(entrada), str(saida)]) == 2
+    assert not saida.exists()
+
+
+def test_main_interrompido_pelo_teclado_sai_com_130(tmp_path, monkeypatch, capsys):
+    def leitura_interrompida(origem):
+        yield 1.0, quadro_tcp()
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("codigo.captura.extrator.ler_pcap", leitura_interrompida)
+    assert main([str(tmp_path / "qualquer.pcap"), str(tmp_path / "saida.csv")]) == 130
+    assert "interrompid" in capsys.readouterr().err
+
+
+def test_ler_pcap_limita_o_registro_mesmo_sem_limite_declarado():
+    cabecalho = PCAP_LE + struct.pack("<HHiIII", 2, 4, 0, 0, 0, 1)  # limite de captura igual a 0
+    dados = cabecalho + struct.pack("<IIII", 1, 0, 300_000, 300_000) + b"\x00" * 64
+    with pytest.raises(ValueError, match="corrompido"):
+        list(ler_pcap(io.BytesIO(dados)))
+
+
+def test_instante_precisa_ser_um_numero_finito():
+    for instante in (math.nan, math.inf):
+        with pytest.raises(ValueError, match="instante"):
+            Extrator().alimentar(instante, quadro_tcp())
+    assert Extrator(janela=1).alimentar(Decimal("1.5"), quadro_tcp())["Number"] == 1

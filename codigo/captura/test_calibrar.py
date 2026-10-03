@@ -9,6 +9,7 @@ from codigo.captura.calibrar import (
     colunas_divergentes,
     encaixar,
     fatiar,
+    janela_do_oficial,
     ler_oficial,
     main,
     montar_relatorio,
@@ -206,3 +207,37 @@ def test_relatorio_declara_escopo_tolerancia_e_diferencas(tmp_path):
     assert "## Escopo" in texto and "janela de 10" in texto
     assert "## Diferenças conhecidas" in texto
     assert "sem tolerância" not in texto
+
+
+def test_main_trata_csv_oficial_invalido_sem_derrubar_a_execucao(tmp_path, capsys):
+    dados = pcap([(i, 0, quadro_tcp()) for i in range(30)])
+    for nome in ("Bom", "Ruim"):
+        (tmp_path / f"{nome}.pcap").write_bytes(dados)
+        (tmp_path / nome).mkdir()
+    with open(tmp_path / "Bom" / "Bom.pcap.csv", "w", newline="") as arquivo:
+        gravar_csv(extrair(ler_pcap(tmp_path / "Bom.pcap")), arquivo)
+    (tmp_path / "Ruim" / "Ruim.pcap.csv").write_text(",".join(COLUNAS) + "\n" + ",".join(["texto"] * 39) + "\n")
+    saida = tmp_path / "relatorio.md"
+    assert main(["--dataset", str(tmp_path), "--saida", str(saida)]) == 2
+    assert "erro: Ruim.pcap" in capsys.readouterr().err
+    assert "Bom" in saida.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("valor", [math.inf, math.nan, 0.0, -5.0, 1e18])
+def test_janela_absurda_no_csv_oficial_e_recusada(valor):
+    with pytest.raises(ValueError, match="Number"):
+        janela_do_oficial([linha(1) | {"Number": valor}])
+
+
+def test_main_nao_trata_nome_de_pcap_como_padrao_de_busca(tmp_path, capsys):
+    dados = pcap([(i, 0, quadro_tcp()) for i in range(30)])
+    (tmp_path / "a.pcap").write_bytes(dados)
+    (tmp_path / "[ab].pcap").write_bytes(dados)
+    (tmp_path / "sub").mkdir()
+    with open(tmp_path / "sub" / "a.pcap.csv", "w", newline="") as arquivo:
+        gravar_csv(extrair(ler_pcap(tmp_path / "a.pcap")), arquivo)
+    saida = tmp_path / "relatorio.md"
+    assert main(["--dataset", str(tmp_path), "--saida", str(saida)]) == 1
+    assert "[ab].pcap" in capsys.readouterr().err
+    texto = saida.read_text(encoding="utf-8")
+    assert "`a`" in texto and "[ab]" not in texto

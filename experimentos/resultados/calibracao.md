@@ -73,3 +73,6 @@ O classificador é treinado com os CSVs oficiais, então o extrator repete estes
   capturas com instante exatamente igual a zero.
 - O extrator lê capturas com fração de tempo em nanossegundos. Não há referência dos autores
   para esse formato.
+- O extrator decodifica só os primeiros 1600 bytes de cada quadro, o que cobre todos os
+  cabeçalhos usados na medição. Um quadro maior que isso cuja decodificação completa falhe
+  é descartado pelo código dos autores e mantido pelo extrator.

@@ -12,6 +12,7 @@ import csv
 import datetime
 import math
 import platform
+import re
 import struct
 import sys
 from collections import Counter
@@ -20,7 +21,7 @@ from pathlib import Path
 
 import dpkt
 
-from codigo.captura.extrator import COLUNAS, extrair, ler_pcap
+from codigo.captura.extrator import COLUNAS, JANELA_MAXIMA, extrair, ler_pcap
 
 LIMITE_PEDACO = 10_000_000  # tcpdump -C 10: a unidade é 1.000.000 de bytes
 TOLERANCIA = 1e-9
@@ -116,7 +117,10 @@ def janela_do_oficial(oficial):
     """
     if not oficial:
         return 10
-    return int(max(registro["Number"] for registro in oficial))
+    maior = max(registro["Number"] for registro in oficial)
+    if not (math.isfinite(maior) and 1 <= maior <= JANELA_MAXIMA):
+        raise ValueError(f"coluna Number do CSV oficial fora do esperado (maior valor: {maior})")
+    return int(maior)
 
 
 _NOMES_DE_TIPO = {0x0800: "IPv4", 0x0806: "ARP", 0x86DD: "IPv6", 0x9000: "teste de enlace (loopback)"}
@@ -334,13 +338,22 @@ def montar_relatorio(resultados):
         "  capturas com instante exatamente igual a zero.",
         "- O extrator lê capturas com fração de tempo em nanossegundos. Não há referência dos autores",
         "  para esse formato.",
+        "- O extrator decodifica só os primeiros 1600 bytes de cada quadro, o que cobre todos os",
+        "  cabeçalhos usados na medição. Um quadro maior que isso cuja decodificação completa falhe",
+        "  é descartado pelo código dos autores e mantido pelo extrator.",
         "",
     ]
     return "\n".join(linhas)
 
 
+_NOME_SIMPLES = re.compile(r"[A-Za-z0-9._-]+")
+
+
 def _csv_oficial(pasta, pcap):
-    """CSV oficial de um pcap: NOME.pcap.csv em alguma subpasta do dataset."""
+    """CSV oficial de um pcap: NOME.pcap.csv em alguma subpasta do dataset.
+
+    O nome entra num padrão de busca; quem chama garante que ele só tem caracteres simples.
+    """
     candidatos = sorted(pasta.glob(f"*/{pcap.name}.csv"))
     return candidatos[0] if candidatos else None
 
@@ -353,11 +366,15 @@ def main(argv=None):
     analisador.add_argument("--saida", default="experimentos/resultados/calibracao.md")
     argumentos = analisador.parse_args(argv)
     pasta = Path(argumentos.dataset)
-    pares, sem_csv = [], []
+    pares, fora = [], []
     for caminho_pcap in sorted(pasta.glob("*.pcap")):
+        # O nome do pcap vai para o relatório: só entram nomes simples, sem caracteres especiais.
+        if not _NOME_SIMPLES.fullmatch(caminho_pcap.name):
+            fora.append(f"{caminho_pcap.name} tem nome fora do padrão (letras, números, ponto, hífen e sublinhado)")
+            continue
         oficial = _csv_oficial(pasta, caminho_pcap)
         if oficial is None:
-            sem_csv.append(caminho_pcap.name)
+            fora.append(f"{caminho_pcap.name} não tem CSV oficial em {pasta}/")
         else:
             pares.append((caminho_pcap, oficial))
     if not pares:
@@ -367,10 +384,17 @@ def main(argv=None):
             file=sys.stderr,
         )
         return 2
-    resultados = []
+    resultados, com_erro = [], False
     for caminho_pcap, oficial in pares:
         print(f"calibrando {caminho_pcap.name}...", file=sys.stderr)
-        resultados.append(calibrar_pcap(caminho_pcap, oficial))
+        try:
+            resultados.append(calibrar_pcap(caminho_pcap, oficial))
+        except (OSError, ValueError, TypeError, OverflowError, csv.Error) as erro:
+            # Um pcap ou CSV inválido não impede a calibração dos demais.
+            print(f"erro: {caminho_pcap.name}: {erro}", file=sys.stderr)
+            com_erro = True
+    if not resultados:
+        return 2
     destino = Path(argumentos.saida)
     destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_text(montar_relatorio(resultados), encoding="utf-8")
@@ -380,10 +404,12 @@ def main(argv=None):
             f"{r.nome}: {r.linhas_iguais} de {r.linhas_oficiais} linhas iguais, janela de {r.janela} ({situacao})",
             file=sys.stderr,
         )
-    for nome in sem_csv:
-        print(f"aviso: {nome} não tem CSV oficial em {pasta}/ e ficou fora da calibração", file=sys.stderr)
+    for motivo in fora:
+        print(f"aviso: {motivo} e ficou fora da calibração", file=sys.stderr)
     print(f"relatório em {destino}", file=sys.stderr)
-    return 0 if all(r.aprovado for r in resultados) and not sem_csv else 1
+    if com_erro:
+        return 2
+    return 0 if all(r.aprovado for r in resultados) and not fora else 1
 
 
 if __name__ == "__main__":
