@@ -1,8 +1,9 @@
+import math
 import struct
 
 import pytest
 
-from codigo.captura.extrator import COLUNAS, medir_quadro
+from codigo.captura.extrator import COLUNAS, agregar, medir_quadro
 
 CABECALHO_OFICIAL = (
     "Header_Length,Protocol Type,Time_To_Live,Rate,fin_flag_number,syn_flag_number,"
@@ -132,3 +133,45 @@ def test_quadros_fora_do_filtro(quadro):
 def test_iat_e_o_tempo_desde_o_quadro_anterior():
     assert medir_quadro(10.5, quadro_tcp(), ts_anterior=10.0)["IAT"] == 0.5
     assert medir_quadro(10.5, quadro_tcp())["IAT"] == 0.0
+
+
+def duas_medidas():
+    primeiro = medir_quadro(100.0, quadro_tcp(flags=0x02, dados=b"\x00" * 6))            # 60 bytes
+    segundo = medir_quadro(100.5, quadro_tcp(flags=0x10, dados=b"\x00" * 46), 100.0)     # 100 bytes
+    return [primeiro, segundo]
+
+
+def test_agregar_duas_medidas():
+    linha = agregar(duas_medidas())
+    assert list(linha) == list(COLUNAS)
+    assert (linha["Tot sum"], linha["Min"], linha["Max"], linha["Number"]) == (160, 60, 100, 2)
+    assert linha["AVG"] == 80.0
+    assert linha["Tot size"] == 80.0
+    assert linha["Variance"] == 800.0
+    assert linha["Std"] == math.sqrt(800.0)
+    assert linha["Rate"] == 4.0
+    assert linha["IAT"] == 0.25
+    assert (linha["syn_flag_number"], linha["ack_flag_number"]) == (0.5, 0.5)
+    assert (linha["syn_count"], linha["ack_count"], linha["fin_count"], linha["rst_count"]) == (1, 1, 0, 0)
+    assert linha["Protocol Type"] == 6
+    assert (linha["Header_Length"], linha["Time_To_Live"]) == (20.0, 64.0)
+    assert (linha["HTTP"], linha["TCP"], linha["IPv"], linha["LLC"], linha["UDP"]) == (1.0, 1.0, 1.0, 1.0, 0.0)
+
+
+def test_janela_de_um_quadro():
+    linha = agregar([medir_quadro(5.0, quadro_tcp())])
+    assert linha["Number"] == 1
+    assert math.isnan(linha["Std"]) and math.isnan(linha["Variance"])
+    assert linha["Rate"] == math.inf
+
+
+def test_janela_com_todos_os_quadros_no_mesmo_instante():
+    medidas = [medir_quadro(7.0, quadro_tcp()), medir_quadro(7.0, quadro_tcp(), 7.0)]
+    assert agregar(medidas)["Rate"] == math.inf
+
+
+def test_protocolo_da_janela_e_a_moda_e_o_menor_no_empate():
+    um_de_cada = [medir_quadro(0.0, quadro_udp()), medir_quadro(1.0, quadro_tcp(), 0.0)]
+    assert agregar(um_de_cada)["Protocol Type"] == 6
+    maioria_udp = um_de_cada + [medir_quadro(2.0, quadro_udp(), 1.0)]
+    assert agregar(maioria_udp)["Protocol Type"] == 17

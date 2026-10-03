@@ -8,6 +8,9 @@ os mesmos números com que foi treinado.
 Uso, a partir da raiz do repositório:
     python -m codigo.captura.extrator entrada.pcap saida.csv
 """
+import math
+from collections import Counter
+
 import dpkt
 
 # Nome da coluna e bit correspondente no campo de flags do TCP.
@@ -93,3 +96,33 @@ def medir_quadro(ts, quadro, ts_anterior=None):
     medida["IAT"] = 0.0 if ts_anterior is None else ts - ts_anterior
     medida["ts"] = ts
     return medida
+
+
+def agregar(medidas):
+    """Resume uma janela de medidas (ao menos uma) em uma linha com as 39 colunas."""
+    n = len(medidas)
+    linha = {coluna: sum(m[coluna] for m in medidas) / n for coluna in MEDIAS}
+
+    contagem = Counter(m["Protocol Type"] for m in medidas)
+    mais_frequente = max(contagem.values())
+    linha["Protocol Type"] = min(p for p, vezes in contagem.items() if vezes == mais_frequente)
+
+    for total, flag in CONTAGENS:
+        linha[total] = sum(m[flag] for m in medidas)
+
+    tamanhos = [m["Tot size"] for m in medidas]
+    media = sum(tamanhos) / n
+    # Variância amostral (n - 1). Com um só quadro não há variância, como no CSV oficial.
+    variancia = sum((t - media) ** 2 for t in tamanhos) / (n - 1) if n > 1 else math.nan
+    linha["Tot sum"] = sum(tamanhos)
+    linha["Min"] = min(tamanhos)
+    linha["Max"] = max(tamanhos)
+    linha["AVG"] = media
+    linha["Std"] = math.sqrt(variancia)
+    linha["Variance"] = variancia
+    linha["Number"] = n
+
+    instantes = [m["ts"] for m in medidas]
+    duracao = max(instantes) - min(instantes)
+    linha["Rate"] = n / duracao if duracao else math.inf
+    return {coluna: linha[coluna] for coluna in COLUNAS}
