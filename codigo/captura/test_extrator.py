@@ -3,7 +3,7 @@ import struct
 
 import pytest
 
-from codigo.captura.extrator import COLUNAS, agregar, medir_quadro
+from codigo.captura.extrator import COLUNAS, Extrator, agregar, extrair, medir_quadro
 
 CABECALHO_OFICIAL = (
     "Header_Length,Protocol Type,Time_To_Live,Rate,fin_flag_number,syn_flag_number,"
@@ -175,3 +175,42 @@ def test_protocolo_da_janela_e_a_moda_e_o_menor_no_empate():
     assert agregar(um_de_cada)["Protocol Type"] == 6
     maioria_udp = um_de_cada + [medir_quadro(2.0, quadro_udp(), 1.0)]
     assert agregar(maioria_udp)["Protocol Type"] == 17
+
+
+QUADRO_IPV6 = eth(0x86DD, b"\x60" + b"\x00" * 39)
+
+
+def test_extrator_devolve_linha_a_cada_janela():
+    extrator = Extrator()
+    saidas = [extrator.alimentar(i * 0.1, quadro_tcp()) for i in range(25)]
+    prontas = [i for i, linha in enumerate(saidas) if linha is not None]
+    assert prontas == [9, 19]
+    assert saidas[9]["Number"] == 10
+    resto = extrator.finalizar()
+    assert resto["Number"] == 5
+    assert extrator.finalizar() is None
+    assert extrator.ignorados == 0
+
+
+def test_extrator_ignora_e_conta_o_que_esta_fora_do_filtro():
+    extrator = Extrator(janela=2)
+    assert extrator.alimentar(0.0, quadro_tcp()) is None
+    assert extrator.alimentar(1.0, QUADRO_IPV6) is None
+    linha = extrator.alimentar(2.0, quadro_tcp())
+    assert extrator.ignorados == 1
+    assert linha["IAT"] == 1.0  # média de 0 e 2: o quadro ignorado não entra no intervalo
+
+
+def test_intervalo_entre_quadros_continua_de_uma_janela_para_a_outra():
+    linhas = list(extrair([(float(i), quadro_tcp()) for i in range(4)], janela=2))
+    assert [linha["IAT"] for linha in linhas] == [0.5, 1.0]
+
+
+def test_extrair_sem_quadros_uteis():
+    assert list(extrair([])) == []
+    assert list(extrair([(0.0, QUADRO_IPV6), (1.0, QUADRO_IPV6)])) == []
+
+
+def test_janela_invalida():
+    with pytest.raises(ValueError):
+        Extrator(janela=0)

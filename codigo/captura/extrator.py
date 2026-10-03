@@ -126,3 +126,52 @@ def agregar(medidas):
     duracao = max(instantes) - min(instantes)
     linha["Rate"] = n / duracao if duracao else math.inf
     return {coluna: linha[coluna] for coluna in COLUNAS}
+
+
+class Extrator:
+    """Recebe quadros um a um e devolve uma linha de features a cada janela completa.
+
+    Não sabe de onde os quadros vêm. Serve tanto para um arquivo pcap quanto para uma captura
+    ao vivo que entregue (instante, quadro).
+    """
+
+    def __init__(self, janela=10):
+        if janela < 1:
+            raise ValueError("a janela precisa ter ao menos 1 quadro")
+        self.janela = janela
+        self.ignorados = 0
+        self._pendentes = []
+        self._ts_anterior = None
+
+    def alimentar(self, ts, quadro):
+        """Entrega um quadro. Devolve a linha da janela se ele a completou, senão None."""
+        medida = medir_quadro(ts, quadro, self._ts_anterior)
+        if medida is None:
+            self.ignorados += 1
+            return None
+        self._ts_anterior = ts
+        self._pendentes.append(medida)
+        if len(self._pendentes) < self.janela:
+            return None
+        return self._fechar()
+
+    def finalizar(self):
+        """Devolve a linha da janela incompleta que sobrou, ou None se não sobrou nada."""
+        return self._fechar() if self._pendentes else None
+
+    def _fechar(self):
+        linha = agregar(self._pendentes)
+        self._pendentes = []
+        return linha
+
+
+def extrair(quadros, janela=10):
+    """Gera as linhas de features de uma sequência de (instante, quadro)."""
+    extrator = Extrator(janela)
+    for ts, quadro in quadros:
+        linha = extrator.alimentar(ts, quadro)
+        if linha is not None:
+            yield linha
+    linha = extrator.finalizar()
+    if linha is not None:
+        yield linha
