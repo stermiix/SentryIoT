@@ -1,6 +1,6 @@
 # Analise de seguranca do codigo Python com o CodeQL.
-# So dispara quando algum arquivo .py muda: sem codigo Python no repositorio a
-# analise falha. Pelo mesmo motivo ainda nao ha agendamento semanal.
+# Dispara quando algum arquivo .py muda e uma vez por semana, para pegar regras
+# novas do CodeQL mesmo sem mudanca no codigo.
 name: CodeQL
 
 on:
@@ -9,6 +9,8 @@ on:
   push:
     branches: [main]
     paths: ["**.py"]
+  schedule:
+    - cron: "17 6 * * 1" # segundas, 06:17 UTC
 
 # Permissao minima no topo; so o job abaixo recebe a permissao de escrita.
 permissions:

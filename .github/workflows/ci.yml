@@ -79,17 +79,10 @@ jobs:
 
       # O dataset (CICIoT2023/) nunca esta no CI: os testes que dependem dele
       # sao pulados, e o resumo (-ra) mostra quais foram.
+      # Qualquer codigo diferente de zero derruba o job, inclusive "nenhum teste coletado":
+      # com testes no repositorio, coletar zero testes e um defeito de configuracao.
       - name: Rodar os testes
-        run: |
-          codigo=0
-          python -m pytest -ra || codigo=$?
-          # Codigo 5 = nenhum teste coletado. So ele vira sucesso; qualquer
-          # outro (teste falhando, erro de coleta, uso incorreto) derruba o job.
-          if [ "$codigo" -eq 5 ]; then
-            echo "::warning title=pytest::Nenhum teste coletado. Aceito enquanto o repositorio nao tem testes."
-            exit 0
-          fi
-          exit "$codigo"
+        run: python -m pytest -ra
 
   auditoria:
     name: Auditoria de dependencias (pip-audit)
