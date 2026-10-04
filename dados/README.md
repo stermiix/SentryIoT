@@ -9,10 +9,17 @@ Este arquivo é a receita. Seguindo ele, qualquer integrante chega ao mesmo pont
 
 **CICIoT2023** — Canadian Institute for Cybersecurity (UNB).
 
-- **Atalho (recomendado):** pasta do grupo no Google Drive, já baixada e organizada —
-  <https://drive.google.com/drive/folders/1_7z8FdOGWJy4btkNhMS7gWv6abKyzoW6?usp=sharing>
 - **Fonte oficial:** <http://cicresearch.ca/IOTDataset/CIC_IOT_Dataset2023/>
   (exige preencher um formulário de cadastro antes de liberar os arquivos)
+
+A pasta do grupo no Google Drive deixou de ser usada em 04/10/2026, porque o conjunto é pesado
+demais para manter lá. Cada pessoa baixa da fonte oficial só o que a sua tarefa pede:
+
+| Para | O que baixar | Tamanho |
+|---|---|---|
+| Rodar os testes (`pytest`) | Nada. Os testes que dependem do dataset são pulados | 0 |
+| Treinar o classificador | `MERGED_CSV/` | 8,7 GB |
+| Calibrar o extrator | O pcap do ataque e o CSV por ataque correspondente | de 39 MB a cerca de 0,6 GB por pcap |
 
 Não usar re-uploads de terceiros (Kaggle e afins): não dá para citar a origem no artigo e não há
 garantia de que o conteúdo bate com o oficial.
@@ -28,6 +35,7 @@ TCC/CICIoT2023/
 ├── <34 pastas, uma por ataque>/ <- CSVs por ataque, sem rótulo (usados na calibração)
 ├── DictionaryBruteForce.pcap    <- 39 MB, um dos pcaps da calibração
 ├── Recon-PortScan.pcap          <- 192 MB
+├── DDoS-HTTP_Flood-.pcap        <- cerca de 0,6 GB (estimativa), a baixar: flood para a janela de 100
 ├── pcap2csv/                    <- o extrator DOS AUTORES (código de referência)
 ├── example.ipynb                <- notebook de ML dos autores (ler as ressalvas abaixo)
 ├── tools/                       <- notas das ferramentas usadas
