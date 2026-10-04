@@ -35,7 +35,9 @@ TCC/CICIoT2023/
 ├── <34 pastas, uma por ataque>/ <- CSVs por ataque, sem rótulo (usados na calibração)
 ├── DictionaryBruteForce.pcap    <- 39 MB, um dos pcaps da calibração
 ├── Recon-PortScan.pcap          <- 192 MB
-├── DDoS-HTTP_Flood-.pcap        <- cerca de 0,6 GB (estimativa), a baixar: flood para a janela de 100
+├── DoS-HTTP_Flood1.pcap         <- 1,5 GB, flood para a janela de 100
+├── Mirai-greip_flood21.pcap     <- 705 MB, flood para a janela de 100
+├── DDoS-HTTP_Flood-.pcap        <- 611 MB, flood para a janela de 100
 ├── pcap2csv/                    <- o extrator DOS AUTORES (código de referência)
 ├── example.ipynb                <- notebook de ML dos autores (ler as ressalvas abaixo)
 ├── tools/                       <- notas das ferramentas usadas
@@ -108,7 +110,7 @@ Pôr o dicionário em maiúsculas também não resolve: o tráfego benigno apare
 ## Decisões já tomadas
 
 **Usamos as 39 features do `MERGED_CSV`.** Treino e operação partem do mesmo conjunto de colunas,
-e o extrator reproduz os valores oficiais nas classes já calibradas, que usam janela de 10. A
+e o extrator reproduz os valores oficiais nos cinco pcaps calibrados, com janela de 10 e de 100. A
 leitura é de arquivo pcap; a captura ao vivo ainda não foi entregue. (Havia uma versão de 46
 features; as 7 extras não saem do código publicado pelos autores, porque as linhas que as
 calculariam estão comentadas no `Feature_extraction.py`, linhas 132 e 171. Por isso ela foi
@@ -169,20 +171,27 @@ Stack real dos autores (de `tools/`, do código e do artigo): `tcpdump` captura 
 o parsing, `mergecap` junta capturas e `PySpark` junta os CSVs. O Scapy é importado pelo código,
 mas não contribui para nenhuma das 39 colunas.
 
-**Resultado da calibração** (03/10/2026, detalhes em `experimentos/resultados/calibracao.md`):
+**Resultado da calibração** (04/10/2026, detalhes em `experimentos/resultados/calibracao.md`):
 
-| Arquivo | Pacotes | Quadros IPv4 e ARP | Linhas no CSV oficial | Linhas reproduzidas |
-|---|---|---|---|---|
-| `DictionaryBruteForce.pcap` | 133.138 | 130.632 | 13.064 | 13.064 |
-| `Recon-PortScan.pcap` | 831.856 | 822.771 | 82.284 | 82.284 |
+| Arquivo | Janela | Pacotes | Quadros IPv4 e ARP | Linhas no CSV oficial | Linhas reproduzidas |
+|---|---|---|---|---|---|
+| `DictionaryBruteForce.pcap` | 10 | 133.138 | 130.632 | 13.064 | 13.064 |
+| `Recon-PortScan.pcap` | 10 | 831.856 | 822.771 | 82.284 | 82.284 |
+| `DDoS-HTTP_Flood-.pcap` | 100 | 2.881.005 | 2.875.590 | 28.790 | 28.790 |
+| `DoS-HTTP_Flood1.pcap` | 100 | 3.114.983 | 3.109.872 | 31.175 | 31.175 |
+| `Mirai-greip_flood21.pcap` | 100 | 1.196.296 | 1.195.447 | 11.991 | 11.991 |
 
-A diferença entre pacotes e quadros mantidos (1,88% e 1,09%) vem do filtro: IPv6, STP e outros
-tipos de quadro ficam de fora. A soma da coluna `Number` do CSV oficial é igual à contagem de
-quadros IPv4 e ARP nos dois pcaps.
+A diferença entre pacotes e quadros mantidos vem do filtro: IPv6, STP e outros tipos de quadro
+ficam de fora. A soma da coluna `Number` do CSV oficial é igual à contagem de quadros IPv4 e ARP
+nos cinco pcaps.
 
-Os dois pcaps disponíveis são de classes com janela de 10. A janela de 100 ainda não foi
-calibrada, porque não temos pcap de nenhuma classe de flood. O calibrador lê o tamanho da janela
-do próprio CSV oficial, então basta acrescentar o pcap à pasta do dataset.
+A janela de 100 foi calibrada em 04/10/2026 com um pcap de cada família que a usa: DDoS, DoS e
+Mirai. O calibrador lê o tamanho da janela do próprio CSV oficial, então basta acrescentar um
+pcap à pasta do dataset para conferir outra classe.
+
+O pcap de Mirai declara no cabeçalho um limite de captura de 1500 bytes e traz quadros maiores.
+A libpcap, usada pelo `tcpdump` com que os autores fatiam o arquivo, entrega esses quadros
+cortados no limite. O extrator faz o mesmo, e só assim as linhas oficiais são reproduzidas.
 
 ---
 

@@ -228,7 +228,8 @@ def ler_pcap(origem):
 
     `origem` é um caminho ou um fluxo binário já aberto, como a entrada padrão. Se a captura
     foi interrompida no meio de um pacote, a leitura termina no último pacote completo e emite
-    um aviso. Um registro maior que o limite da captura indica arquivo corrompido e é recusado.
+    um aviso. Um registro maior que o limite de captura declarado no cabeçalho é entregue cortado
+    nesse limite, como faz a libpcap. Acima do maior registro aceito, o arquivo é recusado.
     """
     if not hasattr(origem, "read"):
         with open(origem, "rb") as arquivo:
@@ -256,16 +257,17 @@ def ler_pcap(origem):
             warnings.warn(_AVISO_INCOMPLETO.format(numero), stacklevel=2)
             return
         segundos, fracao, capturado, _ = struct.unpack(ordem + "IIII", registro)
-        if capturado > limite:
+        if capturado > MAIOR_REGISTRO:
             raise ValueError(
-                f"pacote {numero} com tamanho impossível ({capturado} bytes, limite de {limite}): "
+                f"pacote {numero} com tamanho impossível ({capturado} bytes, limite de {MAIOR_REGISTRO}): "
                 "arquivo corrompido"
             )
         quadro = _ler_exato(origem, capturado)
         if len(quadro) < capturado:
             warnings.warn(_AVISO_INCOMPLETO.format(numero), stacklevel=2)
             return
-        yield segundos + fracao / divisor, quadro
+        # O tcpdump dos autores lê com a libpcap, que só entrega os bytes até o limite declarado.
+        yield segundos + fracao / divisor, quadro[:limite]
 
 
 def _texto(valor):

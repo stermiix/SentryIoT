@@ -1,13 +1,13 @@
 # Calibração do extrator
 
-Gerado por `python -m codigo.captura.calibrar` em 03/10/2026, com Python 3.11.2 e dpkt 1.9.8.
+Gerado por `python -m codigo.captura.calibrar` em 04/10/2026, com Python 3.11.2 e dpkt 1.9.8.
 
 O extrator (`codigo/captura/extrator.py`) foi executado sobre pcaps do CICIoT2023 e a saída
 foi comparada, coluna a coluna, com os CSVs publicados pelos autores do dataset.
 
 ## Escopo
 
-A comparação cobre 2 pcaps, os que estão disponíveis localmente com o CSV oficial correspondente: `DictionaryBruteForce` (janela de 10), `Recon-PortScan` (janela de 10).
+A comparação cobre 5 pcaps, os que estão disponíveis localmente com o CSV oficial correspondente: `DDoS-HTTP_Flood-` (janela de 100), `DictionaryBruteForce` (janela de 10), `DoS-HTTP_Flood1` (janela de 100), `Mirai-greip_flood21` (janela de 100), `Recon-PortScan` (janela de 10).
 
 O CICIoT2023 tem 34 classes. Os autores agregam os quadros em janelas de 10 em 15 delas e em
 janelas de 100 nas 19 classes de DDoS, DoS e Mirai. O resultado abaixo vale para os pcaps e
@@ -17,10 +17,13 @@ para os tamanhos de janela listados. As classes sem pcap disponível não foram 
 
 | pcap | janela | pacotes | quadros IPv4 e ARP | pedaços de 10 MB | linhas extraídas | linhas oficiais | linhas iguais |
 |---|---|---|---|---|---|---|---|
+| `DDoS-HTTP_Flood-` | 100 | 2.881.005 | 2.875.590 | 62 | 28.790 | 28.790 | 28.790 |
 | `DictionaryBruteForce` | 10 | 133.138 | 130.632 | 4 | 13.064 | 13.064 | 13.064 |
+| `DoS-HTTP_Flood1` | 100 | 3.114.983 | 3.109.872 | 150 | 31.175 | 31.175 | 31.175 |
+| `Mirai-greip_flood21` | 100 | 1.196.296 | 1.195.447 | 71 | 11.991 | 11.991 | 11.991 |
 | `Recon-PortScan` | 10 | 831.856 | 822.771 | 21 | 82.284 | 82.284 | 82.284 |
 
-As 39 colunas são comparadas com tolerância relativa de 1e-09 e absoluta de 1e-12. Maior desvio relativo observado entre valores considerados iguais: 9.72e-13, na coluna `IAT` de `Recon-PortScan`.
+As 39 colunas são comparadas com tolerância relativa de 1e-09 e absoluta de 1e-12. Maior desvio relativo observado entre valores considerados iguais: 9.88e-13, na coluna `IAT` de `Mirai-greip_flood21`.
 
 ## Quadros fora do filtro
 
@@ -28,9 +31,18 @@ O extrator mantém apenas quadros Ethernet de tipo IPv4 ou ARP, como o código d
 
 | pcap | tipo do quadro | quadros |
 |---|---|---|
+| `DDoS-HTTP_Flood-` | IPv6 | 4.138 |
+| `DDoS-HTTP_Flood-` | IEEE 802.3 com LLC (STP e afins) | 1.171 |
+| `DDoS-HTTP_Flood-` | teste de enlace (loopback) | 106 |
 | `DictionaryBruteForce` | IPv6 | 1.066 |
 | `DictionaryBruteForce` | IEEE 802.3 com LLC (STP e afins) | 1.236 |
 | `DictionaryBruteForce` | teste de enlace (loopback) | 204 |
+| `DoS-HTTP_Flood1` | IPv6 | 2.188 |
+| `DoS-HTTP_Flood1` | IEEE 802.3 com LLC (STP e afins) | 2.531 |
+| `DoS-HTTP_Flood1` | teste de enlace (loopback) | 392 |
+| `Mirai-greip_flood21` | IEEE 802.3 com LLC (STP e afins) | 703 |
+| `Mirai-greip_flood21` | IPv6 | 113 |
+| `Mirai-greip_flood21` | teste de enlace (loopback) | 33 |
 | `Recon-PortScan` | IPv6 | 3.915 |
 | `Recon-PortScan` | IEEE 802.3 com LLC (STP e afins) | 4.438 |
 | `Recon-PortScan` | teste de enlace (loopback) | 732 |
@@ -60,6 +72,8 @@ O classificador é treinado com os CSVs oficiais, então o extrator repete estes
 - A coluna `LLC` vale 1 em todo quadro IPv4, igual à coluna `IPv`.
 - A coluna `SMTP` só é marcada em TCP; tráfego UDP na porta 25 não a ativa.
 - Quadros IPv6 não geram linha.
+- Quadro maior que o limite de captura declarado no cabeçalho do pcap entra cortado nesse
+  limite, como a libpcap entrega ao `tcpdump` que fatia o arquivo.
 - A última janela de cada pedaço pode ficar incompleta. Com um único quadro, `Std` e
   `Variance` ficam vazios e `Rate` é infinito.
 
