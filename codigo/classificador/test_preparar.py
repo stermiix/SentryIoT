@@ -13,6 +13,7 @@ from codigo.classificador.preparar import (
     ALVOS,
     CONJUNTOS_DE_FEATURES,
     DEPENDENTES_DA_JANELA,
+    DIVISOES,
     FEATURES_33,
     FEATURES_39,
     FRACAO_DE_TESTE,
@@ -21,6 +22,7 @@ from codigo.classificador.preparar import (
     agrupar,
     alvo,
     carregar,
+    dividir,
     dividir_estratificada,
     dividir_por_grupos,
     impressao_digital,
@@ -273,6 +275,24 @@ def test_divisao_recusa_classe_pequena_demais_para_ter_treino_e_teste():
     X = np.arange(21, dtype=np.float32).reshape(-1, 1)
     with pytest.raises(ValueError, match="XSS"):
         dividir_por_grupos(agrupar(X), rotulos)
+
+
+def test_dividir_escolhe_o_metodo_pelo_nome_e_agrupa_pelas_33_features():
+    quadro = quadro_sintetico(por_classe=50)
+    copia = quadro.copy()
+    copia["Number"] = copia["Number"] - 1
+    copia["Tot sum"] = copia["AVG"] * copia["Number"]
+    quadro = pd.concat([quadro, copia], ignore_index=True)
+    rotulos = quadro["Label"].to_numpy()
+    assert DIVISOES == ("estratificada", "grupos")
+    treino, teste = dividir(quadro, "estratificada", semente=5)
+    esperado = dividir_estratificada(rotulos, semente=5)
+    assert np.array_equal(treino, esperado[0]) and np.array_equal(teste, esperado[1])
+    treino, teste = dividir(quadro, "grupos", semente=5)
+    esperado = dividir_por_grupos(agrupar(matriz(quadro, FEATURES_33)), rotulos, semente=5)
+    assert np.array_equal(treino, esperado[0]) and np.array_equal(teste, esperado[1])
+    with pytest.raises(ValueError, match="divisão desconhecida"):
+        dividir(quadro, "temporal")
 
 
 def test_impressao_digital_muda_com_a_divisao():

@@ -46,6 +46,7 @@ FEATURES_39 = COLUNAS
 DEPENDENTES_DA_JANELA = ("Number", "Tot sum", "ack_count", "syn_count", "fin_count", "rst_count")
 FEATURES_33 = tuple(coluna for coluna in COLUNAS if coluna not in DEPENDENTES_DA_JANELA)
 CONJUNTOS_DE_FEATURES = {"39": FEATURES_39, "33": FEATURES_33}
+DIVISOES = ("estratificada", "grupos")
 
 FUSAO = "DDoS+DoS"
 
@@ -205,6 +206,21 @@ def dividir_por_grupos(grupos, rotulos, semente=SEMENTE, fracao=FRACAO_DE_TESTE)
     de_teste = do_grupo["grupo"].to_numpy()[_sortear(estratos, semente, fracao)]
     no_teste = np.isin(grupos, de_teste)
     return np.flatnonzero(~no_teste), np.flatnonzero(no_teste)
+
+
+def dividir(quadro, divisao, semente=SEMENTE, fracao=FRACAO_DE_TESTE):
+    """Divide a amostra pelo método pedido, "estratificada" ou "grupos". Devolve (treino, teste).
+
+    Os grupos são os vetores idênticos nas 33 features. Linhas iguais nas 39 também são iguais
+    nas 33, então a mesma divisão serve aos dois conjuntos de features sem deixar vetor repetido
+    entre treino e teste, e as execuções são comparadas nas mesmas linhas.
+    """
+    rotulos = quadro["Label"].to_numpy()
+    if divisao == "estratificada":
+        return dividir_estratificada(rotulos, semente, fracao)
+    if divisao == "grupos":
+        return dividir_por_grupos(agrupar(matriz(quadro, FEATURES_33)), rotulos, semente, fracao)
+    raise ValueError(f"divisão desconhecida: {divisao!r} (as divisões são {', '.join(DIVISOES)})")
 
 
 def impressao_digital(indices):
