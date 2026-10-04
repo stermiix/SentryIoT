@@ -96,13 +96,6 @@ def conferir_cabecalho(nome, colunas):
         )
 
 
-def _rotulo_da_linha(linha, corte):
-    campos = linha.count(b",") + 1
-    if campos != len(CABECALHO):
-        raise ValueError(f"{campos} campos, e o esperado são {len(CABECALHO)}")
-    return normalizar(linha[corte + 1:].decode("utf-8", "replace").strip())
-
-
 class Leitor:
     """Lê um arquivo do MERGED_CSV em fluxo e entrega (features como texto, rótulo canônico).
 
@@ -112,12 +105,14 @@ class Leitor:
     arquivo foi cortado no meio dela, então ela fica de fora e o registro marca
     `final_incompleto`.
 
-    Terminada a leitura, `registro` traz nome, linhas, bytes, sha256 e final_incompleto.
+    Terminada a leitura, `registro` traz nome, linhas, bytes, sha256 e final_incompleto, e
+    `grafias` diz como cada rótulo estava escrito no arquivo.
     """
 
     def __init__(self, caminho):
         self.caminho = Path(caminho)
         self.registro = None
+        self.grafias = {}  # o rótulo como está no arquivo -> rótulo canônico
 
     def __iter__(self):
         nome = self.caminho.name
@@ -140,7 +135,7 @@ class Leitor:
                     if not linha.strip():
                         continue
                     try:
-                        rotulo = rotulos[linha[corte + 1:]] = _rotulo_da_linha(linha, corte)
+                        rotulo = rotulos[linha[corte + 1:]] = self._rotulo_novo(linha, corte)
                     except ValueError as erro:
                         if linha.endswith(b"\n"):
                             raise ValueError(f"{nome}, linha {numero}: {erro}") from None
@@ -156,6 +151,14 @@ class Leitor:
             "sha256": resumo.hexdigest(),
             "final_incompleto": incompleto,
         }
+
+    def _rotulo_novo(self, linha, corte):
+        campos = linha.count(b",") + 1
+        if campos != len(CABECALHO):
+            raise ValueError(f"{campos} campos, e o esperado são {len(CABECALHO)}")
+        grafia = linha[corte + 1:].decode("utf-8", "replace").strip()
+        self.grafias[grafia] = normalizar(grafia)
+        return self.grafias[grafia]
 
 
 def amostrar(arquivos, teto=TETO, semente=SEMENTE, ao_terminar_arquivo=None):
@@ -306,7 +309,9 @@ def main(argv=None):
         "--saida", default="dados/processed/amostra.csv.gz", help="arquivo da amostra, terminado em .csv.gz"
     )
     analisador.add_argument("--manifesto", default="experimentos/resultados/manifesto_amostra.json")
-    analisador.add_argument("--teto", type=_teto, default=TETO, help=f"máximo de linhas por classe (padrão: {TETO})")
+    analisador.add_argument(
+        "--teto", type=_teto, default=TETO, help=f"máximo de linhas por classe (padrão: {TETO})"
+    )
     analisador.add_argument("--semente", type=int, default=SEMENTE, help=f"semente do sorteio (padrão: {SEMENTE})")
     try:
         argumentos = analisador.parse_args(argv)

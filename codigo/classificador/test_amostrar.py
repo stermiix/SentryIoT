@@ -12,6 +12,7 @@ from codigo.classificador.amostrar import (
     CABECALHO,
     SEMENTE,
     TETO,
+    Leitor,
     amostrar,
     gravar,
     listar_arquivos,
@@ -301,6 +302,14 @@ def test_arquivo_inteiro_nao_tem_final_incompleto(tmp_path):
     sem_quebra = tmp_path / "a.csv"
     sem_quebra.write_text(",".join(CABECALHO) + "\n" + linha(1, "XSS"))
     assert amostrar([sem_quebra]).arquivos[0]["final_incompleto"] is False
+
+
+def test_leitor_entrega_o_rotulo_canonico_e_guarda_as_grafias_encontradas(tmp_path):
+    arquivo = escrever(tmp_path / "a.csv", [linha(1, "BENIGN"), linha(2, "BenignTraffic"), linha(3, "XSS")])
+    leitor = Leitor(arquivo)
+    assert [rotulo for _, rotulo in leitor] == ["BenignTraffic", "BenignTraffic", "XSS"]
+    assert leitor.grafias == {"BENIGN": "BenignTraffic", "BenignTraffic": "BenignTraffic", "XSS": "XSS"}
+    assert leitor.registro["linhas"] == 3
 
 
 def test_arquivos_registram_linhas_tamanho_e_hash(tmp_path):
