@@ -1,0 +1,23 @@
+# Política de risco das ações do SentryIoT.
+#
+# Ação de risco baixo é aplicada pelo agente de execução sem aprovação, e fica registrada.
+# Ação de risco alto só é aplicada depois que uma pessoa aprova.
+#
+# A equipe ajusta os valores abaixo sem mexer no código. Uma regra não está neste arquivo,
+# porque não pode ser afrouxada: ação nova, fora do catálogo de base, é sempre de risco alto,
+# mesmo depois de promovida ao catálogo.
+
+[limitar_taxa]
+risco = "baixo"
+
+[bloquear_ip]
+risco = "baixo"
+# Prazo máximo, em minutos, para o bloqueio contar como risco baixo. Bloqueio sem prazo ou com
+# prazo maior é de risco alto.
+prazo_maximo_de_risco_baixo = 15
+
+[isolar_dispositivo]
+risco = "alto"
+
+[revogar_credencial]
+risco = "alto"
