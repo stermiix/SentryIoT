@@ -1,0 +1,363 @@
+import json
+import math
+from datetime import UTC, datetime
+
+import pytest
+from pydantic import ValidationError
+
+from codigo.captura.extrator import COLUNAS
+from codigo.classificador.mapeamento import CATEGORIAS
+from codigo.mcp.tipos import (
+    AGENTES,
+    ARQUIVO_DO_CONTRATO,
+    LIMITE_DE_JANELAS,
+    TIPOS_DE_EVENTO,
+    TOOLS,
+    Ambiente,
+    Execucao,
+    FatiaDeJanelas,
+    Incidente,
+    Janela,
+    ParametrosDeAcaoNova,
+    Proposta,
+    contrato,
+    texto_do_contrato,
+    tools_do_agente,
+    validar_evento,
+)
+
+# O exemplo de incidente que está na especificação do contrato.
+INCIDENTE_DA_ESPECIFICACAO = {
+    "id": "inc-0001",
+    "estado": "aberto",
+    "categoria": "DDoS",
+    "categoria_do_modelo": "DDoS",
+    "confianca": 0.97,
+    "inicio": "2026-10-20T14:03:11Z",
+    "fim": "2026-10-20T14:03:41Z",
+    "janelas": 412,
+    "origens_distintas": 37,
+    "distribuido": True,
+    "origens": [{"endereco": "203.0.113.7", "quadros": 9120}],
+    "destinos": [{"endereco": "192.168.137.20", "quadros": 41200}],
+    "features_principais": [
+        {"nome": "Rate", "valor": 35778.4, "referencia_benigno": 96.2},
+        {"nome": "syn_flag_number", "valor": 1.0, "referencia_benigno": 0.06},
+    ],
+}
+INSTANTE = "2026-10-20T14:03:41.250Z"
+
+
+def janela(**trocas):
+    base = {
+        "indice": 0,
+        "instante": "2026-10-20T14:03:11Z",
+        "categoria_do_modelo": "DoS",
+        "confianca": 0.97,
+        "origem": "203.0.113.7",
+        "destino": "192.168.137.20",
+        "features": dict.fromkeys(COLUNAS, 1.0),
+    }
+    return base | trocas
+
+
+PROPOSTA = {
+    "id": "prop-0001",
+    "incidente": "inc-0001",
+    "acao": "bloquear_ip",
+    "alvo": "203.0.113.7",
+    "parametros": {"duracao": 10},
+    "justificativa": "Origem com mais quadros no incidente.",
+    "nova": False,
+    "risco": "baixo",
+    "exige_aprovacao": False,
+    "estado": "liberada",
+}
+EXECUCAO = {
+    "id": "exec-0001",
+    "proposta": "prop-0001",
+    "incidente": "inc-0001",
+    "acao": "bloquear_ip",
+    "alvo": "203.0.113.7",
+    "parametros": {"duracao": 10},
+    "estado": "aplicada",
+    "aplicada_em": INSTANTE,
+    "desfeita_em": None,
+}
+ACAO_PROMOVIDA = {
+    "nome": "ativar_syn_cookies",
+    "descricao": "Ativa SYN cookies no dispositivo atacado.",
+    "alvo": "Dispositivo em que a medida é aplicada.",
+    "parametros": [],
+    "regra": "Risco alto: só com aprovação humana.",
+    "origem": "promovida",
+    "passos": ["Ativar SYN cookies na pilha TCP do dispositivo."],
+    "efeito_esperado": "O dispositivo volta a aceitar conexões legítimas.",
+    "como_desfazer": "Desativar SYN cookies.",
+    "fonte": None,
+}
+# Um exemplo de `dados` para cada tipo de evento do log.
+DADOS_POR_TIPO = {
+    "janelas_classificadas": {"janelas": 450, "por_categoria": {"DoS": 412, "Benign": 38}},
+    "incidente_aberto": INCIDENTE_DA_ESPECIFICACAO,
+    "incidente_atualizado": INCIDENTE_DA_ESPECIFICACAO,
+    "incidente_encerrado": INCIDENTE_DA_ESPECIFICACAO | {"estado": "encerrado"},
+    "llm_chamada": {
+        "agente": "triagem", "modelo": "modelo-de-exemplo", "tokens_entrada": 812, "tokens_saida": 164,
+        "duracao_ms": 2300.0,
+    },
+    "tool_chamada": {
+        "agente": "triagem", "nome": "obter_incidente", "argumentos": {"id": "inc-0001"},
+        "resultado": {"categoria": "DDoS"}, "duracao_ms": 4.0,
+    },
+    "recomendacao_emitida": {"agente": "decisao", "texto": "Bloquear a origem.", "propostas": ["prop-0001"]},
+    "acao_proposta": PROPOSTA,
+    "acao_aprovada": {"proposta": "prop-0001", "canal": "terminal", "motivo": None},
+    "acao_rejeitada": {"proposta": "prop-0001", "canal": "terminal", "motivo": "Dispositivo crítico."},
+    "acao_executada": EXECUCAO,
+    "acao_desfeita": EXECUCAO | {"estado": "desfeita", "desfeita_em": INSTANTE},
+    "efeito_verificado": {
+        "execucao": "exec-0001", "incidente": "inc-0001", "resultado": "persiste",
+        "observacao": "O tráfego continua.",
+    },
+    "catalogo_ampliado": {"proposta": "prop-0002", "acao": ACAO_PROMOVIDA},
+    "recusa": {
+        "agente": None, "tool": "executar_acao", "argumentos": {"id_proposta": "prop-0002"},
+        "motivo": "proposta_nao_liberada", "mensagem": "A proposta prop-0002 aguarda aprovação.",
+    },
+}
+
+
+def evento(tipo, **trocas):
+    base = {
+        "id": "ev-000001", "instante": INSTANTE, "tipo": tipo, "incidente": "inc-0001",
+        "dados": DADOS_POR_TIPO[tipo],
+    }
+    return base | trocas
+
+
+def test_contrato_versionado_e_igual_ao_gerado_de_tipos():
+    versionado = ARQUIVO_DO_CONTRATO.read_text(encoding="utf-8")
+    assert versionado == texto_do_contrato(), (
+        "contrato.json diverge de tipos.py; gere de novo com: python -m codigo.mcp.tipos"
+    )
+
+
+def test_texto_do_contrato_e_json_com_as_chaves_do_contrato():
+    documento = json.loads(texto_do_contrato())
+    assert documento == contrato()
+    assert set(documento) == {"$schema", "titulo", "versao", "limite_de_janelas", "tools", "evento", "$defs"}
+    assert documento["limite_de_janelas"] == LIMITE_DE_JANELAS == 20
+
+
+def test_sao_as_nove_tools_da_especificacao_na_ordem_da_tabela():
+    assert [tool.nome for tool in TOOLS] == [
+        "obter_incidente", "obter_janelas", "consultar_mitigacoes", "pesquisar_solucoes", "propor_acao",
+        "verificar_efeito", "executar_acao", "desfazer_acao", "consultar_estado",
+    ]
+    assert all(tool.descricao.strip() for tool in TOOLS)
+
+
+def test_cada_agente_so_enxerga_as_tools_da_sua_linha():
+    assert AGENTES == ("triagem", "decisao", "execucao")
+    assert tools_do_agente("triagem") == ("obter_incidente", "obter_janelas")
+    assert tools_do_agente("decisao") == (
+        "obter_incidente", "consultar_mitigacoes", "pesquisar_solucoes", "propor_acao", "verificar_efeito",
+    )
+    assert tools_do_agente("execucao") == (
+        "verificar_efeito", "executar_acao", "desfazer_acao", "consultar_estado",
+    )
+    assert tools_do_agente(None) == tuple(tool.nome for tool in TOOLS)
+    with pytest.raises(ValueError, match="agente desconhecido"):
+        tools_do_agente("detector")
+
+
+def test_argumentos_das_tools_sao_os_da_especificacao():
+    argumentos = {tool.nome: tuple(tool.entrada.model_fields) for tool in TOOLS}
+    assert argumentos == {
+        "obter_incidente": ("id",),
+        "obter_janelas": ("id", "limite"),
+        "consultar_mitigacoes": ("categoria",),
+        "pesquisar_solucoes": ("consulta",),
+        "propor_acao": ("id", "acao", "alvo", "parametros", "justificativa"),
+        "verificar_efeito": ("id_execucao",),
+        "executar_acao": ("id_proposta",),
+        "desfazer_acao": ("id_execucao",),
+        "consultar_estado": (),
+    }
+
+
+def test_contrato_descreve_entrada_e_saida_de_cada_tool():
+    documento = contrato()
+    definicoes = documento["$defs"]
+    assert list(documento["tools"]) == [tool.nome for tool in TOOLS]
+    for tool in TOOLS:
+        descrita = documento["tools"][tool.nome]
+        assert descrita["descricao"] == tool.descricao
+        assert descrita["agentes"] == list(tool.agentes)
+        for lado in ("entrada", "saida"):
+            nome = descrita[lado]["$ref"].removeprefix("#/$defs/")
+            assert definicoes[nome]["type"] == "object"
+    assert documento["evento"] == {"$ref": "#/$defs/Evento"}
+    assert "ParametrosDeAcaoNova" in definicoes
+
+
+def test_incidente_da_especificacao_e_valido():
+    incidente = Incidente.model_validate(INCIDENTE_DA_ESPECIFICACAO)
+    assert incidente.inicio == datetime(2026, 10, 20, 14, 3, 11, tzinfo=UTC)
+    assert incidente.model_dump(mode="json") == INCIDENTE_DA_ESPECIFICACAO
+
+
+@pytest.mark.parametrize("trocas", [
+    {"categoria": "Exfiltracao"},
+    {"categoria_do_modelo": "ddos"},
+    {"estado": "fechado"},
+    {"confianca": 1.2},
+    {"confianca": -0.1},
+    {"janelas": 0},
+    {"origens_distintas": -1},
+    {"inicio": "2026-10-20T14:03:11"},  # sem fuso horário
+    {"origens": [{"endereco": "203.0.113.7"}]},
+    {"campo_a_mais": 1},
+])
+def test_incidente_fora_do_contrato_e_recusado(trocas):
+    with pytest.raises(ValidationError):
+        Incidente.model_validate(INCIDENTE_DA_ESPECIFICACAO | trocas)
+
+
+def test_categorias_do_contrato_sao_as_8_do_classificador():
+    for categoria in CATEGORIAS:
+        Incidente.model_validate(INCIDENTE_DA_ESPECIFICACAO | {"categoria": categoria})
+    assert contrato()["$defs"]["Incidente"]["properties"]["categoria"]["enum"] == list(CATEGORIAS)
+
+
+def test_janela_traz_exatamente_as_39_features_do_extrator():
+    valida = Janela.model_validate(janela())
+    assert tuple(valida.features) == COLUNAS
+    esquema = contrato()["$defs"]["Features"]
+    assert tuple(esquema["properties"]) == COLUNAS
+    assert tuple(esquema["required"]) == COLUNAS
+    assert esquema["additionalProperties"] is False
+
+    sem_uma = dict.fromkeys(COLUNAS[1:], 1.0)
+    with pytest.raises(ValidationError):
+        Janela.model_validate(janela(features=sem_uma))
+    with pytest.raises(ValidationError):
+        Janela.model_validate(janela(features=dict.fromkeys((*COLUNAS, "Srate"), 1.0)))
+
+
+def test_feature_sem_valor_finito_vai_como_nulo_e_nunca_como_infinito():
+    # O extrator produz Rate infinito e Std e Variance indefinidos em alguns casos. Em JSON isso
+    # não existe: o contrato usa nulo.
+    nula = Janela.model_validate(janela(features=dict.fromkeys(COLUNAS, 1.0) | {"Rate": None}))
+    assert nula.features["Rate"] is None
+    for invalido in (math.inf, math.nan):
+        with pytest.raises(ValidationError):
+            Janela.model_validate(janela(features=dict.fromkeys(COLUNAS, 1.0) | {"Rate": invalido}))
+
+
+def test_fatia_tem_no_maximo_20_janelas():
+    FatiaDeJanelas.model_validate({"incidente": "inc-0001", "total": 412, "janelas": [janela()] * 20})
+    with pytest.raises(ValidationError):
+        FatiaDeJanelas.model_validate({"incidente": "inc-0001", "total": 412, "janelas": [janela()] * 21})
+
+
+def test_proposta_e_execucao_validas():
+    assert Proposta.model_validate(PROPOSTA).exige_aprovacao is False
+    assert Execucao.model_validate(EXECUCAO).desfeita_em is None
+    for trocas in ({"risco": "medio"}, {"estado": "aprovada"}, {"justificativa": ""}):
+        with pytest.raises(ValidationError):
+            Proposta.model_validate(PROPOSTA | trocas)
+    with pytest.raises(ValidationError):
+        Execucao.model_validate(EXECUCAO | {"estado": "pendente"})
+
+
+def test_acao_nova_exige_descricao_passos_efeito_e_como_desfazer():
+    completa = {
+        "descricao": "Ativa SYN cookies.",
+        "passos": ["Ativar SYN cookies na pilha TCP."],
+        "efeito_esperado": "A fila de conexões deixa de esgotar.",
+        "como_desfazer": "Desativar SYN cookies.",
+    }
+    assert ParametrosDeAcaoNova.model_validate(completa).fonte is None
+    assert ParametrosDeAcaoNova.model_validate(completa | {"fonte": "Base local, flood.md"}).fonte
+    for campo in completa:
+        with pytest.raises(ValidationError):
+            ParametrosDeAcaoNova.model_validate({c: v for c, v in completa.items() if c != campo})
+    for trocas in ({"passos": []}, {"passos": [" "]}, {"como_desfazer": "  "}, {"descricao": ""}):
+        with pytest.raises(ValidationError):
+            ParametrosDeAcaoNova.model_validate(completa | trocas)
+
+
+def test_ambiente_separa_as_medidas_ativas_por_tipo():
+    ambiente = Ambiente.model_validate({
+        "bloqueios": [EXECUCAO], "limites": [], "isolamentos": [], "credenciais_revogadas": [],
+        "outras_medidas": [],
+    })
+    assert ambiente.bloqueios[0].alvo == "203.0.113.7"
+
+
+def test_tipos_de_evento_sao_os_da_especificacao():
+    assert TIPOS_DE_EVENTO == (
+        "janelas_classificadas", "incidente_aberto", "incidente_atualizado", "incidente_encerrado",
+        "llm_chamada", "tool_chamada", "recomendacao_emitida", "acao_proposta", "acao_aprovada",
+        "acao_rejeitada", "acao_executada", "acao_desfeita", "efeito_verificado", "catalogo_ampliado",
+        "recusa",
+    )
+    assert set(DADOS_POR_TIPO) == set(TIPOS_DE_EVENTO)
+    mapeados = contrato()["$defs"]["Evento"]["discriminator"]["mapping"]
+    assert set(mapeados) == set(TIPOS_DE_EVENTO)
+
+
+@pytest.mark.parametrize("tipo", DADOS_POR_TIPO)
+def test_evento_de_cada_tipo_e_valido_e_volta_igual(tipo):
+    lido = validar_evento(evento(tipo))
+    assert lido.tipo == tipo
+    assert lido.id == "ev-000001"
+    assert list(lido.model_dump(mode="json")) == ["id", "instante", "tipo", "incidente", "dados"]
+    assert validar_evento(lido.model_dump(mode="json")) == lido
+
+
+def test_evento_sem_incidente_traz_o_campo_nulo():
+    lido = validar_evento(evento("janelas_classificadas", incidente=None))
+    assert lido.model_dump(mode="json")["incidente"] is None
+
+
+@pytest.mark.parametrize("defeito", [
+    {"tipo": "incidente_reaberto"},
+    {"tipo": "acao_proposta", "dados": DADOS_POR_TIPO["recusa"]},
+    {"dados": {}},
+    {"instante": "ontem"},
+    {"extra": 1},
+])
+def test_evento_fora_do_contrato_e_recusado(defeito):
+    with pytest.raises(ValidationError):
+        validar_evento(evento("acao_proposta") | defeito)
+
+
+@pytest.mark.parametrize("campo", ["id", "instante", "tipo", "incidente", "dados"])
+def test_evento_sem_um_campo_comum_e_recusado(campo):
+    incompleto = evento("recusa")
+    del incompleto[campo]
+    with pytest.raises(ValidationError):
+        validar_evento(incompleto)
+
+
+def test_esquema_json_do_contrato_aceita_e_recusa_o_mesmo_que_os_tipos():
+    # Confere o arquivo com um validador independente de JSON Schema: é ele que a interface web
+    # e qualquer cliente fora do Python vão usar.
+    jsonschema = pytest.importorskip("jsonschema")
+    documento = json.loads(ARQUIVO_DO_CONTRATO.read_text(encoding="utf-8"))
+
+    def validador(nome):
+        esquema = {"$ref": f"#/$defs/{nome}", "$defs": documento["$defs"]}
+        return jsonschema.Draft202012Validator(esquema, format_checker=jsonschema.FormatChecker())
+
+    for tipo in DADOS_POR_TIPO:
+        validador("Evento").validate(evento(tipo))
+    validador("Incidente").validate(INCIDENTE_DA_ESPECIFICACAO)
+    validador("Janela").validate(janela())
+    assert not validador("Evento").is_valid(evento("acao_proposta") | {"tipo": "incidente_reaberto"})
+    assert not validador("Evento").is_valid(evento("acao_proposta") | {"dados": {}})
+    assert not validador("Incidente").is_valid(INCIDENTE_DA_ESPECIFICACAO | {"categoria": "Exfiltracao"})
+    assert not validador("Janela").is_valid(janela(features=dict.fromkeys(COLUNAS[1:], 1.0)))

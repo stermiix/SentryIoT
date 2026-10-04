@@ -1,0 +1,2223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "titulo": "Contrato MCP do SentryIoT",
+  "versao": "0.1.0",
+  "limite_de_janelas": 20,
+  "tools": {
+    "obter_incidente": {
+      "descricao": "Devolve o resumo do incidente: categoria, confiança do classificador, período, quantidade de janelas, origens, destinos e as features que mais pesaram.",
+      "agentes": [
+        "triagem",
+        "decisao"
+      ],
+      "entrada": {
+        "$ref": "#/$defs/EntradaObterIncidente"
+      },
+      "saida": {
+        "$ref": "#/$defs/Incidente"
+      }
+    },
+    "obter_janelas": {
+      "descricao": "Devolve até `limite` janelas do incidente, espaçadas ao longo dele, com as 39 features de cada uma. O limite máximo é 20. Use quando o resumo não bastar.",
+      "agentes": [
+        "triagem"
+      ],
+      "entrada": {
+        "$ref": "#/$defs/EntradaObterJanelas"
+      },
+      "saida": {
+        "$ref": "#/$defs/FatiaDeJanelas"
+      }
+    },
+    "consultar_mitigacoes": {
+      "descricao": "Devolve as mitigações recomendadas para a categoria e o catálogo de ações disponíveis, com a regra de risco de cada ação.",
+      "agentes": [
+        "decisao"
+      ],
+      "entrada": {
+        "$ref": "#/$defs/EntradaConsultarMitigacoes"
+      },
+      "saida": {
+        "$ref": "#/$defs/Mitigacoes"
+      }
+    },
+    "pesquisar_solucoes": {
+      "descricao": "Busca outras soluções na base local de conhecimento, além do catálogo. Use quando as mitigações recomendadas não resolverem. Cada trecho vem com o arquivo de origem.",
+      "agentes": [
+        "decisao"
+      ],
+      "entrada": {
+        "$ref": "#/$defs/EntradaPesquisarSolucoes"
+      },
+      "saida": {
+        "$ref": "#/$defs/Solucoes"
+      }
+    },
+    "propor_acao": {
+      "descricao": "Registra a proposta de uma ação do catálogo ou de uma ação nova e devolve o nível de risco e se ela exige aprovação humana. Ação nova é sempre de risco alto e precisa trazer em `parametros` a descrição, os passos, o efeito esperado e como desfazer.",
+      "agentes": [
+        "decisao"
+      ],
+      "entrada": {
+        "$ref": "#/$defs/EntradaProporAcao"
+      },
+      "saida": {
+        "$ref": "#/$defs/Proposta"
+      }
+    },
+    "verificar_efeito": {
+      "descricao": "Diz se o incidente cessou, diminuiu ou persiste depois de uma ação aplicada.",
+      "agentes": [
+        "decisao",
+        "execucao"
+      ],
+      "entrada": {
+        "$ref": "#/$defs/EntradaVerificarEfeito"
+      },
+      "saida": {
+        "$ref": "#/$defs/Efeito"
+      }
+    },
+    "executar_acao": {
+      "descricao": "Aplica no ambiente simulado a ação de uma proposta liberada: de risco baixo ou já aprovada por uma pessoa. Proposta que aguarda aprovação ou foi rejeitada é recusada.",
+      "agentes": [
+        "execucao"
+      ],
+      "entrada": {
+        "$ref": "#/$defs/EntradaExecutarAcao"
+      },
+      "saida": {
+        "$ref": "#/$defs/Execucao"
+      }
+    },
+    "desfazer_acao": {
+      "descricao": "Reverte uma ação aplicada no ambiente simulado.",
+      "agentes": [
+        "execucao"
+      ],
+      "entrada": {
+        "$ref": "#/$defs/EntradaDesfazerAcao"
+      },
+      "saida": {
+        "$ref": "#/$defs/Execucao"
+      }
+    },
+    "consultar_estado": {
+      "descricao": "Devolve os bloqueios, limites, isolamentos e demais medidas ativas no ambiente simulado.",
+      "agentes": [
+        "execucao"
+      ],
+      "entrada": {
+        "$ref": "#/$defs/EntradaConsultarEstado"
+      },
+      "saida": {
+        "$ref": "#/$defs/Ambiente"
+      }
+    }
+  },
+  "evento": {
+    "$ref": "#/$defs/Evento"
+  },
+  "$defs": {
+    "AcaoDoCatalogo": {
+      "additionalProperties": false,
+      "description": "Uma ação que o agente pode propor: da base ou promovida depois de aprovada e aplicada.",
+      "properties": {
+        "nome": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "descricao": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "alvo": {
+          "description": "O que o campo alvo da proposta deve trazer",
+          "minLength": 1,
+          "type": "string"
+        },
+        "parametros": {
+          "items": {
+            "$ref": "#/$defs/ParametroDeAcao"
+          },
+          "type": "array"
+        },
+        "regra": {
+          "description": "Nível de risco da ação e quando ela exige aprovação humana",
+          "minLength": 1,
+          "type": "string"
+        },
+        "origem": {
+          "enum": [
+            "base",
+            "promovida"
+          ],
+          "type": "string"
+        },
+        "passos": {
+          "description": "Passos aplicados. Vazio nas ações da base",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "efeito_esperado": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "como_desfazer": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "fonte": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "nome",
+        "descricao",
+        "alvo",
+        "parametros",
+        "regra",
+        "origem",
+        "passos",
+        "efeito_esperado",
+        "como_desfazer",
+        "fonte"
+      ],
+      "title": "AcaoDoCatalogo",
+      "type": "object"
+    },
+    "Ambiente": {
+      "additionalProperties": false,
+      "description": "Medidas ativas no ambiente simulado. Ação desfeita não aparece.",
+      "properties": {
+        "bloqueios": {
+          "items": {
+            "$ref": "#/$defs/Execucao"
+          },
+          "type": "array"
+        },
+        "limites": {
+          "items": {
+            "$ref": "#/$defs/Execucao"
+          },
+          "type": "array"
+        },
+        "isolamentos": {
+          "items": {
+            "$ref": "#/$defs/Execucao"
+          },
+          "type": "array"
+        },
+        "credenciais_revogadas": {
+          "items": {
+            "$ref": "#/$defs/Execucao"
+          },
+          "type": "array"
+        },
+        "outras_medidas": {
+          "description": "Ações novas ou promovidas ao catálogo",
+          "items": {
+            "$ref": "#/$defs/Execucao"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "bloqueios",
+        "limites",
+        "isolamentos",
+        "credenciais_revogadas",
+        "outras_medidas"
+      ],
+      "title": "Ambiente",
+      "type": "object"
+    },
+    "ChamadaDeLLM": {
+      "additionalProperties": false,
+      "properties": {
+        "agente": {
+          "enum": [
+            "triagem",
+            "decisao",
+            "execucao"
+          ],
+          "type": "string"
+        },
+        "modelo": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "tokens_entrada": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tokens_saida": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "duracao_ms": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "agente",
+        "modelo",
+        "tokens_entrada",
+        "tokens_saida",
+        "duracao_ms"
+      ],
+      "title": "ChamadaDeLLM",
+      "type": "object"
+    },
+    "ChamadaDeTool": {
+      "additionalProperties": false,
+      "properties": {
+        "agente": {
+          "anyOf": [
+            {
+              "enum": [
+                "triagem",
+                "decisao",
+                "execucao"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Agente que chamou, quando o servidor sabe quem é"
+        },
+        "nome": {
+          "description": "Nome da tool",
+          "minLength": 1,
+          "type": "string"
+        },
+        "argumentos": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "resultado": {
+          "additionalProperties": true,
+          "description": "Resumo do que a tool devolveu",
+          "type": "object"
+        },
+        "duracao_ms": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "agente",
+        "nome",
+        "argumentos",
+        "resultado",
+        "duracao_ms"
+      ],
+      "title": "ChamadaDeTool",
+      "type": "object"
+    },
+    "Decisao": {
+      "additionalProperties": false,
+      "description": "Aprovação ou rejeição de uma proposta. Só uma pessoa decide, nunca um agente.",
+      "properties": {
+        "proposta": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "canal": {
+          "enum": [
+            "terminal",
+            "interface"
+          ],
+          "type": "string"
+        },
+        "motivo": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "proposta",
+        "canal",
+        "motivo"
+      ],
+      "title": "Decisao",
+      "type": "object"
+    },
+    "Efeito": {
+      "additionalProperties": false,
+      "properties": {
+        "execucao": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "incidente": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "resultado": {
+          "enum": [
+            "cessou",
+            "diminuiu",
+            "persiste"
+          ],
+          "type": "string"
+        },
+        "observacao": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "execucao",
+        "incidente",
+        "resultado",
+        "observacao"
+      ],
+      "title": "Efeito",
+      "type": "object"
+    },
+    "EnderecoContado": {
+      "additionalProperties": false,
+      "properties": {
+        "endereco": {
+          "description": "Endereço IP",
+          "minLength": 1,
+          "type": "string"
+        },
+        "quadros": {
+          "description": "Quadros desse endereço no incidente",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "endereco",
+        "quadros"
+      ],
+      "title": "EnderecoContado",
+      "type": "object"
+    },
+    "EntradaConsultarEstado": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "EntradaConsultarEstado",
+      "type": "object"
+    },
+    "EntradaConsultarMitigacoes": {
+      "additionalProperties": false,
+      "properties": {
+        "categoria": {
+          "description": "Categoria do incidente (campo categoria)",
+          "enum": [
+            "DDoS",
+            "DoS",
+            "Mirai",
+            "Recon",
+            "Spoofing",
+            "Web",
+            "BruteForce",
+            "Benign"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "categoria"
+      ],
+      "title": "EntradaConsultarMitigacoes",
+      "type": "object"
+    },
+    "EntradaDesfazerAcao": {
+      "additionalProperties": false,
+      "properties": {
+        "id_execucao": {
+          "description": "Identificador da execução, como exec-0001",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id_execucao"
+      ],
+      "title": "EntradaDesfazerAcao",
+      "type": "object"
+    },
+    "EntradaExecutarAcao": {
+      "additionalProperties": false,
+      "properties": {
+        "id_proposta": {
+          "description": "Identificador da proposta, como prop-0001",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id_proposta"
+      ],
+      "title": "EntradaExecutarAcao",
+      "type": "object"
+    },
+    "EntradaObterIncidente": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do incidente, como inc-0001",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "EntradaObterIncidente",
+      "type": "object"
+    },
+    "EntradaObterJanelas": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do incidente, como inc-0001",
+          "type": "string"
+        },
+        "limite": {
+          "description": "Quantas janelas devolver. Acima de 20, vêm 20",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "limite"
+      ],
+      "title": "EntradaObterJanelas",
+      "type": "object"
+    },
+    "EntradaPesquisarSolucoes": {
+      "additionalProperties": false,
+      "properties": {
+        "consulta": {
+          "description": "Palavras que descrevem o problema ou a medida procurada",
+          "type": "string"
+        }
+      },
+      "required": [
+        "consulta"
+      ],
+      "title": "EntradaPesquisarSolucoes",
+      "type": "object"
+    },
+    "EntradaProporAcao": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do incidente, como inc-0001",
+          "type": "string"
+        },
+        "acao": {
+          "description": "Nome de uma ação do catálogo ou nome de uma ação nova, em letras minúsculas",
+          "type": "string"
+        },
+        "alvo": {
+          "description": "Sobre o que a ação age. O formato depende da ação",
+          "type": "string"
+        },
+        "parametros": {
+          "additionalProperties": true,
+          "description": "Parâmetros da ação. Ação nova, fora do catálogo, traz aqui descricao, passos, efeito_esperado, como_desfazer e, quando houver, fonte",
+          "type": "object"
+        },
+        "justificativa": {
+          "description": "Por que a ação é indicada para este incidente",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "acao",
+        "alvo",
+        "justificativa"
+      ],
+      "title": "EntradaProporAcao",
+      "type": "object"
+    },
+    "EntradaVerificarEfeito": {
+      "additionalProperties": false,
+      "properties": {
+        "id_execucao": {
+          "description": "Identificador da execução, como exec-0001",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id_execucao"
+      ],
+      "title": "EntradaVerificarEfeito",
+      "type": "object"
+    },
+    "Evento": {
+      "description": "Uma linha do log de eventos.",
+      "discriminator": {
+        "mapping": {
+          "acao_aprovada": "#/$defs/EventoDeDecisao",
+          "acao_desfeita": "#/$defs/EventoDeExecucao",
+          "acao_executada": "#/$defs/EventoDeExecucao",
+          "acao_proposta": "#/$defs/EventoDeProposta",
+          "acao_rejeitada": "#/$defs/EventoDeDecisao",
+          "catalogo_ampliado": "#/$defs/EventoDeCatalogo",
+          "efeito_verificado": "#/$defs/EventoDeEfeito",
+          "incidente_aberto": "#/$defs/EventoDeIncidente",
+          "incidente_atualizado": "#/$defs/EventoDeIncidente",
+          "incidente_encerrado": "#/$defs/EventoDeIncidente",
+          "janelas_classificadas": "#/$defs/EventoDeJanelas",
+          "llm_chamada": "#/$defs/EventoDeLLM",
+          "recomendacao_emitida": "#/$defs/EventoDeRecomendacao",
+          "recusa": "#/$defs/EventoDeRecusa",
+          "tool_chamada": "#/$defs/EventoDeTool"
+        },
+        "propertyName": "tipo"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/EventoDeJanelas"
+        },
+        {
+          "$ref": "#/$defs/EventoDeIncidente"
+        },
+        {
+          "$ref": "#/$defs/EventoDeLLM"
+        },
+        {
+          "$ref": "#/$defs/EventoDeTool"
+        },
+        {
+          "$ref": "#/$defs/EventoDeRecomendacao"
+        },
+        {
+          "$ref": "#/$defs/EventoDeProposta"
+        },
+        {
+          "$ref": "#/$defs/EventoDeDecisao"
+        },
+        {
+          "$ref": "#/$defs/EventoDeExecucao"
+        },
+        {
+          "$ref": "#/$defs/EventoDeEfeito"
+        },
+        {
+          "$ref": "#/$defs/EventoDeCatalogo"
+        },
+        {
+          "$ref": "#/$defs/EventoDeRecusa"
+        }
+      ],
+      "title": "Evento"
+    },
+    "EventoDeCatalogo": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "minLength": 1,
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "catalogo_ampliado",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/Promocao"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeCatalogo",
+      "type": "object"
+    },
+    "EventoDeDecisao": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "minLength": 1,
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "enum": [
+            "acao_aprovada",
+            "acao_rejeitada"
+          ],
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/Decisao"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeDecisao",
+      "type": "object"
+    },
+    "EventoDeEfeito": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "minLength": 1,
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "efeito_verificado",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/Efeito"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeEfeito",
+      "type": "object"
+    },
+    "EventoDeExecucao": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "minLength": 1,
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "enum": [
+            "acao_executada",
+            "acao_desfeita"
+          ],
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/Execucao"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeExecucao",
+      "type": "object"
+    },
+    "EventoDeIncidente": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "minLength": 1,
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "enum": [
+            "incidente_aberto",
+            "incidente_atualizado",
+            "incidente_encerrado"
+          ],
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/Incidente"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeIncidente",
+      "type": "object"
+    },
+    "EventoDeJanelas": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "minLength": 1,
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "janelas_classificadas",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/LoteDeJanelas"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeJanelas",
+      "type": "object"
+    },
+    "EventoDeLLM": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "minLength": 1,
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "llm_chamada",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/ChamadaDeLLM"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeLLM",
+      "type": "object"
+    },
+    "EventoDeProposta": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "minLength": 1,
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "acao_proposta",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/Proposta"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeProposta",
+      "type": "object"
+    },
+    "EventoDeRecomendacao": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "minLength": 1,
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "recomendacao_emitida",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/Recomendacao"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeRecomendacao",
+      "type": "object"
+    },
+    "EventoDeRecusa": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "minLength": 1,
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "recusa",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/Recusa"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeRecusa",
+      "type": "object"
+    },
+    "EventoDeTool": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "minLength": 1,
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "tool_chamada",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/ChamadaDeTool"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeTool",
+      "type": "object"
+    },
+    "Execucao": {
+      "additionalProperties": false,
+      "description": "Uma ação aplicada no ambiente simulado.",
+      "properties": {
+        "id": {
+          "description": "Identificador da execução, como exec-0001",
+          "minLength": 1,
+          "type": "string"
+        },
+        "proposta": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "incidente": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "acao": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "alvo": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "parametros": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "estado": {
+          "enum": [
+            "aplicada",
+            "desfeita"
+          ],
+          "type": "string"
+        },
+        "aplicada_em": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "desfeita_em": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "proposta",
+        "incidente",
+        "acao",
+        "alvo",
+        "parametros",
+        "estado",
+        "aplicada_em",
+        "desfeita_em"
+      ],
+      "title": "Execucao",
+      "type": "object"
+    },
+    "FatiaDeJanelas": {
+      "additionalProperties": false,
+      "properties": {
+        "incidente": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "total": {
+          "description": "Quantidade de janelas do incidente",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "janelas": {
+          "description": "Janelas espaçadas ao longo do incidente",
+          "items": {
+            "$ref": "#/$defs/Janela"
+          },
+          "maxItems": 20,
+          "type": "array"
+        }
+      },
+      "required": [
+        "incidente",
+        "total",
+        "janelas"
+      ],
+      "title": "FatiaDeJanelas",
+      "type": "object"
+    },
+    "FeaturePrincipal": {
+      "additionalProperties": false,
+      "properties": {
+        "nome": {
+          "description": "Nome da feature, como nas 39 colunas do extrator",
+          "minLength": 1,
+          "type": "string"
+        },
+        "valor": {
+          "description": "Valor típico da feature nas janelas do incidente",
+          "type": "number"
+        },
+        "referencia_benigno": {
+          "description": "Valor típico da mesma feature no tráfego benigno",
+          "type": "number"
+        }
+      },
+      "required": [
+        "nome",
+        "valor",
+        "referencia_benigno"
+      ],
+      "title": "FeaturePrincipal",
+      "type": "object"
+    },
+    "Features": {
+      "additionalProperties": false,
+      "properties": {
+        "Header_Length": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Protocol Type": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Time_To_Live": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fin_flag_number": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "syn_flag_number": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rst_flag_number": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "psh_flag_number": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ack_flag_number": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ece_flag_number": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cwr_flag_number": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ack_count": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "syn_count": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fin_count": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rst_count": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "HTTP": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "HTTPS": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "DNS": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Telnet": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "SMTP": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "SSH": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "IRC": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "TCP": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "UDP": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "DHCP": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ARP": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ICMP": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "IGMP": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "IPv": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "LLC": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Tot sum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "AVG": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Std": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Tot size": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "IAT": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Number": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Variance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "Header_Length",
+        "Protocol Type",
+        "Time_To_Live",
+        "Rate",
+        "fin_flag_number",
+        "syn_flag_number",
+        "rst_flag_number",
+        "psh_flag_number",
+        "ack_flag_number",
+        "ece_flag_number",
+        "cwr_flag_number",
+        "ack_count",
+        "syn_count",
+        "fin_count",
+        "rst_count",
+        "HTTP",
+        "HTTPS",
+        "DNS",
+        "Telnet",
+        "SMTP",
+        "SSH",
+        "IRC",
+        "TCP",
+        "UDP",
+        "DHCP",
+        "ARP",
+        "ICMP",
+        "IGMP",
+        "IPv",
+        "LLC",
+        "Tot sum",
+        "Min",
+        "Max",
+        "AVG",
+        "Std",
+        "Tot size",
+        "IAT",
+        "Number",
+        "Variance"
+      ],
+      "title": "Features",
+      "type": "object"
+    },
+    "Incidente": {
+      "additionalProperties": false,
+      "description": "Resumo de um ataque: as janelas do mesmo ataque, reunidas pela política de acionamento.",
+      "properties": {
+        "id": {
+          "description": "Identificador do incidente, como inc-0001",
+          "minLength": 1,
+          "type": "string"
+        },
+        "estado": {
+          "enum": [
+            "aberto",
+            "encerrado"
+          ],
+          "type": "string"
+        },
+        "categoria": {
+          "description": "Categoria depois da regra que separa DoS de DDoS pela quantidade de origens",
+          "enum": [
+            "DDoS",
+            "DoS",
+            "Mirai",
+            "Recon",
+            "Spoofing",
+            "Web",
+            "BruteForce",
+            "Benign"
+          ],
+          "type": "string"
+        },
+        "categoria_do_modelo": {
+          "description": "Categoria que o Random Forest atribuiu",
+          "enum": [
+            "DDoS",
+            "DoS",
+            "Mirai",
+            "Recon",
+            "Spoofing",
+            "Web",
+            "BruteForce",
+            "Benign"
+          ],
+          "type": "string"
+        },
+        "confianca": {
+          "description": "Confiança do classificador, de 0 a 1",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "inicio": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "fim": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "janelas": {
+          "description": "Quantidade de janelas reunidas no incidente",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "origens_distintas": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "distribuido": {
+          "description": "Verdadeiro quando o tráfego vem de várias origens",
+          "type": "boolean"
+        },
+        "origens": {
+          "description": "Origens com mais quadros, da maior para a menor",
+          "items": {
+            "$ref": "#/$defs/EnderecoContado"
+          },
+          "type": "array"
+        },
+        "destinos": {
+          "description": "Destinos com mais quadros, do maior para o menor",
+          "items": {
+            "$ref": "#/$defs/EnderecoContado"
+          },
+          "type": "array"
+        },
+        "features_principais": {
+          "description": "Features que mais pesaram, com o valor de referência do tráfego benigno",
+          "items": {
+            "$ref": "#/$defs/FeaturePrincipal"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "estado",
+        "categoria",
+        "categoria_do_modelo",
+        "confianca",
+        "inicio",
+        "fim",
+        "janelas",
+        "origens_distintas",
+        "distribuido",
+        "origens",
+        "destinos",
+        "features_principais"
+      ],
+      "title": "Incidente",
+      "type": "object"
+    },
+    "Janela": {
+      "additionalProperties": false,
+      "description": "Uma janela de quadros consecutivos, como sai do extrator e do classificador.",
+      "properties": {
+        "indice": {
+          "description": "Posição da janela dentro do incidente, a partir de 0",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "categoria_do_modelo": {
+          "enum": [
+            "DDoS",
+            "DoS",
+            "Mirai",
+            "Recon",
+            "Spoofing",
+            "Web",
+            "BruteForce",
+            "Benign"
+          ],
+          "type": "string"
+        },
+        "confianca": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "origem": {
+          "description": "Endereço de origem mais frequente na janela",
+          "minLength": 1,
+          "type": "string"
+        },
+        "destino": {
+          "description": "Endereço de destino mais frequente na janela",
+          "minLength": 1,
+          "type": "string"
+        },
+        "features": {
+          "$ref": "#/$defs/Features"
+        }
+      },
+      "required": [
+        "indice",
+        "instante",
+        "categoria_do_modelo",
+        "confianca",
+        "origem",
+        "destino",
+        "features"
+      ],
+      "title": "Janela",
+      "type": "object"
+    },
+    "LoteDeJanelas": {
+      "additionalProperties": false,
+      "properties": {
+        "janelas": {
+          "description": "Janelas do lote que saiu do classificador",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "por_categoria": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "propertyNames": {
+            "enum": [
+              "DDoS",
+              "DoS",
+              "Mirai",
+              "Recon",
+              "Spoofing",
+              "Web",
+              "BruteForce",
+              "Benign"
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "janelas",
+        "por_categoria"
+      ],
+      "title": "LoteDeJanelas",
+      "type": "object"
+    },
+    "Mitigacoes": {
+      "additionalProperties": false,
+      "properties": {
+        "categoria": {
+          "enum": [
+            "DDoS",
+            "DoS",
+            "Mirai",
+            "Recon",
+            "Spoofing",
+            "Web",
+            "BruteForce",
+            "Benign"
+          ],
+          "type": "string"
+        },
+        "mitigacoes": {
+          "description": "Medidas recomendadas que o catálogo de ações cobre",
+          "items": {
+            "$ref": "#/$defs/Trecho"
+          },
+          "type": "array"
+        },
+        "acoes": {
+          "description": "Catálogo de ações disponíveis",
+          "items": {
+            "$ref": "#/$defs/AcaoDoCatalogo"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "categoria",
+        "mitigacoes",
+        "acoes"
+      ],
+      "title": "Mitigacoes",
+      "type": "object"
+    },
+    "ParametroDeAcao": {
+      "additionalProperties": false,
+      "properties": {
+        "nome": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "descricao": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "obrigatorio": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "nome",
+        "descricao",
+        "obrigatorio"
+      ],
+      "title": "ParametroDeAcao",
+      "type": "object"
+    },
+    "ParametrosDeAcaoNova": {
+      "additionalProperties": false,
+      "description": "O que `parametros` precisa trazer quando a ação proposta não está no catálogo.",
+      "properties": {
+        "descricao": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "passos": {
+          "description": "Passos que seriam aplicados, em ordem",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "efeito_esperado": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "como_desfazer": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "fonte": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "De onde a solução veio, quando houver"
+        }
+      },
+      "required": [
+        "descricao",
+        "passos",
+        "efeito_esperado",
+        "como_desfazer"
+      ],
+      "title": "ParametrosDeAcaoNova",
+      "type": "object"
+    },
+    "Promocao": {
+      "additionalProperties": false,
+      "properties": {
+        "proposta": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "acao": {
+          "$ref": "#/$defs/AcaoDoCatalogo"
+        }
+      },
+      "required": [
+        "proposta",
+        "acao"
+      ],
+      "title": "Promocao",
+      "type": "object"
+    },
+    "Proposta": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador da proposta, como prop-0001",
+          "minLength": 1,
+          "type": "string"
+        },
+        "incidente": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "acao": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "alvo": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "parametros": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "justificativa": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "nova": {
+          "description": "Verdadeiro quando a ação não está no catálogo",
+          "type": "boolean"
+        },
+        "risco": {
+          "enum": [
+            "baixo",
+            "alto"
+          ],
+          "type": "string"
+        },
+        "exige_aprovacao": {
+          "type": "boolean"
+        },
+        "estado": {
+          "enum": [
+            "aguardando_aprovacao",
+            "liberada",
+            "rejeitada",
+            "executada",
+            "desfeita"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "incidente",
+        "acao",
+        "alvo",
+        "parametros",
+        "justificativa",
+        "nova",
+        "risco",
+        "exige_aprovacao",
+        "estado"
+      ],
+      "title": "Proposta",
+      "type": "object"
+    },
+    "Recomendacao": {
+      "additionalProperties": false,
+      "properties": {
+        "agente": {
+          "enum": [
+            "triagem",
+            "decisao",
+            "execucao"
+          ],
+          "type": "string"
+        },
+        "texto": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "propostas": {
+          "description": "Propostas de ação ligadas à recomendação",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "agente",
+        "texto",
+        "propostas"
+      ],
+      "title": "Recomendacao",
+      "type": "object"
+    },
+    "Recusa": {
+      "additionalProperties": false,
+      "properties": {
+        "agente": {
+          "anyOf": [
+            {
+              "enum": [
+                "triagem",
+                "decisao",
+                "execucao"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tool": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "argumentos": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "motivo": {
+          "enum": [
+            "identificador_desconhecido",
+            "argumentos_invalidos",
+            "alvo_malformado",
+            "acao_nova_incompleta",
+            "proposta_nao_liberada",
+            "proposta_ja_executada",
+            "acao_nao_aplicada",
+            "tool_fora_da_linha"
+          ],
+          "type": "string"
+        },
+        "mensagem": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "agente",
+        "tool",
+        "argumentos",
+        "motivo",
+        "mensagem"
+      ],
+      "title": "Recusa",
+      "type": "object"
+    },
+    "Solucoes": {
+      "additionalProperties": false,
+      "properties": {
+        "consulta": {
+          "type": "string"
+        },
+        "fonte": {
+          "const": "base_local",
+          "description": "A busca na internet fica desligada neste trabalho",
+          "type": "string"
+        },
+        "trechos": {
+          "description": "Trechos mais próximos da consulta, do melhor para o pior",
+          "items": {
+            "$ref": "#/$defs/Trecho"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "consulta",
+        "fonte",
+        "trechos"
+      ],
+      "title": "Solucoes",
+      "type": "object"
+    },
+    "Trecho": {
+      "additionalProperties": false,
+      "description": "Uma seção de um documento da base local de conhecimento.",
+      "properties": {
+        "origem": {
+          "description": "Arquivo da base local de onde o trecho saiu",
+          "minLength": 1,
+          "type": "string"
+        },
+        "titulo": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "texto": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "acao": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Ação do catálogo que aplica a medida, quando existe"
+        }
+      },
+      "required": [
+        "origem",
+        "titulo",
+        "texto",
+        "acao"
+      ],
+      "title": "Trecho",
+      "type": "object"
+    }
+  }
+}
