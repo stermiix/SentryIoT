@@ -83,8 +83,8 @@ O resultado de referência já publicado por outros. Serve para saber se o nosso
 No CICIoT2023 o baseline do Random Forest é dos próprios autores do dataset.
 
 **Desbalanceamento de classes**
-Quando umas classes têm muito mais exemplos que outras. No nosso caso é extremo: 78% do dataset
-é DDoS e DoS, enquanto `DictionaryBruteForce` tem 0,027% (319 amostras no conjunto de teste).
+Quando umas classes têm muito mais exemplos que outras. No nosso caso é extremo: 89,5% do dataset
+é DDoS e DoS, enquanto `DictionaryBruteForce` tem 0,028% (319 amostras no conjunto de teste).
 Isso distorce as métricas — ver abaixo.
 
 ---
@@ -93,7 +93,7 @@ Isso distorce as métricas — ver abaixo.
 
 **Acurácia**
 Porcentagem de acertos no total. **Enganosa quando as classes estão desbalanceadas:** um modelo
-que responda "DDoS" para tudo acerta 78% do nosso dataset e é completamente inútil.
+que responda "DDoS" para tudo acerta 72,3% do nosso dataset e é completamente inútil.
 
 **Precisão**
 Das vezes que o modelo disse "é ataque", quantas ele acertou. Precisão baixa = muito alarme falso.
