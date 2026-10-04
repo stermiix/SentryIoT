@@ -57,6 +57,14 @@ TCC/CICIoT2023/
 **Por que 63 arquivos e não um só:** é saída do PySpark (cada trabalhador grava a sua parte), e
 8,7 GB num arquivo único seria inabrível. Cada pedaço tem ~137 MB e cabe na memória.
 
+**Nove arquivos da nossa cópia estão truncados** (`Merged42`, `Merged44` e `Merged46` a `Merged52`):
+terminam no meio de uma linha, e os dois últimos têm só 44 MB e 14 MB. A cópia tem 45.019.234 linhas
+completas, e em quase todas as classes faltam cerca de 4,3% das linhas que os CSVs por ataque
+trazem. As proporções entre as classes não mudam, porque o conjunto é embaralhado. Três CSVs por
+ataque de `DoS-UDP_Flood` (7, 8 e 9) têm o mesmo defeito. Não foi possível conferir se o corte está
+nos arquivos oficiais ou só na nossa cópia: quem baixar o dataset de novo deve comparar o tamanho
+desses doze arquivos. Os números estão em `experimentos/resultados/exploracao.md`.
+
 **Cada arquivo é representativo do conjunto todo** (verificado em 05/09/2026):
 
 | | Linhas | DDOS-ICMP | BENIGN | BruteForce | PortScan |
@@ -70,8 +78,8 @@ TCC/CICIoT2023/
 8,7 GB não cabem na memória, e Random Forest precisa de tudo junto. A estratégia:
 
 **percorrer os 63 arquivos guardando TODAS as linhas das classes raras e só uma fatia das
-classes gigantes** (um teto de ~50 mil por classe, por exemplo). Isso derruba de 44 milhões para
-cerca de 1 milhão de linhas e ataca o desbalanceamento ao mesmo tempo.
+classes gigantes** (um teto de 50 mil por classe). Isso derruba de 45,0 milhões para 1.288.479
+linhas e ataca o desbalanceamento ao mesmo tempo.
 
 Nas classes raras, usar os 63 arquivos faz diferença real: `DICTIONARYBRUTEFORCE` sai de 204
 exemplos (1 arquivo) para ~12 mil (63 arquivos).
@@ -79,11 +87,21 @@ exemplos (1 arquivo) para ~12 mil (63 arquivos).
 ⚠ O script de amostragem **precisa ficar versionado, com semente fixa**, e a estratégia precisa
 ir para a metodologia do artigo. Sem isso o resultado não é reproduzível.
 
+    python -m codigo.classificador.amostrar
+
+O comando grava `dados/processed/amostra.csv.gz`, que fica fora do git, e o manifesto
+`experimentos/resultados/manifesto_amostra.json`, que é versionado: semente, teto, contagem por
+classe e hash da amostra. Com os mesmos arquivos de entrada, a amostra sai idêntica a cada execução.
+
 ### Armadilha dos rótulos
 
 No `MERGED_CSV` os rótulos vêm **em maiúsculas** (`DDOS-ICMP_FLOOD`), mas o dicionário de
 agrupamento do notebook dos autores usa a grafia normal (`DDoS-ICMP_Flood`). Aplicar o dicionário
 direto não casa com nada e zera tudo em silêncio. **Normalizar antes.**
+
+Pôr o dicionário em maiúsculas também não resolve: o tráfego benigno aparece como `BENIGN` no
+`MERGED_CSV`, e não como `BENIGNTRAFFIC`. A normalização está em
+`codigo/classificador/mapeamento.py`, que recusa qualquer rótulo fora das 34 classes.
 
 ---
 
@@ -184,7 +202,7 @@ Consequências para o projeto:
 
 - **Atalho no treino.** A coluna `Number` sozinha separa as classes de flood das demais. As
   colunas `Tot sum`, `ack_count`, `syn_count`, `fin_count` e `rst_count` são o produto de outra
-  coluna por `Number` (conferido em todas as linhas de um arquivo do `MERGED_CSV`), então carregam
+  coluna por `Number` (conferido em todas as linhas do `MERGED_CSV`), então carregam
   o mesmo atalho. O modelo pode aprender o tamanho da janela em vez do comportamento do tráfego,
   e as métricas das classes de flood saem infladas.
 - **Descompasso na operação.** O extrator não conhece a classe antes de classificar, então usa
@@ -221,9 +239,10 @@ Duas outras diferenças entre o artigo do dataset e os arquivos publicados, para
 E as classes dos nossos cenários são muito desiguais — `DICTIONARYBRUTEFORCE` é 0,03% dos dados.
 Decisão pendente com o orientador (ver `ROADMAP.md`).
 
-Consequência para as métricas: **relatar recall por classe, nunca só acurácia.** Com 78% de
-DDoS/DoS, um modelo que respondesse "DDoS" para tudo acertaria 78% e seria inútil. Quando formos
-mal numa classe rara, dizer isso no artigo com o número de amostras ao lado.
+Consequência para as métricas: **relatar recall por classe, nunca só acurácia.** DDoS e DoS somam
+89,5% das linhas, e só a categoria DDoS tem 72,3%: um modelo que respondesse "DDoS" para tudo
+acertaria 72,3% e seria inútil. Quando formos mal numa classe rara, dizer isso no artigo com o
+número de amostras ao lado.
 
 ---
 
@@ -276,8 +295,9 @@ CICIoT2023/
 
 | Arquivo | O que faz |
 |---|---|
-| `mapeamento.py` | O `dict_7classes` dos autores, com os rótulos normalizados (o `MERGED_CSV` usa MAIÚSCULAS) |
-| `amostrar.py` | Percorre os 63 arquivos do `MERGED_CSV`, guarda todas as linhas das classes raras e limita as gigantes. **Semente fixa.** Gera o conjunto de treino |
+| `mapeamento.py` | Os 34 rótulos na grafia dos autores, a normalização da grafia (o `MERGED_CSV` usa MAIÚSCULAS e `BENIGN`) e o agrupamento em 8 categorias e em ataque ou benigno, igual ao `dict_7classes` e ao `dict_2classes` |
+| `amostrar.py` | Percorre os 63 arquivos do `MERGED_CSV` em fluxo, guarda todas as linhas das classes raras e sorteia no máximo 50.000 das demais. **Semente fixa.** Grava `dados/processed/amostra.csv.gz`, com as 39 features, `Label` e `Categoria`, e o manifesto da amostra |
+| `explorar.py` | Lê o `MERGED_CSV` inteiro e gera `experimentos/resultados/exploracao.md` |
 | `preparar.py` | Aplica o agrupamento em 8 categorias e separa treino e teste. Grava a divisão usada |
 | `treinar.py` | Treina o Random Forest e salva o modelo. Sem `StandardScaler` |
 | `avaliar.py` | Recall por classe, matriz de confusão, taxa de falso positivo, importância das features, tempo de inferência e tamanho do modelo |
@@ -299,6 +319,8 @@ CICIoT2023/
 | Arquivo | O que faz |
 |---|---|
 | `resultados/calibracao.md` | O relatório da calibração: o que bateu, o que divergiu e quanto |
+| `resultados/exploracao.md` | A exploração do `MERGED_CSV` completo: linhas por classe e por categoria, janela por classe, valores vazios e infinitos, colunas redundantes e linhas repetidas |
+| `resultados/manifesto_amostra.json` | O registro da amostra: semente, teto, contagem por classe no conjunto e na amostra, hash dos arquivos lidos e hash da amostra |
 | `resultados/metricas_classificador.csv` | Recall, precisão e F1 por classe |
 | `resultados/matriz_confusao.png` | O que o modelo confunde com o quê |
 | `resultados/avaliacao_agentes.csv` | A qualidade das recomendações — **a tabela que ainda não tem métrica definida** |
@@ -316,7 +338,7 @@ CICIoT2023/
 
 1. `mcp/contrato.json` — destrava as duas frentes
 2. `captura/extrator.py` e `captura/calibrar.py` — caminho crítico
-3. `classificador/amostrar.py` → `preparar.py` → `treinar.py` → `avaliar.py`
+3. `classificador/mapeamento.py` → `explorar.py` e `amostrar.py` → `preparar.py` → `treinar.py` → `avaliar.py`
 4. `mcp/stub.py` (em paralelo a tudo, desde o contrato) → `mcp/servidor.py`
 5. `agente/` — depois que o servidor responde
 6. `experimentos/resultados/` — as tabelas vazias devem existir **antes** dos experimentos
