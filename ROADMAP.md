@@ -35,6 +35,8 @@ datas do edital, na Fase 4 e na Fase 5, não mudam.
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 2026-10-04 | **Os agentes recebem o resumo do incidente, não o CSV.** O detalhe vem por tool, em fatias de até 20 janelas | Um flood gera milhares de linhas por minuto. Mandar tudo para a LLM custaria tokens demais, que é o risco de Denial of Wallet, e pioraria a resposta |
+| 2026-10-04 | **A autonomia do executor é graduada pelo risco, e o catálogo de ações é uma base, não uma lista fechada.** Ação de risco baixo é executada sem aprovação. Ação de risco alto e toda ação nova, proposta pelo agente fora do catálogo, dependem de aprovação humana | O agente precisa de liberdade para pesquisar e propor outra saída quando a base não resolve. A aprovação humana do que é novo mantém o controle sobre o que o sistema aplica na rede |
 | 2026-10-04 | **Os três agentes são triagem, decisão e execução.** O agente de triagem substitui o que era chamado de agente de detecção | Quem detecta é o Random Forest. O primeiro agente interpreta o alerta: confere a coerência, estima a gravidade e agrupa alertas do mesmo ataque |
 | 2026-10-04 | **Na PoC, a resposta é executada de forma simulada, com aprovação humana e possibilidade de desfazer** | Mostra o fluxo completo de detecção e resposta sem depender de montar uma rede real em um mês. Se os impedimentos forem muitos, o foco pode mudar |
 | 2026-10-04 | **O sistema terá uma interface web em `frontend/`,** que lê um log de eventos de formato fixo gravado pelo backend, com modo ao vivo e replay de uma execução gravada | O replay protege a demonstração na banca, porque não depende de internet nem da resposta da LLM na hora. O contador de janelas, incidentes e chamadas à LLM responde à pergunta sobre custo de tokens |
