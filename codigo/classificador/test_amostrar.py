@@ -267,6 +267,42 @@ def test_ultima_linha_sem_quebra_e_lida(tmp_path):
     assert len(amostrar([arquivo]).linhas) == 1
 
 
+def cortar_no_fim(caminho, resto):
+    """Acrescenta ao arquivo uma linha cortada, sem quebra de linha no fim."""
+    with open(caminho, "a") as arquivo:
+        arquivo.write(resto)
+
+
+@pytest.mark.parametrize("resto", [
+    "20.0,6,64.0,96067.4301420064,0.0,1.0,",  # cortada depois de uma vírgula
+    "20.04,6,63.36,22035.8516339",  # cortada no meio de um número
+    linha(9, "DDOS-ICMP_FLOOD")[:-3],  # cortada no meio do rótulo: os 40 campos estão lá
+    linha(9, "DDOS-ICMP_FLOOD").rsplit(",", 1)[0] + ",",  # cortada antes do rótulo
+])
+def test_linha_final_cortada_fica_de_fora_e_e_registrada(tmp_path, resto):
+    arquivo = escrever(tmp_path / "Merged42.csv", [linha(1, "XSS"), linha(2, "XSS")])
+    cortar_no_fim(arquivo, resto)
+    amostra = amostrar([arquivo])
+    assert numeros(amostra, "XSS") == [1, 2] and len(amostra.linhas) == 2
+    assert amostra.arquivos[0]["linhas"] == 2
+    assert amostra.arquivos[0]["final_incompleto"] is True
+    assert amostra.arquivos[0]["sha256"] == hashlib.sha256(arquivo.read_bytes()).hexdigest()
+
+
+def test_linha_cortada_so_e_tolerada_no_fim_do_arquivo(tmp_path):
+    arquivo = escrever(tmp_path / "a.csv", [linha(1, "XSS"), "20.04,6,63.36,22035.8516339", linha(2, "XSS")])
+    with pytest.raises(ValueError, match=r"a\.csv, linha 3: 4 campos"):
+        amostrar([arquivo])
+
+
+def test_arquivo_inteiro_nao_tem_final_incompleto(tmp_path):
+    amostra = amostrar(caso_simples(tmp_path), teto=20, semente=1)
+    assert [a["final_incompleto"] for a in amostra.arquivos] == [False, False]
+    sem_quebra = tmp_path / "a.csv"
+    sem_quebra.write_text(",".join(CABECALHO) + "\n" + linha(1, "XSS"))
+    assert amostrar([sem_quebra]).arquivos[0]["final_incompleto"] is False
+
+
 def test_arquivos_registram_linhas_tamanho_e_hash(tmp_path):
     arquivos = caso_simples(tmp_path)
     amostra = amostrar(arquivos, teto=20, semente=1)
@@ -304,6 +340,7 @@ def test_manifesto_tem_o_que_e_preciso_para_reproduzir(tmp_path):
     assert manifesto["semente"] == 11 and manifesto["teto_por_classe"] == 20
     assert manifesto["versoes"] == {"python": platform.python_version()}
     assert manifesto["entrada"]["linhas"] == 510 and manifesto["entrada"]["arquivos"] == amostra.arquivos
+    assert manifesto["entrada"]["arquivos_com_final_incompleto"] == []
     assert manifesto["saida"]["linhas"] == 30
     assert manifesto["saida"]["sha256_do_csv_descomprimido"] == resumo
     assert manifesto["saida"]["colunas"] == [*COLUNAS, "Label", "Categoria"]
@@ -398,6 +435,17 @@ def test_main_recusa_teto_invalido(tmp_path, capsys, teto):
     assert not saida.exists()
 
 
+def test_main_avisa_e_registra_arquivo_com_final_incompleto(tmp_path, capsys):
+    arquivos = caso_simples(tmp_path)
+    cortar_no_fim(arquivos[1], "20.0,6,64.0,960")
+    codigo, _, manifesto = executar(tmp_path, "--teto", "20")
+    assert codigo == 0
+    assert "aviso: Merged02.csv termina no meio de uma linha" in capsys.readouterr().err
+    registro = json.loads(manifesto.read_text(encoding="utf-8"))
+    assert registro["entrada"]["arquivos_com_final_incompleto"] == ["Merged02.csv"]
+    assert registro["entrada"]["linhas"] == 510 and registro["saida"]["linhas"] == 30
+
+
 def test_main_avisa_das_classes_sem_linha(tmp_path, capsys):
     caso_simples(tmp_path)
     executar(tmp_path, "--teto", "20")
@@ -412,6 +460,15 @@ def test_merged63_real():
     assert amostra.populacao["Recon-PortScan"] == 726
     assert all(amostra.populacao[rotulo] > 0 for rotulo in ROTULOS)
     assert all(amostra.selecionadas[rotulo] == min(1000, amostra.populacao[rotulo]) for rotulo in ROTULOS)
+    assert amostra.arquivos[0]["final_incompleto"] is False
     if MANIFESTO.exists():
         registrado = json.loads(MANIFESTO.read_text(encoding="utf-8"))["entrada"]["arquivos"][-1]
         assert registrado == amostra.arquivos[0]
+
+
+@pytest.mark.skipif(not (MERGED / "Merged52.csv").exists(), reason="dataset ausente")
+def test_merged52_real_termina_no_meio_de_uma_linha():
+    # Na cópia local do dataset, 9 dos 63 arquivos estão cortados no fim. Este é o menor deles.
+    amostra = amostrar([MERGED / "Merged52.csv"], teto=100)
+    assert amostra.arquivos[0]["final_incompleto"] is True
+    assert amostra.arquivos[0]["linhas"] == sum(amostra.populacao.values()) > 60_000

@@ -67,7 +67,7 @@ class Amostra:
     linhas: list  # (features como texto, rótulo canônico), na ordem em que estão nos arquivos
     populacao: dict  # rótulo -> linhas no conjunto completo
     selecionadas: dict  # rótulo -> linhas na amostra
-    arquivos: list  # nome, linhas, bytes e sha256 de cada arquivo lido
+    arquivos: list  # o registro de cada arquivo lido, como o Leitor o entrega
     teto: int
     semente: int
 
@@ -96,62 +96,92 @@ def conferir_cabecalho(nome, colunas):
         )
 
 
-def amostrar(arquivos, teto=TETO, semente=SEMENTE, ao_terminar_arquivo=None):
-    """Percorre os arquivos e devolve a Amostra, com no máximo `teto` linhas por classe.
+def _rotulo_da_linha(linha, corte):
+    campos = linha.count(b",") + 1
+    if campos != len(CABECALHO):
+        raise ValueError(f"{campos} campos, e o esperado são {len(CABECALHO)}")
+    return normalizar(linha[corte + 1:].decode("utf-8", "replace").strip())
 
-    Rótulo desconhecido, arquivo sem cabeçalho e linha com a quantidade errada de campos
-    levantam ValueError com o nome do arquivo e o número da linha.
+
+class Leitor:
+    """Lê um arquivo do MERGED_CSV em fluxo e entrega (features como texto, rótulo canônico).
+
+    Confere o cabeçalho e cada linha. Linha em branco é ignorada. Linha com a quantidade errada
+    de campos ou com rótulo desconhecido levanta ValueError, com o nome do arquivo e o número
+    da linha. A exceção é a última linha de um arquivo que não termina em quebra de linha: o
+    arquivo foi cortado no meio dela, então ela fica de fora e o registro marca
+    `final_incompleto`.
+
+    Terminada a leitura, `registro` traz nome, linhas, bytes, sha256 e final_incompleto.
     """
-    if teto < 1:
-        raise ValueError("o teto por classe precisa ser de ao menos 1 linha")
-    reservatorios = {rotulo: _Reservatorio(rotulo, semente) for rotulo in ROTULOS}
-    por_grafia = {}  # o rótulo como está no arquivo, em bytes -> reservatório da classe
-    separadores = len(CABECALHO) - 1
-    registros = []
-    posicao = 0
-    for caminho in map(Path, arquivos):
+
+    def __init__(self, caminho):
+        self.caminho = Path(caminho)
+        self.registro = None
+
+    def __iter__(self):
+        nome = self.caminho.name
         resumo = hashlib.sha256()
-        linhas = 0
-        with open(caminho, "rb") as arquivo:
+        rotulos = {}  # o rótulo como está no arquivo, em bytes -> rótulo canônico
+        separadores = len(CABECALHO) - 1
+        linhas, incompleto = 0, False
+        with open(self.caminho, "rb") as arquivo:
             primeira = arquivo.readline()
             resumo.update(primeira)
             if not primeira.strip():
-                raise ValueError(f"{caminho.name}: arquivo vazio, sem a linha de cabeçalho")
-            conferir_cabecalho(caminho.name, primeira.decode("utf-8-sig", "replace").strip().split(","))
+                raise ValueError(f"{nome}: arquivo vazio, sem a linha de cabeçalho")
+            conferir_cabecalho(nome, primeira.decode("utf-8-sig", "replace").strip().split(","))
             for numero, linha in enumerate(arquivo, start=2):
                 resumo.update(linha)
-                if linha.count(b",") != separadores:
+                corte = linha.rfind(b",")
+                rotulo = rotulos.get(linha[corte + 1:]) if linha.count(b",") == separadores else None
+                if rotulo is None:
+                    # Caminho raro: linha em branco, grafia que ainda não apareceu ou linha com defeito.
                     if not linha.strip():
                         continue
-                    raise ValueError(
-                        f"{caminho.name}, linha {numero}: {linha.count(b',') + 1} campos, "
-                        f"e o esperado são {len(CABECALHO)}"
-                    )
-                corte = linha.rfind(b",")
-                grafia = linha[corte + 1:]
-                reservatorio = por_grafia.get(grafia)
-                if reservatorio is None:
                     try:
-                        rotulo = normalizar(grafia.decode("utf-8", "replace").strip())
+                        rotulo = rotulos[linha[corte + 1:]] = _rotulo_da_linha(linha, corte)
                     except ValueError as erro:
-                        raise ValueError(f"{caminho.name}, linha {numero}: {erro}") from None
-                    reservatorio = por_grafia[grafia] = reservatorios[rotulo]
+                        if linha.endswith(b"\n"):
+                            raise ValueError(f"{nome}, linha {numero}: {erro}") from None
+                        # Só a última linha do arquivo pode vir sem a quebra no fim.
+                        incompleto = True
+                        continue
                 linhas += 1
-                posicao += 1
-                reservatorio.vistas += 1
-                if reservatorio.vistas <= teto:
-                    reservatorio.linhas.append((posicao, linha[:corte]))
-                else:
-                    # Algoritmo R: a linha de número n entra com probabilidade teto/n, no lugar
-                    # de uma das guardadas. Ao fim, toda linha da classe teve a mesma chance.
-                    sorteada = reservatorio.sortear(reservatorio.vistas)
-                    if sorteada < teto:
-                        reservatorio.linhas[sorteada] = (posicao, linha[:corte])
-        registros.append({
-            "nome": caminho.name, "linhas": linhas, "bytes": caminho.stat().st_size, "sha256": resumo.hexdigest(),
-        })
+                yield linha[:corte], rotulo
+        self.registro = {
+            "nome": nome,
+            "linhas": linhas,
+            "bytes": self.caminho.stat().st_size,
+            "sha256": resumo.hexdigest(),
+            "final_incompleto": incompleto,
+        }
+
+
+def amostrar(arquivos, teto=TETO, semente=SEMENTE, ao_terminar_arquivo=None):
+    """Percorre os arquivos e devolve a Amostra, com no máximo `teto` linhas por classe."""
+    if teto < 1:
+        raise ValueError("o teto por classe precisa ser de ao menos 1 linha")
+    reservatorios = {rotulo: _Reservatorio(rotulo, semente) for rotulo in ROTULOS}
+    registros = []
+    posicao = 0
+    for caminho in arquivos:
+        leitor = Leitor(caminho)
+        for features, rotulo in leitor:
+            posicao += 1
+            reservatorio = reservatorios[rotulo]
+            reservatorio.vistas += 1
+            if reservatorio.vistas <= teto:
+                reservatorio.linhas.append((posicao, features))
+            else:
+                # Algoritmo R: a linha de número n entra com probabilidade teto/n, no lugar de
+                # uma das guardadas. Ao fim, toda linha da classe teve a mesma chance.
+                sorteada = reservatorio.sortear(reservatorio.vistas)
+                if sorteada < teto:
+                    reservatorio.linhas[sorteada] = (posicao, features)
+        registros.append(leitor.registro)
         if ao_terminar_arquivo is not None:
-            ao_terminar_arquivo(registros[-1])
+            ao_terminar_arquivo(leitor.registro)
     escolhidas = sorted(
         (posicao, features, reservatorio.rotulo)
         for reservatorio in reservatorios.values()
@@ -228,6 +258,7 @@ def montar_manifesto(amostra, entrada, saida, sha256):
             "pasta": Path(entrada).as_posix(),
             "linhas": sum(a["linhas"] for a in amostra.arquivos),
             "bytes": sum(a["bytes"] for a in amostra.arquivos),
+            "arquivos_com_final_incompleto": [a["nome"] for a in amostra.arquivos if a["final_incompleto"]],
             "arquivos": amostra.arquivos,
         },
         "saida": {
@@ -255,6 +286,16 @@ def _teto(texto):
     return valor
 
 
+def relatar_arquivo(registro):
+    """Mostra o andamento da leitura e avisa quando o arquivo está cortado no fim."""
+    print(f"{registro['nome']}: {_milhar(registro['linhas'])} linhas", file=sys.stderr)
+    if registro["final_incompleto"]:
+        print(
+            f"aviso: {registro['nome']} termina no meio de uma linha; a linha incompleta ficou de fora",
+            file=sys.stderr,
+        )
+
+
 def main(argv=None):
     analisador = argparse.ArgumentParser(
         prog="python -m codigo.classificador.amostrar",
@@ -276,14 +317,7 @@ def main(argv=None):
         if not argumentos.saida.endswith(".csv.gz"):
             raise ValueError("o nome do arquivo de saída precisa terminar em .csv.gz")
         arquivos = listar_arquivos(argumentos.entrada)
-        amostra = amostrar(
-            arquivos,
-            argumentos.teto,
-            argumentos.semente,
-            ao_terminar_arquivo=lambda registro: print(
-                f"{registro['nome']}: {_milhar(registro['linhas'])} linhas", file=sys.stderr
-            ),
-        )
+        amostra = amostrar(arquivos, argumentos.teto, argumentos.semente, ao_terminar_arquivo=relatar_arquivo)
         sha256 = gravar(amostra, argumentos.saida)
         manifesto = montar_manifesto(amostra, argumentos.entrada, argumentos.saida, sha256)
         destino = Path(argumentos.manifesto)
