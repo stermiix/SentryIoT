@@ -133,6 +133,7 @@ def test_relatorio_sem_divergencias(tmp_path):
     caminho_pcap, caminho_csv, _, _ = montar_caso(tmp_path)
     texto = montar_relatorio([calibrar_pcap(caminho_pcap, caminho_csv, limite=1000)])
     assert "Nenhuma divergência" in texto
+    assert "limite de captura declarado" in texto
 
 
 @pytest.mark.skipif(not (DATASET / "DictionaryBruteForce.pcap").exists(), reason="dataset ausente")

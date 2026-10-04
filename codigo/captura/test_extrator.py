@@ -439,6 +439,24 @@ def test_ler_pcap_limita_o_registro_mesmo_sem_limite_declarado():
         list(ler_pcap(io.BytesIO(dados)))
 
 
+def test_ler_pcap_corta_no_limite_declarado_o_registro_maior_que_ele():
+    # A libpcap entrega só os bytes até o limite de captura declarado no cabeçalho, e é com ela
+    # que o tcpdump dos autores fatia o pcap. O Mirai-greip_flood21.pcap oficial declara 1500
+    # bytes e traz quadros de 1514.
+    cabecalho = PCAP_LE + struct.pack("<HHiIII", 2, 4, 0, 0, 60, 1)  # limite de captura de 60 bytes
+    longo, curto = bytes(range(200)), bytes(range(50))
+    dados = cabecalho + struct.pack("<IIII", 1, 0, len(longo), len(longo)) + longo
+    dados += struct.pack("<IIII", 2, 0, len(curto), len(curto)) + curto
+    assert list(ler_pcap(io.BytesIO(dados))) == [(1.0, longo[:60]), (2.0, curto)]
+
+
+def test_ler_pcap_recusa_registro_acima_do_maior_aceito_mesmo_com_limite_declarado_menor():
+    cabecalho = PCAP_LE + struct.pack("<HHiIII", 2, 4, 0, 0, 60, 1)
+    dados = cabecalho + struct.pack("<IIII", 1, 0, 300_000, 300_000) + b"\x00" * 64
+    with pytest.raises(ValueError, match="corrompido"):
+        list(ler_pcap(io.BytesIO(dados)))
+
+
 def test_instante_precisa_ser_um_numero_finito():
     for instante in (math.nan, math.inf):
         with pytest.raises(ValueError, match="instante"):
