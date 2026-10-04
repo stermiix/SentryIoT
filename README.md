@@ -111,7 +111,7 @@ pasta-mãe, fora deste repositório.
 - **`dados/README.md`** — o mais importante para começar: onde está o dataset, como montar o
   ambiente, o mapa completo de arquivos e scripts, e as armadilhas já mapeadas.
 - **`GLOSSARIO.md`** — os termos do projeto em português simples, com exemplos dos nossos dados.
-- **`ROADMAP.md`** — as decisões tomadas, por quê, e o que cada uma exige no painel.
+- **`ROADMAP.md`** — as decisões importantes do projeto, tomadas e em aberto, com o motivo de cada uma.
 
 ---
 
@@ -129,8 +129,8 @@ de enviar ao orientador.
   treino/teste e as tabelas de resultado — sem isso o trabalho não é reproduzível.
 - **Toda decisão técnica vira parágrafo na semana em que é tomada.** Em novembro ninguém lembra
   por que escolheu 39 features em vez de 46.
-- **Toda mudança de plano vai para o `ROADMAP.md`** com a ação correspondente no painel, marcada
-  como `pendente` até alguém aplicar na interface.
+- **Decisão importante do projeto vai para o `ROADMAP.md`**, com data e motivo. O andamento das
+  tarefas fica só no painel.
 
 **Todo PR passa pelo CI** (GitHub Actions, Python 3.11). O `ruff` procura erros no código, o
 `pytest` roda os testes — os que precisam do dataset são pulados, porque ele não existe lá — e o
