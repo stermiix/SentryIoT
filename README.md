@@ -68,9 +68,9 @@ Cada seção do artigo deve endereçar os pontos desta lista que lhe couberem.
 O artigo tem 10–20 páginas, no template do Oriente. A apresentação tem 15–20 min.
 
 **A restrição que domina o cronograma:** a submissão é no início de novembro, não em dezembro.
-Contando para trás, o rascunho completo precisa chegar ao orientador por volta de 20/10 — o que
-significa **congelar os resultados por volta de 17/10**. As fases técnicas foram comprimidas para
-caber nisso, com a redação correndo em paralelo desde já.
+O plano previa congelar os resultados por volta de 17/10, para o rascunho completo chegar ao
+orientador por volta de 20/10. Em 04/10 essa data de congelamento foi abandonada e o calendário
+será ajustado pela equipe. A redação continua correndo em paralelo ao trabalho técnico.
 
 ---
 
