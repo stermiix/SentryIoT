@@ -26,7 +26,7 @@ Já está no `.gitignore`.
 TCC/CICIoT2023/
 ├── MERGED_CSV/                  <- O DATASET DE TREINO (63 arquivos, 8,7 GB)
 ├── <34 pastas, uma por ataque>/ <- CSVs por ataque, sem rótulo (usados na calibração)
-├── DictionaryBruteForce.pcap    <- 38 MB — o pcap da calibração
+├── DictionaryBruteForce.pcap    <- 39 MB, um dos pcaps da calibração
 ├── Recon-PortScan.pcap          <- 192 MB
 ├── pcap2csv/                    <- o extrator DOS AUTORES (código de referência)
 ├── example.ipynb                <- notebook de ML dos autores (ler as ressalvas abaixo)
@@ -38,11 +38,12 @@ TCC/CICIoT2023/
 
 ## O dataset de treino: `MERGED_CSV/`
 
-**É este que se usa para treinar.** 63 arquivos, ~44,5 milhões de linhas no total, 8,7 GB.
+**É este que se usa para treinar.** 63 arquivos, cerca de 45,0 milhões de linhas no total, 8,7 GB.
 
 - **40 colunas: as 39 features + `Label`** (com L maiúsculo).
-- As 39 features são **idênticas** às dos CSVs por ataque e às que o `pcap2csv` produz —
-  conferido coluna por coluna. É isso que garante que treino e operação usem os mesmos números.
+- As 39 features são **idênticas** às dos CSVs por ataque e às que o `pcap2csv` produz,
+  conferido coluna por coluna. É a base para treino e operação usarem os mesmos números, com a
+  ressalva do tamanho da janela (ver "Janela de 10 ou de 100 pacotes").
 - Já vem mesclado entre ataques e embaralhado: cada arquivo contém linhas de todas as 34 classes.
 
 **Por que 63 arquivos e não um só:** é saída do PySpark (cada trabalhador grava a sua parte), e
@@ -80,10 +81,12 @@ direto não casa com nada e zera tudo em silêncio. **Normalizar antes.**
 
 ## Decisões já tomadas
 
-**Usamos as 39 features do `MERGED_CSV`.** Treino e operação usam exatamente o mesmo conjunto de
-números, e o extrator consegue reproduzi-los ao vivo. (Havia uma versão de 46 features; as 7
-extras não saem do código publicado pelos autores — as linhas que as calculariam estão comentadas
-no `Feature_extraction.py`, linhas 132 e 171. Por isso ela foi descartada.)
+**Usamos as 39 features do `MERGED_CSV`.** Treino e operação partem do mesmo conjunto de colunas,
+e o extrator reproduz os valores oficiais nas classes já calibradas, que usam janela de 10. A
+leitura é de arquivo pcap; a captura ao vivo ainda não foi entregue. (Havia uma versão de 46
+features; as 7 extras não saem do código publicado pelos autores, porque as linhas que as
+calculariam estão comentadas no `Feature_extraction.py`, linhas 132 e 171. Por isso ela foi
+descartada.)
 
 **Classificamos em 8 categorias, não em 34 variantes.** O F1 é bem melhor, e os agentes não
 precisam da variante exata — a mitigação de um `DDoS-ICMP_Flood` e de um `DDoS-UDP_Flood` é a
@@ -118,30 +121,89 @@ número que sai do extrator entra direto no modelo — um artefato a menos para 
 
 ## Calibração do extrator
 
-O `pcap2csv/` é o extrator dos autores. A sequência:
+O `pcap2csv/` é o extrator dos autores e serve de referência. O nosso fica em
+`codigo/captura/extrator.py` e é conferido pelo `codigo/captura/calibrar.py`, que compara a saída
+com os CSVs oficiais e grava o resultado em `experimentos/resultados/calibracao.md`.
 
-1. Rodar o original no `DictionaryBruteForce.pcap` → confirmar que reproduz o CSV oficial (controle)
-2. Adaptar para ler de uma interface de rede ao vivo (o trabalho de verdade — o código atual é só
-   para arquivo e usa `rdpcap()`, que carrega o pcap inteiro na memória)
-3. Rodar a versão adaptada no mesmo pcap → confirmar que os números não mudaram (**a calibração
-   que vale**)
+    python -m codigo.captura.calibrar
 
-Parâmetro-chave: `Feature_extraction.py`, linha 477, `n_rows = 10` — cada linha do CSV resume
-**10 pacotes consecutivos**, não uma janela de tempo. Confirma-se pela coluna `Number`.
+Como o CSV oficial é gerado (lido no código dos autores, confirmado nos dois pcaps e descrito no
+artigo do dataset):
 
-Stack real dos autores (de `tools/` e do código): `tcpdump` captura e fatia, **`dpkt`** faz o
-parsing, `mergecap` junta capturas, `PySpark` junta os CSVs. **O Scapy só é usado para Zigbee e
-Bluetooth** — não para o tráfego IP.
+1. O pcap é fatiado com `tcpdump`, em pedaços de 10 MB.
+2. Cada pedaço é processado sozinho. Só entram quadros Ethernet de tipo IPv4 ou ARP.
+3. Os quadros mantidos são agregados em janelas de quadros consecutivos, e não em janelas de
+   tempo. O código publicado traz a janela fixa em 10 (`Feature_extraction.py`, linha 475,
+   `n_rows = 10`), mas os autores usaram 100 nas classes de flood. Ver a seção seguinte.
+   A última janela de cada pedaço pode ficar incompleta, o que aparece na coluna `Number`.
+4. Os CSVs dos pedaços são juntados sem ordem definida. Por isso a ordem das linhas do CSV oficial
+   não é cronológica, e a comparação é feita bloco a bloco.
 
-**Alvos de verificação** (medidos em 03/09/2026):
+Stack real dos autores (de `tools/`, do código e do artigo): `tcpdump` captura e fatia, `dpkt` faz
+o parsing, `mergecap` junta capturas e `PySpark` junta os CSVs. O Scapy é importado pelo código,
+mas não contribui para nenhuma das 39 colunas.
 
-| Arquivo | Pacotes | Linhas no CSV oficial | Pacotes/10 |
-|---|---|---|---|
-| `DictionaryBruteForce.pcap` | 133.138 | 13.064 | 13.313 |
-| `Recon-PortScan.pcap` | 831.856 | 82.284 | 83.185 |
+**Resultado da calibração** (03/10/2026, detalhes em `experimentos/resultados/calibracao.md`):
 
-A diferença de 1–2% para menos é esperada: há um `except: continue` no laço principal que descarta
-pacotes que o `dpkt` não interpreta.
+| Arquivo | Pacotes | Quadros IPv4 e ARP | Linhas no CSV oficial | Linhas reproduzidas |
+|---|---|---|---|---|
+| `DictionaryBruteForce.pcap` | 133.138 | 130.632 | 13.064 | 13.064 |
+| `Recon-PortScan.pcap` | 831.856 | 822.771 | 82.284 | 82.284 |
+
+A diferença entre pacotes e quadros mantidos (1,88% e 1,09%) vem do filtro: IPv6, STP e outros
+tipos de quadro ficam de fora. A soma da coluna `Number` do CSV oficial é igual à contagem de
+quadros IPv4 e ARP nos dois pcaps.
+
+Os dois pcaps disponíveis são de classes com janela de 10. A janela de 100 ainda não foi
+calibrada, porque não temos pcap de nenhuma classe de flood. O calibrador lê o tamanho da janela
+do próprio CSV oficial, então basta acrescentar o pcap à pasta do dataset.
+
+---
+
+## Janela de 10 ou de 100 pacotes
+
+O tamanho da janela muda conforme a classe. Está no artigo do dataset (Neto et al., 2023) e foi
+medido nos 63 arquivos do `MERGED_CSV` pela coluna `Number`:
+
+| Categorias | Janela | Linhas com a janela completa |
+|---|---|---|
+| DDoS, DoS, Mirai (19 classes) | 100 pacotes | 99,1% a 99,9% |
+| Benign, Recon, Spoofing, Web, BruteForce (15 classes) | 10 pacotes | 99,9% ou mais |
+
+As linhas restantes são a última janela de cada pedaço de 10 MB, que fica incompleta.
+
+Consequências para o projeto:
+
+- **Atalho no treino.** A coluna `Number` sozinha separa as classes de flood das demais. As
+  colunas `Tot sum`, `ack_count`, `syn_count`, `fin_count` e `rst_count` são o produto de outra
+  coluna por `Number` (conferido em todas as linhas de um arquivo do `MERGED_CSV`), então carregam
+  o mesmo atalho. O modelo pode aprender o tamanho da janela em vez do comportamento do tráfego,
+  e as métricas das classes de flood saem infladas.
+- **Descompasso na operação.** O extrator não conhece a classe antes de classificar, então usa
+  uma janela só. Com 10, um flood real chega com números que o modelo só viu em classes que não
+  são flood. Com 100, acontece o inverso com o tráfego benigno e as varreduras.
+- **O que sobra depois de tirar essas colunas.** `Min`, `Max` e `Std` ainda variam com o tamanho
+  da janela, e as médias de uma janela de 100 têm passos de 0,01, contra 0,1 na de 10.
+
+Saídas em avaliação, a decidir antes do treino:
+
+1. Remover `Number`, `Tot sum` e as quatro contagens. Não se perde informação, porque elas são
+   função de colunas que ficam. Reduz o atalho, mas não o elimina.
+2. Uniformizar em 100, reagrupando as classes de janela 10 a partir dos CSVs por ataque. É o mais
+   correto e pode ser conferido com o nosso extrator nos dois pcaps, mas deixa as classes raras
+   com dez vezes menos linhas.
+3. Manter como está e declarar a limitação no artigo.
+
+O extrator aceita qualquer tamanho de janela: `--janela 100` na linha de comando ou
+`Extrator(janela=100)` no código.
+
+Duas outras diferenças entre o artigo do dataset e os arquivos publicados, para não citar errado:
+
+- A Tabela 4 do artigo lista 47 atributos, e os CSVs trazem 39. Faltam `ts`, `flow duration`,
+  `Srate`, `Drate`, `urg count`, `Magnitude`, `Radius`, `Covariance` e `Weight`, e há `IGMP`, que
+  a tabela não lista.
+- `Variance`, que o artigo define como razão entre as variâncias dos pacotes de entrada e de
+  saída, nos arquivos é a variância amostral do tamanho dos quadros (igual a `Std` ao quadrado).
 
 ---
 
@@ -168,7 +230,7 @@ CICIoT2023/
 ├── MERGED_CSV/                      63 arquivos, 8,7 GB — O DATASET DE TREINO
 │   └── Merged01.csv … Merged63.csv  39 features + Label, embaralhado
 │
-├── DictionaryBruteForce.pcap        38 MB  — pcap da calibração (use este)
+├── DictionaryBruteForce.pcap        39 MB, pcap da calibração
 ├── Recon-PortScan.pcap              192 MB — segundo pcap, para conferência
 │
 ├── <34 pastas por ataque>/          CSVs de 39 features SEM rótulo.
@@ -177,8 +239,8 @@ CICIoT2023/
 │   ├── DDoS-ICMP_Flood/               do nosso extrator.
 │   └── …
 │
-├── pcap2csv/                        O EXTRATOR DOS AUTORES — base do nosso
-│   ├── Feature_extraction.py          27 KB, o principal. n_rows = 10 na linha 477
+├── pcap2csv/                        O EXTRATOR DOS AUTORES, usado como referência
+│   ├── Feature_extraction.py          27 KB, o principal. n_rows = 10 na linha 475
 │   ├── Generating_dataset.py          orquestra: fatia com tcpdump e paraleliza
 │   ├── Communication_features.py      features de Wi-Fi e Zigbee
 │   ├── Connectivity_features.py       features de conexão, tempo e flags
@@ -199,8 +261,8 @@ CICIoT2023/
 
 | Arquivo | O que faz |
 |---|---|
-| `extrator.py` | O extrator adaptado do `pcap2csv`. Lê de arquivo **ou de interface de rede ao vivo** e produz as 39 features a cada 10 pacotes |
-| `calibrar.py` | Roda o extrator no `DictionaryBruteForce.pcap` e compara com o CSV oficial. Confere contagem de linhas (alvo: ~13.064), nomes e ordem das colunas, e valores linha a linha |
+| `extrator.py` | Lê um pcap, de arquivo ou de fluxo, e produz as 39 features a cada janela de quadros IPv4 ou ARP (10 por padrão). A medição não depende da origem dos quadros, o que deixa caminho para captura ao vivo |
+| `calibrar.py` | Refaz o fatiamento de 10 MB, roda o extrator e compara com o CSV oficial, bloco a bloco, nas 39 colunas. Gera `experimentos/resultados/calibracao.md` |
 
 **Frente de dados e classificador** — `codigo/classificador/`
 
@@ -255,8 +317,11 @@ CICIoT2023/
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install dpkt scapy pandas scikit-learn numpy tqdm
+pip install -r requirements.txt
+pytest
 ```
+
+Requer Python 3.11 ou mais novo. As versões ficam fixadas no `requirements.txt`.
 
 ## O que NUNCA vai para o git
 

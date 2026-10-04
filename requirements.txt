@@ -1,0 +1,4 @@
+dpkt==1.9.8
+pandas==3.0.6
+scikit-learn==1.9.1
+pytest==9.1.1
