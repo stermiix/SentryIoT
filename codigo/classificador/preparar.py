@@ -108,19 +108,28 @@ def ler(caminho):
     return quadro, hashlib.sha256(bruto).hexdigest()
 
 
-def carregar(caminho):
-    """Lê a amostra de treino. Devolve o quadro, com `Label` na grafia canônica, e o SHA-256."""
+def carregar(caminho, rotulo=None):
+    """Lê linhas com rótulo conhecido. Devolve o quadro, com `Label` na grafia canônica, e o SHA-256.
+
+    O rótulo vem da coluna `Label`, como na amostra de treino, ou de `rotulo`, que vale para
+    todas as linhas de um arquivo sem essa coluna, como a saída do extrator sobre uma captura.
+    """
     quadro, sha256 = ler(caminho)
     nome = Path(caminho).name
-    if "Label" not in quadro.columns:
-        raise ValueError(f"{nome}: falta a coluna Label")
-    if quadro.empty:
-        raise ValueError(f"{nome}: nenhuma linha de dados")
     try:
-        canonico = {grafia: normalizar(grafia) for grafia in quadro["Label"].unique()}
+        if rotulo is not None:
+            if "Label" in quadro.columns:
+                raise ValueError("o arquivo já traz a coluna Label, e um rótulo foi dado por fora")
+            quadro["Label"] = normalizar(rotulo)
+        elif "Label" not in quadro.columns:
+            raise ValueError("falta a coluna Label")
+        else:
+            canonico = {grafia: normalizar(grafia) for grafia in quadro["Label"].unique()}
+            quadro["Label"] = quadro["Label"].map(canonico)
+        if quadro.empty:
+            raise ValueError("nenhuma linha de dados")
     except ValueError as erro:
         raise ValueError(f"{nome}: {erro}") from None
-    quadro["Label"] = quadro["Label"].map(canonico)
     return quadro, sha256
 
 
@@ -133,8 +142,7 @@ def matriz(quadro, features):
     """
     _faltantes("", quadro.columns, features)
     X = quadro[list(features)].to_numpy(dtype=np.float32)
-    X[np.isinf(X)] = np.nan
-    return X
+    return np.where(np.isinf(X), np.float32(np.nan), X)
 
 
 def alvo(rotulos, nome):

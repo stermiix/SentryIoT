@@ -366,6 +366,22 @@ def test_carregar_recusa_rotulo_desconhecido_e_amostra_sem_linhas(tmp_path):
         carregar(caminho)
 
 
+def test_carregar_aceita_o_rotulo_de_fora_quando_o_arquivo_nao_tem_label(tmp_path):
+    # A saída do extrator traz só as 39 colunas: o rótulo da captura é dito por quem a gravou.
+    quadro = quadro_sintetico(por_classe=2)
+    caminho = tmp_path / "captura.csv"
+    quadro[list(COLUNAS)].to_csv(caminho, index=False)
+    lido, _ = carregar(caminho, rotulo="ddos-http_flood")
+    assert set(lido["Label"]) == {"DDoS-HTTP_Flood"} and len(lido) == 18
+    with pytest.raises(ValueError, match="captura.csv: falta a coluna Label"):
+        carregar(caminho)
+    with pytest.raises(ValueError, match="rótulo desconhecido"):
+        carregar(caminho, rotulo="Exfiltracao")
+    quadro.to_csv(caminho, index=False)
+    with pytest.raises(ValueError, match="captura.csv: o arquivo já traz a coluna Label"):
+        carregar(caminho, rotulo="XSS")
+
+
 @pytest.mark.skipif(not AMOSTRA.exists(), reason="amostra ausente")
 def test_amostra_real_e_a_do_manifesto_e_a_divisao_por_grupos_nao_repete_vetor():
     quadro, sha256 = carregar(AMOSTRA)
