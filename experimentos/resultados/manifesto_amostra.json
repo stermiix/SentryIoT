@@ -1,0 +1,757 @@
+{
+  "descricao": "Amostra do MERGED_CSV do CICIoT2023, com teto de linhas por classe",
+  "gerado_por": "python -m codigo.classificador.amostrar",
+  "metodo": "Amostragem por reservatório (algoritmo R), com um reservatório por classe. Os arquivos são lidos em ordem de nome e as linhas na ordem do arquivo. O gerador de cada classe é random.Random('<semente>:<rótulo canônico>'), e a amostra sai na ordem original das linhas.",
+  "semente": 42,
+  "teto_por_classe": 50000,
+  "versoes": {
+    "python": "3.11.2"
+  },
+  "entrada": {
+    "pasta": "CICIoT2023/MERGED_CSV",
+    "linhas": 45019234,
+    "bytes": 9300139459,
+    "arquivos_com_final_incompleto": [
+      "Merged42.csv",
+      "Merged44.csv",
+      "Merged46.csv",
+      "Merged47.csv",
+      "Merged48.csv",
+      "Merged49.csv",
+      "Merged50.csv",
+      "Merged51.csv",
+      "Merged52.csv"
+    ],
+    "arquivos": [
+      {
+        "nome": "Merged01.csv",
+        "linhas": 712311,
+        "bytes": 147115614,
+        "sha256": "8b43d6552a8cafd3b0ca2cedf6464ca3fe644d7fc9bb5dfe906368f1542792fe",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged02.csv",
+        "linhas": 748585,
+        "bytes": 154639360,
+        "sha256": "0745a3649a5688616ce58f58fc68d18bfc652ad0b0760b5f486e6976925f001b",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged03.csv",
+        "linhas": 697289,
+        "bytes": 144064311,
+        "sha256": "e6778136da45bf8aec9a3e5b597bb706ea1056c2908a8bbef4a6aea19dc751fa",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged04.csv",
+        "linhas": 676620,
+        "bytes": 139782474,
+        "sha256": "2d647ad1947e0d6a41a60bc2b36d8b3d1cf5d13e5b44b30ceb9ab7499cc69362",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged05.csv",
+        "linhas": 744804,
+        "bytes": 153858577,
+        "sha256": "e035b9dfee8db2cc6b29d0e36f31e5e617c248b7c4fe0cc7fed0fcbd35a23e77",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged06.csv",
+        "linhas": 718229,
+        "bytes": 148376004,
+        "sha256": "dd6f7f2493751f84e0465c98d79a02a17931f051c13e373a28251c7a89b6342a",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged07.csv",
+        "linhas": 702212,
+        "bytes": 145078394,
+        "sha256": "433096b84482f1b11f837d5f672be3846296aee58fd57cb072003b3a09350bb6",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged08.csv",
+        "linhas": 712220,
+        "bytes": 147113201,
+        "sha256": "9b3415e4b4d8e1d0a26d71a37b75d0438b14d0624b8c5cbab5adfe28149c7339",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged09.csv",
+        "linhas": 678882,
+        "bytes": 140238529,
+        "sha256": "53c62ebb163471a5596c6bafc03d5cb7b25f1989c095fc74d186887dbbfa35bc",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged10.csv",
+        "linhas": 916190,
+        "bytes": 189279680,
+        "sha256": "2d1fe670456b2b907a10ab8b533647ddb86be87389031cf7085603f8dfd9c279",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged11.csv",
+        "linhas": 909761,
+        "bytes": 187937973,
+        "sha256": "ecdbf10a23d786617cb79c6163c6e32cd1c6b0e3cab3bb3c46d229ae3d13e10b",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged12.csv",
+        "linhas": 896941,
+        "bytes": 185310837,
+        "sha256": "5fc7fc94dad25df77f354422d72172f383a4e931c34743e6f82c66e2e4653961",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged13.csv",
+        "linhas": 709937,
+        "bytes": 146677937,
+        "sha256": "78cc2a481e4938fa8f42d0a8b949e73f0c988664fdab2be579ea3779925cb145",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged14.csv",
+        "linhas": 902920,
+        "bytes": 186540311,
+        "sha256": "c7bc29bbbe04a9278233fd9dc71bda185a55db087d1509a927bfed0695244173",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged15.csv",
+        "linhas": 718483,
+        "bytes": 148412810,
+        "sha256": "3a164cdcbb8d453d63bd1a0bb3019aa7ad805be029c93bbee5e5364bd3e5af0d",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged16.csv",
+        "linhas": 765369,
+        "bytes": 158106214,
+        "sha256": "a72d70207e9d1ec5d5519590f33a805d9979f0f07b71fc0c49f6f08e2e06dff6",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged17.csv",
+        "linhas": 731532,
+        "bytes": 151106632,
+        "sha256": "fc34c916f5aa327a84514ae083c54604baa094d1b897f5fb73a59455e3d5f944",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged18.csv",
+        "linhas": 714063,
+        "bytes": 147513362,
+        "sha256": "20deeb9b1536fbeb6878209ed48013cf9e7bc20148111461cf465fc9ef762442",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged19.csv",
+        "linhas": 701978,
+        "bytes": 145027913,
+        "sha256": "07f19676ab4419fc6959f3c4ab51aea8921fc86555f9a9bac1e323b548ec0c26",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged20.csv",
+        "linhas": 719927,
+        "bytes": 148686193,
+        "sha256": "95e9e16c77a789cd03ce2e1b5ade5bf52329c929579f98cb2111edee13101110",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged21.csv",
+        "linhas": 692566,
+        "bytes": 143085327,
+        "sha256": "bf0c26b9a19849d94b152b8479a77c0773645454c420ce568e6e275a1632f1ab",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged22.csv",
+        "linhas": 739382,
+        "bytes": 152731221,
+        "sha256": "0068bb260d01138e8b3df74084619dfaa96da52d0d59630510eb68316de10297",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged23.csv",
+        "linhas": 688470,
+        "bytes": 142220251,
+        "sha256": "97136fcea1301974b938893bfb8c80c841c45252fbf98dc757ee4245c1469fc8",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged24.csv",
+        "linhas": 743201,
+        "bytes": 153542038,
+        "sha256": "945af74240da021548c7b1ebad96024ff7ae7d92b25a731cdf9da7fa7680fd28",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged25.csv",
+        "linhas": 700455,
+        "bytes": 144688091,
+        "sha256": "69e66466f6b0bf54632474476ab301050af2c40469378624bd9a385b60352d57",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged26.csv",
+        "linhas": 878940,
+        "bytes": 181572383,
+        "sha256": "9435925ba222ba319405694905f784f840e52fb6a083b666f09dc36a2735048a",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged27.csv",
+        "linhas": 720736,
+        "bytes": 148887180,
+        "sha256": "40abdd69e80532b14b14325f53cbe580aaae141aa07e201356e2a52eb47dad8b",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged28.csv",
+        "linhas": 706379,
+        "bytes": 145934611,
+        "sha256": "29369dee299ed933a80e3e7764784adb3adaf34e1cf71a9bc755dbbb5b213c1c",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged29.csv",
+        "linhas": 717507,
+        "bytes": 148223435,
+        "sha256": "988734ad53a72b801979548b7c2c4e5971b50b1512e1cc3e1ed1e7cc8e06ee99",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged30.csv",
+        "linhas": 695672,
+        "bytes": 143719665,
+        "sha256": "ddb26df1eb0b35f9ea251d2be93c0e8b65ec02e8e60ed2e46131b35da9aa1e36",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged31.csv",
+        "linhas": 682595,
+        "bytes": 141004713,
+        "sha256": "4cdcaeb4fbdcc00920c45d44815c1045b5f6fae8353b54747abe0907c427afdc",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged32.csv",
+        "linhas": 704067,
+        "bytes": 145464744,
+        "sha256": "ed092cb56fe63135d9b9d53a255906887824b48b85fbb9b1cf5b7272469061d4",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged33.csv",
+        "linhas": 793945,
+        "bytes": 163994297,
+        "sha256": "a861b353066334c3746364adc04d427c61af30882c837db455060050f3690e14",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged34.csv",
+        "linhas": 899094,
+        "bytes": 185731135,
+        "sha256": "1f0793cb146a5ba23dd12f89c2e46399c07c282599d70f903e5b38bf7418be7a",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged35.csv",
+        "linhas": 920543,
+        "bytes": 190164566,
+        "sha256": "08713cbdfdf2cdb1f272d7dc784c2ccc6f3fb80b757f2207f6442499f2e4f9b2",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged36.csv",
+        "linhas": 743302,
+        "bytes": 153564144,
+        "sha256": "09321290e920e308cb578fac08a7dca90be7f4fbb5a30af97de75f8051056baf",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged37.csv",
+        "linhas": 688865,
+        "bytes": 142332741,
+        "sha256": "c293b2032dd4868e56befa8ba4723bf21b58cd1037e73eaf979b34e31f06952b",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged38.csv",
+        "linhas": 729577,
+        "bytes": 150717367,
+        "sha256": "6105c9c66423681ad434406540fa59d18b114cfdf4e0999de7aa4296b3ada1bc",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged39.csv",
+        "linhas": 677113,
+        "bytes": 139874681,
+        "sha256": "5a931300a20f878c4440eb415e232888cd5a41c2fa950dd286a5269909d5ce06",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged40.csv",
+        "linhas": 696694,
+        "bytes": 143915067,
+        "sha256": "303dc6b751d3f79936118910ad400c62d14aced6d0dd084f23eb26998595fb5e",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged41.csv",
+        "linhas": 712847,
+        "bytes": 147277898,
+        "sha256": "0e9f3702f59c587146c7a3fedf82c3bb139df6e9ff53d745e98b977c44e4c35e",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged42.csv",
+        "linhas": 871729,
+        "bytes": 180077709,
+        "sha256": "2f8c6871ec1358154f0581d82ff2399b2928133e3e5e7eaed5bb602873fae906",
+        "final_incompleto": true
+      },
+      {
+        "nome": "Merged43.csv",
+        "linhas": 692217,
+        "bytes": 143017588,
+        "sha256": "6f898d5507c4568a0ac07ed40e68c8cc11fd6984992e046352f3f5365b51e965",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged44.csv",
+        "linhas": 725936,
+        "bytes": 149972599,
+        "sha256": "8d9392669871b7fbfe5903a8f01991e7ec47618e066b5177b9f5c10abab0a137",
+        "final_incompleto": true
+      },
+      {
+        "nome": "Merged45.csv",
+        "linhas": 673548,
+        "bytes": 139154007,
+        "sha256": "fa057d270f05b03c72de610a0a655f2472e9813a1d0117fe84924716348b18cb",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged46.csv",
+        "linhas": 678327,
+        "bytes": 140142359,
+        "sha256": "7d0e575cd9c460a44622ce94c77e5e64f4e745898b0aaa3b5f3383f8b48d0e92",
+        "final_incompleto": true
+      },
+      {
+        "nome": "Merged47.csv",
+        "linhas": 657625,
+        "bytes": 135841629,
+        "sha256": "206212048ede7d584060031baad8267d2885ed1350a8806cbc7801f8a2527a78",
+        "final_incompleto": true
+      },
+      {
+        "nome": "Merged48.csv",
+        "linhas": 657629,
+        "bytes": 135841629,
+        "sha256": "0be517a673535e7338c51972627d636033e846c8a02aaa6b8dd7e43a201d66da",
+        "final_incompleto": true
+      },
+      {
+        "nome": "Merged49.csv",
+        "linhas": 642735,
+        "bytes": 132769679,
+        "sha256": "150d7108eaa35920860545e7adb273afbe417308f69e9276a30d7349083a3f80",
+        "final_incompleto": true
+      },
+      {
+        "nome": "Merged50.csv",
+        "linhas": 601084,
+        "bytes": 124168219,
+        "sha256": "9d30f0c62865f15529451cb6bd13d48f66b907ca9e2842dfb2d44f291844afb7",
+        "final_incompleto": true
+      },
+      {
+        "nome": "Merged51.csv",
+        "linhas": 214393,
+        "bytes": 44297519,
+        "sha256": "02f796c65566e2596dd45549993c05637fddb972126fec823eed0b4e6cb0d3d1",
+        "final_incompleto": true
+      },
+      {
+        "nome": "Merged52.csv",
+        "linhas": 65723,
+        "bytes": 13578019,
+        "sha256": "346b8e45c721bcc216d263acfa77a4acfbe6bd7ef874b6cbc186b8d92eb89705",
+        "final_incompleto": true
+      },
+      {
+        "nome": "Merged53.csv",
+        "linhas": 907087,
+        "bytes": 187394155,
+        "sha256": "34b386c4ceafad03ab705fc7ddd46679537343e7977e8cf7b511b7f0a3188c6e",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged54.csv",
+        "linhas": 727442,
+        "bytes": 150268183,
+        "sha256": "b02550d627048c814ab9095ef240ec7ace3438bdaa8230f377ccaf114315e44a",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged55.csv",
+        "linhas": 754784,
+        "bytes": 155909259,
+        "sha256": "de2ac3667f70d917108fa6119c4ce6be183e16545f50926c6ce26294282b8b12",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged56.csv",
+        "linhas": 743836,
+        "bytes": 153672571,
+        "sha256": "f52dc2585b4f75f7f2f23d240ed8fae054c933da64039d1e124c5493b31f637f",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged57.csv",
+        "linhas": 865303,
+        "bytes": 178722424,
+        "sha256": "3b3012718f0fef258e5d30e5cae2d04365f5b50e344f0409340a1e333918009f",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged58.csv",
+        "linhas": 709636,
+        "bytes": 146595068,
+        "sha256": "4b3a414adfc6e1bb8e277aee3bb31dffa5f1467d1bfa60ed92fcf059c8115372",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged59.csv",
+        "linhas": 687179,
+        "bytes": 141968337,
+        "sha256": "359172fc9fb7882eab904f549c051a518b08d65e9ecbeede4d88cfc6f891e2a7",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged60.csv",
+        "linhas": 691573,
+        "bytes": 142876398,
+        "sha256": "6f49705c48e4bdf3ab48b015e8a06c4849980911d15c7fa118d36038c345f1a5",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged61.csv",
+        "linhas": 711577,
+        "bytes": 146983288,
+        "sha256": "7c06a3bd4fdf2e370430a487d29d6e41459c96d7f25b5b80c0ce8a668708c9e0",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged62.csv",
+        "linhas": 701507,
+        "bytes": 144903857,
+        "sha256": "2393a1be0b5870bbc1c3a08796164f176e62561b5a2544cfec6129244c37586b",
+        "final_incompleto": false
+      },
+      {
+        "nome": "Merged63.csv",
+        "linhas": 428161,
+        "bytes": 88473082,
+        "sha256": "125d22f0b1d34aa2c1820f57e505e4181e6fc2383bab0605a1b874284d527539",
+        "final_incompleto": false
+      }
+    ]
+  },
+  "saida": {
+    "arquivo": "dados/processed/amostra.csv.gz",
+    "linhas": 1288479,
+    "colunas": [
+      "Header_Length",
+      "Protocol Type",
+      "Time_To_Live",
+      "Rate",
+      "fin_flag_number",
+      "syn_flag_number",
+      "rst_flag_number",
+      "psh_flag_number",
+      "ack_flag_number",
+      "ece_flag_number",
+      "cwr_flag_number",
+      "ack_count",
+      "syn_count",
+      "fin_count",
+      "rst_count",
+      "HTTP",
+      "HTTPS",
+      "DNS",
+      "Telnet",
+      "SMTP",
+      "SSH",
+      "IRC",
+      "TCP",
+      "UDP",
+      "DHCP",
+      "ARP",
+      "ICMP",
+      "IGMP",
+      "IPv",
+      "LLC",
+      "Tot sum",
+      "Min",
+      "Max",
+      "AVG",
+      "Std",
+      "Tot size",
+      "IAT",
+      "Number",
+      "Variance",
+      "Label",
+      "Categoria"
+    ],
+    "sha256_do_csv_descomprimido": "f23c098dc10faf3f857a473f8c793fc2642098d9046f11cbc76d83e20e505b8f"
+  },
+  "categorias": {
+    "DDoS": {
+      "populacao": 32536197,
+      "amostra": 549997
+    },
+    "DoS": {
+      "populacao": 7746554,
+      "amostra": 200000
+    },
+    "Mirai": {
+      "populacao": 2521731,
+      "amostra": 150000
+    },
+    "Recon": {
+      "populacao": 661121,
+      "amostra": 202161
+    },
+    "Spoofing": {
+      "populacao": 465937,
+      "amostra": 100000
+    },
+    "Web": {
+      "populacao": 23799,
+      "amostra": 23799
+    },
+    "BruteForce": {
+      "populacao": 12522,
+      "amostra": 12522
+    },
+    "Benign": {
+      "populacao": 1051373,
+      "amostra": 50000
+    }
+  },
+  "classes": [
+    {
+      "rotulo": "DDoS-ACK_Fragmentation",
+      "categoria": "DDoS",
+      "populacao": 272793,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DDoS-UDP_Flood",
+      "categoria": "DDoS",
+      "populacao": 5181027,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DDoS-SlowLoris",
+      "categoria": "DDoS",
+      "populacao": 22400,
+      "amostra": 22400
+    },
+    {
+      "rotulo": "DDoS-ICMP_Flood",
+      "categoria": "DDoS",
+      "populacao": 6893259,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DDoS-RSTFINFlood",
+      "categoria": "DDoS",
+      "populacao": 3872808,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DDoS-PSHACK_Flood",
+      "categoria": "DDoS",
+      "populacao": 3920372,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DDoS-HTTP_Flood",
+      "categoria": "DDoS",
+      "populacao": 27597,
+      "amostra": 27597
+    },
+    {
+      "rotulo": "DDoS-UDP_Fragmentation",
+      "categoria": "DDoS",
+      "populacao": 274909,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DDoS-ICMP_Fragmentation",
+      "categoria": "DDoS",
+      "populacao": 433157,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DDoS-TCP_Flood",
+      "categoria": "DDoS",
+      "populacao": 4306086,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DDoS-SYN_Flood",
+      "categoria": "DDoS",
+      "populacao": 3886130,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DDoS-SynonymousIP_Flood",
+      "categoria": "DDoS",
+      "populacao": 3445659,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DoS-TCP_Flood",
+      "categoria": "DoS",
+      "populacao": 2558256,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DoS-HTTP_Flood",
+      "categoria": "DoS",
+      "populacao": 68799,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DoS-SYN_Flood",
+      "categoria": "DoS",
+      "populacao": 1942176,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DoS-UDP_Flood",
+      "categoria": "DoS",
+      "populacao": 3177323,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "Mirai-greip_flood",
+      "categoria": "Mirai",
+      "populacao": 719655,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "Mirai-greeth_flood",
+      "categoria": "Mirai",
+      "populacao": 949381,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "Mirai-udpplain",
+      "categoria": "Mirai",
+      "populacao": 852695,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "Recon-PingSweep",
+      "categoria": "Recon",
+      "populacao": 2161,
+      "amostra": 2161
+    },
+    {
+      "rotulo": "Recon-OSScan",
+      "categoria": "Recon",
+      "populacao": 93970,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "VulnerabilityScan",
+      "categoria": "Recon",
+      "populacao": 357583,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "Recon-PortScan",
+      "categoria": "Recon",
+      "populacao": 78730,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "Recon-HostDiscovery",
+      "categoria": "Recon",
+      "populacao": 128677,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "MITM-ArpSpoofing",
+      "categoria": "Spoofing",
+      "populacao": 294469,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "DNS_Spoofing",
+      "categoria": "Spoofing",
+      "populacao": 171468,
+      "amostra": 50000
+    },
+    {
+      "rotulo": "SqlInjection",
+      "categoria": "Web",
+      "populacao": 5022,
+      "amostra": 5022
+    },
+    {
+      "rotulo": "CommandInjection",
+      "categoria": "Web",
+      "populacao": 5168,
+      "amostra": 5168
+    },
+    {
+      "rotulo": "Backdoor_Malware",
+      "categoria": "Web",
+      "populacao": 3078,
+      "amostra": 3078
+    },
+    {
+      "rotulo": "Uploading_Attack",
+      "categoria": "Web",
+      "populacao": 1196,
+      "amostra": 1196
+    },
+    {
+      "rotulo": "XSS",
+      "categoria": "Web",
+      "populacao": 3705,
+      "amostra": 3705
+    },
+    {
+      "rotulo": "BrowserHijacking",
+      "categoria": "Web",
+      "populacao": 5630,
+      "amostra": 5630
+    },
+    {
+      "rotulo": "DictionaryBruteForce",
+      "categoria": "BruteForce",
+      "populacao": 12522,
+      "amostra": 12522
+    },
+    {
+      "rotulo": "BenignTraffic",
+      "categoria": "Benign",
+      "populacao": 1051373,
+      "amostra": 50000
+    }
+  ]
+}
