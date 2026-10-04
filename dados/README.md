@@ -309,7 +309,7 @@ CICIoT2023/
 | `mcp/contrato.json` | O contrato da tool: o que o classificador recebe e devolve. **Primeiro artefato a existir** — é ele que destrava as duas frentes em paralelo |
 | `mcp/stub.py` | Devolve predições falsas no formato do contrato, para a frente de agentes trabalhar antes de o modelo existir |
 | `mcp/servidor.py` | O servidor MCP de verdade, expondo o classificador como tool |
-| `agente/agentes.py` | O sistema multiagente: triagem, contexto e mitigação |
+| `agente/agentes.py` | O sistema multiagente: triagem, decisão e execução |
 | `agente/prompts/` | Os prompts de cada agente, em arquivos separados |
 | `agente/acionamento.py` | A política de acionamento: agrega, deduplica e decide quando vale chamar a LLM. Sem isso, um DDoS gera milhares de chamadas por segundo |
 | `agente/teste_tool_poisoning.py` | O experimento de segurança do MCP: uma tool com descrição envenenada, para medir se o agente cai |

@@ -20,6 +20,10 @@ venv/
 env/
 .ipynb_checkpoints/
 
+# Frontend
+node_modules/
+frontend/dist/
+
 # Segredos e ambiente
 .env
 .env.local

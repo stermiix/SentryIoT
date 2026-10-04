@@ -94,7 +94,8 @@ agrupa as tarefas concluídas por semana e por responsável.
 | `codigo/captura/` | extrator de features: pacotes → 39 números |
 | `codigo/classificador/` | amostragem, preparação, treino e avaliação do Random Forest |
 | `codigo/mcp/` | contrato da tool e servidor MCP que expõe as predições |
-| `codigo/agente/` | sistema multiagente, prompts e política de acionamento |
+| `codigo/agente/` | sistema multiagente (triagem, decisão e execução), prompts e política de acionamento |
+| `frontend/` | interface web do sistema: fila de incidentes, detalhe, comparações e replay (ver `frontend/README.md`) |
 | `dados/` | **`README.md` com a receita completa do ambiente e o mapa de arquivos** |
 | `experimentos/` | `notebooks/` de exploração e `resultados/` com métricas e tabelas |
 | `referencias/` | bibliografia e material de apoio |
