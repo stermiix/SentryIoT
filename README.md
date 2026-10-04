@@ -28,7 +28,7 @@ além da detecção, para a resposta.
   decisão com o orientador — o CICIoT2023 não tem essa classe, e os datasets de referência da área
   também não cobrem esse vetor com dados rotulados suficientes.
 - **Métricas:** recall por classe, precisão, F1-score e taxa de falso positivo. Acurácia global
-  **não** é métrica principal: 78% do dataset é DDoS/DoS, então ela engana.
+  **não** é métrica principal: 89,5% do dataset é DDoS e DoS, então ela engana.
 
 ---
 
