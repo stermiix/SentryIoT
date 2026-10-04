@@ -57,13 +57,14 @@ TCC/CICIoT2023/
 **Por que 63 arquivos e não um só:** é saída do PySpark (cada trabalhador grava a sua parte), e
 8,7 GB num arquivo único seria inabrível. Cada pedaço tem ~137 MB e cabe na memória.
 
-**Nove arquivos da nossa cópia estão truncados** (`Merged42`, `Merged44` e `Merged46` a `Merged52`):
+**Nove arquivos oficiais estão truncados** (`Merged42`, `Merged44` e `Merged46` a `Merged52`):
 terminam no meio de uma linha, e os dois últimos têm só 44 MB e 14 MB. A cópia tem 45.019.234 linhas
 completas, e em quase todas as classes faltam cerca de 4,3% das linhas que os CSVs por ataque
 trazem. As proporções entre as classes não mudam, porque o conjunto é embaralhado. Três CSVs por
-ataque de `DoS-UDP_Flood` (7, 8 e 9) têm o mesmo defeito. Não foi possível conferir se o corte está
-nos arquivos oficiais ou só na nossa cópia: quem baixar o dataset de novo deve comparar o tamanho
-desses doze arquivos. Os números estão em `experimentos/resultados/exploracao.md`.
+ataque de `DoS-UDP_Flood` (7, 8 e 9) têm o mesmo defeito. O corte está nos arquivos da fonte
+oficial: em 04/10/2026 os doze foram baixados de novo e vieram idênticos, byte a byte, aos que já
+tínhamos. A linha incompleta de cada um fica fora das contagens e da amostra. Os números estão em
+`experimentos/resultados/exploracao.md`.
 
 **Cada arquivo é representativo do conjunto todo** (verificado em 05/09/2026):
 
