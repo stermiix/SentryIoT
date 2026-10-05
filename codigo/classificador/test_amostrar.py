@@ -121,6 +121,36 @@ def test_sorteio_e_uniforme(tmp_path):
     assert 16 <= min(vezes.values()) and max(vezes.values()) <= 64
 
 
+def test_sorteio_e_uniforme_com_populacao_100_vezes_maior_que_o_teto(tmp_path):
+    # 1000 linhas e teto de 10. Em 400 sorteios saem 4000 linhas, e cada décimo do arquivo deve
+    # ficar com cerca de 400. Um sorteio que favoreça as linhas mais recentes esvazia os primeiros
+    # décimos, o que só aparece quando a população é muito maior que o teto.
+    arquivo = escrever(tmp_path / "a.csv", [linha(i, "DOS-UDP_FLOOD") for i in range(1000)])
+    por_decimo = Counter()
+    for semente in range(400):
+        sorteadas = numeros(amostrar([arquivo], teto=10, semente=semente), "DoS-UDP_Flood")
+        assert len(set(sorteadas)) == 10
+        por_decimo.update(numero // 100 for numero in sorteadas)
+    assert sum(por_decimo.values()) == 4000
+    # Qui-quadrado com 9 graus de liberdade. Um sorteio uniforme passa de 27,88 em 0,1% das vezes.
+    qui_quadrado = sum((por_decimo[decimo] - 400) ** 2 / 400 for decimo in range(10))
+    assert qui_quadrado < 27.88
+
+
+def test_sorteio_com_resultado_congelado(tmp_path):
+    # Duas classes de 600 linhas, numeradas de 0 a 599 e intercaladas, e uma classe rara. As listas
+    # esperadas vêm do Algoritmo R escrito à parte, com random.Random("42:<rótulo canônico>"), que é
+    # o método registrado no manifesto. Se o sorteio mudar, a amostra registrada não pode ser refeita.
+    linhas = []
+    for i in range(600):
+        linhas += [linha(i, "DDOS-ICMP_FLOOD"), linha(i, "DOS-UDP_FLOOD")]
+    linhas[700:700] = [linha(i, "XSS") for i in range(3)]
+    amostra = amostrar([escrever(tmp_path / "a.csv", linhas)], teto=5, semente=42)
+    assert numeros(amostra, "DDoS-ICMP_Flood") == [206, 304, 348, 508, 544]
+    assert numeros(amostra, "DoS-UDP_Flood") == [45, 145, 313, 496, 526]
+    assert numeros(amostra, "XSS") == [0, 1, 2]
+
+
 def test_amostra_segue_a_ordem_dos_arquivos_e_das_linhas(tmp_path):
     amostra = amostrar(caso_simples(tmp_path), teto=20, semente=1)
     flood = numeros(amostra, "DDoS-ICMP_Flood")
