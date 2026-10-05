@@ -1,0 +1,8 @@
+classe_real,DDoS+DoS,Mirai,Recon,Spoofing,Web,BruteForce,Benign
+DDoS+DoS,149976,13,6,2,2,0,1
+Mirai,101,29899,0,0,0,0,0
+Recon,0,0,37021,681,344,131,2255
+Spoofing,0,0,1973,17297,143,35,552
+Web,0,0,2982,240,1349,25,164
+BruteForce,0,0,1356,67,65,840,176
+Benign,0,0,4248,295,68,27,5362
