@@ -15,15 +15,15 @@ da amostra de treino. As classes estão na grafia dos autores do dataset, e as c
 - Há valores vazios em `Std` e `Variance` e infinitos em `Rate`.
 - 9 das 39 colunas podem ser recalculadas a partir das outras em todas as linhas: `Variance`, `Tot size`, `LLC`, `ARP`, `Tot sum`, `ack_count`, `syn_count`, `fin_count` e `rst_count`.
 - 58,78% das linhas repetem as 39 features de outra linha, e 29,49% têm uma combinação de valores que também aparece em outra categoria.
-- Por causa dessas combinações, o acerto em 8 categorias não passa de 92,87% para quem vê só as 39 features, medido no conjunto completo.
-- 9 arquivos terminam no meio de uma linha, sinal de arquivo truncado.
+- Por causa dessas combinações, o acerto em 8 categorias não passa de 92,87% para quem vê só as 39 features e é avaliado no conjunto completo, na proporção natural das classes. Esse valor não é uma propriedade das 39 features: muda com o tamanho e com a mistura de classes do conjunto avaliado, e um modelo avaliado numa amostra pode passar dele de forma legítima (seção 8).
+- 9 arquivos terminam no meio de uma linha, truncados já na fonte oficial.
 
 ## 1. Arquivos
 
 63 arquivos lidos, com 45.019.234 linhas de dados e 9.300.139.459 bytes no total.
 O menor arquivo tem 65.723 linhas, o maior tem 920.543 e a mediana é de 712.220.
 
-9 arquivos terminam no meio de uma linha, sem a quebra de linha final. A linha incompleta de cada um ficou fora de todas as contagens. O corte indica arquivo truncado, na origem ou na cópia local, e as linhas que viriam depois dele não fazem parte deste relatório.
+9 arquivos terminam no meio de uma linha, sem a quebra de linha final. A linha incompleta de cada um ficou fora de todas as contagens. As linhas que viriam depois do corte não fazem parte deste relatório. O corte está na origem, e não na cópia local: baixados de novo da fonte oficial em 04/10/2026, os arquivos do `MERGED_CSV` com esse defeito e os três CSVs por ataque de `DoS-UDP_Flood` que também terminam no meio de uma linha vieram idênticos byte a byte.
 
 | Arquivo | Linhas completas | Bytes |
 |---|---|---|
@@ -278,12 +278,9 @@ comparação.
 | `DictionaryBruteForce` | BruteForce | 12.522 | 19 | 0,15% | 19 | 19 |
 | `BenignTraffic` | Benign | 1.051.373 | 6.301 | 0,60% | 2.693 | 2.693 |
 
-Um classificador que veja só as 39 features dá a mesma resposta para todas as linhas de uma
-combinação. A resposta que mais acerta é a categoria mais frequente da combinação, e as linhas das
-outras categorias são erro certo. A tabela dá esse erro mínimo em 8 categorias, medido no conjunto
-completo. No empate vale a primeira categoria na ordem da tabela.
+Um classificador que veja só as 39 features dá a mesma resposta para todas as linhas de uma combinação. A regra de maior acerto global responde, em cada combinação, a categoria mais frequente nela, e as linhas das outras categorias são erro. No empate vale a primeira categoria na ordem da tabela, e por isso DDoS tem preferência sobre DoS. A tabela dá os erros e o acerto de cada categoria nessa regra, medidos no conjunto completo.
 
-| Categoria | Linhas | Erro mínimo | Acerto máximo |
+| Categoria | Linhas | Erros na regra de maior acerto global | Acerto nessa regra |
 |---|---|---|---|
 | DDoS | 32.536.197 | 806.209 | 97,52% |
 | DoS | 7.746.554 | 2.399.296 | 69,03% |
@@ -294,6 +291,10 @@ completo. No empate vale a primeira categoria na ordem da tabela.
 | BruteForce | 12.522 | 17 | 99,86% |
 | Benign | 1.051.373 | 2.433 | 99,77% |
 | Total | 45.019.234 | 3.209.716 | 92,87% |
+
+Só a linha Total é um limite superior: nenhuma regra que dependa só das 39 features acerta mais que 92,87% das linhas do conjunto completo. Os valores por categoria não são limites. São o recall de cada categoria na regra de maior acerto global, e outra regra os redistribui. Na regra que responde DoS em toda combinação que tenha alguma linha de DoS, o acerto de DoS é de 100,00%, o de DDoS é de 70,53% e o acerto global é de 78,69%.
+
+O limite da linha Total vale para a avaliação no conjunto completo, na proporção natural das classes, e conta só a coincidência exata dos 39 valores. Não é uma propriedade das 39 features em si: muda com o tamanho e com a mistura de classes do conjunto avaliado. Um modelo avaliado numa amostra pode passar de 92,87% de forma legítima, e o limite de um conjunto de teste precisa ser calculado nesse conjunto.
 
 Rótulos que dividem a mesma combinação de valores, em ordem de linhas envolvidas (15 de 142 conjuntos de rótulos):
 
@@ -370,11 +371,11 @@ classe é o nome da pasta. A tabela compara a quantidade de linhas dessas pastas
 | `BrowserHijacking` | 1 | 5.859 | 5.630 | 229 | 3,91% |
 | `DictionaryBruteForce` | 1 | 13.064 | 12.522 | 542 | 4,15% |
 | `BenignTraffic` | 4 | 1.098.191 | 1.051.373 | 46.818 | 4,26% |
-| Total | 309 | 46.776.697 | 45.019.234 | 1.757.463 | 3,76% |
+| Total das classes com CSVs por ataque inteiros | 292 | 43.703.707 | 41.841.911 | 1.861.796 | 4,26% |
 
-Nas 33 classes cujos CSVs por ataque estão inteiros, a diferença vai de 3,67% a 4,47% das linhas. O `MERGED_CSV` é embaralhado, então linhas perdidas em arquivos truncados faltam em todas as classes em proporção parecida.
+A linha de total soma só as 33 classes cujos CSVs por ataque estão inteiros. Nelas, o `MERGED_CSV` tem 4,26% menos linhas que os CSVs por ataque, e a diferença por classe vai de 3,67% a 4,47%. O `MERGED_CSV` é embaralhado, então linhas perdidas em arquivos truncados faltam em todas as classes em proporção parecida. Aplicada a todas as classes, essa proporção corresponde a cerca de 2,0 milhões de linhas a menos no `MERGED_CSV`.
 
-3 arquivos por ataque terminam no meio de uma linha, e a linha incompleta não foi contada: `DoS-UDP_Flood7.pcap.csv`, `DoS-UDP_Flood8.pcap.csv` e `DoS-UDP_Flood9.pcap.csv`.
+`DoS-UDP_Flood` fica fora do total porque 3 arquivos por ataque terminam no meio de uma linha, e a linha incompleta não foi contada: `DoS-UDP_Flood7.pcap.csv`, `DoS-UDP_Flood8.pcap.csv` e `DoS-UDP_Flood9.pcap.csv`. Com a referência incompleta, a diferença dessa classe não mede o que falta ao `MERGED_CSV`. Somadas todas as classes, a diferença seria de 1.757.463 linhas, ou 3,76%.
 
 ## Como os números foram obtidos
 
