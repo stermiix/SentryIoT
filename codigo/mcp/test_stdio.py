@@ -111,7 +111,7 @@ def test_incidente_inteiro_por_stdio_com_aprovacao_pelo_comando_de_terminal(tmp_
         )
         antes_de_aprovar = await chamar("executar_acao", id_proposta="prop-0001")
         # A pessoa aprova por fora, com o comando de terminal, enquanto o servidor segue no ar.
-        aprovado = aprovar.main(["prop-0001", "--log", str(log)])
+        aprovado = aprovar.main(["prop-0001", "--sim", "--log", str(log)])
         execucao = await chamar("executar_acao", id_proposta="prop-0001")
         efeito = await chamar("verificar_efeito", id_execucao="exec-0001")
         ativo = await chamar("consultar_estado")

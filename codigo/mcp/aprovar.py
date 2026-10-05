@@ -7,45 +7,84 @@ botões da interface web, pelo mesmo caminho: um evento gravado no log.
 O comando também promove ao catálogo uma ação nova que já foi aprovada e aplicada. É outra
 decisão que cabe só à pessoa.
 
+Antes de aprovar ou de promover, o comando mostra a proposta inteira, com todos os parâmetros,
+e pede confirmação. Tudo o que vem do log é escrito na tela com os caracteres não imprimíveis
+escapados: o log é entrada, e uma sequência de terminal gravada nele não pode trocar o que a
+pessoa lê.
+
 Uso, a partir da raiz do repositório:
     python -m codigo.mcp.aprovar                        lista o que aguarda aprovação
-    python -m codigo.mcp.aprovar prop-0002              aprova
+    python -m codigo.mcp.aprovar prop-0002              mostra a proposta e pede confirmação para aprovar
+    python -m codigo.mcp.aprovar prop-0002 --sim        aprova sem perguntar (uso não interativo)
     python -m codigo.mcp.aprovar prop-0002 --rejeitar --motivo "o dispositivo não pode parar"
-    python -m codigo.mcp.aprovar prop-0002 --promover   leva a ação nova para o catálogo
+    python -m codigo.mcp.aprovar prop-0002 --promover   leva a ação nova para o catálogo, com confirmação
 """
 import argparse
+import json
+import shlex
 import sys
 from pathlib import Path
 
-from codigo.mcp.acoes import PedidoRecusado, decidir, promover, reconstruir
+from codigo.mcp.acoes import BASE, PedidoRecusado, decidir, promover, reconstruir
 from codigo.mcp.eventos import CAMINHO_PADRAO, Registro
+from codigo.mcp.tipos import visivel
 
 _COMANDO = "python -m codigo.mcp.aprovar"
+_CONFIRMAM = ("s", "sim")
+
+
+class _SemConfirmacao(Exception):
+    """A pessoa não confirmou, ou não havia como perguntar."""
 
 
 def descrever(proposta):
-    """Texto com tudo o que a pessoa precisa ver antes de decidir: o que será feito, onde e por quê."""
-    origem = "nova, fora do catálogo" if proposta.nova else "do catálogo"
+    """Texto com tudo o que a pessoa precisa ver antes de decidir: o que será feito, onde e por quê.
+
+    Nenhum campo fica de fora, e todo valor passa por `visivel`.
+    """
+    if proposta.nova:
+        origem = "nova, fora do catálogo"
+    else:
+        origem = "do catálogo" if proposta.acao in BASE else "promovida ao catálogo"
     linhas = [
-        f"{proposta.id}  incidente {proposta.incidente}  risco {proposta.risco}",
-        f"  ação: {proposta.acao} ({origem})",
-        f"  alvo: {proposta.alvo}",
-        f"  justificativa: {proposta.justificativa}",
+        f"{visivel(proposta.id)}  incidente {visivel(proposta.incidente)}  risco {visivel(proposta.risco)}",
+        f"  ação: {visivel(proposta.acao)} ({origem})",
+        f"  alvo: {visivel(proposta.alvo)}",
+        f"  justificativa: {visivel(proposta.justificativa)}",
     ]
     parametros = dict(proposta.parametros)
     # Os campos de uma ação nova saem em ordem fixa, com os passos numerados.
     if parametros.get("descricao"):
-        linhas.append(f"  descrição: {parametros.pop('descricao')}")
+        linhas.append(f"  descrição: {_valor(parametros.pop('descricao'))}")
     passos = parametros.pop("passos", None)
-    if passos:
+    if isinstance(passos, list) and passos:
         linhas.append("  passos:")
-        linhas.extend(f"    {numero}. {passo}" for numero, passo in enumerate(passos, start=1))
+        linhas.extend(f"    {numero}. {_valor(passo)}" for numero, passo in enumerate(passos, start=1))
+    elif passos:
+        parametros["passos"] = passos
     for campo, rotulo in (("efeito_esperado", "efeito esperado"), ("como_desfazer", "como desfazer"), ("fonte", "fonte")):
         valor = parametros.pop(campo, None)
         if valor:
-            linhas.append(f"  {rotulo}: {valor}")
-    linhas.extend(f"  {nome}: {valor}" for nome, valor in parametros.items())
+            linhas.append(f"  {rotulo}: {_valor(valor)}")
+    # O prazo de uma medida muda o risco dela: aparece sempre, com a unidade, inclusive quando falta.
+    definicao = BASE.get(proposta.acao)
+    if definicao is not None and definicao.duracao is not None:
+        duracao = parametros.pop("duracao", None)
+        prazo = "sem prazo, até a medida ser desfeita" if duracao is None else f"{_valor(duracao)} minutos"
+        linhas.append(f"  duracao: {prazo}")
+    # O que sobrar aparece como está gravado. Nenhum parâmetro fica fora da tela.
+    linhas.extend(f"  {visivel(nome)}: {_valor(valor)}" for nome, valor in parametros.items())
     return "\n".join(linhas)
+
+
+def _valor(valor):
+    """Um valor de parâmetro como aparece na tela: texto escapado, ou JSON escapado quando não é texto."""
+    if isinstance(valor, str):
+        return visivel(valor)
+    try:
+        return visivel(json.dumps(valor, ensure_ascii=False))
+    except (TypeError, ValueError):
+        return visivel(repr(valor))
 
 
 def _listar(registro):
@@ -59,16 +98,59 @@ def _listar(registro):
     print(f"{len(pendentes)} proposta aguarda aprovação:" if len(pendentes) == 1
           else f"{len(pendentes)} propostas aguardam aprovação:")
     for proposta in pendentes:
+        # O identificador vem do log: vai entre aspas se tiver algo que o terminal interprete.
+        identificador = shlex.quote(visivel(proposta.id))
         print()
         print(descrever(proposta))
-        print(f"  para aprovar:  {_COMANDO} {proposta.id}")
-        print(f"  para rejeitar: {_COMANDO} {proposta.id} --rejeitar")
+        print(f"  para aprovar:  {_COMANDO} {identificador}")
+        print(f"  para rejeitar: {_COMANDO} {identificador} --rejeitar")
+
+
+def _confirmar(pergunta):
+    """Pede a confirmação da pessoa. Sem terminal interativo, não há a quem perguntar."""
+    if not sys.stdin.isatty():
+        raise _SemConfirmacao(
+            "a confirmação pede um terminal interativo. Para decidir sem a pergunta, acrescente --sim"
+        )
+    try:
+        resposta = input(pergunta)
+    except EOFError:
+        resposta = ""
+    if resposta.strip().casefold() not in _CONFIRMAM:
+        raise _SemConfirmacao("a confirmação não foi dada")
+
+
+def _decidir_com_confirmacao(registro, id_proposta, sem_perguntar, pergunta, funcao):
+    """Mostra a proposta, pede a confirmação e só então grava o que `funcao(estado)` pedir.
+
+    A proposta é lida duas vezes: para mostrar e, depois da resposta, com o arquivo travado, para
+    gravar. Se entre uma e outra ela não for mais a mesma, nada é gravado: a pessoa confirmou o
+    que viu.
+    """
+    estado = reconstruir(registro.ler())
+    # O pedido que não cabe (proposta que não existe, que já foi decidida) é recusado antes da pergunta.
+    funcao(estado)
+    mostrada = estado.propostas[id_proposta]
+    print(descrever(mostrada))
+    if not sem_perguntar:
+        _confirmar(pergunta(mostrada))
+
+    def gravar(eventos):
+        estado = reconstruir(eventos)
+        if estado.propostas.get(id_proposta) != mostrada:
+            raise _SemConfirmacao(f"a proposta {visivel(id_proposta)} mudou depois de ser mostrada. Confira de novo")
+        return funcao(estado)
+
+    return registro.atualizar(gravar)[0]
 
 
 def main(argv=None):
     analisador = argparse.ArgumentParser(
         prog=_COMANDO,
-        description="Aprova ou rejeita uma proposta de ação. Sem proposta, lista as que aguardam aprovação.",
+        description=(
+            "Aprova ou rejeita uma proposta de ação. Sem proposta, lista as que aguardam aprovação. Antes de "
+            "aprovar ou de promover, mostra a proposta inteira e pede confirmação."
+        ),
     )
     analisador.add_argument("proposta", nargs="?", help="identificador da proposta, como prop-0002")
     escolha = analisador.add_mutually_exclusive_group()
@@ -78,11 +160,19 @@ def main(argv=None):
     )
     analisador.add_argument("--motivo", help="motivo da decisão, que fica registrado no log")
     analisador.add_argument(
+        "--sim", action="store_true",
+        help=(
+            "aprova ou promove sem pedir a confirmação. É para uso não interativo, em que ninguém lê a proposta "
+            "antes de a decisão ser gravada"
+        ),
+    )
+    analisador.add_argument(
         "--log", default=str(CAMINHO_PADRAO), help=f"arquivo do log de eventos (padrão: {CAMINHO_PADRAO})"
     )
     try:
         argumentos = analisador.parse_args(argv)
-        if argumentos.proposta is None and (argumentos.rejeitar or argumentos.promover or argumentos.motivo):
+        sem_proposta = argumentos.rejeitar or argumentos.promover or argumentos.motivo or argumentos.sim
+        if argumentos.proposta is None and sem_proposta:
             analisador.error("diga a proposta, como prop-0002")
     except SystemExit as encerramento:
         return encerramento.code
@@ -94,21 +184,37 @@ def main(argv=None):
         if argumentos.proposta is None:
             _listar(registro)
         elif argumentos.promover:
-            acao, _ = registro.atualizar(lambda eventos: promover(reconstruir(eventos), argumentos.proposta))
-            print(f"{acao.nome} promovida ao catálogo de ações.")
-        else:
+            acao = _decidir_com_confirmacao(
+                registro, argumentos.proposta, argumentos.sim,
+                lambda proposta: (
+                    f"Promover {visivel(proposta.acao)} ao catálogo de ações, com os passos acima? "
+                    "Digite sim para confirmar: "
+                ),
+                lambda estado: promover(estado, argumentos.proposta),
+            )
+            print(f"{visivel(acao.nome)} promovida ao catálogo de ações.")
+        elif argumentos.rejeitar:
+            # Rejeitar não libera nada: é gravado sem pergunta, depois de mostrar o que foi rejeitado.
             proposta, _ = registro.atualizar(
-                lambda eventos: decidir(
-                    reconstruir(eventos), argumentos.proposta, not argumentos.rejeitar, motivo=argumentos.motivo
-                )
+                lambda eventos: decidir(reconstruir(eventos), argumentos.proposta, False, motivo=argumentos.motivo)
             )
             print(descrever(proposta))
-            if argumentos.rejeitar:
-                print(f"{proposta.id} rejeitada. A ação não será aplicada.")
-            else:
-                print(f"{proposta.id} aprovada. O agente de execução já pode aplicar a ação.")
+            print(f"{visivel(proposta.id)} rejeitada. A ação não será aplicada.")
+        else:
+            proposta = _decidir_com_confirmacao(
+                registro, argumentos.proposta, argumentos.sim,
+                lambda proposta: (
+                    f"Aprovar {visivel(proposta.id)}? Com a aprovação, o agente de execução pode aplicar a ação "
+                    "acima. Digite sim para confirmar: "
+                ),
+                lambda estado: decidir(estado, argumentos.proposta, True, motivo=argumentos.motivo),
+            )
+            print(f"{visivel(proposta.id)} aprovada. O agente de execução já pode aplicar a ação.")
+    except _SemConfirmacao as motivo:
+        print(f"erro: {motivo}. Nada foi gravado.", file=sys.stderr)
+        return 1
     except (PedidoRecusado, OSError, ValueError) as erro:
-        print(f"erro: {erro}", file=sys.stderr)
+        print(f"erro: {visivel(erro)}", file=sys.stderr)
         return 1
     return 0
 
