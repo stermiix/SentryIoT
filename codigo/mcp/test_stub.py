@@ -750,7 +750,7 @@ def test_evento_que_cita_proposta_inexistente_e_erro_com_a_linha_e_nao_keyerror(
     acrescentar(stub, "acao_aprovada", {"proposta": "prop-0007", "canal": "interface", "motivo": None})
     log_invalido(stub, "linha 9", "acao_aprovada", "prop-0007", "não existe")
     # A linha de comando do stub explica e não sobe o servidor.
-    assert main(["--log", str(stub.registro.caminho)]) == 1
+    assert main(["--log", str(stub.registro.caminho), "--agente", "todos"]) == 1
     erro = capsys.readouterr().err
     assert erro.startswith("erro: ") and "linha 9" in erro and "Traceback" not in erro
 
@@ -882,9 +882,26 @@ def test_main_recusa_agente_desconhecido(capsys):
     assert "detector" in capsys.readouterr().err
 
 
+def test_main_exige_dizer_o_agente(tmp_path, capsys):
+    # Expor as nove tools de uma vez é escolha de quem sobe o servidor, e não o que acontece por esquecimento.
+    log = tmp_path / "eventos.jsonl"
+    assert main(["--log", str(log)]) == 2
+    assert main([]) == 2
+    erro = capsys.readouterr().err
+    assert "--agente" in erro
+    assert not log.exists()
+
+
+def test_ajuda_da_linha_de_comando_explica_a_opcao_todos(capsys):
+    assert main(["--help"]) == 0
+    ajuda = capsys.readouterr().out
+    assert "todos" in ajuda and "triagem" in ajuda
+
+
 def test_main_explica_log_estragado_e_nao_sobe_o_servidor(tmp_path, capsys):
     log = tmp_path / "eventos.jsonl"
     log.write_text("isto não é um evento\n", encoding="utf-8")
-    assert main(["--log", str(log)]) == 1
-    assert "linha 1" in capsys.readouterr().err
+    for agente in ("todos", "triagem"):
+        assert main(["--log", str(log), "--agente", agente]) == 1
+        assert "linha 1" in capsys.readouterr().err
     assert log.read_text(encoding="utf-8") == "isto não é um evento\n"

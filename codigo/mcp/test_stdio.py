@@ -4,6 +4,7 @@ Cada teste sobe o stub em outro processo, com `python -m codigo.mcp.stub`, e fal
 cliente do SDK oficial, como um agente faria. Não usa rede.
 """
 import asyncio
+import subprocess
 import sys
 from pathlib import Path
 
@@ -17,10 +18,10 @@ from codigo.mcp.tipos import TOOLS, Execucao, Incidente, Proposta, tools_do_agen
 RAIZ = Path(__file__).resolve().parents[2]
 
 
-def conversar(log, roteiro, *opcoes):
-    """Sobe o stub, roda `roteiro(cliente)` e devolve o que ele devolver."""
+def conversar(log, roteiro, agente="todos"):
+    """Sobe o stub para o agente dado, roda `roteiro(cliente)` e devolve o que ele devolver."""
     parametros = StdioServerParameters(
-        command=sys.executable, args=["-m", "codigo.mcp.stub", "--log", str(log), *opcoes], cwd=RAIZ
+        command=sys.executable, args=["-m", "codigo.mcp.stub", "--log", str(log), "--agente", agente], cwd=RAIZ
     )
 
     async def sessao():
@@ -50,8 +51,19 @@ def test_cliente_de_um_agente_so_lista_as_tools_da_linha_dele(tmp_path):
     async def roteiro(cliente):
         return tuple(tool.name for tool in (await cliente.list_tools()).tools)
 
-    assert conversar(tmp_path / "eventos.jsonl", roteiro, "--agente", "triagem") == tools_do_agente("triagem")
-    assert conversar(tmp_path / "eventos.jsonl", roteiro, "--agente", "execucao") == tools_do_agente("execucao")
+    assert conversar(tmp_path / "eventos.jsonl", roteiro, "triagem") == tools_do_agente("triagem")
+    assert conversar(tmp_path / "eventos.jsonl", roteiro, "execucao") == tools_do_agente("execucao")
+
+
+def test_stub_sem_dizer_o_agente_nao_sobe(tmp_path):
+    log = tmp_path / "eventos.jsonl"
+    processo = subprocess.run(
+        [sys.executable, "-m", "codigo.mcp.stub", "--log", str(log)], cwd=RAIZ, capture_output=True, text=True,
+        stdin=subprocess.DEVNULL, timeout=60, check=False,
+    )
+    assert processo.returncode == 2
+    assert "--agente" in processo.stderr and processo.stdout == ""
+    assert not log.exists()
 
 
 def test_cliente_chama_tool_e_recebe_dados_validos_pelo_contrato(tmp_path):

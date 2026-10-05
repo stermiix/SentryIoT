@@ -9,10 +9,10 @@ O servidor não guarda estado na memória. A cada chamada ele lê o log, decide 
 aconteceu. Por isso o comando de aprovação, que é outro processo, vale na chamada seguinte, e
 cada agente pode ter o seu próprio processo sobre o mesmo log.
 
-Uso, a partir da raiz do repositório (transporte stdio):
-    python -m codigo.mcp.stub
+Uso, a partir da raiz do repositório (transporte stdio). O agente é obrigatório:
     python -m codigo.mcp.stub --agente triagem
-    python -m codigo.mcp.stub --log outro/caminho.jsonl
+    python -m codigo.mcp.stub --agente decisao --log outro/caminho.jsonl
+    python -m codigo.mcp.stub --agente todos       as nove tools de uma vez, só para desenvolvimento
 """
 import argparse
 import inspect
@@ -51,6 +51,8 @@ INSTRUCOES = (
     "bruta), inc-0003 (varredura de portas) e inc-0004. Ação de risco alto e ação nova, fora do catálogo, "
     "só são executadas depois que uma pessoa aprova."
 )
+# Na linha de comando, a forma explícita de expor as nove tools em um processo só.
+TODOS = "todos"
 _LOG_INVALIDO = (
     "O log de eventos do servidor está inconsistente, e nenhuma tool é atendida até que ele seja corrigido. "
     "O detalhe está na saída de erro do servidor."
@@ -128,7 +130,8 @@ class Stub:
     """As nove tools, respondidas com os cenários e registradas no log de eventos.
 
     Com `agente`, o stub atende só as tools da linha desse agente e registra o nome dele em
-    cada chamada. Sem agente, atende todas.
+    cada chamada. Sem agente, atende todas: é o que `--agente todos` pede na linha de comando,
+    e serve só para desenvolvimento.
     """
 
     def __init__(self, registro=None, agente=None, cenarios=CENARIOS, politica=None, secoes=None):
@@ -352,14 +355,19 @@ def main(argv=None):
         "--log", default=str(CAMINHO_PADRAO), help=f"arquivo do log de eventos (padrão: {CAMINHO_PADRAO})"
     )
     analisador.add_argument(
-        "--agente", choices=AGENTES, help="expõe só as tools da linha desse agente e registra o nome dele no log"
+        "--agente", required=True, choices=(*AGENTES, TODOS),
+        help=(
+            "obrigatório. Com triagem, decisao ou execucao, expõe só as tools da linha desse agente e registra o "
+            f"nome dele no log. Com {TODOS}, expõe as nove tools em um processo só, o que serve apenas para "
+            "desenvolvimento: um mesmo cliente consegue propor e executar"
+        ),
     )
     try:
         argumentos = analisador.parse_args(argv)
     except SystemExit as encerramento:
         return encerramento.code
     try:
-        stub = Stub(Registro(argumentos.log), agente=argumentos.agente)
+        stub = Stub(Registro(argumentos.log), agente=None if argumentos.agente == TODOS else argumentos.agente)
         stub.abrir_incidentes()
     except (OSError, ValueError) as erro:
         print(f"erro: {erro}", file=sys.stderr)
