@@ -306,9 +306,19 @@ CICIoT2023/
 
 | Arquivo | O que faz |
 |---|---|
-| `mcp/contrato.json` | O contrato da tool: o que o classificador recebe e devolve. **Primeiro artefato a existir** — é ele que destrava as duas frentes em paralelo |
-| `mcp/stub.py` | Devolve predições falsas no formato do contrato, para a frente de agentes trabalhar antes de o modelo existir |
-| `mcp/servidor.py` | O servidor MCP de verdade, expondo o classificador como tool |
+| `mcp/README.md` | Por onde começar na frente de agentes: como subir o stub, ligar um cliente MCP, chamar cada tool, aprovar pelo terminal e ler o log de eventos |
+| `mcp/tipos.py` | Os tipos do contrato, numa fonte só: o que cada uma das nove tools recebe e devolve e o formato de cada linha do log de eventos |
+| `mcp/contrato.json` | O mesmo contrato em JSON Schema, gerado de `tipos.py`. Um teste falha se os dois divergirem. É ele que destrava as duas frentes em paralelo |
+| `mcp/acoes.py` | O catálogo de ações, as ações novas, a política de risco e o ambiente simulado, com desfazer |
+| `mcp/politica.toml` | Os limites da política de risco, que a equipe ajusta sem mexer no código |
+| `mcp/base.py` | A leitura da base local de documentos e a busca usada por `pesquisar_solucoes` |
+| `mcp/base_provisoria/` | Os documentos da base local. Conteúdo provisório do stub, a substituir pelo levantamento de mitigações da equipe |
+| `mcp/eventos.py` | Gravação e leitura do log de eventos, que a interface web lê |
+| `mcp/cenarios.py` | Os quatro incidentes de exemplo do stub, com números ilustrativos: flood, força bruta, varredura de portas e falso positivo |
+| `mcp/stub.py` | O servidor MCP de mentira: responde às nove tools com os cenários, para a frente de agentes trabalhar antes de o modelo existir |
+| `mcp/aprovar.py` | O comando de terminal com que a pessoa aprova, rejeita ou promove uma proposta de ação |
+| `mcp/roteiro.py` | Gera `mcp/exemplos/incidente_flood.jsonl`, o log de exemplo de um incidente inteiro, insumo do modo replay da interface web |
+| `mcp/servidor.py` | O servidor MCP de verdade, que expõe o classificador pelas mesmas tools do contrato |
 | `agente/agentes.py` | O sistema multiagente: triagem, decisão e execução |
 | `agente/prompts/` | Os prompts de cada agente, em arquivos separados |
 | `agente/acionamento.py` | A política de acionamento: agrega, deduplica e decide quando vale chamar a LLM. Sem isso, um DDoS gera milhares de chamadas por segundo |
@@ -355,7 +365,8 @@ Requer Python 3.11 ou mais novo. As versões ficam fixadas no `requirements.txt`
 
 ## O que NUNCA vai para o git
 
-`CICIoT2023/`, arquivos `.pcap`, CSVs grandes, modelos treinados (`.pkl`, `.joblib`) e `.env`.
+`CICIoT2023/`, arquivos `.pcap`, CSVs grandes, modelos treinados (`.pkl`, `.joblib`), `.env` e o
+log de eventos de uma execução (`dados/eventos/`).
 
 ## O que SEMPRE vai para o git
 
