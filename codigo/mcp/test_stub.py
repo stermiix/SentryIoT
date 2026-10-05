@@ -585,8 +585,11 @@ def test_chamada_pelo_servidor_devolve_o_resultado_estruturado(stub):
 
 def test_recusa_pelo_servidor_vira_erro_de_tool_com_a_mensagem_e_fica_no_log(stub):
     servidor = criar_servidor(stub)
-    with pytest.raises(ToolError, match="Não existe incidente com o identificador 'inc-0099'"):
-        chamar_pelo_servidor(servidor, "obter_incidente", {"id": "inc-0099"})
+    resposta = chamar_pelo_servidor(servidor, "obter_incidente", {"id": "inc-0099"})
+    assert resposta.is_error is True
+    # A mensagem chega ao cliente como foi escrita, sem prefixo do SDK.
+    assert [bloco.text for bloco in resposta.content] == ["Não existe incidente com o identificador 'inc-0099'."]
+    assert resposta.structured_content is None
     assert tipos(stub)[-1] == "recusa"
     # O servidor continua atendendo depois da recusa.
     assert chamar_pelo_servidor(servidor, "obter_incidente", {"id": "inc-0001"}).structured_content["id"] == "inc-0001"

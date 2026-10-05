@@ -20,7 +20,7 @@ import sys
 from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import CallToolResult, TextContent
 from pydantic import ValidationError
 
 from codigo.mcp import acoes
@@ -248,8 +248,8 @@ def _funcao_da_tool(stub, tool):
         try:
             return stub.chamar(tool.nome, **argumentos)
         except PedidoRecusado as recusa:
-            # O SDK devolve ToolError ao cliente como erro de tool, com a mensagem, e segue no ar.
-            raise ToolError(recusa.mensagem) from None
+            # Erro de tool: o cliente recebe a mensagem como ela foi escrita, e o servidor segue no ar.
+            return CallToolResult(content=[TextContent(type="text", text=recusa.mensagem)], is_error=True)
 
     funcao.__name__ = tool.nome
     funcao.__signature__ = inspect.Signature(

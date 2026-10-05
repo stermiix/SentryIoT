@@ -78,7 +78,7 @@ def test_recusa_chega_ao_cliente_como_erro_de_tool_e_o_servidor_continua_no_ar(t
 
     recusada, fora_do_esquema, depois = conversar(log, roteiro)
     assert recusada.is_error
-    assert "Não existe incidente com o identificador 'inc-0099'" in recusada.content[0].text
+    assert recusada.content[0].text == "Não existe incidente com o identificador 'inc-0099'."
     # Argumento fora do esquema é barrado pelo SDK antes de chegar ao stub: é erro, sem evento.
     assert fora_do_esquema.is_error
     assert not depois.is_error
