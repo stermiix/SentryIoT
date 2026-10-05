@@ -259,6 +259,26 @@ def test_divisao_por_grupos_fica_perto_de_20_por_cento_em_cada_classe():
         assert 25 <= no_teste <= 55, rotulo  # 40 seriam os 20% exatos; a faixa cobre os grupos de vários rótulos
 
 
+def test_divisao_por_grupos_estratifica_pelo_rotulo_mais_frequente_do_grupo():
+    # Oito vetores. Cada um tem três linhas do rótulo principal e uma de um rótulo que só aparece nele.
+    principais = ["DDoS-ICMP_Flood"] * 4 + ["BenignTraffic"] * 4
+    raros = [
+        "XSS", "SqlInjection", "CommandInjection", "Backdoor_Malware",
+        "Uploading_Attack", "BrowserHijacking", "DictionaryBruteForce", "Recon-PingSweep",
+    ]
+    grupos = np.repeat(np.arange(8), 4)
+    rotulos = np.array(
+        [rotulo for principal, raro in zip(principais, raros) for rotulo in (principal, principal, principal, raro)],
+        dtype=object,
+    )
+    for semente in range(5):
+        _, teste = dividir_por_grupos(grupos, rotulos, semente=semente, fracao=0.25)
+        # Os estratos são os dois rótulos principais, com quatro vetores cada: sai um de cada para o teste.
+        # Pelo rótulo menos frequente, cada vetor ficaria sozinho no seu estrato e não haveria divisão.
+        de_teste = sorted(set(grupos[teste].tolist()))
+        assert len(de_teste) == 2 and de_teste[0] < 4 <= de_teste[1], semente
+
+
 def test_divisao_por_grupos_e_a_mesma_com_a_mesma_semente():
     quadro = quadro_sintetico(por_classe=50)
     rotulos = quadro["Label"].to_numpy()

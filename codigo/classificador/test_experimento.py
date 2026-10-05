@@ -4,10 +4,12 @@ import re
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from codigo.classificador import experimento as experimento_do_treino
 from codigo.classificador.avaliar import main as avaliar_modelo
+from codigo.classificador.avaliar import teto
 from codigo.classificador.experimento import (
     ARVORES_COM_34_CLASSES,
     GRADE,
@@ -15,16 +17,23 @@ from codigo.classificador.experimento import (
     Execucao,
     main,
     montar_relatorio,
+    rodar,
 )
 from codigo.classificador.mapeamento import ROTULOS
 from codigo.classificador.preparar import (
     ALVOS,
+    CONJUNTOS_DE_FEATURES,
     FEATURES_33,
     FEATURES_39,
+    agrupar,
+    alvo,
     dividir,
     impressao_digital,
+    matriz,
 )
-from codigo.classificador.test_preparar import gravar_amostra, quadro_sintetico
+from codigo.classificador.test_preparar import gravar_amostra, quadro_sintetico, vetores
+from codigo.classificador.test_treinar import mesmas_arvores
+from codigo.classificador.treinar import carregar_modelo, treinar
 
 RESULTADOS = Path(__file__).resolve().parents[2] / "experimentos" / "resultados"
 ARQUIVOS = ("treino_exploratorio.md", "metricas_classificador.csv", "importancia_features.csv")
@@ -51,6 +60,22 @@ def preparar_entrada(pasta, semente=0):
     }
     (pasta / "manifesto_amostra.json").write_text(json.dumps(manifesto), encoding="utf-8")
     return quadro
+
+
+POPULACAO = {rotulo: 1000 * (i + 1) for i, rotulo in enumerate(ROTULOS)}
+
+
+def com_gemeas_de_outra_janela(quadro, de="XSS", para="BenignTraffic"):
+    """Dá a cada linha de um rótulo uma gêmea de outra categoria, igual nas 33 features e diferente nas 39.
+
+    A gêmea só muda nas colunas que dependem da janela: é o mesmo vetor para o modelo de 33
+    features, com outra classe, e um vetor diferente para o de 39.
+    """
+    gemeas = quadro[quadro["Label"] == de].copy()
+    gemeas["Number"] = gemeas["Number"] - 1
+    gemeas["Tot sum"] = gemeas["AVG"] * gemeas["Number"]
+    gemeas["Label"] = para
+    return pd.concat([quadro, gemeas], ignore_index=True)
 
 
 def executar(pasta, *extras, saida=None):
@@ -243,6 +268,65 @@ def test_outra_semente_muda_a_divisao_e_os_modelos(experimento, tmp_path):
     padrao, outra = ler_manifesto(pasta / "resultados"), ler_manifesto(tmp_path / "outra")
     assert outra["semente"] == 7
     assert outra["divisoes"]["grupos"]["sha256_do_teste"] != padrao["divisoes"]["grupos"]["sha256_do_teste"]
+
+
+def test_semente_pedida_chega_ao_modelo(tmp_path):
+    quadro = preparar_entrada(tmp_path)
+    assert executar(tmp_path, "--semente", "7", "--modelos", str(tmp_path / "modelos")) == 0
+    pacote = carregar_modelo(tmp_path / "modelos" / "rf_f39_estratificada_c8.joblib")
+    assert pacote["semente"] == 7 and pacote["modelo"].random_state == 7
+    # O modelo é o que sai da divisão e do treino feitos com a semente pedida.
+    treino, _ = dividir(quadro, "estratificada", semente=7)
+    X, y = matriz(quadro, FEATURES_39), alvo(quadro["Label"].to_numpy(), "8")
+    esperado, _ = treinar(X[treino], y[treino], semente=7, arvores=5)
+    assert mesmas_arvores(pacote["modelo"], esperado)
+
+
+def test_rodar_treina_o_modelo_so_com_as_linhas_de_treino(tmp_path):
+    quadro = quadro_sintetico(por_classe=40)
+    rotulos = quadro["Label"].to_numpy()
+    execucoes = (Execucao("39", "estratificada", "8"), Execucao("33", "grupos", "7"))
+    rodar(quadro, POPULACAO, execucoes=execucoes, arvores=5, pasta_dos_modelos=tmp_path)
+    for execucao in execucoes:
+        treino, _ = dividir(quadro, execucao.divisao)
+        X, y = matriz(quadro, CONJUNTOS_DE_FEATURES[execucao.features]), alvo(rotulos, execucao.alvo)
+        esperado, _ = treinar(X[treino], y[treino], arvores=5)
+        pacote = carregar_modelo(tmp_path / f"rf_{execucao.nome}.joblib")
+        # Com uma linha de teste a mais no treino, as árvores já seriam outras.
+        assert mesmas_arvores(pacote["modelo"], esperado), execucao.nome
+        de_todas, _ = treinar(X, y, arvores=5)
+        assert not mesmas_arvores(pacote["modelo"], de_todas), execucao.nome
+
+
+def test_teto_de_cada_execucao_usa_os_vetores_das_features_dela():
+    quadro = com_gemeas_de_outra_janela(quadro_sintetico(por_classe=40))
+    rotulos = quadro["Label"].to_numpy()
+    execucoes = (Execucao("39", "grupos", "8"), Execucao("33", "grupos", "8"))
+    registro = rodar(quadro, POPULACAO, execucoes=execucoes, arvores=5)
+    _, teste = dividir(quadro, "grupos")
+    tetos = {}
+    for execucao, resultado in zip(execucoes, registro["execucoes"]):
+        grupos = agrupar(matriz(quadro, CONJUNTOS_DE_FEATURES[execucao.features]))[teste]
+        for distribuicao, populacao in (("amostra", None), ("original", POPULACAO)):
+            esperado = teto(grupos, rotulos[teste], "8", populacao)["acuracia"]
+            assert resultado[distribuicao]["teto"] == pytest.approx(esperado), (execucao.nome, distribuicao)
+        tetos[execucao.features] = resultado["amostra"]["teto"]
+    # As gêmeas são o mesmo vetor com classes diferentes só para o modelo de 33 features.
+    assert tetos["33"] < tetos["39"]
+
+
+def test_rodar_conta_as_linhas_de_teste_com_vetor_no_treino_em_cada_conjunto_de_features():
+    quadro = com_gemeas_de_outra_janela(quadro_sintetico(por_classe=40))
+    registro = rodar(quadro, POPULACAO, execucoes=(), arvores=5)
+    contagem = registro["divisoes"]["estratificada"]["teste_com_vetor_no_treino"]
+    treino, teste = dividir(quadro, "estratificada")
+    for nome, features in CONJUNTOS_DE_FEATURES.items():
+        X = matriz(quadro, features)
+        no_treino = vetores(X, treino)
+        assert contagem[nome] == sum(linha.tobytes() in no_treino for linha in X[teste]), nome
+    # Com as 33, entram também as gêmeas que o sorteio separou.
+    assert contagem["33"] > contagem["39"] > 0
+    assert registro["divisoes"]["grupos"]["teste_com_vetor_no_treino"] == {"39": 0, "33": 0}
 
 
 def test_refazer_o_relatorio_nao_treina_de_novo(experimento, tmp_path, capsys):

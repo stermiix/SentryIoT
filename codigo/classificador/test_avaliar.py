@@ -298,6 +298,20 @@ def test_avaliar_reune_as_medidas_na_amostra_e_reponderadas():
     json.dumps(resultado)  # precisa ser serializável
 
 
+def test_avaliar_calcula_o_teto_reponderado_com_os_pesos_do_conjunto_completo():
+    grupos, rotulos = caso_do_teto()
+    populacao = {
+        "DDoS-ICMP_Flood": 300, "DoS-SYN_Flood": 600, "DDoS-SYN_Flood": 200, "BenignTraffic": 20, "XSS": 1,
+    }
+    # As predições não entram no teto: qualquer resposta serve.
+    resultado = avaliar(alvo(rotulos, "8"), rotulos, "8", grupos=grupos, populacao=populacao)
+    # Os mesmos valores de `teto` chamado direto, sem pesos na amostra e com pesos na reponderada.
+    assert resultado["amostra"]["teto"] == pytest.approx(7 / 11)
+    assert resultado["original"]["teto"] == pytest.approx((300 + 400 + 10 + 10) / 1121)
+    assert resultado["amostra"]["por_classe"]["DoS"]["recall_na_regra_do_teto"] == 0.0
+    assert resultado["original"]["por_classe"]["DoS"]["recall_na_regra_do_teto"] == pytest.approx(400 / 600)
+
+
 def test_avaliar_sem_populacao_e_sem_grupos_mede_so_o_conjunto_dado():
     modelo, X, rotulos = modelo_do_caso()
     resultado = avaliar(prever(modelo, X), rotulos, "8")
