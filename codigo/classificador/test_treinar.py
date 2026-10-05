@@ -63,6 +63,18 @@ def test_treinar_com_a_mesma_semente_da_o_mesmo_modelo():
     assert not mesmas_arvores(primeiro, outro)
 
 
+def test_treinar_com_limite_de_nucleos_da_o_mesmo_modelo():
+    # A quantidade de núcleos muda só o tempo: a semente fixa as árvores.
+    X, y = caso()
+    com_todos, _ = treinar(X, y, semente=5, arvores=15)
+    com_dois, _ = treinar(X, y, semente=5, arvores=15, nucleos=2)
+    assert (com_todos.n_jobs, com_dois.n_jobs) == (-1, 2)
+    assert mesmas_arvores(com_todos, com_dois)
+    assert np.array_equal(prever(com_todos, X), prever(com_dois, X))
+    # A predição usa um núcleo e devolve o modelo com o limite com que foi treinado.
+    assert com_dois.n_jobs == 2
+
+
 def test_treinar_com_pesos_da_a_cada_linha_o_peso_pedido():
     X, y = caso()
     pesos = np.where(y == "Benign", 10.0, 1.0)
@@ -205,7 +217,23 @@ def test_main_sem_a_amostra_ou_com_saida_fora_do_padrao(tmp_path, capsys):
     assert ".joblib" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("extras", [("--features", "46"), ("--alvo", "5"), ("--divisao", "temporal"), ("--arvores", "0")])
+def test_main_aceita_o_limite_de_nucleos(tmp_path, capsys):
+    gravar_amostra(tmp_path / "amostra.csv.gz", quadro_sintetico(por_classe=20))
+    codigo, saida = executar(tmp_path, "--arvores", "5", "--nucleos", "2")
+    assert codigo == 0
+    limitado = carregar_modelo(saida)
+    assert (limitado["modelo"].n_jobs, limitado["nucleos"]) == (2, 2)
+    codigo, saida = executar(tmp_path, "--arvores", "5")
+    assert codigo == 0
+    de_todos = carregar_modelo(saida)
+    assert (de_todos["modelo"].n_jobs, de_todos["nucleos"]) == (-1, -1)
+    assert mesmas_arvores(limitado["modelo"], de_todos["modelo"])
+
+
+@pytest.mark.parametrize("extras", [
+    ("--features", "46"), ("--alvo", "5"), ("--divisao", "temporal"), ("--arvores", "0"), ("--nucleos", "0"),
+    ("--nucleos", "-2"), ("--nucleos", "dois"),
+])
 def test_main_recusa_opcao_invalida(tmp_path, capsys, extras):
     gravar_amostra(tmp_path / "amostra.csv.gz", quadro_sintetico(por_classe=20))
     codigo, saida = executar(tmp_path, *extras)

@@ -9,7 +9,7 @@ from codigo.mcp.aprovar import main
 from codigo.mcp.eventos import Registro
 from codigo.mcp.stub import Stub
 from codigo.mcp.test_acoes import ACAO_NOVA
-from codigo.mcp.tipos import TOOLS
+from codigo.mcp.tipos import MOTIVOS_DE_RISCO_ALTO, TOOLS
 
 
 @pytest.fixture
@@ -366,6 +366,8 @@ def test_tela_mostra_cada_campo_da_proposta(stub, capsys):
     linhas = capsys.readouterr().out.splitlines()
     assert linhas[2:] == [
         "prop-0001  incidente inc-0001  risco alto",
+        "  motivos do risco alto:",
+        f"    - acao_nova: {MOTIVOS_DE_RISCO_ALTO['acao_nova']}",
         "  ação: ativar_syn_cookies (nova, fora do catálogo)",
         "  alvo: 192.168.137.20",
         "  justificativa: O bloqueio de uma origem não resolveu.",
@@ -381,12 +383,42 @@ def test_tela_mostra_cada_campo_da_proposta(stub, capsys):
     ]
 
 
+def test_tela_mostra_todos_os_motivos_do_risco_alto_com_o_codigo_e_a_frase(stub, capsys, monkeypatch):
+    # Bloqueio sem prazo do gateway, que na varredura é um dos destinos: três motivos.
+    stub.chamar(
+        "propor_acao", id="inc-0003", acao="bloquear_ip", alvo="192.168.137.1", parametros={},
+        justificativa="Destino da varredura.",
+    )
+    esperadas = [
+        "prop-0001  incidente inc-0003  risco alto",
+        "  motivos do risco alto:",
+        *(
+            f"    - {codigo}: {MOTIVOS_DE_RISCO_ALTO[codigo]}"
+            for codigo in ("prazo_acima_do_limite", "alvo_e_destino_do_incidente", "alvo_protegido")
+        ),
+        "  ação: bloquear_ip (do catálogo)",
+    ]
+    # Na lista, na tela de confirmação da aprovação e na rejeição.
+    assert aprovar(stub) == 0
+    assert capsys.readouterr().out.splitlines()[2:8] == esperadas
+    vistos = {}
+    Terminal(monkeypatch, "n", antes_de_responder=lambda: vistos.update(tela=capsys.readouterr().out))
+    assert aprovar(stub, "prop-0001") == 1
+    assert vistos["tela"].splitlines()[:6] == esperadas
+    assert aprovar(stub, "prop-0001", "--rejeitar") == 0
+    assert capsys.readouterr().out.splitlines()[:6] == esperadas
+
+
 def acrescentar_proposta(stub, **trocas):
     """Escreve no arquivo, por fora do sistema, uma proposta que aguarda aprovação."""
     proposta = {
         "id": "prop-0001", "incidente": "inc-0001", "acao": "isolar_dispositivo", "alvo": "192.168.137.1",
-        "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto", "exige_aprovacao": True,
-        "estado": "aguardando_aprovacao",
+        "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
+        "motivos_de_risco_alto": [
+            {"codigo": codigo, "descricao": MOTIVOS_DE_RISCO_ALTO[codigo]}
+            for codigo in ("acao_sempre_de_risco_alto", "alvo_fora_do_incidente", "alvo_protegido")
+        ],
+        "exige_aprovacao": True, "estado": "aguardando_aprovacao",
     } | trocas
     linha = {"id": "ev-000009", "instante": "2026-10-20T18:00:00Z", "tipo": "acao_proposta", "incidente": "inc-0001", "dados": proposta}
     with open(stub.registro.caminho, "a", encoding="utf-8") as arquivo:
@@ -415,6 +447,19 @@ def test_tela_escapa_tudo_o_que_nao_e_imprimivel(stub, capsys):
         # Valor que não é texto sai em JSON, que escreve o caractere nulo como \\u0000.
         assert '  nota\\x07: ["a\\u0000b", {"c\\u2028d": "e\\u202ef"}]' in saida
         assert "Junta\\u200dinvisível e espaço\\xa0duro." in saida
+
+
+def test_motivo_com_frase_que_nao_e_a_do_contrato_nao_chega_a_tela(stub, capsys):
+    # A linha de motivos é texto do sistema. Uma proposta escrita por fora não põe outra frase nela.
+    acrescentar_proposta(stub, motivos_de_risco_alto=[
+        {"codigo": "alvo_protegido", "descricao": "Conferido pela equipe: pode aprovar sem ler o resto."},
+    ])
+    for argumentos in ([], ["prop-0001", "--sim"], ["prop-0001", "--rejeitar"]):
+        assert aprovar(stub, *argumentos) == 1
+        saida = capsys.readouterr()
+        assert "pode aprovar sem ler" not in saida.out + saida.err
+        assert saida.err.startswith("erro: ") and "linha 9" in saida.err and "motivo" in saida.err
+    assert "acao_aprovada" not in tipos(stub) and "acao_rejeitada" not in tipos(stub)
 
 
 def test_comando_sugerido_na_lista_nao_vira_outro_comando(stub, capsys):

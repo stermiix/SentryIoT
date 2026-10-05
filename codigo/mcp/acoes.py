@@ -5,11 +5,17 @@ limite: o agente pode propor uma ação nova, fora do catálogo, desde que diga 
 desfazer. A autonomia é graduada pelo risco. Ação de risco baixo é aplicada sem aprovação;
 ação de risco alto e toda ação nova só são aplicadas depois que uma pessoa aprova.
 
-O risco não sai só do nome da ação e da duração. Uma ação é de risco baixo quando o alvo é
-origem ou destino do incidente aberto, não é endereço protegido, a duração cabe no prazo e o
-incidente ainda não atingiu o limite de medidas de risco baixo ativas. Os números ficam em
-`politica.toml`. O piso fica aqui, no código: isolar_dispositivo, revogar_credencial e toda
-ação nova são sempre de risco alto.
+O risco não sai só do nome da ação e da duração. Uma ação é de risco baixo quando o alvo faz
+parte do incidente aberto, no papel que a política aceita para a ação, não é endereço
+protegido, a duração cabe no prazo e o incidente ainda não atingiu o limite de medidas de risco
+baixo ativas. O papel depende da ação: limitar a taxa vale para origem e para destino, e
+bloquear só para origem, porque o destino é o dispositivo atacado e bloqueá-lo tira a vítima do
+ar. Os números e os papéis ficam em `politica.toml`. O piso fica aqui, no código:
+isolar_dispositivo, revogar_credencial e toda ação nova são sempre de risco alto.
+
+A proposta de risco alto diz por quê: traz a lista dos motivos, cada um com um código estável e
+uma frase (`tipos.MOTIVOS_DE_RISCO_ALTO`). A lista sai da mesma conta que decide o risco, e por
+isso é vazia quando o risco é baixo, e só então.
 
 Quem chama as tools é um modelo de linguagem, que pode ser enganado por conteúdo vindo da rede.
 Por isso tudo o que chega é tratado como entrada: textos têm uma linha e tamanho máximo, o alvo
@@ -34,12 +40,14 @@ from codigo.mcp.eventos import LogInvalido, novo
 from codigo.mcp.tipos import (
     MAIOR_NOME_DE_ACAO,
     MAXIMO_DE_PASSOS,
+    MOTIVOS_DE_RISCO_ALTO,
     TEXTO_CURTO,
     TEXTO_LONGO,
     AcaoDoCatalogo,
     Ambiente,
     Decisao,
     Execucao,
+    MotivoDeRiscoAlto,
     NomeDeAcao,
     ParametroDeAcao,
     ParametrosDeAcaoNova,
@@ -165,8 +173,15 @@ BASE = {
 _SEMPRE_DE_RISCO_ALTO = ("isolar_dispositivo", "revogar_credencial")
 # Nomes das seções e das chaves de `politica.toml`.
 _PRAZO = "prazo_maximo_de_risco_baixo"
+_ALVOS = "alvos_de_risco_baixo"
+# Em que papel o alvo precisa estar no incidente para a ação contar como de risco baixo. A origem
+# vale sempre. O destino é o dispositivo atacado, e só vale para a ação que a política disser.
+_SO_ORIGENS = "origens"
+_ORIGENS_E_DESTINOS = "origens_e_destinos"
+ALVOS_DE_RISCO_BAIXO = (_SO_ORIGENS, _ORIGENS_E_DESTINOS)
 _LIMITES = "limites"
 _MEDIDAS = "medidas_de_risco_baixo_por_incidente"
+_PENDENTES = "propostas_aguardando_aprovacao_por_incidente"
 _REDE = "rede"
 _PROTEGIDOS = "enderecos_protegidos"
 _REDES_LOCAIS = "redes_locais"
@@ -179,10 +194,13 @@ _REDES_LOCAIS = "redes_locais"
 class Politica:
     """A política de risco, como sai de `politica.toml`."""
 
-    # Para cada ação de base, o risco e o prazo máximo, em minutos, para ela contar como risco baixo.
+    # Para cada ação de base, o risco, o prazo máximo, em minutos, para ela contar como risco baixo
+    # e os alvos em que o risco baixo vale: só as origens do incidente, ou as origens e os destinos.
     acoes: dict
     # Máximo de medidas de risco baixo ativas ao mesmo tempo em um incidente.
     medidas_de_risco_baixo_por_incidente: int
+    # Máximo de propostas de um incidente aguardando aprovação ao mesmo tempo. A seguinte é recusada.
+    propostas_aguardando_aprovacao_por_incidente: int
     # Endereços em que qualquer ação é de risco alto, na forma canônica.
     enderecos_protegidos: frozenset
     # Redes locais: o endereço de rede e o de broadcast de cada uma não são aceitos como alvo.
@@ -232,7 +250,7 @@ def carregar_politica(caminho=POLITICA_PADRAO):
 
     regras = {}
     for nome, definicao in BASE.items():
-        regra = secao(nome, ("risco", _PRAZO))
+        regra = secao(nome, ("risco", _PRAZO, _ALVOS))
         if regra.get("risco") not in RISCOS:
             raise invalida(f"o risco de {nome} precisa ser baixo ou alto, e veio {regra.get('risco')!r}")
         if nome in _SEMPRE_DE_RISCO_ALTO and regra["risco"] != "alto":
@@ -248,12 +266,29 @@ def carregar_politica(caminho=POLITICA_PADRAO):
         elif regra["risco"] == "baixo":
             # Sem prazo máximo, a medida de risco baixo não teria teto de duração.
             raise invalida(f"{nome} é de risco baixo e precisa de {_PRAZO}, em minutos")
-        regras[nome] = {"risco": regra["risco"], _PRAZO: prazo}
+        alvos = regra.get(_ALVOS)
+        if alvos is not None:
+            if nome in _SEMPRE_DE_RISCO_ALTO:
+                raise invalida(f"{nome} é sempre de risco alto, então não pode ter {_ALVOS}")
+            if alvos not in ALVOS_DE_RISCO_BAIXO:
+                raise invalida(
+                    f"{_ALVOS} de {nome} precisa ser {' ou '.join(map(repr, ALVOS_DE_RISCO_BAIXO))}, e veio {alvos!r}"
+                )
+        elif regra["risco"] == "baixo":
+            # Sem a regra escrita, bloquear o dispositivo atacado poderia passar por medida de risco baixo.
+            raise invalida(
+                f"{nome} é de risco baixo e precisa de {_ALVOS}: {' ou '.join(map(repr, ALVOS_DE_RISCO_BAIXO))}"
+            )
+        regras[nome] = {"risco": regra["risco"], _PRAZO: prazo, _ALVOS: alvos}
 
-    limites = secao(_LIMITES, (_MEDIDAS,))
+    limites = secao(_LIMITES, (_MEDIDAS, _PENDENTES))
     medidas = limites.get(_MEDIDAS)
     if type(medidas) is not int or medidas < 0:
         raise invalida(f"{_MEDIDAS} precisa ser um número inteiro, a partir de 0")
+    pendentes = limites.get(_PENDENTES)
+    # Com zero, nenhuma proposta de risco alto chegaria à pessoa.
+    if type(pendentes) is not int or pendentes < 1:
+        raise invalida(f"{_PENDENTES} precisa ser um número inteiro, a partir de 1")
 
     rede = secao(_REDE, (_PROTEGIDOS, _REDES_LOCAIS))
     protegidos, redes = [], []
@@ -272,38 +307,61 @@ def carregar_politica(caminho=POLITICA_PADRAO):
     return Politica(
         acoes=regras,
         medidas_de_risco_baixo_por_incidente=medidas,
+        propostas_aguardando_aprovacao_por_incidente=pendentes,
         enderecos_protegidos=frozenset(protegidos),
         redes_locais=tuple(redes),
     )
 
 
-def _risco(estado, politica, incidente, acao, alvo, parametros):
-    """Risco de aplicar agora a ação no incidente. É baixo só quando todas as condições valem.
+def _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros):
+    """Os códigos dos motivos pelos quais aplicar agora a ação no incidente é de risco alto.
 
-    O nome da ação e a duração não bastam: bloquear por 10 minutos o gateway, ou um endereço que
-    não tem relação com o incidente, não é uma medida de risco baixo.
+    Sem motivo, o risco é baixo. O nome da ação e a duração não bastam para isso: bloquear por 10
+    minutos o gateway, o dispositivo atacado ou um endereço que não tem relação com o incidente
+    não é uma medida de risco baixo. Saem todos os motivos que valem, na ordem da tabela do
+    contrato, para a pessoa que decide ver o quadro inteiro.
     """
-    # Piso do código, que nenhuma política baixa.
-    if acao not in BASE or acao in _SEMPRE_DE_RISCO_ALTO:
-        return "alto"
+    if acao not in BASE:
+        # Ação nova ou promovida: é sempre de risco alto, e o alvo é texto livre, sem o que conferir.
+        return ["acao_sempre_de_risco_alto" if acao in estado.promovidas else "acao_nova"]
     regra = politica.acoes[acao]
-    duracao = parametros.get("duracao")
-    condicoes = (
-        regra["risco"] == "baixo",
-        regra[_PRAZO] is not None and type(duracao) is int and duracao <= regra[_PRAZO],
-        alvo in _enderecos_do_incidente(estado, incidente),
-        alvo not in politica.enderecos_protegidos,
-        _medidas_de_risco_baixo(estado, incidente) < politica.medidas_de_risco_baixo_por_incidente,
-    )
-    return "baixo" if all(condicoes) else "alto"
+    # O alvo de revogar_credencial é usuario@endereco: o que se compara com o incidente é o endereço.
+    endereco = alvo.rpartition("@")[2]
+    origens, destinos = _enderecos_do_incidente(estado, incidente)
+    valem = set()
+    # O piso do código, que nenhuma política baixa, e a ação que a política marca como de risco alto.
+    if acao in _SEMPRE_DE_RISCO_ALTO or regra["risco"] != "baixo":
+        valem.add("acao_sempre_de_risco_alto")
+    else:
+        # As três condições seguintes só existem na ação que pode ser de risco baixo.
+        duracao = parametros.get("duracao")
+        if regra[_PRAZO] is None or type(duracao) is not int or duracao > regra[_PRAZO]:
+            valem.add("prazo_acima_do_limite")
+        # O endereço que é destino do incidente é o dispositivo atacado, mesmo que também apareça entre
+        # as origens (as respostas dele ao ataque saem dele). Só a ação que aceita destino o trata como
+        # alvo de risco baixo.
+        if endereco in destinos and regra[_ALVOS] != _ORIGENS_E_DESTINOS:
+            valem.add("alvo_e_destino_do_incidente")
+        if _medidas_de_risco_baixo(estado, incidente) >= politica.medidas_de_risco_baixo_por_incidente:
+            valem.add("orcamento_de_risco_baixo_esgotado")
+    # O que se diz do alvo vale para toda ação de base, inclusive a que já é sempre de risco alto: quem
+    # aprova o isolamento de um dispositivo precisa saber que ele é o gateway, ou que é alheio ao incidente.
+    if endereco not in origens and endereco not in destinos:
+        valem.add("alvo_fora_do_incidente")
+    if endereco in politica.enderecos_protegidos:
+        valem.add("alvo_protegido")
+    return [codigo for codigo in MOTIVOS_DE_RISCO_ALTO if codigo in valem]
 
 
 def _enderecos_do_incidente(estado, incidente):
-    """Origens e destinos do incidente, na última versão dele. Incidente encerrado não tem alvo."""
+    """As origens e os destinos do incidente, na última versão dele. Incidente encerrado não tem alvo."""
     ocorrido = estado.incidentes.get(incidente)
     if ocorrido is None or ocorrido.estado != "aberto":
-        return frozenset()
-    return frozenset(item.endereco for item in (*ocorrido.origens, *ocorrido.destinos))
+        return frozenset(), frozenset()
+    return (
+        frozenset(item.endereco for item in ocorrido.origens),
+        frozenset(item.endereco for item in ocorrido.destinos),
+    )
 
 
 def _medidas_de_risco_baixo(estado, incidente):
@@ -320,12 +378,16 @@ def _regra(politica, acao):
     if acao in _SEMPRE_DE_RISCO_ALTO or regra["risco"] == "alto":
         return _REGRA_DE_RISCO_ALTO
     sem_prazo = "sem duracao, " if BASE[acao].duracao == "opcional" else ""
+    if regra[_ALVOS] == _ORIGENS_E_DESTINOS:
+        papel, destino = "origem ou destino", ""
+    else:
+        papel, destino = "origem", "alvo que é destino do incidente, isto é, o dispositivo atacado, "
     return (
-        f"Risco baixo quando o alvo é origem ou destino do incidente, a duracao é de até {regra[_PRAZO]} "
+        f"Risco baixo quando o alvo é {papel} do incidente, a duracao é de até {regra[_PRAZO]} "
         f"minutos e o incidente tem menos de {politica.medidas_de_risco_baixo_por_incidente} medidas de risco "
         f"baixo ativas: o agente de execução aplica sem aprovação. Fora disso ({sem_prazo}duracao maior, alvo "
-        "que não consta do incidente, endereço protegido pela política ou limite de medidas atingido), risco "
-        "alto: só com aprovação humana."
+        f"que não consta do incidente, {destino}endereço protegido pela política ou limite de medidas atingido), "
+        "risco alto: só com aprovação humana."
     )
 
 
@@ -522,6 +584,19 @@ def _conferir_proposta_nova(estado, proposta):
         proposta.nova == (proposta.acao not in BASE and proposta.acao not in estado.promovidas),
         f"a proposta {proposta.id} vem com nova = {proposta.nova}, o que não confere com o catálogo",
     )
+    # Os motivos são texto do sistema na tela de aprovação: existem se e só se o risco é alto, não se
+    # repetem e trazem a frase do contrato, e não outra.
+    codigos = [motivo.codigo for motivo in proposta.motivos_de_risco_alto]
+    _exigir(
+        bool(codigos) == de_risco_alto,
+        f"a proposta {proposta.id} é de risco {proposta.risco} e "
+        + ("traz motivo de risco alto" if codigos else "não traz nenhum motivo de risco alto"),
+    )
+    _exigir(len(set(codigos)) == len(codigos), f"a proposta {proposta.id} repete um motivo de risco alto")
+    _exigir(
+        all(motivo.descricao == MOTIVOS_DE_RISCO_ALTO[motivo.codigo] for motivo in proposta.motivos_de_risco_alto),
+        f"a proposta {proposta.id} traz um motivo de risco alto com uma frase que não é a do contrato",
+    )
 
 
 def catalogo(estado, politica):
@@ -572,12 +647,16 @@ def ambiente(estado):
 def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
     """Registra a proposta de uma ação do catálogo ou de uma ação nova.
 
-    Devolve a proposta, com o nível de risco e se ela exige aprovação, e o rascunho do evento
-    `acao_proposta`. Não aplica nada: proposta de risco baixo já nasce liberada para o agente
-    de execução, e a de risco alto fica aguardando a decisão de uma pessoa.
+    Devolve a proposta, com o nível de risco, os motivos quando o risco é alto e se ela exige
+    aprovação, e o rascunho do evento `acao_proposta`. Não aplica nada: proposta de risco baixo
+    já nasce liberada para o agente de execução, e a de risco alto fica aguardando a decisão de
+    uma pessoa.
 
     Alvo que não consta do incidente, endereço protegido e limite de medidas atingido não são
     motivo de recusa: a proposta é registrada como de risco alto, e quem decide é a pessoa.
+
+    A fila da pessoa tem teto. A proposta de risco alto é recusada quando o incidente já tem o
+    máximo de propostas aguardando aprovação que a política aceita.
     """
     if not isinstance(incidente, str) or incidente not in estado.incidentes:
         raise PedidoRecusado(
@@ -627,7 +706,9 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
         alvo = _alvo_livre(acao, alvo)
         parametros = _parametros_de_acao_nova(acao, parametros)
 
-    risco = _risco(estado, politica, incidente, acao, alvo, parametros)
+    motivos = _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros)
+    if motivos:
+        _conferir_fila_de_aprovacao(estado, politica, incidente)
     proposta = Proposta(
         id=f"prop-{len(estado.propostas) + 1:04d}",
         incidente=incidente,
@@ -636,11 +717,35 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
         parametros=parametros,
         justificativa=justificativa,
         nova=acao not in BASE and acao not in estado.promovidas,
-        risco=risco,
-        exige_aprovacao=risco == "alto",
-        estado="aguardando_aprovacao" if risco == "alto" else "liberada",
+        risco="alto" if motivos else "baixo",
+        motivos_de_risco_alto=[
+            MotivoDeRiscoAlto(codigo=codigo, descricao=MOTIVOS_DE_RISCO_ALTO[codigo]) for codigo in motivos
+        ],
+        exige_aprovacao=bool(motivos),
+        estado="aguardando_aprovacao" if motivos else "liberada",
     )
     return proposta, [novo("acao_proposta", proposta, incidente)]
+
+
+def _conferir_fila_de_aprovacao(estado, politica, incidente):
+    """Recusa a proposta de risco alto quando a fila de aprovação do incidente está no teto.
+
+    Sem o teto, um agente enganado por conteúdo vindo da rede poderia registrar propostas sem
+    parar: a pessoa teria de ler todas, e o log cresceria sem limite. A conferência vem depois das
+    outras: o pedido malformado continua recusado pelo próprio defeito.
+    """
+    pendentes = sum(
+        1 for proposta in estado.propostas.values()
+        if proposta.incidente == incidente and proposta.estado == "aguardando_aprovacao"
+    )
+    if pendentes >= politica.propostas_aguardando_aprovacao_por_incidente:
+        quantas = "1 proposta" if pendentes == 1 else f"{pendentes} propostas"
+        raise PedidoRecusado(
+            "limite_de_propostas_pendentes",
+            f"O incidente {incidente} já tem {quantas} aguardando aprovação, que é o máximo aceito pela "
+            "política, e esta proposta não foi registrada. Uma nova proposta de risco alto só entra depois que "
+            "uma pessoa aprovar ou rejeitar alguma das pendentes.",
+        )
 
 
 def _justificativa(justificativa):
@@ -842,7 +947,8 @@ def _risco_de_agora(estado, politica, proposta):
         return "alto"
     if (alvo, parametros) != (proposta.alvo, proposta.parametros):
         return "alto"
-    return _risco(estado, politica, proposta.incidente, proposta.acao, alvo, parametros)
+    motivos = _motivos_de_risco_alto(estado, politica, proposta.incidente, proposta.acao, alvo, parametros)
+    return "alto" if motivos else "baixo"
 
 
 def desfazer(estado, id_execucao, instante):

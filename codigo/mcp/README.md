@@ -16,7 +16,7 @@ Todos os comandos são dados a partir da raiz do repositório, com o ambiente do
 | `tipos.py` | Os tipos do contrato: o que cada tool recebe e devolve e o formato de cada linha do log |
 | `contrato.json` | O mesmo contrato em JSON Schema, gerado de `tipos.py` |
 | `acoes.py` | Catálogo de ações, política de risco, conferência do log e ambiente simulado, com desfazer |
-| `politica.toml` | Os números da política de risco e os endereços protegidos, para ajustar sem mexer no código |
+| `politica.toml` | Os números da política de risco, os alvos em que cada ação é de risco baixo e os endereços protegidos, para ajustar sem mexer no código |
 | `base.py` | Leitura da base local de documentos e a busca de `pesquisar_solucoes` |
 | `base_provisoria/` | Os documentos da base. **Conteúdo provisório do stub** (ver o `README.md` da pasta) |
 | `eventos.py` | Gravação e leitura do log de eventos, e o gravador restrito que os agentes usam |
@@ -112,7 +112,7 @@ está e a segunda sempre resolve.
 | `obter_janelas(id, limite)` | triagem | Até 20 janelas, espaçadas ao longo do incidente, com as 39 features |
 | `consultar_mitigacoes(categoria)` | decisão | As mitigações recomendadas e o catálogo de ações |
 | `pesquisar_solucoes(consulta)` | decisão | Até 3 trechos da base local, com o arquivo de origem |
-| `propor_acao(id, acao, alvo, parametros, justificativa)` | decisão | A proposta, com o risco e se exige aprovação |
+| `propor_acao(id, acao, alvo, parametros, justificativa)` | decisão | A proposta, com o risco, os motivos quando o risco é alto e se exige aprovação |
 | `verificar_efeito(id_execucao)` | decisão, execução | `cessou`, `diminuiu` ou `persiste` |
 | `executar_acao(id_proposta)` | execução | A execução, se a proposta estiver liberada |
 | `desfazer_acao(id_execucao)` | execução | A execução, agora desfeita |
@@ -167,7 +167,7 @@ Pedido acima de 20 devolve 20. Uma feature vem nula quando o extrator não produ
  "acoes": [{"nome": "bloquear_ip", "descricao": "Bloqueia o tráfego vindo de um endereço de origem.",
             "alvo": "Endereço IP de origem, como 203.0.113.7",
             "parametros": [{"nome": "duracao", "descricao": "Prazo da medida, em minutos (número inteiro, de 1 a 525.600)", "obrigatorio": false}],
-            "regra": "Risco baixo quando o alvo é origem ou destino do incidente, a duracao é de até 15 minutos e o incidente tem menos de 5 medidas de risco baixo ativas: o agente de execução aplica sem aprovação. Fora disso (sem duracao, duracao maior, alvo que não consta do incidente, endereço protegido pela política ou limite de medidas atingido), risco alto: só com aprovação humana.",
+            "regra": "Risco baixo quando o alvo é origem do incidente, a duracao é de até 15 minutos e o incidente tem menos de 5 medidas de risco baixo ativas: o agente de execução aplica sem aprovação. Fora disso (sem duracao, duracao maior, alvo que não consta do incidente, alvo que é destino do incidente, isto é, o dispositivo atacado, endereço protegido pela política ou limite de medidas atingido), risco alto: só com aprovação humana.",
             "origem": "base", "passos": [], "efeito_esperado": null,
             "como_desfazer": "Retirar o bloqueio com desfazer_acao.", "fonte": null}, ...]}
 ```
@@ -195,12 +195,22 @@ A consulta tem até 2.000 caracteres.
 ```json
 {"id": "prop-0001", "incidente": "inc-0001", "acao": "bloquear_ip", "alvo": "203.0.113.7",
  "parametros": {"duracao": 10}, "justificativa": "Origem com mais quadros no incidente.",
- "nova": false, "risco": "baixo", "exige_aprovacao": false, "estado": "liberada"}
+ "nova": false, "risco": "baixo", "motivos_de_risco_alto": [], "exige_aprovacao": false,
+ "estado": "liberada"}
 ```
 
-O mesmo bloqueio de 10 minutos em um endereço que não consta do incidente, ou no gateway, não é
-recusado: volta com `"risco": "alto"`, `"exige_aprovacao": true` e
-`"estado": "aguardando_aprovacao"`.
+O mesmo bloqueio de 10 minutos em um endereço que não consta do incidente, no gateway ou no
+dispositivo atacado não é recusado: volta com `"risco": "alto"`, `"exige_aprovacao": true`,
+`"estado": "aguardando_aprovacao"` e, em `motivos_de_risco_alto`, o porquê. Com
+`"alvo": "192.168.137.20"`, que é o destino do flood:
+
+```json
+{"id": "prop-0003", "incidente": "inc-0001", "acao": "bloquear_ip", "alvo": "192.168.137.20",
+ "parametros": {"duracao": 10}, "justificativa": "Destino do flood.", "nova": false, "risco": "alto",
+ "motivos_de_risco_alto": [{"codigo": "alvo_e_destino_do_incidente",
+                            "descricao": "O alvo é destino do incidente, isto é, o dispositivo atacado, e esta ação só é de risco baixo sobre uma origem."}],
+ "exige_aprovacao": true, "estado": "aguardando_aprovacao"}
+```
 
 **`propor_acao`**, com uma ação nova
 
@@ -216,7 +226,9 @@ recusado: volta com `"risco": "alto"`, `"exige_aprovacao": true` e
 {"id": "prop-0002", "incidente": "inc-0001", "acao": "ativar_syn_cookies", "alvo": "192.168.137.20",
  "parametros": {"descricao": "...", "passos": ["..."], "efeito_esperado": "...", "como_desfazer": "...", "fonte": null},
  "justificativa": "O bloqueio de uma origem não resolveu.",
- "nova": true, "risco": "alto", "exige_aprovacao": true, "estado": "aguardando_aprovacao"}
+ "nova": true, "risco": "alto",
+ "motivos_de_risco_alto": [{"codigo": "acao_nova", "descricao": "A ação é nova, fora do catálogo."}],
+ "exige_aprovacao": true, "estado": "aguardando_aprovacao"}
 ```
 
 **`executar_acao`**
@@ -275,8 +287,8 @@ O catálogo de base é o ponto de partida, não um limite.
 
 | Ação | Alvo | Parâmetros | Risco |
 |---|---|---|---|
-| `limitar_taxa` | Endereço IP | `duracao`, em minutos, obrigatória | Baixo com `duracao` de até 60, se as condições abaixo valerem. Senão, alto |
-| `bloquear_ip` | Endereço IP de origem | `duracao`, em minutos, opcional | Baixo com `duracao` de até 15, se as condições abaixo valerem. Sem prazo ou com prazo maior, alto |
+| `limitar_taxa` | Endereço IP | `duracao`, em minutos, obrigatória | Baixo com `duracao` de até 60, sobre origem ou destino do incidente, se as condições abaixo valerem. Senão, alto |
+| `bloquear_ip` | Endereço IP de origem | `duracao`, em minutos, opcional | Baixo com `duracao` de até 15, sobre origem do incidente, se as condições abaixo valerem. Sem prazo, com prazo maior ou sobre destino, alto |
 | `isolar_dispositivo` | Endereço IP do dispositivo | nenhum | Sempre alto |
 | `revogar_credencial` | `usuario@endereco` | nenhum | Sempre alto |
 | Ação nova | Texto de uma linha | `descricao`, `passos`, `efeito_esperado`, `como_desfazer` e, se houver, `fonte` | Sempre alto |
@@ -285,24 +297,73 @@ O risco não depende só do nome da ação e da duração. Uma proposta é de ri
 todas estas condições valem:
 
 1. a política marca a ação como de risco baixo e a `duracao` cabe no prazo máximo dela;
-2. o alvo é uma das `origens` ou um dos `destinos` do incidente, na versão mais recente dele;
+2. o alvo faz parte do incidente, na versão mais recente dele, no papel que a política aceita
+   para a ação: em `limitar_taxa`, uma das `origens` ou um dos `destinos`; em `bloquear_ip`, só
+   uma das `origens`;
 3. o incidente está aberto;
 4. o alvo não é um endereço protegido (na política de exemplo, o gateway e a máquina de captura);
 5. o incidente tem menos de 5 medidas de risco baixo ativas.
 
-Quando alguma delas falha, a proposta não é recusada: é registrada como de risco alto e fica
-aguardando a pessoa. As exceções, que são recusadas, estão na tabela de recusas: endereço
-especial como alvo e proposta para incidente encerrado.
+O destino do incidente é o dispositivo atacado. Limitar a taxa dele o mantém em serviço.
+Bloqueá-lo o tira do ar, que é o que o ataque quer, e por isso o bloqueio de um destino é de
+risco alto com qualquer prazo. O endereço que aparece nas origens e nos destinos conta como
+destino: o dispositivo atacado responde ao ataque, e as respostas podem pô-lo entre as origens.
+
+Quando alguma das condições falha, a proposta não é recusada: é registrada como de risco alto e
+fica aguardando a pessoa. As exceções, que são recusadas, estão na tabela de recusas: endereço
+especial como alvo, proposta para incidente encerrado e fila de aprovação cheia.
+
+### Por que a proposta é de risco alto
+
+A proposta traz em `motivos_de_risco_alto` a lista dos motivos, cada um com `codigo` e
+`descricao`. A lista é vazia quando o risco é baixo, e só então. Ela aparece na resposta de
+`propor_acao`, no evento `acao_proposta`, no resumo da chamada em `tool_chamada` (só os códigos)
+e na tela do comando `aprovar`. Saem todos os motivos que valem, nesta ordem:
+
+| Código | Frase | Quando |
+|---|---|---|
+| `acao_sempre_de_risco_alto` | A ação é sempre de risco alto, qualquer que seja o alvo ou o prazo. | `isolar_dispositivo`, `revogar_credencial`, ação promovida ao catálogo e ação de base que a política marca como de risco alto |
+| `acao_nova` | A ação é nova, fora do catálogo. | Ação que não está no catálogo |
+| `prazo_acima_do_limite` | A medida não tem prazo, ou o prazo pedido passa do máximo aceito para risco baixo. | `bloquear_ip` sem `duracao`, ou `duracao` acima do prazo máximo da ação |
+| `alvo_fora_do_incidente` | O alvo não está entre as origens nem entre os destinos do incidente. | Ação de base sobre endereço que o incidente não traz |
+| `alvo_e_destino_do_incidente` | O alvo é destino do incidente, isto é, o dispositivo atacado, e esta ação só é de risco baixo sobre uma origem. | `bloquear_ip` sobre um destino |
+| `alvo_protegido` | O alvo é um endereço protegido pela política. | Ação de base sobre o gateway ou a máquina de captura |
+| `orcamento_de_risco_baixo_esgotado` | O incidente já tem o máximo de medidas de risco baixo ativas. | Ação que seria de risco baixo, com 5 medidas de risco baixo ativas no incidente |
+
+Os códigos são estáveis: é por eles que o código dos agentes e a interface web decidem. A frase
+é para a pessoa. As duas colunas estão em `contrato.json`, em `motivos_de_risco_alto`. Nas ações
+que são sempre de risco alto, os motivos do alvo (`alvo_fora_do_incidente` e `alvo_protegido`)
+também saem, para quem aprova o isolamento de um dispositivo saber que ele é o gateway ou que é
+alheio ao incidente. O alvo de uma ação nova é texto livre e não é conferido.
 
 Ação de risco baixo já nasce liberada, e o agente de execução a aplica sem aprovação. Na hora
 de executar, o risco é calculado de novo, com a política e o incidente daquele momento: propor
 várias medidas antes e executar depois não contorna o limite de 5, e uma proposta de risco
 baixo não executa depois que o incidente encerra.
 
-Os números (60 e 15 minutos, 5 medidas), os endereços protegidos e as redes locais ficam em
-`politica.toml`. Três regras ficam no código e o arquivo não as baixa: `isolar_dispositivo`,
-`revogar_credencial` e toda ação nova são sempre de risco alto. Um `politica.toml` que marque
-uma das duas primeiras como de risco baixo é recusado na leitura.
+Os números (60 e 15 minutos, 5 medidas, 10 propostas pendentes), os alvos em que cada ação é de
+risco baixo (`alvos_de_risco_baixo`, com `"origens"` ou `"origens_e_destinos"`), os endereços
+protegidos e as redes locais ficam em `politica.toml`. Três regras ficam no código e o arquivo
+não as baixa: `isolar_dispositivo`, `revogar_credencial` e toda ação nova são sempre de risco
+alto. Um `politica.toml` que marque uma das duas primeiras como de risco baixo é recusado na
+leitura.
+
+### Fila de aprovação
+
+Cada incidente tem no máximo 10 propostas aguardando aprovação ao mesmo tempo
+(`propostas_aguardando_aprovacao_por_incidente`, em `politica.toml`). A proposta de risco alto
+que seria a décima primeira é recusada, com o motivo `limite_de_propostas_pendentes` e uma
+mensagem que diz quantas estão na fila:
+
+```
+O incidente inc-0001 já tem 10 propostas aguardando aprovação, que é o máximo aceito pela política, e esta proposta não foi registrada. Uma nova proposta de risco alto só entra depois que uma pessoa aprovar ou rejeitar alguma das pendentes.
+```
+
+A vaga abre quando a pessoa aprova ou rejeita uma das pendentes. A proposta de risco baixo não
+espera ninguém e não entra na conta. O teto existe porque a fila é lida por uma pessoa: sem ele,
+um agente enganado por conteúdo vindo da rede poderia registrar propostas sem parar. Ele também
+fecha o caminho que o limite de 5 medidas abria, em que cada proposta além do limite virava de
+risco alto e ia para a fila.
 
 O nome de uma ação nova usa letras minúsculas, números e sublinhado, como `ativar_syn_cookies`,
 e tem até 60 caracteres. Uma ação nova aprovada e aplicada pode ser promovida ao catálogo pela
@@ -353,6 +414,7 @@ continua no ar. O campo `motivo` do evento traz um destes códigos:
 | `alvo_malformado` | Alvo fora do formato que a ação pede, com zona de IPv6 ou grande demais |
 | `alvo_nao_permitido` | Alvo que é endereço de loopback, não especificado, broadcast, multicast ou link-local |
 | `incidente_encerrado` | Proposta para incidente que já foi encerrado |
+| `limite_de_propostas_pendentes` | Proposta de risco alto para incidente que já tem 10 propostas aguardando aprovação |
 | `acao_nova_incompleta` | Ação nova sem descrição, passos, efeito esperado ou forma de desfazer, ou com texto fora dos limites |
 | `argumentos_invalidos` | Parâmetro de ação inválido, justificativa vazia ou fora dos limites, nome de ação nova inválido, parâmetro em ação promovida, consulta grande demais |
 | `proposta_nao_liberada` | Executar proposta que aguarda aprovação ou foi rejeitada, ou proposta de risco baixo que pelas regras de agora é de risco alto |
@@ -381,11 +443,13 @@ Elas entram por este comando, em outro terminal, com o stub no ar ou não.
     python -m codigo.mcp.aprovar prop-0002 --rejeitar --motivo "o dispositivo não pode parar"
     python -m codigo.mcp.aprovar prop-0002 --promover # leva a ação nova, já aplicada, para o catálogo
 
-Aprovar e promover mostram a proposta inteira, com todos os parâmetros, e só gravam depois que
-a pessoa digita `sim`:
+Aprovar e promover mostram a proposta inteira, com os motivos do risco alto e todos os
+parâmetros, e só gravam depois que a pessoa digita `sim`:
 
 ```
 prop-0002  incidente inc-0001  risco alto
+  motivos do risco alto:
+    - acao_nova: A ação é nova, fora do catálogo.
   ação: ativar_syn_cookies (nova, fora do catálogo)
   alvo: 192.168.137.20
   justificativa: O bloqueio de uma origem não resolveu.
@@ -424,7 +488,7 @@ arquivo de texto com um objeto JSON por linha, só de acréscimo. Os campos comu
 | `llm_chamada` | agentes, pelo `GravadorDoAgente` | Agente, modelo, tokens de entrada e de saída, duração |
 | `tool_chamada` | servidor | Agente, nome da tool, argumentos, resultado resumido, duração |
 | `recomendacao_emitida` | agente de decisão, pelo `GravadorDoAgente` | Agente, texto e propostas ligadas |
-| `acao_proposta` | servidor | A proposta |
+| `acao_proposta` | servidor | A proposta, com os motivos quando o risco é alto |
 | `acao_aprovada`, `acao_rejeitada` | comando `aprovar` | Proposta, canal e motivo |
 | `acao_executada`, `acao_desfeita` | servidor | A execução |
 | `efeito_verificado` | servidor | Execução, incidente, resultado e observação |
@@ -481,6 +545,8 @@ aparece:
 - nenhum evento cita proposta ou execução que não existe;
 - a proposta nasce no estado que o risco dela pede, e nunca como de risco baixo se a ação é das
   que são sempre de risco alto;
+- a proposta de risco alto traz ao menos um motivo, a de risco baixo não traz nenhum, e cada
+  motivo vem uma vez só, com a frase que o contrato dá ao código;
 - o incidente abre uma vez e não volta a aberto depois de encerrado.
 
 A violação levanta `LogInvalido` (um `ValueError`), com o arquivo e a linha, como em
@@ -500,6 +566,23 @@ o modo replay da interface web.
 Os dois têm teste: se `tipos.py`, os cenários ou o roteiro mudarem e o arquivo não for gerado
 de novo, o `pytest` falha. O roteiro não grava por cima de um arquivo que já existe sem
 `--sobrescrever`, nem no caminho padrão, nem no de `--saida`.
+
+## Versão do contrato
+
+A versão fica em `contrato.json`, no campo `versao`, e sai de `VERSAO`, em `tipos.py`. A atual é
+a 0.2.0. O que mudou em relação à 0.1.0, para quem já usava o stub:
+
+- `Proposta` ganhou o campo obrigatório `motivos_de_risco_alto`. Quem lê a resposta de
+  `propor_acao` ou o evento `acao_proposta` passa a recebê-lo sempre, vazio quando o risco é
+  baixo. O resumo de `propor_acao` em `tool_chamada` traz os códigos.
+- `bloquear_ip` sobre um destino do incidente deixou de ser de risco baixo: a proposta fica
+  aguardando aprovação, com o motivo `alvo_e_destino_do_incidente`. `limitar_taxa` não mudou.
+- `propor_acao` pode ser recusada com o motivo novo `limite_de_propostas_pendentes`.
+- `politica.toml` ganhou `alvos_de_risco_baixo` nas ações de risco baixo e
+  `propostas_aguardando_aprovacao_por_incidente` em `[limites]`. Um arquivo de política sem
+  essas chaves é recusado na leitura.
+- Um log gravado com a 0.1.0 não é lido pela 0.2.0, porque as propostas dele não trazem os
+  motivos. Apague o log e suba o stub de novo.
 
 ## Limites do stub
 
@@ -530,6 +613,10 @@ O que mais fica de fora deste trabalho:
 - **Expiração do prazo.** A `duracao` fica registrada, mas a medida não expira sozinha no
   ambiente simulado. Por isso uma medida de risco baixo conta para o limite de 5 até ser
   desfeita.
+- **Motivos e teto de pendentes na leitura do log.** A reconstrução confere que a proposta de
+  risco alto traz motivo e que a frase é a do contrato, mas não refaz a conta do risco: os
+  motivos gravados são os do momento da proposta, com a política e o incidente de então. O teto
+  de 10 propostas pendentes vale na hora de propor, e a leitura do log não o confere.
 - **Dependências transitivas.** O `requirements.txt` fixa as dependências diretas. As que elas
   trazem não estão fixadas nem conferidas por hash.
 - **Histórico do que já foi tentado.** Quando uma ação não resolve, o agente de decisão é
@@ -562,5 +649,6 @@ O que mais fica de fora deste trabalho:
 - Os documentos de `base_provisoria/` são provisórios e serão substituídos pelo levantamento de
   mitigações da equipe.
 - Nenhuma ação toca a rede. O ambiente é simulado, e aplicar ou desfazer é gravar um evento.
-- A busca de `pesquisar_solucoes` é por palavras, só na base local. Busca na internet não existe
-  neste trabalho.
+- A busca de `pesquisar_solucoes` é por palavras, só na base local. A busca na internet fica
+  desligada por padrão, como decidido na especificação: neste trabalho não há código que a
+  ligue, e `fonte` é sempre `base_local`.

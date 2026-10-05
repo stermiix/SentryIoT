@@ -1,7 +1,7 @@
 """Treino do classificador: Random Forest do scikit-learn sobre a amostra do CICIoT2023.
 
-Os parâmetros são os padrão do scikit-learn, com semente fixa e todos os núcleos da máquina.
-Não há `StandardScaler` nem outro passo antes do modelo: árvores não dependem de escala, e o
+Os parâmetros são os padrão do scikit-learn, com semente fixa e todos os núcleos da máquina, a
+não ser que se peça um limite de núcleos. O limite muda o tempo de treino, e não o modelo. Não há `StandardScaler` nem outro passo antes do modelo: árvores não dependem de escala, e o
 número que sai do extrator entra direto no classificador.
 
 O modelo é salvo junto com o que é preciso para usá-lo e para refazê-lo: as features, na ordem
@@ -10,6 +10,7 @@ em que foi treinado, o alvo, a divisão, a semente e o hash da amostra. O arquiv
 Uso, a partir da raiz do repositório:
     python -m codigo.classificador.treinar
     python -m codigo.classificador.treinar --features 33 --alvo 7 --divisao grupos
+    python -m codigo.classificador.treinar --nucleos 4
 """
 import argparse
 import os
@@ -33,10 +34,14 @@ from codigo.classificador.preparar import (
 )
 
 ARVORES = 100  # o padrão do scikit-learn, escrito aqui para constar do registro
+TODOS_OS_NUCLEOS = -1  # o valor com que o scikit-learn usa todos os núcleos da máquina
 
 
-def treinar(X, y, semente=SEMENTE, arvores=ARVORES, pesos=None):
+def treinar(X, y, semente=SEMENTE, arvores=ARVORES, pesos=None, nucleos=TODOS_OS_NUCLEOS):
     """Treina o Random Forest e devolve o modelo e os segundos gastos no treino.
+
+    `nucleos` limita os núcleos usados no treino, para a máquina continuar utilizável enquanto
+    ele roda. As árvores dependem só da semente: com qualquer limite, o modelo é o mesmo.
 
     `pesos` é o peso de cada linha no treino, o `sample_weight` do scikit-learn. Sem ele, todas as
     linhas pesam o mesmo, e a priori que o modelo aprende é a proporção das classes em `y`. Na
@@ -44,7 +49,7 @@ def treinar(X, y, semente=SEMENTE, arvores=ARVORES, pesos=None):
     reposição que monta o conjunto de cada árvore: o que conta é a proporção entre os pesos, e não
     a escala deles.
     """
-    modelo = RandomForestClassifier(n_estimators=arvores, random_state=semente, n_jobs=-1)
+    modelo = RandomForestClassifier(n_estimators=arvores, random_state=semente, n_jobs=nucleos)
     inicio = time.perf_counter()
     modelo.fit(X, y, sample_weight=pesos)
     return modelo, time.perf_counter() - inicio
@@ -123,6 +128,18 @@ def _positivo(texto):
     return valor
 
 
+def _nucleos(texto):
+    try:
+        valor = int(texto)
+    except ValueError:
+        raise argparse.ArgumentTypeError("a quantidade de núcleos precisa ser um número inteiro") from None
+    if valor < 1 and valor != TODOS_OS_NUCLEOS:
+        raise argparse.ArgumentTypeError(
+            f"a quantidade de núcleos precisa ser de ao menos 1, ou {TODOS_OS_NUCLEOS} para usar todos"
+        )
+    return valor
+
+
 def main(argv=None):
     analisador = argparse.ArgumentParser(
         prog="python -m codigo.classificador.treinar",
@@ -134,6 +151,10 @@ def main(argv=None):
     analisador.add_argument("--divisao", choices=list(DIVISOES), default="estratificada")
     analisador.add_argument("--semente", type=int, default=SEMENTE, help=f"padrão: {SEMENTE}")
     analisador.add_argument("--arvores", type=_positivo, default=ARVORES, help=f"padrão: {ARVORES}")
+    analisador.add_argument(
+        "--nucleos", type=_nucleos, default=TODOS_OS_NUCLEOS,
+        help=f"núcleos usados no treino (padrão: {TODOS_OS_NUCLEOS}, todos). O modelo é o mesmo com qualquer valor",
+    )
     analisador.add_argument(
         "--saida", default=None, help="arquivo do modelo, terminado em .joblib (padrão: modelos/rf_<opções>.joblib)"
     )
@@ -151,11 +172,11 @@ def main(argv=None):
         treino, _ = dividir(quadro, argumentos.divisao, argumentos.semente)
         X = matriz(quadro, features)[treino]
         y = alvo(quadro["Label"].to_numpy(), argumentos.alvo)[treino]
-        modelo, segundos = treinar(X, y, argumentos.semente, argumentos.arvores)
+        modelo, segundos = treinar(X, y, argumentos.semente, argumentos.arvores, nucleos=argumentos.nucleos)
         tamanho = salvar(
             saida, modelo, features, argumentos.alvo,
             divisao=argumentos.divisao, semente=argumentos.semente, arvores=argumentos.arvores,
-            amostra_sha256=sha256,
+            nucleos=argumentos.nucleos, amostra_sha256=sha256,
         )
     except (OSError, ValueError) as erro:
         print(f"erro: {erro}", file=sys.stderr)

@@ -1,0 +1,1093 @@
+{
+  "descricao": "Teste direto do atalho da janela: capturas do CICIoT2023 agregadas em janelas de 10 e de 100 quadros e pontuadas pelo Random Forest de 7 categorias",
+  "gerado_por": "python -m codigo.classificador.janela",
+  "gerado_em": "2026-10-05",
+  "semente": 42,
+  "parametros": {
+    "modelo": "sklearn.ensemble.RandomForestClassifier",
+    "arvores": 100,
+    "n_jobs": 4,
+    "demais_parametros": "padrão do scikit-learn",
+    "escalonamento": "nenhum",
+    "alvo": "7",
+    "divisao": "estratificada",
+    "fracao_de_teste": 0.2,
+    "janelas": [
+      10,
+      100
+    ],
+    "extracao": "codigo.captura.extrator.extrair sobre o arquivo inteiro, em leitura contínua",
+    "predicao": "votos somados em ordem fixa, com um núcleo"
+  },
+  "versoes": {
+    "python": "3.11.2",
+    "numpy": "2.4.6",
+    "pandas": "3.0.6",
+    "scikit-learn": "1.9.1",
+    "dpkt": "1.9.8"
+  },
+  "amostra": {
+    "arquivo": "dados/processed/amostra.csv.gz",
+    "manifesto": "experimentos/resultados/manifesto_amostra.json",
+    "sha256_do_csv_descomprimido": "f23c098dc10faf3f857a473f8c793fc2642098d9046f11cbc76d83e20e505b8f",
+    "linhas": 1288479,
+    "linhas_de_treino": 1030783,
+    "linhas_de_teste": 257696,
+    "sha256_do_teste": "6ce8febe5764fc0ba1957f88e8efe26edc8d44fe56a22eac143e34a570d70bfe"
+  },
+  "dataset": "CICIoT2023",
+  "classes": [
+    "DDoS+DoS",
+    "Mirai",
+    "Recon",
+    "Spoofing",
+    "Web",
+    "BruteForce",
+    "Benign"
+  ],
+  "capturas": [
+    {
+      "nome": "DDoS-HTTP_Flood-",
+      "arquivo": "DDoS-HTTP_Flood-.pcap",
+      "rotulo": "DDoS-HTTP_Flood",
+      "categoria": "DDoS",
+      "esperada": "DDoS+DoS",
+      "janela_oficial": 100,
+      "bytes": 610856427,
+      "sha256": "299c6f2180b3cf94ebb14e3e5aa5afe16ff51eac232f7f2c61a4384443eb7387",
+      "extracoes": [
+        {
+          "janela": 10,
+          "condicao": "teste",
+          "pacotes": 2881005,
+          "quadros": 2875590,
+          "janelas": 287559,
+          "janelas_incompletas": 0,
+          "segundos": 21.33883833399159,
+          "avisos": [],
+          "csv": "DDoS-HTTP_Flood-_janela10.csv",
+          "sha256_do_csv": "62f75fdbdfbdb47b1da35fe1c652793d0ef7725182c2aafb2efb7236da06dedd",
+          "iguais_a_linha_de_treino": 5605,
+          "iguais_a_linha_de_treino_do_mesmo_rotulo": 0,
+          "iguais_por_rotulo_de_treino": {
+            "Recon-OSScan": 4121,
+            "VulnerabilityScan": 17,
+            "Recon-PortScan": 4785,
+            "Recon-HostDiscovery": 48,
+            "MITM-ArpSpoofing": 43,
+            "DNS_Spoofing": 38,
+            "CommandInjection": 19,
+            "Backdoor_Malware": 1,
+            "BrowserHijacking": 11,
+            "DictionaryBruteForce": 1,
+            "BenignTraffic": 71
+          }
+        },
+        {
+          "janela": 100,
+          "condicao": "controle",
+          "pacotes": 2881005,
+          "quadros": 2875590,
+          "janelas": 28756,
+          "janelas_incompletas": 1,
+          "segundos": 17.154239666997455,
+          "avisos": [],
+          "csv": "DDoS-HTTP_Flood-_janela100.csv",
+          "sha256_do_csv": "0b6ab13b14bc85bc2ef88e8626b6c197c4018f0d93d499f406b99d8a5f2a8762",
+          "iguais_a_linha_de_treino": 424,
+          "iguais_a_linha_de_treino_do_mesmo_rotulo": 417,
+          "iguais_por_rotulo_de_treino": {
+            "DDoS-HTTP_Flood": 417,
+            "DoS-HTTP_Flood": 7
+          }
+        }
+      ]
+    },
+    {
+      "nome": "DoS-HTTP_Flood1",
+      "arquivo": "DoS-HTTP_Flood1.pcap",
+      "rotulo": "DoS-HTTP_Flood",
+      "categoria": "DoS",
+      "esperada": "DDoS+DoS",
+      "janela_oficial": 100,
+      "bytes": 1491704312,
+      "sha256": "2b7df8fce78461e435952e39cb2e33c445b137fa08ee7429d97fde6d93032d40",
+      "extracoes": [
+        {
+          "janela": 10,
+          "condicao": "teste",
+          "pacotes": 3114983,
+          "quadros": 3109872,
+          "janelas": 310988,
+          "janelas_incompletas": 1,
+          "segundos": 23.36879270900681,
+          "avisos": [],
+          "csv": "DoS-HTTP_Flood1_janela10.csv",
+          "sha256_do_csv": "66a89fa0b35948b3d4e33ab44306efa21d274e3cc2e07c60e98cf8d2c110249d",
+          "iguais_a_linha_de_treino": 29405,
+          "iguais_a_linha_de_treino_do_mesmo_rotulo": 0,
+          "iguais_por_rotulo_de_treino": {
+            "Recon-OSScan": 26387,
+            "VulnerabilityScan": 150,
+            "Recon-PortScan": 27605,
+            "Recon-HostDiscovery": 51,
+            "MITM-ArpSpoofing": 95,
+            "DNS_Spoofing": 24,
+            "CommandInjection": 2,
+            "Backdoor_Malware": 1,
+            "BrowserHijacking": 9,
+            "DictionaryBruteForce": 6,
+            "BenignTraffic": 36
+          }
+        },
+        {
+          "janela": 100,
+          "condicao": "controle",
+          "pacotes": 3114983,
+          "quadros": 3109872,
+          "janelas": 31099,
+          "janelas_incompletas": 1,
+          "segundos": 19.511274832999334,
+          "avisos": [],
+          "csv": "DoS-HTTP_Flood1_janela100.csv",
+          "sha256_do_csv": "af3d6d18f97668b3ae3847630bcd194fda6c6263aae8fee144885c7e32c3cf9d",
+          "iguais_a_linha_de_treino": 1023,
+          "iguais_a_linha_de_treino_do_mesmo_rotulo": 1019,
+          "iguais_por_rotulo_de_treino": {
+            "DDoS-HTTP_Flood": 4,
+            "DoS-HTTP_Flood": 1019
+          }
+        }
+      ]
+    },
+    {
+      "nome": "Mirai-greip_flood21",
+      "arquivo": "Mirai-greip_flood21.pcap",
+      "rotulo": "Mirai-greip_flood",
+      "categoria": "Mirai",
+      "esperada": "Mirai",
+      "janela_oficial": 100,
+      "bytes": 704513741,
+      "sha256": "5a77e5c663c31759d7834047bd85197dfd51f2cb7dcc22bfe0a8d1dbf1973742",
+      "extracoes": [
+        {
+          "janela": 10,
+          "condicao": "teste",
+          "pacotes": 1196296,
+          "quadros": 1195447,
+          "janelas": 119545,
+          "janelas_incompletas": 1,
+          "segundos": 10.553318916994613,
+          "avisos": [],
+          "csv": "Mirai-greip_flood21_janela10.csv",
+          "sha256_do_csv": "fcd2d88c233c7f35c5047c078636811b5284f89bb37d8dd4e2f68c086217d3d5",
+          "iguais_a_linha_de_treino": 2,
+          "iguais_a_linha_de_treino_do_mesmo_rotulo": 2,
+          "iguais_por_rotulo_de_treino": {
+            "Mirai-greip_flood": 2
+          }
+        },
+        {
+          "janela": 100,
+          "condicao": "controle",
+          "pacotes": 1196296,
+          "quadros": 1195447,
+          "janelas": 11955,
+          "janelas_incompletas": 1,
+          "segundos": 8.747419500010437,
+          "avisos": [],
+          "csv": "Mirai-greip_flood21_janela100.csv",
+          "sha256_do_csv": "6adb83f6c15ef9a48592146618d17be697d5a1365a2dddc2c36e8958d7340618",
+          "iguais_a_linha_de_treino": 110,
+          "iguais_a_linha_de_treino_do_mesmo_rotulo": 110,
+          "iguais_por_rotulo_de_treino": {
+            "Mirai-greip_flood": 110
+          }
+        }
+      ]
+    },
+    {
+      "nome": "Recon-PortScan",
+      "arquivo": "Recon-PortScan.pcap",
+      "rotulo": "Recon-PortScan",
+      "categoria": "Recon",
+      "esperada": "Recon",
+      "janela_oficial": 10,
+      "bytes": 200950957,
+      "sha256": "e13368bdc571a6ec53f8dd9e5491137dd0656c9d997bd62b323e957722bd4fc1",
+      "extracoes": [
+        {
+          "janela": 10,
+          "condicao": "controle",
+          "pacotes": 831856,
+          "quadros": 822771,
+          "janelas": 82278,
+          "janelas_incompletas": 1,
+          "segundos": 5.901316292001866,
+          "avisos": [],
+          "csv": "Recon-PortScan_janela10.csv",
+          "sha256_do_csv": "9d401c732886241f19bed51c2d0167b6311e1507798eae8692f60a087edb1add",
+          "iguais_a_linha_de_treino": 6958,
+          "iguais_a_linha_de_treino_do_mesmo_rotulo": 6465,
+          "iguais_por_rotulo_de_treino": {
+            "Recon-PingSweep": 3,
+            "Recon-OSScan": 1829,
+            "VulnerabilityScan": 24,
+            "Recon-PortScan": 6465,
+            "Recon-HostDiscovery": 20,
+            "MITM-ArpSpoofing": 44,
+            "DNS_Spoofing": 6,
+            "BrowserHijacking": 7,
+            "DictionaryBruteForce": 21,
+            "BenignTraffic": 3
+          }
+        },
+        {
+          "janela": 100,
+          "condicao": "teste",
+          "pacotes": 831856,
+          "quadros": 822771,
+          "janelas": 8228,
+          "janelas_incompletas": 1,
+          "segundos": 4.747333874998731,
+          "avisos": [],
+          "csv": "Recon-PortScan_janela100.csv",
+          "sha256_do_csv": "4002a0f89271bb90200d671f663d3e98a9419eba2f301b5370f5497fb31fb0bf",
+          "iguais_a_linha_de_treino": 0,
+          "iguais_a_linha_de_treino_do_mesmo_rotulo": 0,
+          "iguais_por_rotulo_de_treino": {}
+        }
+      ]
+    },
+    {
+      "nome": "DictionaryBruteForce",
+      "arquivo": "DictionaryBruteForce.pcap",
+      "rotulo": "DictionaryBruteForce",
+      "categoria": "BruteForce",
+      "esperada": "BruteForce",
+      "janela_oficial": 10,
+      "bytes": 39130622,
+      "sha256": "09ad3cfabd139b950da3078fec0f0fd196fe36cd82237d898035437f4c69161b",
+      "extracoes": [
+        {
+          "janela": 10,
+          "condicao": "controle",
+          "pacotes": 133138,
+          "quadros": 130632,
+          "janelas": 13064,
+          "janelas_incompletas": 1,
+          "segundos": 0.9381493750115624,
+          "avisos": [],
+          "csv": "DictionaryBruteForce_janela10.csv",
+          "sha256_do_csv": "c2e620d757906da6e82b044ca312b52df28ae7ac4ca802181674c3e6348a7337",
+          "iguais_a_linha_de_treino": 2929,
+          "iguais_a_linha_de_treino_do_mesmo_rotulo": 2924,
+          "iguais_por_rotulo_de_treino": {
+            "Recon-OSScan": 1,
+            "VulnerabilityScan": 6,
+            "Recon-PortScan": 1,
+            "Recon-HostDiscovery": 9,
+            "MITM-ArpSpoofing": 15,
+            "DNS_Spoofing": 9,
+            "BrowserHijacking": 11,
+            "DictionaryBruteForce": 2924,
+            "BenignTraffic": 8
+          }
+        },
+        {
+          "janela": 100,
+          "condicao": "teste",
+          "pacotes": 133138,
+          "quadros": 130632,
+          "janelas": 1307,
+          "janelas_incompletas": 1,
+          "segundos": 0.7540979160112329,
+          "avisos": [],
+          "csv": "DictionaryBruteForce_janela100.csv",
+          "sha256_do_csv": "dfc9e8643f87e21eb19c98b57c4ec887ca2eaf39f1479dd619610ae43250e1c4",
+          "iguais_a_linha_de_treino": 0,
+          "iguais_a_linha_de_treino_do_mesmo_rotulo": 0,
+          "iguais_por_rotulo_de_treino": {}
+        }
+      ]
+    }
+  ],
+  "modelos": [
+    {
+      "nome": "f39_estratificada_c7",
+      "features": "39",
+      "priori": "amostra",
+      "arvores": 100,
+      "linhas_de_treino": 1030783,
+      "nos_por_arvore": 104327.42,
+      "no_teste_da_amostra": {
+        "acuracia": 0.9380976033776233,
+        "recall": {
+          "DDoS+DoS": 0.99984,
+          "Mirai": 0.9966333333333334,
+          "Recon": 0.9156361297981797,
+          "Spoofing": 0.86485,
+          "Web": 0.2834033613445378,
+          "BruteForce": 0.3354632587859425,
+          "Benign": 0.5362
+        }
+      },
+      "treino_segundos": 29.886147208002512,
+      "pontuacao_segundos": 6.490479250001954
+    },
+    {
+      "nome": "f39_estratificada_c7_natural",
+      "features": "39",
+      "priori": "natural",
+      "arvores": 100,
+      "linhas_de_treino": 1030783,
+      "nos_por_arvore": 22210.44,
+      "no_teste_da_amostra": {
+        "acuracia": 0.9206623308083944,
+        "recall": {
+          "DDoS+DoS": 0.99964,
+          "Mirai": 0.9970333333333333,
+          "Recon": 0.7682776018994856,
+          "Spoofing": 0.8525,
+          "Web": 0.08487394957983194,
+          "BruteForce": 0.1297923322683706,
+          "Benign": 0.8552
+        }
+      },
+      "treino_segundos": 21.803428582992638,
+      "pontuacao_segundos": 4.96332424999855
+    },
+    {
+      "nome": "f33_estratificada_c7",
+      "features": "33",
+      "priori": "amostra",
+      "arvores": 100,
+      "linhas_de_treino": 1030783,
+      "nos_por_arvore": 113352.04,
+      "no_teste_da_amostra": {
+        "acuracia": 0.9366501614305228,
+        "recall": {
+          "DDoS+DoS": 0.9985933333333333,
+          "Mirai": 0.9961,
+          "Recon": 0.9139542936288089,
+          "Spoofing": 0.86495,
+          "Web": 0.28256302521008403,
+          "BruteForce": 0.329073482428115,
+          "Benign": 0.5278
+        }
+      },
+      "treino_segundos": 32.52971804099798,
+      "pontuacao_segundos": 7.363337333998061
+    },
+    {
+      "nome": "f33_estratificada_c7_natural",
+      "features": "33",
+      "priori": "natural",
+      "arvores": 100,
+      "linhas_de_treino": 1030783,
+      "nos_por_arvore": 24778.5,
+      "no_teste_da_amostra": {
+        "acuracia": 0.9182369924251832,
+        "recall": {
+          "DDoS+DoS": 0.9971533333333333,
+          "Mirai": 0.9963,
+          "Recon": 0.7624901068460626,
+          "Spoofing": 0.85275,
+          "Web": 0.0842436974789916,
+          "BruteForce": 0.1226038338658147,
+          "Benign": 0.8572
+        }
+      },
+      "treino_segundos": 25.165735292001045,
+      "pontuacao_segundos": 5.511830750008812
+    }
+  ],
+  "resultados": [
+    {
+      "captura": "DDoS-HTTP_Flood-",
+      "janela": 10,
+      "condicao": "teste",
+      "modelo": "f39_estratificada_c7",
+      "janelas": 287559,
+      "previstas": {
+        "DDoS+DoS": 567,
+        "Mirai": 0,
+        "Recon": 240888,
+        "Spoofing": 6261,
+        "Web": 36652,
+        "BruteForce": 390,
+        "Benign": 2801
+      },
+      "na_esperada": 0.0019717692716972866
+    },
+    {
+      "captura": "DDoS-HTTP_Flood-",
+      "janela": 100,
+      "condicao": "controle",
+      "modelo": "f39_estratificada_c7",
+      "janelas": 28756,
+      "previstas": {
+        "DDoS+DoS": 28755,
+        "Mirai": 1,
+        "Recon": 0,
+        "Spoofing": 0,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 0.9999652246487689
+    },
+    {
+      "captura": "DoS-HTTP_Flood1",
+      "janela": 10,
+      "condicao": "teste",
+      "modelo": "f39_estratificada_c7",
+      "janelas": 310988,
+      "previstas": {
+        "DDoS+DoS": 121,
+        "Mirai": 0,
+        "Recon": 262327,
+        "Spoofing": 6266,
+        "Web": 38583,
+        "BruteForce": 314,
+        "Benign": 3377
+      },
+      "na_esperada": 0.0003890825369467632
+    },
+    {
+      "captura": "DoS-HTTP_Flood1",
+      "janela": 100,
+      "condicao": "controle",
+      "modelo": "f39_estratificada_c7",
+      "janelas": 31099,
+      "previstas": {
+        "DDoS+DoS": 31099,
+        "Mirai": 0,
+        "Recon": 0,
+        "Spoofing": 0,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 1.0
+    },
+    {
+      "captura": "Mirai-greip_flood21",
+      "janela": 10,
+      "condicao": "teste",
+      "modelo": "f39_estratificada_c7",
+      "janelas": 119545,
+      "previstas": {
+        "DDoS+DoS": 0,
+        "Mirai": 117057,
+        "Recon": 64,
+        "Spoofing": 2424,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 0.979187753565603
+    },
+    {
+      "captura": "Mirai-greip_flood21",
+      "janela": 100,
+      "condicao": "controle",
+      "modelo": "f39_estratificada_c7",
+      "janelas": 11955,
+      "previstas": {
+        "DDoS+DoS": 0,
+        "Mirai": 11955,
+        "Recon": 0,
+        "Spoofing": 0,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 1.0
+    },
+    {
+      "captura": "Recon-PortScan",
+      "janela": 10,
+      "condicao": "controle",
+      "modelo": "f39_estratificada_c7",
+      "janelas": 82278,
+      "previstas": {
+        "DDoS+DoS": 0,
+        "Mirai": 0,
+        "Recon": 76238,
+        "Spoofing": 905,
+        "Web": 462,
+        "BruteForce": 294,
+        "Benign": 4379
+      },
+      "na_esperada": 0.9265903400666035
+    },
+    {
+      "captura": "Recon-PortScan",
+      "janela": 100,
+      "condicao": "teste",
+      "modelo": "f39_estratificada_c7",
+      "janelas": 8228,
+      "previstas": {
+        "DDoS+DoS": 8227,
+        "Mirai": 1,
+        "Recon": 0,
+        "Spoofing": 0,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 0.0
+    },
+    {
+      "captura": "DictionaryBruteForce",
+      "janela": 10,
+      "condicao": "controle",
+      "modelo": "f39_estratificada_c7",
+      "janelas": 13064,
+      "previstas": {
+        "DDoS+DoS": 0,
+        "Mirai": 0,
+        "Recon": 5482,
+        "Spoofing": 316,
+        "Web": 213,
+        "BruteForce": 6394,
+        "Benign": 659
+      },
+      "na_esperada": 0.4894366197183099
+    },
+    {
+      "captura": "DictionaryBruteForce",
+      "janela": 100,
+      "condicao": "teste",
+      "modelo": "f39_estratificada_c7",
+      "janelas": 1307,
+      "previstas": {
+        "DDoS+DoS": 1293,
+        "Mirai": 14,
+        "Recon": 0,
+        "Spoofing": 0,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 0.0
+    },
+    {
+      "captura": "DDoS-HTTP_Flood-",
+      "janela": 10,
+      "condicao": "teste",
+      "modelo": "f39_estratificada_c7_natural",
+      "janelas": 287559,
+      "previstas": {
+        "DDoS+DoS": 1504,
+        "Mirai": 0,
+        "Recon": 269348,
+        "Spoofing": 3023,
+        "Web": 2605,
+        "BruteForce": 0,
+        "Benign": 11079
+      },
+      "na_esperada": 0.005230231013461585
+    },
+    {
+      "captura": "DDoS-HTTP_Flood-",
+      "janela": 100,
+      "condicao": "controle",
+      "modelo": "f39_estratificada_c7_natural",
+      "janelas": 28756,
+      "previstas": {
+        "DDoS+DoS": 28724,
+        "Mirai": 32,
+        "Recon": 0,
+        "Spoofing": 0,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 0.9988871887606064
+    },
+    {
+      "captura": "DoS-HTTP_Flood1",
+      "janela": 10,
+      "condicao": "teste",
+      "modelo": "f39_estratificada_c7_natural",
+      "janelas": 310988,
+      "previstas": {
+        "DDoS+DoS": 4145,
+        "Mirai": 0,
+        "Recon": 262944,
+        "Spoofing": 7579,
+        "Web": 10951,
+        "BruteForce": 1,
+        "Benign": 25368
+      },
+      "na_esperada": 0.01332848855904408
+    },
+    {
+      "captura": "DoS-HTTP_Flood1",
+      "janela": 100,
+      "condicao": "controle",
+      "modelo": "f39_estratificada_c7_natural",
+      "janelas": 31099,
+      "previstas": {
+        "DDoS+DoS": 31099,
+        "Mirai": 0,
+        "Recon": 0,
+        "Spoofing": 0,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 1.0
+    },
+    {
+      "captura": "Mirai-greip_flood21",
+      "janela": 10,
+      "condicao": "teste",
+      "modelo": "f39_estratificada_c7_natural",
+      "janelas": 119545,
+      "previstas": {
+        "DDoS+DoS": 0,
+        "Mirai": 117415,
+        "Recon": 37,
+        "Spoofing": 2092,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 1
+      },
+      "na_esperada": 0.9821824417583337
+    },
+    {
+      "captura": "Mirai-greip_flood21",
+      "janela": 100,
+      "condicao": "controle",
+      "modelo": "f39_estratificada_c7_natural",
+      "janelas": 11955,
+      "previstas": {
+        "DDoS+DoS": 0,
+        "Mirai": 11955,
+        "Recon": 0,
+        "Spoofing": 0,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 1.0
+    },
+    {
+      "captura": "Recon-PortScan",
+      "janela": 10,
+      "condicao": "controle",
+      "modelo": "f39_estratificada_c7_natural",
+      "janelas": 82278,
+      "previstas": {
+        "DDoS+DoS": 0,
+        "Mirai": 0,
+        "Recon": 63733,
+        "Spoofing": 1560,
+        "Web": 8,
+        "BruteForce": 0,
+        "Benign": 16977
+      },
+      "na_esperada": 0.7746056053866162
+    },
+    {
+      "captura": "Recon-PortScan",
+      "janela": 100,
+      "condicao": "teste",
+      "modelo": "f39_estratificada_c7_natural",
+      "janelas": 8228,
+      "previstas": {
+        "DDoS+DoS": 8224,
+        "Mirai": 4,
+        "Recon": 0,
+        "Spoofing": 0,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 0.0
+    },
+    {
+      "captura": "DictionaryBruteForce",
+      "janela": 10,
+      "condicao": "controle",
+      "modelo": "f39_estratificada_c7_natural",
+      "janelas": 13064,
+      "previstas": {
+        "DDoS+DoS": 0,
+        "Mirai": 0,
+        "Recon": 6161,
+        "Spoofing": 658,
+        "Web": 1,
+        "BruteForce": 1772,
+        "Benign": 4472
+      },
+      "na_esperada": 0.13563992651561543
+    },
+    {
+      "captura": "DictionaryBruteForce",
+      "janela": 100,
+      "condicao": "teste",
+      "modelo": "f39_estratificada_c7_natural",
+      "janelas": 1307,
+      "previstas": {
+        "DDoS+DoS": 1163,
+        "Mirai": 144,
+        "Recon": 0,
+        "Spoofing": 0,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 0.0
+    },
+    {
+      "captura": "DDoS-HTTP_Flood-",
+      "janela": 10,
+      "condicao": "teste",
+      "modelo": "f33_estratificada_c7",
+      "janelas": 287559,
+      "previstas": {
+        "DDoS+DoS": 202448,
+        "Mirai": 1,
+        "Recon": 69674,
+        "Spoofing": 2439,
+        "Web": 10975,
+        "BruteForce": 89,
+        "Benign": 1933
+      },
+      "na_esperada": 0.7040224788652067
+    },
+    {
+      "captura": "DDoS-HTTP_Flood-",
+      "janela": 100,
+      "condicao": "controle",
+      "modelo": "f33_estratificada_c7",
+      "janelas": 28756,
+      "previstas": {
+        "DDoS+DoS": 28697,
+        "Mirai": 1,
+        "Recon": 55,
+        "Spoofing": 2,
+        "Web": 1,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 0.9979482542773682
+    },
+    {
+      "captura": "DoS-HTTP_Flood1",
+      "janela": 10,
+      "condicao": "teste",
+      "modelo": "f33_estratificada_c7",
+      "janelas": 310988,
+      "previstas": {
+        "DDoS+DoS": 177747,
+        "Mirai": 1,
+        "Recon": 109008,
+        "Spoofing": 3472,
+        "Web": 18280,
+        "BruteForce": 98,
+        "Benign": 2382
+      },
+      "na_esperada": 0.571555815658482
+    },
+    {
+      "captura": "DoS-HTTP_Flood1",
+      "janela": 100,
+      "condicao": "controle",
+      "modelo": "f33_estratificada_c7",
+      "janelas": 31099,
+      "previstas": {
+        "DDoS+DoS": 30713,
+        "Mirai": 0,
+        "Recon": 380,
+        "Spoofing": 3,
+        "Web": 3,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 0.9875880253384354
+    },
+    {
+      "captura": "Mirai-greip_flood21",
+      "janela": 10,
+      "condicao": "teste",
+      "modelo": "f33_estratificada_c7",
+      "janelas": 119545,
+      "previstas": {
+        "DDoS+DoS": 3,
+        "Mirai": 119428,
+        "Recon": 23,
+        "Spoofing": 91,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 0.999021289054331
+    },
+    {
+      "captura": "Mirai-greip_flood21",
+      "janela": 100,
+      "condicao": "controle",
+      "modelo": "f33_estratificada_c7",
+      "janelas": 11955,
+      "previstas": {
+        "DDoS+DoS": 0,
+        "Mirai": 11955,
+        "Recon": 0,
+        "Spoofing": 0,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 1.0
+    },
+    {
+      "captura": "Recon-PortScan",
+      "janela": 10,
+      "condicao": "controle",
+      "modelo": "f33_estratificada_c7",
+      "janelas": 82278,
+      "previstas": {
+        "DDoS+DoS": 519,
+        "Mirai": 0,
+        "Recon": 75935,
+        "Spoofing": 904,
+        "Web": 409,
+        "BruteForce": 272,
+        "Benign": 4239
+      },
+      "na_esperada": 0.9229077031527261
+    },
+    {
+      "captura": "Recon-PortScan",
+      "janela": 100,
+      "condicao": "teste",
+      "modelo": "f33_estratificada_c7",
+      "janelas": 8228,
+      "previstas": {
+        "DDoS+DoS": 6882,
+        "Mirai": 0,
+        "Recon": 1339,
+        "Spoofing": 3,
+        "Web": 1,
+        "BruteForce": 0,
+        "Benign": 3
+      },
+      "na_esperada": 0.16273699562469615
+    },
+    {
+      "captura": "DictionaryBruteForce",
+      "janela": 10,
+      "condicao": "controle",
+      "modelo": "f33_estratificada_c7",
+      "janelas": 13064,
+      "previstas": {
+        "DDoS+DoS": 4,
+        "Mirai": 0,
+        "Recon": 5571,
+        "Spoofing": 301,
+        "Web": 205,
+        "BruteForce": 6331,
+        "Benign": 652
+      },
+      "na_esperada": 0.48461420698101654
+    },
+    {
+      "captura": "DictionaryBruteForce",
+      "janela": 100,
+      "condicao": "teste",
+      "modelo": "f33_estratificada_c7",
+      "janelas": 1307,
+      "previstas": {
+        "DDoS+DoS": 1250,
+        "Mirai": 9,
+        "Recon": 8,
+        "Spoofing": 0,
+        "Web": 0,
+        "BruteForce": 39,
+        "Benign": 1
+      },
+      "na_esperada": 0.029839326702371844
+    },
+    {
+      "captura": "DDoS-HTTP_Flood-",
+      "janela": 10,
+      "condicao": "teste",
+      "modelo": "f33_estratificada_c7_natural",
+      "janelas": 287559,
+      "previstas": {
+        "DDoS+DoS": 200453,
+        "Mirai": 80,
+        "Recon": 75997,
+        "Spoofing": 2559,
+        "Web": 1490,
+        "BruteForce": 0,
+        "Benign": 6980
+      },
+      "na_esperada": 0.6970847721684941
+    },
+    {
+      "captura": "DDoS-HTTP_Flood-",
+      "janela": 100,
+      "condicao": "controle",
+      "modelo": "f33_estratificada_c7_natural",
+      "janelas": 28756,
+      "previstas": {
+        "DDoS+DoS": 28609,
+        "Mirai": 15,
+        "Recon": 104,
+        "Spoofing": 6,
+        "Web": 1,
+        "BruteForce": 0,
+        "Benign": 21
+      },
+      "na_esperada": 0.994888023369036
+    },
+    {
+      "captura": "DoS-HTTP_Flood1",
+      "janela": 10,
+      "condicao": "teste",
+      "modelo": "f33_estratificada_c7_natural",
+      "janelas": 310988,
+      "previstas": {
+        "DDoS+DoS": 170812,
+        "Mirai": 2,
+        "Recon": 105802,
+        "Spoofing": 4408,
+        "Web": 8586,
+        "BruteForce": 0,
+        "Benign": 21378
+      },
+      "na_esperada": 0.5492559198425663
+    },
+    {
+      "captura": "DoS-HTTP_Flood1",
+      "janela": 100,
+      "condicao": "controle",
+      "modelo": "f33_estratificada_c7_natural",
+      "janelas": 31099,
+      "previstas": {
+        "DDoS+DoS": 30543,
+        "Mirai": 0,
+        "Recon": 536,
+        "Spoofing": 9,
+        "Web": 3,
+        "BruteForce": 0,
+        "Benign": 8
+      },
+      "na_esperada": 0.9821216116273835
+    },
+    {
+      "captura": "Mirai-greip_flood21",
+      "janela": 10,
+      "condicao": "teste",
+      "modelo": "f33_estratificada_c7_natural",
+      "janelas": 119545,
+      "previstas": {
+        "DDoS+DoS": 4,
+        "Mirai": 119444,
+        "Recon": 9,
+        "Spoofing": 85,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 3
+      },
+      "na_esperada": 0.999155129867414
+    },
+    {
+      "captura": "Mirai-greip_flood21",
+      "janela": 100,
+      "condicao": "controle",
+      "modelo": "f33_estratificada_c7_natural",
+      "janelas": 11955,
+      "previstas": {
+        "DDoS+DoS": 0,
+        "Mirai": 11955,
+        "Recon": 0,
+        "Spoofing": 0,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 0
+      },
+      "na_esperada": 1.0
+    },
+    {
+      "captura": "Recon-PortScan",
+      "janela": 10,
+      "condicao": "controle",
+      "modelo": "f33_estratificada_c7_natural",
+      "janelas": 82278,
+      "previstas": {
+        "DDoS+DoS": 624,
+        "Mirai": 3,
+        "Recon": 63055,
+        "Spoofing": 1604,
+        "Web": 7,
+        "BruteForce": 0,
+        "Benign": 16985
+      },
+      "na_esperada": 0.7663652495199202
+    },
+    {
+      "captura": "Recon-PortScan",
+      "janela": 100,
+      "condicao": "teste",
+      "modelo": "f33_estratificada_c7_natural",
+      "janelas": 8228,
+      "previstas": {
+        "DDoS+DoS": 6697,
+        "Mirai": 1,
+        "Recon": 1464,
+        "Spoofing": 9,
+        "Web": 0,
+        "BruteForce": 0,
+        "Benign": 57
+      },
+      "na_esperada": 0.17792902284880893
+    },
+    {
+      "captura": "DictionaryBruteForce",
+      "janela": 10,
+      "condicao": "controle",
+      "modelo": "f33_estratificada_c7_natural",
+      "janelas": 13064,
+      "previstas": {
+        "DDoS+DoS": 47,
+        "Mirai": 0,
+        "Recon": 6190,
+        "Spoofing": 644,
+        "Web": 0,
+        "BruteForce": 1659,
+        "Benign": 4524
+      },
+      "na_esperada": 0.12699020208205755
+    },
+    {
+      "captura": "DictionaryBruteForce",
+      "janela": 100,
+      "condicao": "teste",
+      "modelo": "f33_estratificada_c7_natural",
+      "janelas": 1307,
+      "previstas": {
+        "DDoS+DoS": 1137,
+        "Mirai": 99,
+        "Recon": 24,
+        "Spoofing": 1,
+        "Web": 0,
+        "BruteForce": 5,
+        "Benign": 41
+      },
+      "na_esperada": 0.0038255547054322878
+    }
+  ],
+  "duracao": {
+    "extracao_segundos": 121.40290591699886,
+    "treino_segundos": 109.38502912399417,
+    "pontuacao_segundos": 24.328971584007377,
+    "total_segundos": 255.7189740419999
+  }
+}

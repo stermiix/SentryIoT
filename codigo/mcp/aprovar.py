@@ -7,8 +7,8 @@ botões da interface web, pelo mesmo caminho: um evento gravado no log.
 O comando também promove ao catálogo uma ação nova que já foi aprovada e aplicada. É outra
 decisão que cabe só à pessoa.
 
-Antes de aprovar ou de promover, o comando mostra a proposta inteira, com todos os parâmetros,
-e pede confirmação. Tudo o que vem do log é escrito na tela com os caracteres não imprimíveis
+Antes de aprovar ou de promover, o comando mostra a proposta inteira, com os motivos do risco
+alto e todos os parâmetros, e pede confirmação. Tudo o que vem do log é escrito na tela com os caracteres não imprimíveis
 escapados: o log é entrada, e uma sequência de terminal gravada nele não pode trocar o que a
 pessoa lê.
 
@@ -46,8 +46,14 @@ def descrever(proposta):
         origem = "nova, fora do catálogo"
     else:
         origem = "do catálogo" if proposta.acao in BASE else "promovida ao catálogo"
-    linhas = [
-        f"{visivel(proposta.id)}  incidente {visivel(proposta.incidente)}  risco {visivel(proposta.risco)}",
+    linhas = [f"{visivel(proposta.id)}  incidente {visivel(proposta.incidente)}  risco {visivel(proposta.risco)}"]
+    # Por que a proposta depende da pessoa: logo abaixo do risco, antes do que será feito.
+    if proposta.motivos_de_risco_alto:
+        linhas.append("  motivos do risco alto:")
+        linhas.extend(
+            f"    - {visivel(motivo.codigo)}: {visivel(motivo.descricao)}" for motivo in proposta.motivos_de_risco_alto
+        )
+    linhas += [
         f"  ação: {visivel(proposta.acao)} ({origem})",
         f"  alvo: {visivel(proposta.alvo)}",
         f"  justificativa: {visivel(proposta.justificativa)}",
