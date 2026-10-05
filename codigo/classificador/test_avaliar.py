@@ -394,6 +394,8 @@ def test_main_avalia_na_parte_de_teste_da_divisao_registrada_no_modelo(tmp_path,
     saida = capsys.readouterr().out
     assert "parte de teste da amostra" in saida and "Benign" in saida
     assert "Reponderada para a distribuição do conjunto completo" in saida
+    # O teto impresso é o das linhas avaliadas, e não o do conjunto completo.
+    assert saida.count("teto destas linhas") == 2
 
 
 def test_main_recusa_amostra_diferente_da_que_treinou_o_modelo(tmp_path, capsys):

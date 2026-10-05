@@ -17,9 +17,11 @@ A de cada classe é a fração das linhas das outras classes que o modelo pôs n
 Teto. Quem só vê as features dá a mesma resposta a todas as linhas com o mesmo vetor. A regra
 que mais acerta responde a classe de maior peso em cada vetor, e a acurácia dessa regra é o
 limite que nenhum modelo passa naquele conjunto de linhas. É um limite por coincidência exata de
-vetores e vale para o conjunto em que foi calculado: muda com o tamanho e com a mistura de
-classes dele. O recall de cada classe nessa regra também é medido, mas não é um limite da
-classe, porque a regra maximiza o acerto global e outra regra pode acertar mais numa classe.
+vetores e vale para o conjunto em que foi calculado: muda com a mistura de classes dele e cai
+quando ele cresce, porque com mais linhas mais vetores se repetem com classes diferentes. O teto
+reponderado de uma parte da amostra não estima, por isso, o teto do conjunto completo, que é
+menor. O recall de cada classe nessa regra também é medido, mas não é um limite da classe,
+porque a regra maximiza o acerto global e outra regra pode acertar mais numa classe.
 
 Uso, a partir da raiz do repositório:
     python -m codigo.classificador.avaliar modelos/rf_f39_estratificada_c8.joblib
@@ -255,7 +257,7 @@ def _relatar(resultado, origem):
             f"{titulo}:",
             (
                 f"  acurácia {_pct(medidas['acuracia'])}, macro-F1 {_pct(medidas['macro_f1'])}, "
-                f"F1 ponderado {_pct(medidas['f1_ponderado'])}, teto {_pct(medidas.get('teto'))}"
+                f"F1 ponderado {_pct(medidas['f1_ponderado'])}, teto destas linhas {_pct(medidas.get('teto'))}"
             ),
             f"  tráfego benigno classificado como ataque: {_pct(medidas['falso_positivo_benigno'])}",
             f"  {'classe':<24}{'linhas':>12}{'precisão':>11}{'recall':>11}{'F1':>11}{'falso pos.':>12}",

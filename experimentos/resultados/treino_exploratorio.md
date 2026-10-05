@@ -23,7 +23,9 @@ O peso é por rótulo, entre os 34, e não por classe do alvo. O recall de um r�
 
 **Vetor idêntico.** Duas linhas têm o mesmo vetor quando são iguais em todas as features da execução, depois da conversão para ponto flutuante de 32 bits, que é como o scikit-learn as entrega às árvores. A amostra tem 1.140.373 vetores distintos com as 39 features e 1.140.354 com as 33. Com as 39, 206.815 linhas (16,05%) repetem o vetor de outra linha. No conjunto completo são 58,78% (`exploracao.md`, seção 8): a amostra guarda uma fração pequena das classes grandes, e a maior parte das repetições delas fica de fora.
 
-**Teto.** É um limite por coincidência exata de vetores, calculado nas linhas de teste de cada execução. Quem só vê as features dá a mesma resposta a todas as linhas com o mesmo vetor. A regra que mais acerta responde, em cada vetor, a classe de maior peso, e as linhas das outras classes são erro certo. A acurácia dessa regra é a maior possível naquelas linhas, e é com ela que a acurácia do modelo na mesma execução se compara. O teto depende do tamanho e da mistura de classes do conjunto em que é medido: com mais linhas, mais vetores se repetem com classes diferentes. Por isso ele muda com a divisão. No sorteio de linhas, parte das repetições de um vetor fica no treino e não entra na conta. O teto que a exploração mediu vale para o conjunto completo, na proporção natural das classes, e não é o limite destas execuções.
+**Teto.** É um limite por coincidência exata de vetores, calculado nas linhas de teste de cada execução. Quem só vê as features dá a mesma resposta a todas as linhas com o mesmo vetor. A regra que mais acerta responde, em cada vetor, a classe mais frequente, e as linhas das outras classes são erro certo. A acurácia dessa regra é a maior possível naquelas linhas, e é com ela que a acurácia na amostra da mesma execução se compara. O teto depende da mistura de classes do conjunto em que é medido e cai quando o conjunto cresce: com mais linhas, mais vetores se repetem com classes diferentes. Por isso ele muda com a divisão. No sorteio de linhas, parte das repetições de um vetor fica no treino e não entra na conta.
+
+**Limite da acurácia reponderada.** No sorteio estratificado, a acurácia reponderada estima a acurácia do modelo no conjunto completo. O limite esperado dela é o teto do conjunto completo, e não o das linhas de teste: em 8 categorias, 92,87% com as 39 features (`exploracao.md`, seção 8). O teto das linhas de teste fica acima desse valor mesmo quando é reponderado, porque o teste tem muito menos linhas que o conjunto completo. Nas linhas de teste de `f39_estratificada_c8`, o teto reponderado é 98,27%. Por isso as tabelas trazem o teto das linhas de teste sem reponderar, e o reponderado fica só no manifesto. A exploração não mediu o teto do conjunto completo em 7 categorias, em 34 classes nem no cenário de ataque ou benigno.
 
 **Recall na regra do teto.** As tabelas por classe trazem o recall de cada classe na regra que dá o teto. Ele não é um limite por classe: a regra maximiza o acerto global, e outra regra pode acertar mais numa classe e menos em outra. No empate entre classes num vetor, a regra fica com a primeira na ordem das tabelas.
 
@@ -53,20 +55,21 @@ O hash das linhas de teste de cada divisão está no manifesto do experimento.
 ## As 10 execuções
 
 Medidas globais nas linhas de teste. Em cada par de colunas, a primeira é na amostra e a segunda é
-reponderada para a distribuição original.
+reponderada para a distribuição original. O teto é o das linhas de teste, sem reponderar, e se compara
+com a acurácia na amostra (ver "Como ler os números").
 
-| Execução | Features | Divisão | Alvo | Acurácia na amostra | Acurácia reponderada | Macro-F1 na amostra | Macro-F1 reponderado | F1 ponderado na amostra | F1 ponderado reponderado | Teto na amostra | Teto reponderado |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| `f39_estratificada_c8` | 39 | sorteio estratificado | 8 categorias | 84,55% | 82,66% | 72,21% | 67,01% | 84,01% | 83,01% | 98,82% | 98,27% |
-| `f39_estratificada_c7` | 39 | sorteio estratificado | 7 categorias | 93,81% | 98,58% | 74,11% | 69,96% | 93,41% | 98,58% | 99,96% | 99,99% |
-| `f39_grupos_c8` | 39 | divisão por grupos | 8 categorias | 84,62% | 82,79% | 72,37% | 67,21% | 84,08% | 83,11% | 97,64% | 96,24% |
-| `f39_grupos_c7` | 39 | divisão por grupos | 7 categorias | 93,86% | 98,61% | 74,41% | 70,42% | 93,47% | 98,62% | 99,95% | 99,99% |
-| `f33_estratificada_c8` | 33 | sorteio estratificado | 8 categorias | 84,37% | 82,61% | 71,82% | 66,67% | 83,82% | 82,96% | 98,82% | 98,27% |
-| `f33_estratificada_c7` | 33 | sorteio estratificado | 7 categorias | 93,67% | 98,55% | 73,89% | 69,87% | 93,26% | 98,55% | 99,95% | 99,99% |
-| `f33_grupos_c8` | 33 | divisão por grupos | 8 categorias | 84,36% | 82,70% | 71,94% | 66,95% | 83,80% | 83,01% | 97,64% | 96,24% |
-| `f33_grupos_c7` | 33 | divisão por grupos | 7 categorias | 93,67% | 98,58% | 73,97% | 70,12% | 93,27% | 98,59% | 99,95% | 99,99% |
-| `f39_estratificada_c34` | 39 | sorteio estratificado | 34 classes | 74,07% | 75,07% | 62,83% | 58,76% | 73,51% | 75,01% | 98,43% | 97,58% |
-| `f39_estratificada_c2` | 39 | sorteio estratificado | ataque ou benigno | 97,06% | 98,66% | 76,49% | 80,27% | 96,77% | 98,43% | 99,99% | 100,00% |
+| Execução | Features | Divisão | Alvo | Acurácia na amostra | Acurácia reponderada | Macro-F1 na amostra | Macro-F1 reponderado | F1 ponderado na amostra | F1 ponderado reponderado | Teto nas linhas de teste |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `f39_estratificada_c8` | 39 | sorteio estratificado | 8 categorias | 84,55% | 82,66% | 72,21% | 67,01% | 84,01% | 83,01% | 98,82% |
+| `f39_estratificada_c7` | 39 | sorteio estratificado | 7 categorias | 93,81% | 98,58% | 74,11% | 69,96% | 93,41% | 98,58% | 99,96% |
+| `f39_grupos_c8` | 39 | divisão por grupos | 8 categorias | 84,62% | 82,79% | 72,37% | 67,21% | 84,08% | 83,11% | 97,64% |
+| `f39_grupos_c7` | 39 | divisão por grupos | 7 categorias | 93,86% | 98,61% | 74,41% | 70,42% | 93,47% | 98,62% | 99,95% |
+| `f33_estratificada_c8` | 33 | sorteio estratificado | 8 categorias | 84,37% | 82,61% | 71,82% | 66,67% | 83,82% | 82,96% | 98,82% |
+| `f33_estratificada_c7` | 33 | sorteio estratificado | 7 categorias | 93,67% | 98,55% | 73,89% | 69,87% | 93,26% | 98,55% | 99,95% |
+| `f33_grupos_c8` | 33 | divisão por grupos | 8 categorias | 84,36% | 82,70% | 71,94% | 66,95% | 83,80% | 83,01% | 97,64% |
+| `f33_grupos_c7` | 33 | divisão por grupos | 7 categorias | 93,67% | 98,58% | 73,97% | 70,12% | 93,27% | 98,59% | 99,95% |
+| `f39_estratificada_c34` | 39 | sorteio estratificado | 34 classes | 74,07% | 75,07% | 62,83% | 58,76% | 73,51% | 75,01% | 98,43% |
+| `f39_estratificada_c2` | 39 | sorteio estratificado | ataque ou benigno | 97,06% | 98,66% | 76,49% | 80,27% | 96,77% | 98,43% | 99,99% |
 
 Classes de interesse. Onde há dois valores, o primeiro é na amostra e o segundo é reponderado. O recall
 do tráfego benigno e a taxa de benigno classificado como ataque são iguais nas duas distribuições.
@@ -105,109 +108,109 @@ As execuções de 34 classes e de ataque ou benigno servem de referência para o
 
 Uma tabela para cada execução da grade. As colunas da esquerda são medidas na amostra, e as da direita
 são reponderadas. "Falso positivo" é a fração das linhas das outras classes que o modelo pôs na classe.
-"Recall na regra do teto" é o recall da classe na regra de maior acerto global, e não um limite da
-classe (ver "Como ler os números"). As mesmas medidas, com as execuções de
+"Recall na regra do teto" é o recall da classe na regra de maior acerto global nas linhas de teste,
+sem reponderar, e não um limite da classe (ver "Como ler os números"). As mesmas medidas, com as execuções de
 referência, estão em `metricas_classificador.csv`, e as matrizes de confusão estão em `matrizes_confusao/`.
 
 ### `f39_estratificada_c8`: 39 features, sorteio estratificado, 8 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| DDoS | 110.000 | 87,82% | 90,74% | 89,26% | 9,37% | 99,59% | 90,14% | 87,50% | 88,80% | 24,96% | 99,55% |
-| DoS | 40.000 | 72,09% | 65,61% | 68,70% | 4,67% | 93,83% | 53,31% | 59,88% | 56,40% | 10,90% | 91,87% |
-| Mirai | 30.000 | 99,94% | 99,66% | 99,80% | 0,01% | 100,00% | 99,82% | 99,66% | 99,74% | 0,01% | 100,00% |
-| Recon | 40.432 | 77,84% | 91,63% | 84,18% | 4,85% | 99,87% | 54,48% | 92,61% | 68,60% | 1,15% | 99,86% |
-| Spoofing | 20.000 | 93,06% | 86,38% | 89,59% | 0,54% | 99,91% | 89,85% | 86,33% | 88,05% | 0,10% | 99,90% |
-| Web | 4.760 | 69,62% | 28,84% | 40,79% | 0,24% | 99,43% | 29,75% | 28,84% | 29,29% | 0,04% | 99,43% |
-| BruteForce | 2.504 | 79,94% | 33,59% | 47,30% | 0,08% | 100,00% | 41,39% | 33,59% | 37,08% | 0,01% | 100,00% |
-| Benign | 10.000 | 63,10% | 53,82% | 58,09% | 1,27% | 99,81% | 92,74% | 53,82% | 68,11% | 0,10% | 99,89% |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| DDoS | 110.000 | 87,82% | 90,74% | 89,26% | 9,37% | 99,59% | 90,14% | 87,50% | 88,80% | 24,96% |
+| DoS | 40.000 | 72,09% | 65,61% | 68,70% | 4,67% | 93,83% | 53,31% | 59,88% | 56,40% | 10,90% |
+| Mirai | 30.000 | 99,94% | 99,66% | 99,80% | 0,01% | 100,00% | 99,82% | 99,66% | 99,74% | 0,01% |
+| Recon | 40.432 | 77,84% | 91,63% | 84,18% | 4,85% | 99,87% | 54,48% | 92,61% | 68,60% | 1,15% |
+| Spoofing | 20.000 | 93,06% | 86,38% | 89,59% | 0,54% | 99,91% | 89,85% | 86,33% | 88,05% | 0,10% |
+| Web | 4.760 | 69,62% | 28,84% | 40,79% | 0,24% | 99,43% | 29,75% | 28,84% | 29,29% | 0,04% |
+| BruteForce | 2.504 | 79,94% | 33,59% | 47,30% | 0,08% | 100,00% | 41,39% | 33,59% | 37,08% | 0,01% |
+| Benign | 10.000 | 63,10% | 53,82% | 58,09% | 1,27% | 99,81% | 92,74% | 53,82% | 68,11% | 0,10% |
 
 ### `f39_estratificada_c7`: 39 features, sorteio estratificado, 7 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| DDoS+DoS | 150.000 | 99,93% | 99,98% | 99,96% | 0,09% | 100,00% | 99,98% | 99,99% | 99,99% | 0,18% | 100,00% |
-| Mirai | 30.000 | 99,96% | 99,66% | 99,81% | 0,01% | 100,00% | 99,87% | 99,66% | 99,76% | 0,01% | 100,00% |
-| Recon | 40.432 | 77,80% | 91,56% | 84,12% | 4,86% | 99,87% | 54,38% | 92,52% | 68,50% | 1,16% | 99,86% |
-| Spoofing | 20.000 | 93,08% | 86,48% | 89,66% | 0,54% | 99,91% | 89,89% | 86,45% | 88,14% | 0,10% | 99,90% |
-| Web | 4.760 | 68,44% | 28,34% | 40,08% | 0,25% | 99,43% | 28,28% | 28,34% | 28,31% | 0,04% | 99,43% |
-| BruteForce | 2.504 | 79,40% | 33,55% | 47,16% | 0,09% | 100,00% | 41,36% | 33,55% | 37,05% | 0,01% | 100,00% |
-| Benign | 10.000 | 63,01% | 53,62% | 57,94% | 1,27% | 99,81% | 92,73% | 53,62% | 67,95% | 0,10% | 99,89% |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| DDoS+DoS | 150.000 | 99,93% | 99,98% | 99,96% | 0,09% | 100,00% | 99,98% | 99,99% | 99,99% | 0,18% |
+| Mirai | 30.000 | 99,96% | 99,66% | 99,81% | 0,01% | 100,00% | 99,87% | 99,66% | 99,76% | 0,01% |
+| Recon | 40.432 | 77,80% | 91,56% | 84,12% | 4,86% | 99,87% | 54,38% | 92,52% | 68,50% | 1,16% |
+| Spoofing | 20.000 | 93,08% | 86,48% | 89,66% | 0,54% | 99,91% | 89,89% | 86,45% | 88,14% | 0,10% |
+| Web | 4.760 | 68,44% | 28,34% | 40,08% | 0,25% | 99,43% | 28,28% | 28,34% | 28,31% | 0,04% |
+| BruteForce | 2.504 | 79,40% | 33,55% | 47,16% | 0,09% | 100,00% | 41,36% | 33,55% | 37,05% | 0,01% |
+| Benign | 10.000 | 63,01% | 53,62% | 57,94% | 1,27% | 99,81% | 92,73% | 53,62% | 67,95% | 0,10% |
 
 ### `f39_grupos_c8`: 39 features, divisão por grupos, 8 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| DDoS | 110.134 | 87,78% | 90,86% | 89,29% | 9,42% | 98,48% | 90,10% | 87,72% | 88,89% | 25,13% | 98,64% |
-| DoS | 39.978 | 72,24% | 65,38% | 68,64% | 4,61% | 89,26% | 53,62% | 59,59% | 56,45% | 10,71% | 83,92% |
-| Mirai | 30.012 | 99,93% | 99,63% | 99,78% | 0,01% | 100,00% | 99,87% | 99,62% | 99,75% | 0,01% | 100,00% |
-| Recon | 40.433 | 77,96% | 91,54% | 84,21% | 4,81% | 99,86% | 54,74% | 92,41% | 68,75% | 1,14% | 99,85% |
-| Spoofing | 20.166 | 93,47% | 86,70% | 89,96% | 0,51% | 99,95% | 90,92% | 86,70% | 88,76% | 0,09% | 99,95% |
-| Web | 4.753 | 71,46% | 28,45% | 40,69% | 0,21% | 99,45% | 32,14% | 28,45% | 30,18% | 0,03% | 99,45% |
-| BruteForce | 2.505 | 77,53% | 34,29% | 47,55% | 0,10% | 99,88% | 37,60% | 34,29% | 35,87% | 0,02% | 99,88% |
-| Benign | 10.007 | 63,24% | 54,96% | 58,81% | 1,29% | 99,75% | 92,77% | 54,96% | 69,03% | 0,10% | 99,78% |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| DDoS | 110.134 | 87,78% | 90,86% | 89,29% | 9,42% | 98,48% | 90,10% | 87,72% | 88,89% | 25,13% |
+| DoS | 39.978 | 72,24% | 65,38% | 68,64% | 4,61% | 89,26% | 53,62% | 59,59% | 56,45% | 10,71% |
+| Mirai | 30.012 | 99,93% | 99,63% | 99,78% | 0,01% | 100,00% | 99,87% | 99,62% | 99,75% | 0,01% |
+| Recon | 40.433 | 77,96% | 91,54% | 84,21% | 4,81% | 99,86% | 54,74% | 92,41% | 68,75% | 1,14% |
+| Spoofing | 20.166 | 93,47% | 86,70% | 89,96% | 0,51% | 99,95% | 90,92% | 86,70% | 88,76% | 0,09% |
+| Web | 4.753 | 71,46% | 28,45% | 40,69% | 0,21% | 99,45% | 32,14% | 28,45% | 30,18% | 0,03% |
+| BruteForce | 2.505 | 77,53% | 34,29% | 47,55% | 0,10% | 99,88% | 37,60% | 34,29% | 35,87% | 0,02% |
+| Benign | 10.007 | 63,24% | 54,96% | 58,81% | 1,29% | 99,75% | 92,77% | 54,96% | 69,03% | 0,10% |
 
 ### `f39_grupos_c7`: 39 features, divisão por grupos, 7 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| DDoS+DoS | 150.112 | 99,92% | 99,98% | 99,95% | 0,11% | 100,00% | 99,98% | 99,99% | 99,98% | 0,21% | 100,00% |
-| Mirai | 30.012 | 99,93% | 99,61% | 99,77% | 0,01% | 100,00% | 99,89% | 99,60% | 99,75% | 0,01% | 100,00% |
-| Recon | 40.433 | 77,92% | 91,51% | 84,17% | 4,82% | 99,86% | 54,78% | 92,41% | 68,79% | 1,14% | 99,85% |
-| Spoofing | 20.166 | 93,40% | 86,58% | 89,86% | 0,52% | 99,95% | 90,54% | 86,58% | 88,52% | 0,09% | 99,95% |
-| Web | 4.753 | 71,17% | 28,47% | 40,67% | 0,22% | 99,45% | 31,12% | 28,47% | 29,74% | 0,03% | 99,45% |
-| BruteForce | 2.505 | 79,48% | 34,17% | 47,79% | 0,09% | 99,88% | 40,75% | 34,17% | 37,17% | 0,01% | 99,88% |
-| Benign | 10.007 | 63,00% | 54,92% | 58,68% | 1,30% | 99,75% | 92,75% | 54,92% | 68,99% | 0,10% | 99,78% |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| DDoS+DoS | 150.112 | 99,92% | 99,98% | 99,95% | 0,11% | 100,00% | 99,98% | 99,99% | 99,98% | 0,21% |
+| Mirai | 30.012 | 99,93% | 99,61% | 99,77% | 0,01% | 100,00% | 99,89% | 99,60% | 99,75% | 0,01% |
+| Recon | 40.433 | 77,92% | 91,51% | 84,17% | 4,82% | 99,86% | 54,78% | 92,41% | 68,79% | 1,14% |
+| Spoofing | 20.166 | 93,40% | 86,58% | 89,86% | 0,52% | 99,95% | 90,54% | 86,58% | 88,52% | 0,09% |
+| Web | 4.753 | 71,17% | 28,47% | 40,67% | 0,22% | 99,45% | 31,12% | 28,47% | 29,74% | 0,03% |
+| BruteForce | 2.505 | 79,48% | 34,17% | 47,79% | 0,09% | 99,88% | 40,75% | 34,17% | 37,17% | 0,01% |
+| Benign | 10.007 | 63,00% | 54,92% | 58,68% | 1,30% | 99,75% | 92,75% | 54,92% | 68,99% | 0,10% |
 
 ### `f33_estratificada_c8`: 33 features, sorteio estratificado, 8 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| DDoS | 110.000 | 87,78% | 90,64% | 89,19% | 9,40% | 99,59% | 90,14% | 87,46% | 88,78% | 24,92% | 99,55% |
-| DoS | 40.000 | 71,71% | 65,25% | 68,33% | 4,73% | 93,83% | 53,23% | 59,90% | 56,37% | 10,94% | 91,87% |
-| Mirai | 30.000 | 99,94% | 99,61% | 99,77% | 0,01% | 100,00% | 99,87% | 99,61% | 99,74% | 0,01% | 100,00% |
-| Recon | 40.432 | 77,32% | 91,44% | 83,79% | 4,99% | 99,87% | 53,84% | 92,49% | 68,06% | 1,18% | 99,86% |
-| Spoofing | 20.000 | 93,04% | 86,38% | 89,58% | 0,54% | 99,91% | 89,55% | 86,33% | 87,91% | 0,11% | 99,90% |
-| Web | 4.760 | 69,58% | 28,07% | 40,00% | 0,23% | 99,43% | 29,86% | 28,06% | 28,93% | 0,03% | 99,43% |
-| BruteForce | 2.504 | 79,13% | 32,71% | 46,28% | 0,08% | 100,00% | 39,97% | 32,71% | 35,98% | 0,01% | 100,00% |
-| Benign | 10.000 | 62,82% | 53,22% | 57,62% | 1,27% | 99,81% | 92,63% | 53,22% | 67,60% | 0,10% | 99,89% |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| DDoS | 110.000 | 87,78% | 90,64% | 89,19% | 9,40% | 99,59% | 90,14% | 87,46% | 88,78% | 24,92% |
+| DoS | 40.000 | 71,71% | 65,25% | 68,33% | 4,73% | 93,83% | 53,23% | 59,90% | 56,37% | 10,94% |
+| Mirai | 30.000 | 99,94% | 99,61% | 99,77% | 0,01% | 100,00% | 99,87% | 99,61% | 99,74% | 0,01% |
+| Recon | 40.432 | 77,32% | 91,44% | 83,79% | 4,99% | 99,87% | 53,84% | 92,49% | 68,06% | 1,18% |
+| Spoofing | 20.000 | 93,04% | 86,38% | 89,58% | 0,54% | 99,91% | 89,55% | 86,33% | 87,91% | 0,11% |
+| Web | 4.760 | 69,58% | 28,07% | 40,00% | 0,23% | 99,43% | 29,86% | 28,06% | 28,93% | 0,03% |
+| BruteForce | 2.504 | 79,13% | 32,71% | 46,28% | 0,08% | 100,00% | 39,97% | 32,71% | 35,98% | 0,01% |
+| Benign | 10.000 | 62,82% | 53,22% | 57,62% | 1,27% | 99,81% | 92,63% | 53,22% | 67,60% | 0,10% |
 
 ### `f33_estratificada_c7`: 33 features, sorteio estratificado, 7 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| DDoS+DoS | 150.000 | 99,84% | 99,86% | 99,85% | 0,23% | 100,00% | 99,97% | 99,98% | 99,98% | 0,22% | 100,00% |
-| Mirai | 30.000 | 99,96% | 99,61% | 99,78% | 0,01% | 100,00% | 99,91% | 99,61% | 99,76% | 0,01% | 100,00% |
-| Recon | 40.432 | 77,33% | 91,40% | 83,77% | 4,99% | 99,87% | 53,78% | 92,52% | 68,02% | 1,19% | 99,86% |
-| Spoofing | 20.000 | 93,03% | 86,50% | 89,64% | 0,55% | 99,91% | 89,30% | 86,46% | 87,86% | 0,11% | 99,90% |
-| Web | 4.760 | 69,87% | 28,26% | 40,24% | 0,23% | 99,43% | 30,29% | 28,25% | 29,24% | 0,03% | 99,43% |
-| BruteForce | 2.504 | 80,00% | 32,91% | 46,63% | 0,08% | 100,00% | 42,32% | 32,91% | 37,02% | 0,01% | 100,00% |
-| Benign | 10.000 | 62,62% | 52,78% | 57,28% | 1,27% | 99,81% | 92,62% | 52,78% | 67,24% | 0,10% | 99,89% |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| DDoS+DoS | 150.000 | 99,84% | 99,86% | 99,85% | 0,23% | 100,00% | 99,97% | 99,98% | 99,98% | 0,22% |
+| Mirai | 30.000 | 99,96% | 99,61% | 99,78% | 0,01% | 100,00% | 99,91% | 99,61% | 99,76% | 0,01% |
+| Recon | 40.432 | 77,33% | 91,40% | 83,77% | 4,99% | 99,87% | 53,78% | 92,52% | 68,02% | 1,19% |
+| Spoofing | 20.000 | 93,03% | 86,50% | 89,64% | 0,55% | 99,91% | 89,30% | 86,46% | 87,86% | 0,11% |
+| Web | 4.760 | 69,87% | 28,26% | 40,24% | 0,23% | 99,43% | 30,29% | 28,25% | 29,24% | 0,03% |
+| BruteForce | 2.504 | 80,00% | 32,91% | 46,63% | 0,08% | 100,00% | 42,32% | 32,91% | 37,02% | 0,01% |
+| Benign | 10.000 | 62,62% | 52,78% | 57,28% | 1,27% | 99,81% | 92,62% | 52,78% | 67,24% | 0,10% |
 
 ### `f33_grupos_c8`: 33 features, divisão por grupos, 8 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| DDoS | 110.134 | 87,63% | 90,82% | 89,20% | 9,55% | 98,48% | 90,00% | 87,75% | 88,86% | 25,42% | 98,64% |
-| DoS | 39.978 | 71,76% | 64,63% | 68,01% | 4,67% | 89,26% | 53,47% | 59,08% | 56,14% | 10,68% | 83,92% |
-| Mirai | 30.012 | 99,94% | 99,56% | 99,75% | 0,01% | 100,00% | 99,94% | 99,55% | 99,75% | 0,00% | 100,00% |
-| Recon | 40.433 | 77,27% | 91,18% | 83,65% | 4,98% | 99,86% | 54,05% | 92,32% | 68,18% | 1,17% | 99,85% |
-| Spoofing | 20.166 | 93,29% | 86,49% | 89,76% | 0,53% | 99,95% | 90,10% | 86,52% | 88,27% | 0,10% | 99,95% |
-| Web | 4.753 | 71,24% | 27,73% | 39,92% | 0,21% | 99,45% | 31,48% | 27,74% | 29,49% | 0,03% | 99,45% |
-| BruteForce | 2.505 | 80,15% | 33,21% | 46,97% | 0,08% | 99,88% | 40,25% | 33,21% | 36,40% | 0,01% | 99,88% |
-| Benign | 10.007 | 62,88% | 54,31% | 58,28% | 1,29% | 99,75% | 92,73% | 54,31% | 68,50% | 0,10% | 99,78% |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| DDoS | 110.134 | 87,63% | 90,82% | 89,20% | 9,55% | 98,48% | 90,00% | 87,75% | 88,86% | 25,42% |
+| DoS | 39.978 | 71,76% | 64,63% | 68,01% | 4,67% | 89,26% | 53,47% | 59,08% | 56,14% | 10,68% |
+| Mirai | 30.012 | 99,94% | 99,56% | 99,75% | 0,01% | 100,00% | 99,94% | 99,55% | 99,75% | 0,00% |
+| Recon | 40.433 | 77,27% | 91,18% | 83,65% | 4,98% | 99,86% | 54,05% | 92,32% | 68,18% | 1,17% |
+| Spoofing | 20.166 | 93,29% | 86,49% | 89,76% | 0,53% | 99,95% | 90,10% | 86,52% | 88,27% | 0,10% |
+| Web | 4.753 | 71,24% | 27,73% | 39,92% | 0,21% | 99,45% | 31,48% | 27,74% | 29,49% | 0,03% |
+| BruteForce | 2.505 | 80,15% | 33,21% | 46,97% | 0,08% | 99,88% | 40,25% | 33,21% | 36,40% | 0,01% |
+| Benign | 10.007 | 62,88% | 54,31% | 58,28% | 1,29% | 99,75% | 92,73% | 54,31% | 68,50% | 0,10% |
 
 ### `f33_grupos_c7`: 33 features, divisão por grupos, 7 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| DDoS+DoS | 150.112 | 99,80% | 99,85% | 99,82% | 0,28% | 100,00% | 99,97% | 99,98% | 99,97% | 0,25% | 100,00% |
-| Mirai | 30.012 | 99,95% | 99,55% | 99,75% | 0,01% | 100,00% | 99,97% | 99,54% | 99,75% | 0,00% | 100,00% |
-| Recon | 40.433 | 77,28% | 91,16% | 83,65% | 4,98% | 99,86% | 54,08% | 92,32% | 68,21% | 1,17% | 99,85% |
-| Spoofing | 20.166 | 93,30% | 86,50% | 89,77% | 0,53% | 99,95% | 90,27% | 86,51% | 88,35% | 0,10% | 99,95% |
-| Web | 4.753 | 72,37% | 27,60% | 39,96% | 0,20% | 99,45% | 33,77% | 27,61% | 30,38% | 0,03% | 99,45% |
-| BruteForce | 2.505 | 79,13% | 32,85% | 46,43% | 0,08% | 99,88% | 38,59% | 32,85% | 35,49% | 0,01% | 99,88% |
-| Benign | 10.007 | 62,96% | 54,49% | 58,42% | 1,29% | 99,75% | 92,77% | 54,49% | 68,66% | 0,10% | 99,78% |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| DDoS+DoS | 150.112 | 99,80% | 99,85% | 99,82% | 0,28% | 100,00% | 99,97% | 99,98% | 99,97% | 0,25% |
+| Mirai | 30.012 | 99,95% | 99,55% | 99,75% | 0,01% | 100,00% | 99,97% | 99,54% | 99,75% | 0,00% |
+| Recon | 40.433 | 77,28% | 91,16% | 83,65% | 4,98% | 99,86% | 54,08% | 92,32% | 68,21% | 1,17% |
+| Spoofing | 20.166 | 93,30% | 86,50% | 89,77% | 0,53% | 99,95% | 90,27% | 86,51% | 88,35% | 0,10% |
+| Web | 4.753 | 72,37% | 27,60% | 39,96% | 0,20% | 99,45% | 33,77% | 27,61% | 30,38% | 0,03% |
+| BruteForce | 2.505 | 79,13% | 32,85% | 46,43% | 0,08% | 99,88% | 38,59% | 32,85% | 35,49% | 0,01% |
+| Benign | 10.007 | 62,96% | 54,49% | 58,42% | 1,29% | 99,75% | 92,77% | 54,49% | 68,66% | 0,10% |
 
 ## Importância das features
 
@@ -392,14 +395,14 @@ Macro-F1:
 | 33 features, 8 categorias | 71,82% | 71,94% | +0,12 | 66,67% | 66,95% | +0,28 |
 | 33 features, 7 categorias | 73,89% | 73,97% | +0,09 | 69,87% | 70,12% | +0,24 |
 
-Teto:
+Teto nas linhas de teste:
 
-| Features e alvo | Na amostra, sorteio | Na amostra, grupos | Diferença (p.p.) | Reponderada, sorteio | Reponderada, grupos | Diferença (p.p.) |
-|---|---|---|---|---|---|---|
-| 39 features, 8 categorias | 98,82% | 97,64% | -1,18 | 98,27% | 96,24% | -2,03 |
-| 39 features, 7 categorias | 99,96% | 99,95% | 0,00 | 99,99% | 99,99% | 0,00 |
-| 33 features, 8 categorias | 98,82% | 97,64% | -1,18 | 98,27% | 96,24% | -2,03 |
-| 33 features, 7 categorias | 99,95% | 99,95% | 0,00 | 99,99% | 99,99% | 0,00 |
+| Features e alvo | Teto, sorteio | Teto, grupos | Diferença (p.p.) |
+|---|---|---|---|
+| 39 features, 8 categorias | 98,82% | 97,64% | -1,18 |
+| 39 features, 7 categorias | 99,96% | 99,95% | 0,00 |
+| 33 features, 8 categorias | 98,82% | 97,64% | -1,18 |
+| 33 features, 7 categorias | 99,95% | 99,95% | 0,00 |
 
 - No sorteio estratificado, 38.934 das 257.696 linhas de teste (15,11%) têm o mesmo vetor de uma linha do treino, com as 39 features. Na divisão por grupos, nenhuma.
 - Na amostra, 16,05% das linhas repetem o vetor de outra. No conjunto completo são 58,78% (`exploracao.md`, seção 8). A diferença entre as duas divisões medida aqui é a da amostra, com menos repetição do que haveria no dataset inteiro.
@@ -423,14 +426,14 @@ Acurácia:
 | 33 features, sorteio estratificado | 84,37% | 93,67% | +9,30 | 82,61% | 98,55% | +15,94 |
 | 33 features, divisão por grupos | 84,36% | 93,67% | +9,31 | 82,70% | 98,58% | +15,88 |
 
-Teto:
+Teto nas linhas de teste:
 
-| Features e divisão | Na amostra, 8 | Na amostra, 7 | Diferença (p.p.) | Reponderada, 8 | Reponderada, 7 | Diferença (p.p.) |
-|---|---|---|---|---|---|---|
-| 39 features, sorteio estratificado | 98,82% | 99,96% | +1,13 | 98,27% | 99,99% | +1,72 |
-| 39 features, divisão por grupos | 97,64% | 99,95% | +2,31 | 96,24% | 99,99% | +3,75 |
-| 33 features, sorteio estratificado | 98,82% | 99,95% | +1,13 | 98,27% | 99,99% | +1,72 |
-| 33 features, divisão por grupos | 97,64% | 99,95% | +2,31 | 96,24% | 99,99% | +3,75 |
+| Features e divisão | Teto, 8 | Teto, 7 | Diferença (p.p.) |
+|---|---|---|---|
+| 39 features, sorteio estratificado | 98,82% | 99,96% | +1,13 |
+| 39 features, divisão por grupos | 97,64% | 99,95% | +2,31 |
+| 33 features, sorteio estratificado | 98,82% | 99,95% | +1,13 |
+| 33 features, divisão por grupos | 97,64% | 99,95% | +2,31 |
 
 Recall das duas categorias e peso das trocas entre elas. Em cada célula, o primeiro valor é na amostra
 e o segundo é reponderado. "Trocas" são as linhas de DDoS classificadas como DoS e as de DoS
@@ -455,10 +458,9 @@ Custo do modelo:
 
 - O macro-F1 de 8 categorias e o de 7 são médias sobre conjuntos de classes diferentes e não se comparam
   diretamente. Os dois estão na tabela das 10 execuções.
-- Os tetos desta seção são os das linhas de teste de cada execução. O teto que a exploração mediu no
-  conjunto completo vale para aquele conjunto, na proporção natural das classes, e não se compara com
-  eles. Nenhum deles limita o recall de DoS: o recall de uma categoria depende da regra, e a regra do
-  teto maximiza o acerto global.
+- Os tetos desta seção são os das linhas de teste de cada execução. No conjunto completo a diferença entre o teto de 8 e o de 7 categorias é bem maior do que a medida aqui: lá o teto de 8 categorias é 92,87% (`exploracao.md`, seção 8), e quase todo o erro mínimo está em linhas de DDoS e de DoS com o mesmo vetor, que a fusão deixa de contar como erro. O teto de 7 categorias do conjunto completo não foi calculado, e por isso essa diferença fica sem número aqui.
+- Nenhum teto limita o recall de DoS: o recall de uma categoria depende da regra, e a regra do teto
+  maximiza o acerto global.
 - A terceira saída em análise, deixar o modelo dizer o tipo de flood e separar DDoS de DoS pela
   quantidade de origens no alerta, não é medida aqui: as 39 features não trazem endereços de origem.
 

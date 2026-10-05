@@ -409,10 +409,29 @@ def test_relatorio_trata_o_teto_como_limite_do_conjunto_de_teste(experimento):
     # O recall por classe na regra do teto não é apresentado como limite da classe.
     assert "Recall na regra do teto" in relatorio and "não é um limite por classe" in relatorio
     assert "ecall máximo" not in relatorio
-    # O teto do conjunto completo é citado como medida daquele conjunto, sem o valor e sem virar limite daqui.
-    assert "vale para o conjunto completo, na proporção natural das classes, e não é o limite destas execuções" in relatorio
-    assert not hasattr(experimento_do_treino, "TETO_NO_CONJUNTO")
+    # O teto das linhas de teste só aparece sem reponderar: reponderado, ele não estima o limite do conjunto completo.
+    assert "Teto nas linhas de teste" in relatorio
+    assert "Teto reponderado" not in relatorio and "Recall na regra do teto (repond.)" not in relatorio
+    for secao in ("### Divisão entre treino e teste", "### DDoS e DoS"):
+        tabela = relatorio.split(secao)[1].split("\nTeto nas linhas de teste:\n\n")[1].split("\n\n")[0]
+        assert "Reponderad" not in tabela and len(tabela.splitlines()) == 6
+    # O recall de DoS da exploração segue fora: não é limite de nada aqui.
     assert not hasattr(experimento_do_treino, "RECALL_MAXIMO_DE_DOS_NO_CONJUNTO")
+
+
+def test_relatorio_da_o_teto_do_conjunto_completo_como_limite_da_acuracia_reponderada(experimento):
+    pasta, _ = experimento
+    relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
+    assert "não é o limite destas execuções" not in relatorio
+    trecho = next(linha for linha in relatorio.splitlines() if linha.startswith("**Limite da acurácia reponderada.**"))
+    assert "No sorteio estratificado, a acurácia reponderada estima a acurácia do modelo no conjunto completo" in trecho
+    assert "em 8 categorias, 92,87% com as 39 features (`exploracao.md`, seção 8)" in trecho
+    assert "não mediu o teto do conjunto completo em 7 categorias" in trecho
+    # Na comparação entre 8 e 7 categorias, a diferença do conjunto completo é dita maior, sem número inventado.
+    ddos_e_dos = relatorio.split("### DDoS e DoS")[1]
+    assert "No conjunto completo a diferença entre o teto de 8 e o de 7 categorias é bem maior do que a medida aqui" in ddos_e_dos
+    assert "O teto de 7 categorias do conjunto completo não foi calculado" in ddos_e_dos
+    assert "não se compara com" not in ddos_e_dos
 
 
 def test_relatorio_nao_atribui_o_sorteio_estratificado_aos_autores_do_dataset(experimento):
@@ -482,6 +501,9 @@ def test_medidas_do_conjunto_completo_sao_as_da_exploracao_versionada():
     secao = exploracao.split("\n## 8. Linhas repetidas\n")[1].split("\n## ")[0]
     repetidas = f"{100 * experimento_do_treino.LINHAS_REPETIDAS_NO_CONJUNTO:.2f}%".replace(".", ",")
     assert f"linhas ({repetidas}) têm uma combinação que aparece mais de uma vez" in secao
+    teto_de_8 = f"{100 * experimento_do_treino.TETO_DE_8_CATEGORIAS_NO_CONJUNTO:.2f}%".replace(".", ",")
+    total = next(linha for linha in secao.splitlines() if linha.startswith("| Total |"))
+    assert total.endswith(f"| {teto_de_8} |") and "em 8 categorias, medido no conjunto\ncompleto" in secao
     assert experimento_do_treino.FONTE_DO_CONJUNTO_COMPLETO == "`exploracao.md`, seção 8"
 
 

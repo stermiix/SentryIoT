@@ -76,11 +76,12 @@ METRICAS = "metricas_classificador.csv"
 IMPORTANCIAS = "importancia_features.csv"
 MATRIZES = "matrizes_confusao"
 
-# Medida do conjunto completo que o relatório cita. Não sai deste experimento, que só lê a amostra:
-# vem de `experimentos/resultados/exploracao.md`, seção 8 ("Linhas repetidas"), e um teste confere o
-# valor contra o texto versionado da exploração.
+# Medidas do conjunto completo que o relatório cita. Não saem deste experimento, que só lê a amostra:
+# vêm de `experimentos/resultados/exploracao.md`, seção 8 ("Linhas repetidas"), e um teste confere
+# cada valor contra o texto versionado da exploração.
 FONTE_DO_CONJUNTO_COMPLETO = "`exploracao.md`, seção 8"
 LINHAS_REPETIDAS_NO_CONJUNTO = 0.5878  # linhas que repetem as 39 features de outra linha
+TETO_DE_8_CATEGORIAS_NO_CONJUNTO = 0.9287  # maior acerto em 8 categorias para quem só vê as 39 features
 
 NOME_DA_DIVISAO = {"estratificada": "sorteio estratificado", "grupos": "divisão por grupos"}
 NOME_DO_ALVO = {"34": "34 classes", "8": "8 categorias", "7": "7 categorias", "2": "ataque ou benigno"}
@@ -394,14 +395,15 @@ def _como_ler(m):
         (
             "**Teto.** É um limite por coincidência exata de vetores, calculado nas linhas de teste de cada "
             "execução. Quem só vê as features dá a mesma resposta a todas as linhas com o mesmo vetor. A regra que "
-            "mais acerta responde, em cada vetor, a classe de maior peso, e as linhas das outras classes são erro "
-            "certo. A acurácia dessa regra é a maior possível naquelas linhas, e é com ela que a acurácia do modelo "
-            "na mesma execução se compara. O teto depende do tamanho e da mistura de classes do conjunto em que é "
-            "medido: com mais linhas, mais vetores se repetem com classes diferentes. Por isso ele muda com a "
-            "divisão. No sorteio de linhas, parte das repetições de um vetor fica no treino e não entra na conta. O "
-            "teto que a exploração mediu vale para o conjunto completo, na proporção natural das classes, e não é o "
-            "limite destas execuções."
+            "mais acerta responde, em cada vetor, a classe mais frequente, e as linhas das outras classes são erro "
+            "certo. A acurácia dessa regra é a maior possível naquelas linhas, e é com ela que a acurácia na "
+            "amostra da mesma execução se compara. O teto depende da mistura de classes do conjunto em que é "
+            "medido e cai quando o conjunto cresce: com mais linhas, mais vetores se repetem com classes "
+            "diferentes. Por isso ele muda com a divisão. No sorteio de linhas, parte das repetições de um vetor "
+            "fica no treino e não entra na conta."
         ),
+        "",
+        _limite_da_reponderada(m),
         "",
         (
             "**Recall na regra do teto.** As tabelas por classe trazem o recall de cada classe na regra que dá o "
@@ -422,6 +424,26 @@ def _como_ler(m):
             "repetir com outro sorteio: `python -m codigo.classificador.experimento --semente N --saida OUTRA_PASTA`."
         ),
     ]
+
+
+def _limite_da_reponderada(m):
+    """O parágrafo que diz qual é o limite da acurácia reponderada."""
+    medido = next(
+        (
+            f" Nas linhas de teste de `{e['nome']}`, o teto reponderado é {_pct(e['original']['teto'])}."
+            for e in m["execucoes"] if (e["features"], e["divisao"], e["alvo"]) == ("39", "estratificada", "8")
+        ),
+        "",
+    )
+    return (
+        "**Limite da acurácia reponderada.** No sorteio estratificado, a acurácia reponderada estima a acurácia do "
+        "modelo no conjunto completo. O limite esperado dela é o teto do conjunto completo, e não o das linhas de "
+        f"teste: em 8 categorias, {_pct(TETO_DE_8_CATEGORIAS_NO_CONJUNTO)} com as 39 features "
+        f"({FONTE_DO_CONJUNTO_COMPLETO}). O teto das linhas de teste fica acima desse valor mesmo quando é "
+        f"reponderado, porque o teste tem muito menos linhas que o conjunto completo.{medido} Por isso as tabelas "
+        "trazem o teto das linhas de teste sem reponderar, e o reponderado fica só no manifesto. A exploração não "
+        "mediu o teto do conjunto completo em 7 categorias, em 34 classes nem no cenário de ataque ou benigno."
+    )
 
 
 def _secao_divisoes(m):
@@ -514,7 +536,7 @@ def _secao_execucoes(m):
         globais.append([
             f"`{e['nome']}`", e["features"], NOME_DA_DIVISAO[e["divisao"]], NOME_DO_ALVO[e["alvo"]],
             _pct(a["acuracia"]), _pct(o["acuracia"]), _pct(a["macro_f1"]), _pct(o["macro_f1"]),
-            _pct(a["f1_ponderado"]), _pct(o["f1_ponderado"]), _pct(a["teto"]), _pct(o["teto"]),
+            _pct(a["f1_ponderado"]), _pct(o["f1_ponderado"]), _pct(a["teto"]),
         ])
         benigno = ALVOS[e["alvo"]].benigno
         ataque_como_benigno = tuple(e[d]["por_classe"][benigno]["taxa_falso_positivo"] for d in ("amostra", "original"))
@@ -526,13 +548,14 @@ def _secao_execucoes(m):
         "## As 10 execuções",
         "",
         "Medidas globais nas linhas de teste. Em cada par de colunas, a primeira é na amostra e a segunda é",
-        "reponderada para a distribuição original.",
+        "reponderada para a distribuição original. O teto é o das linhas de teste, sem reponderar, e se compara",
+        "com a acurácia na amostra (ver \"Como ler os números\").",
         "",
         *_tabela(
             [
                 "Execução", "Features", "Divisão", "Alvo", "Acurácia na amostra", "Acurácia reponderada",
                 "Macro-F1 na amostra", "Macro-F1 reponderado", "F1 ponderado na amostra", "F1 ponderado reponderado",
-                "Teto na amostra", "Teto reponderado",
+                "Teto nas linhas de teste",
             ],
             globais,
         ),
@@ -569,8 +592,8 @@ def _secao_por_classe(m):
         "",
         "Uma tabela para cada execução da grade. As colunas da esquerda são medidas na amostra, e as da direita",
         "são reponderadas. \"Falso positivo\" é a fração das linhas das outras classes que o modelo pôs na classe.",
-        "\"Recall na regra do teto\" é o recall da classe na regra de maior acerto global, e não um limite da",
-        "classe (ver \"Como ler os números\"). As mesmas medidas, com as execuções de",
+        "\"Recall na regra do teto\" é o recall da classe na regra de maior acerto global nas linhas de teste,",
+        "sem reponderar, e não um limite da classe (ver \"Como ler os números\"). As mesmas medidas, com as execuções de",
         f"referência, estão em `{METRICAS}`, e as matrizes de confusão estão em `{MATRIZES}/`.",
     ]
     for e in m["execucoes"]:
@@ -586,7 +609,6 @@ def _secao_por_classe(m):
                 _pct(a["precisao"]), _pct(a["recall"]), _pct(a["f1"]), _pct(a["taxa_falso_positivo"]),
                 _pct(a["recall_na_regra_do_teto"]),
                 _pct(o["precisao"]), _pct(o["recall"]), _pct(o["f1"]), _pct(o["taxa_falso_positivo"]),
-                _pct(o["recall_na_regra_do_teto"]),
             ])
         texto += [
             "",
@@ -597,7 +619,6 @@ def _secao_por_classe(m):
                     "Classe", "Linhas no teste", "Precisão", "Recall", "F1", "Falso positivo",
                     "Recall na regra do teto",
                     "Precisão (repond.)", "Recall (repond.)", "F1 (repond.)", "Falso positivo (repond.)",
-                    "Recall na regra do teto (repond.)",
                 ],
                 linhas,
             ),
@@ -701,6 +722,13 @@ def _variacao(antes, depois, chave):
     return celulas
 
 
+def _variacao_do_teto(antes, depois):
+    """O teto das linhas de teste em duas execuções e a diferença em pontos percentuais."""
+    a, d = antes["amostra"]["teto"], depois["amostra"]["teto"]
+    return [_pct(a), _pct(d), _pp(d - a)]
+
+
+CABECALHO_DO_TETO = ("Teto, {0}", "Teto, {1}", "Diferença (p.p.)")
 CABECALHO_DA_VARIACAO = (
     "Na amostra, {0}", "Na amostra, {1}", "Diferença (p.p.)", "Reponderada, {0}", "Reponderada, {1}", "Diferença (p.p.)",
 )
@@ -816,7 +844,7 @@ def _decisao_divisao(m):
 
     acuracia = [[rotulo_do_par(a), *_variacao(a, b, "acuracia")] for a, b in pares]
     macro = [[rotulo_do_par(a), *_variacao(a, b, "macro_f1")] for a, b in pares]
-    teto = [[rotulo_do_par(a), *_variacao(a, b, "teto")] for a, b in pares]
+    teto = [[rotulo_do_par(a), *_variacao_do_teto(a, b)] for a, b in pares]
     estratificada, amostra = m["divisoes"]["estratificada"], m["amostra"]
     no_treino = estratificada["teste_com_vetor_no_treino"]["39"]
     return [
@@ -833,9 +861,9 @@ def _decisao_divisao(m):
         "",
         *_tabela(["Features e alvo", *colunas], macro),
         "",
-        "Teto:",
+        "Teto nas linhas de teste:",
         "",
-        *_tabela(["Features e alvo", *colunas], teto),
+        *_tabela(["Features e alvo", *(texto.format("sorteio", "grupos") for texto in CABECALHO_DO_TETO)], teto),
         "",
         (
             f"- No sorteio estratificado, {_milhar(no_treino)} das {_milhar(estratificada['teste'])} linhas de "
@@ -882,7 +910,7 @@ def _decisao_ddos_e_dos(m):
         return f"{e['features']} features, {NOME_DA_DIVISAO[e['divisao']]}"
 
     acuracia = [[rotulo_do_par(a), *_variacao(a, b, "acuracia")] for a, b in pares]
-    teto = [[rotulo_do_par(a), *_variacao(a, b, "teto")] for a, b in pares]
+    teto = [[rotulo_do_par(a), *_variacao_do_teto(a, b)] for a, b in pares]
     detalhe = []
     for oito, sete in pares:
         na_amostra, reponderada = _trocas(oito), _trocas(oito, populacao)
@@ -911,9 +939,9 @@ def _decisao_ddos_e_dos(m):
         "",
         *_tabela(["Features e divisão", *colunas], acuracia),
         "",
-        "Teto:",
+        "Teto nas linhas de teste:",
         "",
-        *_tabela(["Features e divisão", *colunas], teto),
+        *_tabela(["Features e divisão", *(texto.format("8", "7") for texto in CABECALHO_DO_TETO)], teto),
         "",
         "Recall das duas categorias e peso das trocas entre elas. Em cada célula, o primeiro valor é na amostra",
         "e o segundo é reponderado. \"Trocas\" são as linhas de DDoS classificadas como DoS e as de DoS",
@@ -941,10 +969,15 @@ def _decisao_ddos_e_dos(m):
         "",
         "- O macro-F1 de 8 categorias e o de 7 são médias sobre conjuntos de classes diferentes e não se comparam",
         "  diretamente. Os dois estão na tabela das 10 execuções.",
-        "- Os tetos desta seção são os das linhas de teste de cada execução. O teto que a exploração mediu no",
-        "  conjunto completo vale para aquele conjunto, na proporção natural das classes, e não se compara com",
-        "  eles. Nenhum deles limita o recall de DoS: o recall de uma categoria depende da regra, e a regra do",
-        "  teto maximiza o acerto global.",
+        (
+            "- Os tetos desta seção são os das linhas de teste de cada execução. No conjunto completo a diferença "
+            "entre o teto de 8 e o de 7 categorias é bem maior do que a medida aqui: lá o teto de 8 categorias é "
+            f"{_pct(TETO_DE_8_CATEGORIAS_NO_CONJUNTO)} ({FONTE_DO_CONJUNTO_COMPLETO}), e quase todo o erro mínimo "
+            "está em linhas de DDoS e de DoS com o mesmo vetor, que a fusão deixa de contar como erro. O teto de 7 "
+            "categorias do conjunto completo não foi calculado, e por isso essa diferença fica sem número aqui."
+        ),
+        "- Nenhum teto limita o recall de DoS: o recall de uma categoria depende da regra, e a regra do teto",
+        "  maximiza o acerto global.",
         "- A terceira saída em análise, deixar o modelo dizer o tipo de flood e separar DDoS de DoS pela",
         "  quantidade de origens no alerta, não é medida aqui: as 39 features não trazem endereços de origem.",
     ]
