@@ -181,6 +181,18 @@ def test_incidente_que_cessa_e_encerrado():
     assert encerrado == FLOOD.incidente.model_copy(update={"estado": "encerrado"})
 
 
+def test_incidente_nao_termina_antes_da_acao_cujo_efeito_foi_verificado():
+    inicial = FLOOD.incidente
+    depois = inicial.fim + timedelta(minutes=2)
+    # O incidente acabou quando a ação que o resolveu foi aplicada.
+    assert evoluir(FLOOD, inicial, "cessou", depois).fim == depois
+    assert evoluir(FLOOD, inicial, "cessou", inicial.fim - timedelta(seconds=5)).fim == inicial.fim
+    # Se persiste, ele vai pelo menos até a ação.
+    assert evoluir(FLOOD, inicial, "persiste", depois).fim == depois
+    assert evoluir(FLOOD, inicial, "persiste", inicial.fim).fim == inicial.fim + timedelta(seconds=30)
+    assert evoluir(FLOOD, inicial, "cessou", depois).janelas == inicial.janelas
+
+
 def test_incidente_que_persiste_continua_aberto_e_cresce():
     inicial = FLOOD.incidente
     depois = evoluir(FLOOD, inicial, "persiste")

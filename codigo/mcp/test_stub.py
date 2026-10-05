@@ -336,6 +336,21 @@ def aplicar(stub, incidente, alvo, **acao):
     return chamar(stub, "executar_acao", id_proposta=proposta.id)
 
 
+def test_incidente_nao_termina_antes_da_acao_cujo_efeito_foi_verificado(stub):
+    # O relógio do teste está horas depois do incidente dos cenários.
+    primeira = aplicar(stub, "inc-0001", "203.0.113.7", **BLOQUEIO)
+    chamar(stub, "verificar_efeito", id_execucao=primeira.id)
+    persistindo = chamar(stub, "obter_incidente", id="inc-0001")
+    assert (persistindo.estado, persistindo.fim) == ("aberto", primeira.aplicada_em)
+
+    segunda = aplicar(stub, "inc-0001", "192.168.137.20", **SYN_COOKIES)
+    chamar(stub, "verificar_efeito", id_execucao=segunda.id)
+    encerrado = chamar(stub, "obter_incidente", id="inc-0001")
+    # O incidente acabou quando a ação que o resolveu foi aplicada, e não antes dela.
+    assert (encerrado.estado, encerrado.fim) == ("encerrado", segunda.aplicada_em)
+    assert encerrado.fim > persistindo.fim
+
+
 def test_no_flood_o_efeito_persiste_depois_da_primeira_acao_e_cessa_depois_da_segunda(stub):
     inicial = POR_NOME["flood"].incidente
     primeira = aplicar(stub, "inc-0001", "203.0.113.7", **BLOQUEIO)

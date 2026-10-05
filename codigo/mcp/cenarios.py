@@ -214,14 +214,20 @@ def efeito(cenario, ordem):
     return cenario.efeitos[min(ordem, len(cenario.efeitos)) - 1]
 
 
-def evoluir(cenario, incidente, resultado):
+def evoluir(cenario, incidente, resultado, aplicada_em=None):
     """O incidente depois de uma verificação de efeito.
 
     Se o tráfego cessou, o incidente é encerrado. Se persiste ou diminuiu, ele continua aberto
     por mais um período igual ao inicial, com mais janelas e mais quadros.
+
+    `aplicada_em` é o instante em que a ação verificada foi aplicada. O incidente nunca termina
+    antes dele: se cessou, foi quando a ação entrou; se continua, ainda havia tráfego depois dela.
     """
+    def fim(calculado):
+        return calculado if aplicada_em is None else max(calculado, aplicada_em)
+
     if resultado == "cessou":
-        return incidente.model_copy(update={"estado": "encerrado"})
+        return incidente.model_copy(update={"estado": "encerrado", "fim": fim(incidente.fim)})
     inicial = cenario.incidente
     fator = _CRESCIMENTO[resultado]
 
@@ -232,7 +238,7 @@ def evoluir(cenario, incidente, resultado):
         ]
 
     return incidente.model_copy(update={
-        "fim": incidente.fim + (inicial.fim - inicial.inicio),
+        "fim": fim(incidente.fim + (inicial.fim - inicial.inicio)),
         "janelas": incidente.janelas + round(inicial.janelas * fator),
         "origens": crescer(incidente.origens, inicial.origens),
         "destinos": crescer(incidente.destinos, inicial.destinos),

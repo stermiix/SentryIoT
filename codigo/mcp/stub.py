@@ -233,7 +233,7 @@ class Stub:
         # No sistema de verdade quem grava isso é a política de acionamento.
         if execucao.id not in estado.efeitos and incidente.estado == "aberto":
             tipo = "incidente_encerrado" if resultado == "cessou" else "incidente_atualizado"
-            rascunhos.append(novo(tipo, evoluir(cenario, incidente, resultado), incidente.id))
+            rascunhos.append(novo(tipo, evoluir(cenario, incidente, resultado, execucao.aplicada_em), incidente.id))
         return verificado, rascunhos
 
 
