@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from codigo.mcp.eventos import CAMINHO_PADRAO, Registro, agora, ler, novo
+from codigo.mcp.eventos import CAMINHO_PADRAO, LogInvalido, Registro, agora, ler, novo
 from codigo.mcp.tipos import ChamadaDeLLM
 
 RAIZ = Path(__file__).resolve().parents[2]
@@ -148,11 +148,29 @@ def test_linha_invalida_no_arquivo_da_erro_com_o_numero_da_linha(registro, linha
     registro.gravar(novo("janelas_classificadas", LOTE))
     with open(registro.caminho, "a", encoding="utf-8") as arquivo:
         arquivo.write(linha + "\n")
-    with pytest.raises(ValueError, match=r"eventos\.jsonl, linha 2"):
+    with pytest.raises(LogInvalido, match=r"eventos\.jsonl, linha 2"):
         registro.ler()
     # Com o arquivo estragado, nada novo é gravado por cima.
     with pytest.raises(ValueError, match="linha 2"):
         registro.gravar(novo("janelas_classificadas", LOTE))
+
+
+def test_leitura_guarda_o_arquivo_e_a_linha_de_cada_evento(registro):
+    registro.gravar(novo("janelas_classificadas", LOTE), novo("llm_chamada", CHAMADA, "inc-0001"))
+    with open(registro.caminho, "a", encoding="utf-8") as arquivo:
+        arquivo.write("\n\n")
+    registro.gravar(novo("janelas_classificadas", LOTE))
+    eventos = registro.ler()
+    assert isinstance(eventos, list) and len(eventos) == 3
+    # As linhas em branco não são eventos, mas contam na numeração das linhas do arquivo.
+    assert [eventos.onde(indice) for indice in range(3)] == [
+        f"{registro.caminho}, linha 1", f"{registro.caminho}, linha 2", f"{registro.caminho}, linha 5",
+    ]
+
+    def decidir(lidos):
+        return lidos.onde(2), []
+
+    assert registro.atualizar(decidir) == (f"{registro.caminho}, linha 5", [])
 
 
 def test_linhas_em_branco_sao_ignoradas(registro):

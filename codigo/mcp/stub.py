@@ -201,7 +201,7 @@ class Stub:
         return acoes.propor(estado, self._politica, id, acao, alvo, parametros, justificativa)
 
     def _executar_acao(self, estado, inicio, id_proposta):
-        return acoes.executar(estado, id_proposta, inicio)
+        return acoes.executar(estado, self._politica, id_proposta, inicio)
 
     def _desfazer_acao(self, estado, inicio, id_execucao):
         return acoes.desfazer(estado, id_execucao, inicio)

@@ -182,3 +182,19 @@ def test_log_estragado_da_erro_com_a_linha(stub, capsys):
         arquivo.write("linha estragada\n")
     assert aprovar(stub, "prop-0001") == 1
     assert "linha 11" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("argumentos", [[], ["prop-0001"], ["prop-0001", "--rejeitar"], ["prop-0001", "--promover"]])
+def test_log_com_evento_fora_de_lugar_da_erro_com_a_linha_e_sem_traceback(stub, capsys, argumentos):
+    propor_isolamento(stub)
+    with open(stub.registro.caminho, "a", encoding="utf-8") as arquivo:
+        arquivo.write(
+            '{"id":"qualquer","instante":"1999-01-01T00:00:00Z","tipo":"acao_aprovada","incidente":null,'
+            '"dados":{"proposta":"prop-0007","canal":"interface","motivo":null}}\n'
+        )
+    antes = stub.registro.caminho.read_bytes()
+    assert aprovar(stub, *argumentos) == 1
+    saida = capsys.readouterr()
+    assert saida.err.startswith("erro: ") and "linha 11" in saida.err and "prop-0007" in saida.err
+    assert "Traceback" not in saida.err and "aprovada." not in saida.out
+    assert stub.registro.caminho.read_bytes() == antes

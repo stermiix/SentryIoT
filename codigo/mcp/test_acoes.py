@@ -6,6 +6,7 @@ import pytest
 
 from codigo.mcp.acoes import (
     POLITICA_PADRAO,
+    Estado,
     PedidoRecusado,
     Politica,
     ambiente,
@@ -18,7 +19,7 @@ from codigo.mcp.acoes import (
     propor,
     reconstruir,
 )
-from codigo.mcp.eventos import novo
+from codigo.mcp.eventos import LogInvalido, novo
 from codigo.mcp.test_tipos import INCIDENTE_DA_ESPECIFICACAO
 from codigo.mcp.tipos import Ambiente, validar_evento
 
@@ -71,7 +72,7 @@ class Mundo:
         return proposta
 
     def executar(self, id_proposta):
-        execucao, rascunhos = executar(self.estado, id_proposta, INSTANTE)
+        execucao, rascunhos = executar(self.estado, self.politica, id_proposta, INSTANTE)
         self.aplicar(rascunhos)
         return execucao
 
@@ -519,6 +520,28 @@ def test_desfazer_o_que_nao_esta_aplicado_e_recusado(mundo):
     assert mundo.tipos().count("acao_desfeita") == 1
 
 
+def test_proposta_executada_ou_desfeita_nao_e_decidida_de_novo(mundo):
+    # Reaprovar uma proposta já aplicada abriria caminho para executá-la outra vez.
+    mundo.propor("isolar_dispositivo", "192.168.137.20")
+    mundo.decidir("prop-0001")
+    mundo.executar("prop-0001")
+    assert "já foi aprovada e aplicada" in recusado("argumentos_invalidos", mundo.decidir, "prop-0001")
+    recusado("argumentos_invalidos", mundo.decidir, "prop-0001", aprovar=False)
+    mundo.desfazer("exec-0001")
+    assert "já foi aplicada e desfeita" in recusado("argumentos_invalidos", mundo.decidir, "prop-0001")
+    recusado("argumentos_invalidos", mundo.decidir, "prop-0001", aprovar=False)
+
+    # O mesmo vale para a proposta de risco baixo, que nunca passou por aprovação.
+    mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    mundo.executar("prop-0002")
+    recusado("argumentos_invalidos", mundo.decidir, "prop-0002")
+    mundo.desfazer("exec-0002")
+    recusado("argumentos_invalidos", mundo.decidir, "prop-0002")
+    assert (mundo.tipos().count("acao_aprovada"), mundo.tipos().count("acao_rejeitada")) == (1, 0)
+    recusado("proposta_ja_executada", mundo.executar, "prop-0001")
+    recusado("proposta_ja_executada", mundo.executar, "prop-0002")
+
+
 def test_so_proposta_que_aguarda_aprovacao_pode_ser_decidida(mundo):
     mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
     assert "não exige aprovação" in recusado("argumentos_invalidos", mundo.decidir, "prop-0001")
@@ -539,6 +562,8 @@ def test_estado_de_um_log_vazio():
     assert (estado.incidentes, estado.propostas, estado.execucoes, estado.efeitos, estado.promovidas) == (
         {}, {}, {}, {}, {},
     )
+    assert estado.aprovadas == set()
+    assert estado == Estado()
 
 
 def test_estado_guarda_a_ultima_versao_do_incidente_e_o_ultimo_efeito(mundo):
@@ -851,3 +876,314 @@ def test_piso_do_codigo_nao_depende_da_politica(mundo):
     assert mundo.propor("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA).risco == "alto"
     for numero in (1, 2, 3):
         recusado("proposta_nao_liberada", mundo.executar, f"prop-000{numero}")
+
+
+# --- executar: exige o evento de aprovação e calcula o risco de novo -------------------------
+
+
+def test_estado_guarda_as_propostas_que_uma_pessoa_aprovou(mundo):
+    mundo.propor("isolar_dispositivo", "192.168.137.20")
+    mundo.propor("isolar_dispositivo", "192.168.137.20")
+    mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    assert mundo.estado.aprovadas == set()
+    mundo.decidir("prop-0001")
+    mundo.decidir("prop-0002", aprovar=False)
+    assert mundo.estado.aprovadas == {"prop-0001"}
+
+
+def test_executar_exige_o_evento_de_aprovacao_e_nao_confia_no_estado_lido(mundo):
+    proposta = mundo.propor("isolar_dispositivo", "192.168.137.20")
+    estado = mundo.estado
+    # Um estado em que a proposta aparece liberada sem que a aprovação tenha acontecido.
+    estado.propostas[proposta.id] = proposta.model_copy(update={"estado": "liberada"})
+    mensagem = recusado("proposta_nao_liberada", executar, estado, mundo.politica, proposta.id, INSTANTE)
+    assert "aprovação humana" in mensagem
+
+    # Nem os campos de risco gravados valem: o risco é calculado de novo, e isolar é sempre alto.
+    forjada = proposta.model_copy(update={"estado": "liberada", "risco": "baixo", "exige_aprovacao": False})
+    estado.propostas[proposta.id] = forjada
+    recusado("proposta_nao_liberada", executar, estado, mundo.politica, proposta.id, INSTANTE)
+
+    estado.aprovadas.add(proposta.id)
+    execucao, _ = executar(estado, mundo.politica, proposta.id, INSTANTE)
+    assert execucao.estado == "aplicada"
+
+
+def test_executar_calcula_o_risco_de_novo_com_a_politica_atual(mundo):
+    proposta = mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 15})
+    assert (proposta.risco, proposta.estado) == ("baixo", "liberada")
+
+    regras = mundo.politica.acoes | {"bloquear_ip": {"risco": "baixo", "prazo_maximo_de_risco_baixo": 5}}
+    for politica in (
+        replace(mundo.politica, acoes=regras),
+        replace(mundo.politica, enderecos_protegidos=frozenset({"203.0.113.7"})),
+        replace(mundo.politica, medidas_de_risco_baixo_por_incidente=0),
+        replace(mundo.politica, redes_locais=(ipaddress.ip_network("203.0.113.7/32"), ipaddress.ip_network("203.0.113.0/29"))),
+    ):
+        mensagem = recusado("proposta_nao_liberada", executar, mundo.estado, politica, proposta.id, INSTANTE)
+        assert "risco alto" in mensagem and "nova proposta" in mensagem
+    assert mundo.estado.execucoes == {}
+
+    assert mundo.executar(proposta.id).estado == "aplicada"
+
+
+def test_o_limite_de_medidas_vale_tambem_na_hora_de_executar():
+    # Propor tudo antes e executar depois não contorna o limite.
+    mundo = Mundo(incidente=INCIDENTE_COM_VARIAS_ORIGENS)
+    propostas = [mundo.propor("bloquear_ip", origem, {"duracao": 10}) for origem in ORIGENS[:7]]
+    assert {proposta.estado for proposta in propostas} == {"liberada"}
+    execucoes = [mundo.executar(proposta.id) for proposta in propostas[:5]]
+    for proposta in propostas[5:]:
+        assert "risco alto" in recusado("proposta_nao_liberada", mundo.executar, proposta.id)
+    assert len(ambiente(mundo.estado).bloqueios) == 5
+    mundo.desfazer(execucoes[0].id)
+    assert mundo.executar(propostas[5].id).estado == "aplicada"
+    recusado("proposta_nao_liberada", mundo.executar, propostas[6].id)
+
+
+def test_proposta_de_risco_baixo_nao_executa_depois_que_o_incidente_encerra(mundo):
+    baixa = mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    alta = mundo.propor("isolar_dispositivo", "192.168.137.20")
+    mundo.decidir(alta.id)
+    mundo.aplicar([novo("incidente_encerrado", INCIDENTE_DA_ESPECIFICACAO | {"estado": "encerrado"}, "inc-0001")])
+    recusado("proposta_nao_liberada", mundo.executar, baixa.id)
+    # A que uma pessoa aprovou continua valendo: a validade de uma aprovação no tempo fica de fora do stub.
+    assert mundo.executar(alta.id).estado == "aplicada"
+
+
+# --- reconstrução: o log é entrada, e cada transição é conferida -----------------------------
+
+APROVACAO = {"proposta": "prop-0001", "canal": "terminal", "motivo": None}
+EFEITO = {"execucao": "exec-0001", "incidente": "inc-0001", "resultado": "persiste", "observacao": "Continua."}
+
+
+def violacao(mundo, *trechos):
+    """Reconstrói o estado esperando o erro de log inválido, com a posição do evento e os trechos dados."""
+    with pytest.raises(LogInvalido) as captura:
+        reconstruir(mundo.eventos)
+    mensagem = str(captura.value)
+    assert f"evento {len(mundo.eventos)} (ev-{len(mundo.eventos):06d})" in mensagem
+    for trecho in trechos:
+        assert trecho in mensagem
+    return mensagem
+
+
+def dados_de(mundo, tipo):
+    return next(evento.dados for evento in reversed(mundo.eventos) if evento.tipo == tipo).model_dump(mode="json")
+
+
+def test_log_invalido_e_erro_de_valor(mundo):
+    assert issubclass(LogInvalido, ValueError)
+    assert not issubclass(LogInvalido, KeyError | StopIteration)
+
+
+@pytest.mark.parametrize("tipo,dados,citado", [
+    ("acao_aprovada", APROVACAO | {"proposta": "prop-0007"}, "prop-0007"),
+    ("acao_rejeitada", APROVACAO | {"proposta": "prop-0007"}, "prop-0007"),
+    ("acao_executada", {
+        "id": "exec-0001", "proposta": "prop-0007", "incidente": "inc-0001", "acao": "bloquear_ip",
+        "alvo": "203.0.113.7", "parametros": {"duracao": 10}, "estado": "aplicada",
+        "aplicada_em": "2026-10-20T14:04:00Z", "desfeita_em": None,
+    }, "prop-0007"),
+    ("acao_desfeita", {
+        "id": "exec-0007", "proposta": "prop-0001", "incidente": "inc-0001", "acao": "bloquear_ip",
+        "alvo": "203.0.113.7", "parametros": {"duracao": 10}, "estado": "desfeita",
+        "aplicada_em": "2026-10-20T14:04:00Z", "desfeita_em": "2026-10-20T14:05:00Z",
+    }, "exec-0007"),
+    ("efeito_verificado", EFEITO | {"execucao": "exec-0007"}, "exec-0007"),
+    ("recomendacao_emitida", {"agente": "decisao", "texto": "Bloquear.", "propostas": ["prop-0001", "prop-0007"]}, "prop-0007"),
+    ("catalogo_ampliado", {"proposta": "prop-0007", "acao": {
+        "nome": "ativar_syn_cookies", "descricao": "d", "alvo": "a", "parametros": [], "regra": "r",
+        "origem": "promovida", "passos": ["p"], "efeito_esperado": "e", "como_desfazer": "c", "fonte": None,
+    }}, "prop-0007"),
+])
+def test_evento_que_cita_proposta_ou_execucao_que_nao_existe_e_erro_claro(mundo, tipo, dados, citado):
+    mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    mundo.aplicar([novo(tipo, dados, "inc-0001")])
+    assert "não existe" in violacao(mundo, tipo, citado)
+
+
+def test_proposta_de_incidente_que_nao_existe_e_erro(mundo):
+    proposta = mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    forjada = proposta.model_dump(mode="json") | {"id": "prop-0002", "incidente": "inc-0099"}
+    mundo.aplicar([novo("acao_proposta", forjada, "inc-0099")])
+    violacao(mundo, "prop-0002", "inc-0099")
+
+
+def test_identificador_de_proposta_e_unico(mundo):
+    mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    mundo.executar("prop-0001")
+    # A linha da proposta, repetida, devolvia a proposta ao estado inicial, e ela executava de novo.
+    mundo.aplicar([novo("acao_proposta", dados_de(mundo, "acao_proposta"), "inc-0001")])
+    violacao(mundo, "prop-0001", "já existe")
+
+
+@pytest.mark.parametrize("preparar,tipo", [
+    (lambda mundo: mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10}), "acao_aprovada"),
+    (lambda mundo: mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10}), "acao_rejeitada"),
+    (lambda mundo: (mundo.propor("isolar_dispositivo", "192.168.137.20"), mundo.decidir("prop-0001")), "acao_aprovada"),
+    (lambda mundo: (mundo.propor("isolar_dispositivo", "192.168.137.20"), mundo.decidir("prop-0001")), "acao_rejeitada"),
+    (lambda mundo: (mundo.propor("isolar_dispositivo", "192.168.137.20"), mundo.decidir("prop-0001", aprovar=False)), "acao_aprovada"),
+    (lambda mundo: (
+        mundo.propor("isolar_dispositivo", "192.168.137.20"), mundo.decidir("prop-0001"), mundo.executar("prop-0001"),
+    ), "acao_aprovada"),
+    (lambda mundo: (
+        mundo.propor("isolar_dispositivo", "192.168.137.20"), mundo.decidir("prop-0001"), mundo.executar("prop-0001"),
+        mundo.desfazer("exec-0001"),
+    ), "acao_aprovada"),
+], ids=[
+    "aprovar a de risco baixo", "rejeitar a de risco baixo", "aprovar duas vezes", "rejeitar a aprovada",
+    "aprovar a rejeitada", "aprovar a executada", "aprovar a desfeita",
+])
+def test_aprovacao_e_rejeicao_so_valem_para_proposta_que_aguarda_aprovacao(mundo, preparar, tipo):
+    preparar(mundo)
+    mundo.aplicar([novo(tipo, APROVACAO, "inc-0001")])
+    violacao(mundo, tipo, "prop-0001", "não aguarda aprovação")
+
+
+def test_execucao_so_vale_para_proposta_liberada_ou_aprovada(mundo):
+    proposta = mundo.propor("isolar_dispositivo", "192.168.137.20")
+    execucao = {
+        "id": "exec-0001", "proposta": proposta.id, "incidente": "inc-0001", "acao": "isolar_dispositivo",
+        "alvo": "192.168.137.20", "parametros": {}, "estado": "aplicada", "aplicada_em": "2026-10-20T14:04:00Z",
+        "desfeita_em": None,
+    }
+    # Aguardando aprovação.
+    aguardando = Mundo()
+    aguardando.propor("isolar_dispositivo", "192.168.137.20")
+    aguardando.aplicar([novo("acao_executada", execucao, "inc-0001")])
+    violacao(aguardando, "acao_executada", "prop-0001", "aguardando_aprovacao")
+    # Rejeitada.
+    rejeitada = Mundo()
+    rejeitada.propor("isolar_dispositivo", "192.168.137.20")
+    rejeitada.decidir("prop-0001", aprovar=False)
+    rejeitada.aplicar([novo("acao_executada", execucao, "inc-0001")])
+    violacao(rejeitada, "prop-0001", "rejeitada")
+    # Já executada: nem a mesma linha repetida, nem uma execução com outro identificador.
+    for repetida in (execucao, execucao | {"id": "exec-0002"}):
+        executada = Mundo()
+        executada.propor("isolar_dispositivo", "192.168.137.20")
+        executada.decidir("prop-0001")
+        executada.executar("prop-0001")
+        executada.aplicar([novo("acao_executada", repetida, "inc-0001")])
+        violacao(executada, "acao_executada")
+    # Aprovada, com a execução no log: vale.
+    mundo.decidir(proposta.id)
+    mundo.aplicar([novo("acao_executada", execucao, "inc-0001")])
+    assert mundo.estado.propostas[proposta.id].estado == "executada"
+
+
+@pytest.mark.parametrize("trocas", [
+    {"alvo": "192.168.137.1"}, {"acao": "isolar_dispositivo"}, {"parametros": {"duracao": 525_600}},
+    {"incidente": "inc-0002"}, {"estado": "desfeita", "desfeita_em": "2026-10-20T14:05:00Z"},
+])
+def test_execucao_que_nao_e_a_da_proposta_e_erro(mundo, trocas):
+    mundo.aplicar([novo("incidente_aberto", INCIDENTE_DA_ESPECIFICACAO | {"id": "inc-0002"}, "inc-0002")])
+    mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    execucao = {
+        "id": "exec-0001", "proposta": "prop-0001", "incidente": "inc-0001", "acao": "bloquear_ip",
+        "alvo": "203.0.113.7", "parametros": {"duracao": 10}, "estado": "aplicada",
+        "aplicada_em": "2026-10-20T14:04:00Z", "desfeita_em": None,
+    }
+    mundo.aplicar([novo("acao_executada", execucao | trocas, "inc-0001")])
+    violacao(mundo, "exec-0001", "prop-0001")
+
+
+def test_desfazer_so_vale_para_execucao_aplicada(mundo):
+    mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    mundo.executar("prop-0001")
+    mundo.desfazer("exec-0001")
+    desfeita = dados_de(mundo, "acao_desfeita")
+    mundo.aplicar([novo("acao_desfeita", desfeita, "inc-0001")])
+    violacao(mundo, "acao_desfeita", "exec-0001", "já foi desfeita")
+
+    outro = Mundo()
+    outro.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    outro.executar("prop-0001")
+    outro.aplicar([novo("acao_desfeita", desfeita | {"estado": "aplicada", "desfeita_em": None}, "inc-0001")])
+    violacao(outro, "acao_desfeita", "exec-0001")
+
+
+@pytest.mark.parametrize("trocas,trecho", [
+    ({"estado": "liberada"}, "aguardando_aprovacao"),
+    ({"estado": "executada"}, "aguardando_aprovacao"),
+    ({"estado": "rejeitada"}, "aguardando_aprovacao"),
+    ({"exige_aprovacao": False}, "exige_aprovacao"),
+    ({"risco": "baixo"}, "exige_aprovacao"),
+    ({"risco": "baixo", "exige_aprovacao": False, "estado": "liberada"}, "sempre de risco alto"),
+    ({"acao": "revogar_credencial", "alvo": "admin@192.168.137.20", "risco": "baixo", "exige_aprovacao": False,
+      "estado": "liberada"}, "sempre de risco alto"),
+    ({"acao": "acao_inventada", "risco": "baixo", "exige_aprovacao": False, "estado": "liberada", "nova": True},
+     "sempre de risco alto"),
+    ({"nova": True}, "nova"),
+    ({"acao": "acao_inventada"}, "nova"),
+], ids=lambda valor: ", ".join(valor) if isinstance(valor, dict) else None)
+def test_proposta_que_nao_nasce_no_estado_que_o_risco_pede_e_erro(mundo, trocas, trecho):
+    # Uma linha escrita por fora com a proposta já liberada era executada sem aprovação.
+    forjada = {
+        "id": "prop-0001", "incidente": "inc-0001", "acao": "isolar_dispositivo", "alvo": "192.168.137.20",
+        "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto", "exige_aprovacao": True,
+        "estado": "aguardando_aprovacao",
+    }
+    mundo.aplicar([novo("acao_proposta", forjada | trocas, "inc-0001")])
+    violacao(mundo, "acao_proposta", "prop-0001", trecho)
+
+
+def test_proposta_de_risco_baixo_que_nasce_aguardando_aprovacao_e_erro(mundo):
+    proposta = mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    dados = proposta.model_dump(mode="json") | {"id": "prop-0002"}
+    mundo.aplicar([novo("acao_proposta", dados | {"estado": "executada"}, "inc-0001")])
+    violacao(mundo, "prop-0002", "liberada")
+
+
+def test_incidente_so_abre_uma_vez_e_nao_volta_depois_de_encerrado(mundo):
+    encerrado = INCIDENTE_DA_ESPECIFICACAO | {"estado": "encerrado"}
+    casos = [
+        ([novo("incidente_aberto", INCIDENTE_DA_ESPECIFICACAO, "inc-0001")], "já foi aberto"),
+        ([novo("incidente_aberto", encerrado | {"id": "inc-0002"}, "inc-0002")], "inc-0002"),
+        ([novo("incidente_atualizado", INCIDENTE_DA_ESPECIFICACAO | {"id": "inc-0002"}, "inc-0002")], "não foi aberto"),
+        ([novo("incidente_encerrado", encerrado | {"id": "inc-0002"}, "inc-0002")], "não foi aberto"),
+        ([novo("incidente_atualizado", encerrado, "inc-0001")], "inc-0001"),
+        ([novo("incidente_encerrado", INCIDENTE_DA_ESPECIFICACAO, "inc-0001")], "inc-0001"),
+        ([novo("incidente_encerrado", encerrado, "inc-0001"), novo("incidente_atualizado", INCIDENTE_DA_ESPECIFICACAO, "inc-0001")], "encerrado"),
+        ([novo("incidente_encerrado", encerrado, "inc-0001"), novo("incidente_encerrado", encerrado, "inc-0001")], "encerrado"),
+    ]
+    for rascunhos, trecho in casos:
+        outro = Mundo()
+        outro.aplicar(rascunhos)
+        violacao(outro, "incidente_", trecho)
+
+
+def test_promocao_no_log_so_vale_para_acao_nova_aplicada(mundo):
+    mundo.propor("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA)
+    mundo.decidir("prop-0001")
+    mundo.executar("prop-0001")
+    mundo.promover("prop-0001")
+    promocao = dados_de(mundo, "catalogo_ampliado")
+    mundo.aplicar([novo("catalogo_ampliado", promocao, "inc-0001")])
+    violacao(mundo, "catalogo_ampliado", "ativar_syn_cookies")
+
+    for preparar in (
+        lambda outro: None,
+        lambda outro: outro.decidir("prop-0001"),
+        lambda outro: (outro.decidir("prop-0001"), outro.executar("prop-0001"), outro.desfazer("exec-0001")),
+    ):
+        outro = Mundo()
+        outro.propor("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA)
+        preparar(outro)
+        outro.aplicar([novo("catalogo_ampliado", promocao, "inc-0001")])
+        violacao(outro, "catalogo_ampliado", "prop-0001")
+
+    # O nome promovido é o da proposta, e nunca o de uma ação de base.
+    outro = Mundo()
+    outro.propor("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA)
+    outro.decidir("prop-0001")
+    outro.executar("prop-0001")
+    outro.aplicar([novo("catalogo_ampliado", promocao | {"acao": promocao["acao"] | {"nome": "bloquear_ip"}}, "inc-0001")])
+    violacao(outro, "catalogo_ampliado", "bloquear_ip")
+
+
+def test_mensagem_de_log_invalido_nao_repete_caractere_invisivel_do_log(mundo):
+    mundo.aplicar([novo("acao_aprovada", APROVACAO | {"proposta": "prop\u200b-0007\u200d"}, "inc-0001")])
+    mensagem = violacao(mundo, "acao_aprovada")
+    assert mensagem.isprintable() and "\\u200b" in mensagem

@@ -19,7 +19,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
-from codigo.mcp.eventos import novo
+from codigo.mcp.eventos import LogInvalido, novo
 from codigo.mcp.tipos import (
     MAIOR_NOME_DE_ACAO,
     MAXIMO_DE_PASSOS,
@@ -36,6 +36,7 @@ from codigo.mcp.tipos import (
     Proposta,
     TextoLongo,
     endereco_canonico,
+    visivel,
 )
 
 POLITICA_PADRAO = Path(__file__).with_name("politica.toml")
@@ -87,13 +88,6 @@ def _resumir_nomes(nomes):
     return mostrados if len(nomes) <= _MAIS_NOMES else f"{mostrados} e mais {len(nomes) - _MAIS_NOMES}"
 
 
-def _visivel(texto):
-    """O texto com tudo o que não é imprimível trocado pela sequência de escape correspondente."""
-    return "".join(
-        letra if letra.isprintable() else letra.encode("unicode_escape").decode("ascii") for letra in texto
-    )
-
-
 class PedidoRecusado(Exception):
     """Um pedido que o sistema recusa, com o motivo (um dos códigos do contrato) e a mensagem.
 
@@ -102,7 +96,7 @@ class PedidoRecusado(Exception):
     """
 
     def __init__(self, motivo, mensagem):
-        mensagem = _visivel(mensagem)[:TEXTO_LONGO]
+        mensagem = visivel(mensagem)[:TEXTO_LONGO]
         super().__init__(mensagem)
         self.motivo = motivo
         self.mensagem = mensagem
@@ -306,7 +300,7 @@ def _medidas_de_risco_baixo(estado, incidente):
     return sum(
         1 for execucao in estado.execucoes.values()
         if execucao.incidente == incidente and execucao.estado == "aplicada"
-        and not estado.propostas[execucao.proposta].exige_aprovacao
+        and execucao.proposta not in estado.aprovadas
     )
 
 
@@ -373,38 +367,150 @@ class Estado:
     efeitos: dict = field(default_factory=dict)
     # Ações novas promovidas ao catálogo, pelo nome.
     promovidas: dict = field(default_factory=dict)
+    # Identificadores das propostas que têm o evento de aprovação de uma pessoa.
+    aprovadas: set = field(default_factory=set)
+
+
+class _Violacao(Exception):
+    """Um evento que não cabe no ponto do log em que aparece."""
+
+
+def _exigir(condicao, detalhe):
+    if not condicao:
+        raise _Violacao(detalhe)
+
+
+def _citado(colecao, identificador, o_que):
+    """O item que o evento cita. Citar o que não existe é violação, e não KeyError."""
+    _exigir(identificador in colecao, f"{o_que} {identificador} não existe no log até este ponto")
+    return colecao[identificador]
 
 
 def reconstruir(eventos):
-    """Percorre os eventos na ordem do log e devolve o estado em que eles deixam o sistema."""
+    """Percorre os eventos na ordem do log e devolve o estado em que eles deixam o sistema.
+
+    O log é entrada, e não memória confiável: cada evento precisa caber no ponto em que aparece.
+    Identificador de proposta e de execução é único; aprovação e rejeição só valem para proposta
+    que aguarda aprovação; execução só vale para proposta liberada ou aprovada, e precisa ser a
+    execução daquela proposta; nenhum evento cita proposta ou execução que não existe. A proposta
+    precisa nascer no estado que o risco dela pede, e o incidente não reabre depois de encerrado.
+
+    Qualquer violação levanta `LogInvalido`, com o arquivo e a linha quando os eventos vieram de
+    um arquivo. O que esta conferência não alcança está no README: quem consegue escrever uma
+    linha bem formada no arquivo consegue aprovar.
+    """
     estado = Estado()
+    for indice, evento in enumerate(eventos):
+        try:
+            _aplicar(estado, evento)
+        except _Violacao as violacao:
+            onde = eventos.onde(indice) if hasattr(eventos, "onde") else f"evento {indice + 1} ({evento.id})"
+            raise LogInvalido(visivel(f"{onde}: {evento.tipo} fora de lugar: {violacao}")) from None
+    return estado
+
+
+def _aplicar(estado, evento):
+    """Confere se o evento cabe no estado e, se couber, aplica o que ele diz."""
+    dados = evento.dados
 
     def mudar_proposta(identificador, novo_estado):
         proposta = estado.propostas[identificador]
         estado.propostas[identificador] = proposta.model_copy(update={"estado": novo_estado})
 
-    for evento in eventos:
-        dados = evento.dados
-        match evento.tipo:
-            case "incidente_aberto" | "incidente_atualizado" | "incidente_encerrado":
-                estado.incidentes[dados.id] = dados
-            case "acao_proposta":
-                estado.propostas[dados.id] = dados
-            case "acao_aprovada":
-                mudar_proposta(dados.proposta, "liberada")
-            case "acao_rejeitada":
-                mudar_proposta(dados.proposta, "rejeitada")
-            case "acao_executada":
-                estado.execucoes[dados.id] = dados
-                mudar_proposta(dados.proposta, "executada")
-            case "acao_desfeita":
-                estado.execucoes[dados.id] = dados
-                mudar_proposta(dados.proposta, "desfeita")
-            case "efeito_verificado":
-                estado.efeitos[dados.execucao] = dados
-            case "catalogo_ampliado":
-                estado.promovidas[dados.acao.nome] = dados.acao
-    return estado
+    match evento.tipo:
+        case "incidente_aberto":
+            _exigir(dados.id not in estado.incidentes, f"o incidente {dados.id} já foi aberto")
+            _exigir(dados.estado == "aberto", f"o incidente {dados.id} é aberto com o estado {dados.estado}")
+            estado.incidentes[dados.id] = dados
+        case "incidente_atualizado" | "incidente_encerrado":
+            _exigir(dados.id in estado.incidentes, f"o incidente {dados.id} não foi aberto")
+            _exigir(estado.incidentes[dados.id].estado == "aberto", f"o incidente {dados.id} já está encerrado")
+            esperado = "encerrado" if evento.tipo == "incidente_encerrado" else "aberto"
+            _exigir(dados.estado == esperado, f"o incidente {dados.id} vem com o estado {dados.estado}")
+            estado.incidentes[dados.id] = dados
+        case "acao_proposta":
+            _conferir_proposta_nova(estado, dados)
+            estado.propostas[dados.id] = dados
+        case "acao_aprovada" | "acao_rejeitada":
+            proposta = _citado(estado.propostas, dados.proposta, "a proposta")
+            _exigir(
+                proposta.estado == "aguardando_aprovacao",
+                f"a proposta {proposta.id} não aguarda aprovação: está {proposta.estado}",
+            )
+            if evento.tipo == "acao_aprovada":
+                estado.aprovadas.add(proposta.id)
+            mudar_proposta(proposta.id, "liberada" if evento.tipo == "acao_aprovada" else "rejeitada")
+        case "acao_executada":
+            proposta = _citado(estado.propostas, dados.proposta, "a proposta")
+            _exigir(dados.id not in estado.execucoes, f"a execução {dados.id} já existe")
+            _exigir(
+                proposta.estado == "liberada",
+                f"a proposta {proposta.id} não está liberada nem aprovada: está {proposta.estado}",
+            )
+            _exigir(
+                (dados.incidente, dados.acao, dados.alvo, dados.parametros, dados.estado)
+                == (proposta.incidente, proposta.acao, proposta.alvo, proposta.parametros, "aplicada"),
+                f"a execução {dados.id} não é a aplicação do que a proposta {proposta.id} descreve",
+            )
+            estado.execucoes[dados.id] = dados
+            mudar_proposta(proposta.id, "executada")
+        case "acao_desfeita":
+            aplicada = _citado(estado.execucoes, dados.id, "a execução")
+            _exigir(aplicada.estado == "aplicada", f"a execução {dados.id} já foi desfeita")
+            _exigir(
+                dados == aplicada.model_copy(update={"estado": "desfeita", "desfeita_em": dados.desfeita_em})
+                and dados.desfeita_em is not None,
+                f"a execução {dados.id} desfeita não é a mesma que foi aplicada",
+            )
+            estado.execucoes[dados.id] = dados
+            mudar_proposta(dados.proposta, "desfeita")
+        case "efeito_verificado":
+            _citado(estado.execucoes, dados.execucao, "a execução")
+            estado.efeitos[dados.execucao] = dados
+        case "recomendacao_emitida":
+            for citada in dados.propostas:
+                _citado(estado.propostas, citada, "a proposta")
+        case "catalogo_ampliado":
+            proposta = _citado(estado.propostas, dados.proposta, "a proposta")
+            nome = dados.acao.nome
+            _exigir(nome not in BASE and nome not in estado.promovidas, f"a ação {nome} já está no catálogo")
+            _exigir(
+                proposta.nova and proposta.estado == "executada" and nome == proposta.acao
+                and dados.acao.origem == "promovida",
+                f"a proposta {proposta.id} não é de uma ação nova aplicada, com o nome {nome}",
+            )
+            estado.promovidas[nome] = dados.acao
+
+
+def _conferir_proposta_nova(estado, proposta):
+    """Uma proposta só entra no estado como `propor` a teria criado.
+
+    O campo `estado` gravado não é aceito como veio: uma linha escrita por fora com a proposta já
+    liberada, ou com o risco de uma ação de risco alto trocado para baixo, é violação.
+    """
+    _exigir(proposta.id not in estado.propostas, f"a proposta {proposta.id} já existe")
+    _exigir(
+        proposta.incidente in estado.incidentes,
+        f"a proposta {proposta.id} cita o incidente {proposta.incidente}, que não existe no log até este ponto",
+    )
+    de_risco_alto = proposta.risco == "alto"
+    _exigir(
+        proposta.exige_aprovacao == de_risco_alto,
+        f"a proposta {proposta.id} tem risco {proposta.risco} e exige_aprovacao {proposta.exige_aprovacao}",
+    )
+    inicial = "aguardando_aprovacao" if de_risco_alto else "liberada"
+    _exigir(
+        proposta.estado == inicial,
+        f"a proposta {proposta.id}, de risco {proposta.risco}, nasce como {inicial}, e não como {proposta.estado}",
+    )
+    _exigir(
+        de_risco_alto or (proposta.acao in BASE and proposta.acao not in _SEMPRE_DE_RISCO_ALTO),
+        f"{proposta.acao} é sempre de risco alto, e a proposta {proposta.id} vem como de risco baixo",
+    )
+    _exigir(
+        proposta.nova == (proposta.acao not in BASE and proposta.acao not in estado.promovidas),
+        f"a proposta {proposta.id} vem com nova = {proposta.nova}, o que não confere com o catálogo",
+    )
 
 
 def catalogo(estado, politica):
@@ -663,26 +769,41 @@ def decidir(estado, id_proposta, aprovar, canal="terminal", motivo=None):
     return decidida, [novo("acao_aprovada" if aprovar else "acao_rejeitada", decisao, proposta.incidente)]
 
 
-def executar(estado, id_proposta, instante):
-    """Aplica no ambiente simulado a ação de uma proposta liberada."""
+def executar(estado, politica, id_proposta, instante):
+    """Aplica no ambiente simulado a ação de uma proposta liberada.
+
+    O campo `estado` da proposta, que veio do log, não basta para liberar. Proposta que exige
+    aprovação só executa se o log tiver o evento de aprovação dela. Proposta registrada como de
+    risco baixo tem o risco calculado de novo, com a política e o estado de agora: se o prazo
+    da política diminuiu, se o alvo virou endereço protegido, se o incidente encerrou ou se o
+    limite de medidas foi atingido, ela não executa sem passar por uma pessoa.
+    """
     proposta = _proposta(estado, id_proposta)
-    if proposta.estado == "aguardando_aprovacao":
-        raise PedidoRecusado(
-            "proposta_nao_liberada",
-            f"A proposta {proposta.id} é de risco alto e aguarda aprovação humana. Ela só pode ser executada "
-            "depois que uma pessoa aprovar.",
-        )
     if proposta.estado == "rejeitada":
         raise PedidoRecusado(
             "proposta_nao_liberada", f"A proposta {proposta.id} foi rejeitada e não pode ser executada."
         )
-    if proposta.estado != "liberada":
+    if proposta.estado in ("executada", "desfeita"):
         execucao = _execucao_da_proposta(estado, proposta)
         raise PedidoRecusado(
             "proposta_ja_executada",
             f"A proposta {proposta.id} já foi executada ({execucao.id}). Para aplicar a ação outra vez, "
             "registre uma nova proposta.",
         )
+    if proposta.id not in estado.aprovadas:
+        if proposta.exige_aprovacao or proposta.estado != "liberada":
+            raise PedidoRecusado(
+                "proposta_nao_liberada",
+                f"A proposta {proposta.id} é de risco alto e aguarda aprovação humana. Ela só pode ser executada "
+                "depois que uma pessoa aprovar.",
+            )
+        if _risco_de_agora(estado, politica, proposta) == "alto":
+            raise PedidoRecusado(
+                "proposta_nao_liberada",
+                f"A proposta {proposta.id} foi registrada como de risco baixo, mas pelas regras de agora ela é de "
+                "risco alto: mudou a política, o incidente encerrou ou o limite de medidas de risco baixo do "
+                "incidente foi atingido. Registre uma nova proposta, que passará pela aprovação humana.",
+            )
     execucao = Execucao(
         id=f"exec-{len(estado.execucoes) + 1:04d}",
         proposta=proposta.id,
@@ -695,6 +816,22 @@ def executar(estado, id_proposta, instante):
         desfeita_em=None,
     )
     return execucao, [novo("acao_executada", execucao, proposta.incidente)]
+
+
+def _risco_de_agora(estado, politica, proposta):
+    """O risco da proposta calculado de novo, como se ela fosse feita agora. Na dúvida, alto."""
+    if proposta.acao not in BASE:
+        return "alto"
+    try:
+        # O alvo e os parâmetros são lidos de novo, como entrada: têm de sair iguais ao que está gravado.
+        alvo = _alvo_de_base(proposta.acao, proposta.alvo)
+        _conferir_alvo_permitido(politica, proposta.acao, alvo)
+        parametros = _parametros_validos(proposta.acao, proposta.parametros)
+    except PedidoRecusado:
+        return "alto"
+    if (alvo, parametros) != (proposta.alvo, proposta.parametros):
+        return "alto"
+    return _risco(estado, politica, proposta.incidente, proposta.acao, alvo, parametros)
 
 
 def desfazer(estado, id_execucao, instante):

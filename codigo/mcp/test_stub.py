@@ -7,7 +7,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from codigo.mcp.acoes import PedidoRecusado, decidir, promover, reconstruir
 from codigo.mcp.cenarios import CENARIOS
-from codigo.mcp.eventos import Registro
+from codigo.mcp.eventos import LogInvalido, Registro
 from codigo.mcp.stub import Stub, criar_servidor, main
 from codigo.mcp.test_acoes import ACAO_NOVA
 from codigo.mcp.tipos import (
@@ -557,6 +557,86 @@ def test_tool_sem_identificador_fica_no_incidente_que_a_sessao_esta_tratando(stu
     assert [evento.incidente for evento in stub.registro.ler()[8:]] == [
         None, "inc-0002", "inc-0002", "inc-0002", "inc-0003", "inc-0003", "inc-0003",
     ]
+
+
+# --- o log é entrada: linha escrita por fora não libera nada ---------------------------------
+
+
+def acrescentar(stub, tipo, dados, incidente="inc-0001"):
+    """Escreve uma linha no arquivo do log por fora do sistema, como um `echo >>` faria."""
+    linha = {"id": "ev-999999", "instante": "1999-01-01T00:00:00Z", "tipo": tipo, "incidente": incidente, "dados": dados}
+    with open(stub.registro.caminho, "a", encoding="utf-8") as arquivo:
+        arquivo.write(json.dumps(linha, ensure_ascii=False) + "\n")
+
+
+def repetir_linha(stub, tipo):
+    linhas = stub.registro.caminho.read_text(encoding="utf-8").splitlines()
+    with open(stub.registro.caminho, "a", encoding="utf-8") as arquivo:
+        arquivo.write(next(linha for linha in linhas if f'"tipo":"{tipo}"' in linha) + "\n")
+
+
+def log_invalido(stub, *trechos):
+    """Toda chamada passa a falhar com o erro de log inválido, e nada mais é gravado."""
+    antes = stub.registro.caminho.read_bytes()
+    linha = antes.count(b"\n")
+    with pytest.raises(LogInvalido) as captura:
+        stub.chamar("consultar_estado")
+    mensagem = str(captura.value)
+    assert f"{stub.registro.caminho}, linha {linha}: " in mensagem
+    for trecho in trechos:
+        assert trecho in mensagem
+    assert stub.registro.caminho.read_bytes() == antes
+    return mensagem
+
+
+PROPOSTA_FORJADA = {
+    "id": "prop-0001", "incidente": "inc-0001", "acao": "isolar_dispositivo", "alvo": "192.168.137.1",
+    "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto", "exige_aprovacao": True,
+    "estado": "liberada",
+}
+
+
+def test_proposta_escrita_por_fora_ja_liberada_nao_executa(stub):
+    acrescentar(stub, "acao_proposta", PROPOSTA_FORJADA)
+    log_invalido(stub, "acao_proposta", "prop-0001", "aguardando_aprovacao")
+    with pytest.raises(LogInvalido):
+        stub.chamar("executar_acao", id_proposta="prop-0001")
+
+
+def test_proposta_escrita_por_fora_com_o_risco_trocado_nao_executa(stub):
+    # Bem formada e coerente, mas o risco gravado é mentira: quem decide é o cálculo de agora.
+    forjada = PROPOSTA_FORJADA | {
+        "acao": "bloquear_ip", "parametros": {"duracao": 10}, "risco": "baixo", "exige_aprovacao": False,
+    }
+    acrescentar(stub, "acao_proposta", forjada)
+    assert chamar(stub, "consultar_estado").bloqueios == []
+    mensagem = recusado(stub, "proposta_nao_liberada", "executar_acao", id_proposta="prop-0001")
+    assert "risco alto" in mensagem
+    assert chamar(stub, "consultar_estado").bloqueios == []
+
+
+def test_linha_de_proposta_repetida_nao_executa_de_novo(stub):
+    proposta = chamar(stub, "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO)
+    chamar(stub, "executar_acao", id_proposta=proposta.id)
+    repetir_linha(stub, "acao_proposta")
+    log_invalido(stub, "prop-0001", "já existe")
+
+
+def test_linha_de_aprovacao_repetida_nao_executa_de_novo(stub):
+    proposta = chamar(stub, "propor_acao", id="inc-0001", alvo="192.168.137.20", **ISOLAMENTO)
+    aprovar(stub, proposta.id)
+    chamar(stub, "executar_acao", id_proposta=proposta.id)
+    repetir_linha(stub, "acao_aprovada")
+    log_invalido(stub, "acao_aprovada", "prop-0001", "não aguarda aprovação")
+
+
+def test_evento_que_cita_proposta_inexistente_e_erro_com_a_linha_e_nao_keyerror(stub, capsys):
+    acrescentar(stub, "acao_aprovada", {"proposta": "prop-0007", "canal": "interface", "motivo": None})
+    log_invalido(stub, "linha 9", "acao_aprovada", "prop-0007", "não existe")
+    # A linha de comando do stub explica e não sobe o servidor.
+    assert main(["--log", str(stub.registro.caminho)]) == 1
+    erro = capsys.readouterr().err
+    assert erro.startswith("erro: ") and "linha 9" in erro and "Traceback" not in erro
 
 
 # --- uma linha de tools por agente -----------------------------------------------------------

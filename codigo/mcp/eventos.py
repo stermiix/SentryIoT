@@ -13,7 +13,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from codigo.mcp.tipos import validar_evento
+from codigo.mcp.tipos import validar_evento, visivel
 
 try:
     import fcntl
@@ -23,6 +23,14 @@ except ImportError:  # No Windows não existe fcntl: a gravação segue sem a tr
 RAIZ = Path(__file__).resolve().parents[2]
 # Fica em dados/, fora do git: o log de uma execução é dado de trabalho, não resultado.
 CAMINHO_PADRAO = RAIZ / "dados" / "eventos" / "eventos.jsonl"
+
+
+class LogInvalido(ValueError):
+    """O log de eventos não pode ser usado como está.
+
+    Vale para linha fora do contrato e para evento que não cabe no ponto em que aparece, como
+    a aprovação de uma proposta que não existe. A mensagem traz o arquivo e o número da linha.
+    """
 
 
 def agora():
@@ -35,15 +43,34 @@ def novo(tipo, dados, incidente=None):
     return {"tipo": tipo, "incidente": incidente, "dados": dados}
 
 
+class EventosLidos(list):
+    """Os eventos de um arquivo de log, na ordem das linhas, com a linha de onde cada um saiu.
+
+    É uma lista como outra qualquer. O que ela guarda a mais serve para que um erro encontrado
+    depois da leitura, na sequência dos eventos, aponte o arquivo e a linha.
+    """
+
+    def __init__(self, caminho):
+        super().__init__()
+        self.caminho = caminho
+        self.linhas = []
+
+    def onde(self, indice):
+        """Arquivo e linha do evento de posição `indice`, para mensagens de erro."""
+        return f"{self.caminho}, linha {self.linhas[indice]}"
+
+
 def _ler_linhas(arquivo, caminho):
-    eventos = []
+    eventos = EventosLidos(caminho)
     for numero, linha in enumerate(arquivo, start=1):
         if not linha.strip():
             continue
         try:
             eventos.append(validar_evento(json.loads(linha)))
         except ValueError as erro:
-            raise ValueError(f"{caminho}, linha {numero}: evento fora do contrato ({erro})") from None
+            # O detalhe do erro pode repetir um pedaço da linha: vai escapado, como tudo o que sai do log.
+            raise LogInvalido(visivel(f"{caminho}, linha {numero}: evento fora do contrato ({erro})")) from None
+        eventos.linhas.append(numero)
     return eventos
 
 
@@ -51,13 +78,13 @@ def ler(caminho):
     """Lê o log e devolve os eventos na ordem em que foram gravados.
 
     Arquivo que ainda não existe é um log vazio. Linha que não segue o contrato levanta
-    ValueError com o número da linha.
+    `LogInvalido`, que é um ValueError, com o número da linha.
     """
     try:
         with open(caminho, encoding="utf-8") as arquivo:
             return _ler_linhas(arquivo, caminho)
     except FileNotFoundError:
-        return []
+        return EventosLidos(caminho)
 
 
 class Registro:

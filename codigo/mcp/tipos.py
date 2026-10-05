@@ -82,6 +82,17 @@ def _texto(maximo, padrao=_UMA_LINHA, minimo=1):
     ]
 
 
+def visivel(texto):
+    """O texto com tudo o que não é imprimível trocado pela sequência de escape correspondente.
+
+    É como o conteúdo do log aparece em um terminal ou em uma mensagem: o log é entrada, e uma
+    sequência de controle gravada nele não pode chegar crua à tela de quem decide.
+    """
+    return "".join(
+        letra if letra.isprintable() else letra.encode("unicode_escape").decode("ascii") for letra in str(texto)
+    )
+
+
 def endereco_canonico(texto):
     """Endereço IP na forma canônica. Levanta ValueError se o texto não é um endereço.
 
