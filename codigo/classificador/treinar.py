@@ -89,9 +89,16 @@ def carregar_modelo(caminho):
     O arquivo é lido com `joblib`, que executa o que estiver dentro dele. Só abra modelos
     gerados por este projeto.
     """
-    pacote = joblib.load(caminho)
+    recusa = ValueError(f"{Path(caminho).name}: não é um modelo gravado por codigo.classificador.treinar")
+    try:
+        pacote = joblib.load(caminho)
+    except OSError:
+        raise  # arquivo ausente ou sem permissão de leitura: o erro do sistema já diz o que houve
+    except Exception:  # noqa: BLE001
+        # Um arquivo que não é do joblib falha de muitas formas ao ser lido, conforme os bytes que traz.
+        raise recusa from None
     if not isinstance(pacote, dict) or not {"modelo", "features", "alvo"} <= set(pacote):
-        raise ValueError(f"{Path(caminho).name}: não é um modelo gravado por codigo.classificador.treinar")
+        raise recusa
     return pacote
 
 

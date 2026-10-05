@@ -127,6 +127,23 @@ def test_carregar_modelo_recusa_arquivo_que_nao_e_um_modelo_salvo_aqui(tmp_path)
         carregar_modelo(caminho)
 
 
+@pytest.mark.parametrize(
+    "conteudo",
+    [b"", b"isto nao e um modelo\n", b"\x80\x04\x95\x00\x00", bytes(range(256))],
+    ids=["vazio", "texto", "pickle cortado", "bytes quaisquer"],
+)
+def test_carregar_modelo_recusa_arquivo_que_o_joblib_nao_consegue_ler(tmp_path, conteudo):
+    caminho = tmp_path / "outro.joblib"
+    caminho.write_bytes(conteudo)
+    with pytest.raises(ValueError, match="outro.joblib: não é um modelo gravado por codigo.classificador.treinar"):
+        carregar_modelo(caminho)
+
+
+def test_carregar_modelo_avisa_quando_o_arquivo_nao_existe(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        carregar_modelo(tmp_path / "ausente.joblib")
+
+
 def executar(tmp_path, *extras, amostra=None):
     saida = tmp_path / "modelos" / "rf.joblib"
     codigo = main(["--amostra", str(amostra or tmp_path / "amostra.csv.gz"), "--saida", str(saida), *extras])

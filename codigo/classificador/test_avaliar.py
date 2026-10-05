@@ -461,6 +461,16 @@ def test_main_com_csv_externo_sem_alguma_coluna_ou_modelo_ausente(tmp_path, caps
     assert "erro:" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("conteudo", [b"", b"isto nao e um modelo\n"], ids=["vazio", "texto"])
+def test_main_com_arquivo_que_nao_e_modelo_da_erro_claro(tmp_path, capsys, conteudo):
+    preparar_arquivos(tmp_path)
+    (tmp_path / "rf.joblib").write_bytes(conteudo)
+    assert executar(tmp_path) == 1
+    saida = capsys.readouterr()
+    assert saida.err == "erro: rf.joblib: não é um modelo gravado por codigo.classificador.treinar\n"
+    assert saida.out == ""
+
+
 def test_modelo_de_33_features_ignora_as_colunas_da_janela_do_csv_externo(tmp_path, capsys):
     quadro = quadro_sintetico(por_classe=40)
     X, rotulos = matriz(quadro, FEATURES_33), quadro["Label"].to_numpy()
