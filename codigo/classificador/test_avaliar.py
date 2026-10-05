@@ -231,18 +231,21 @@ def test_teto_do_caso_feito_a_mao():
     # Vetor 3: uma linha Web e uma benigna, acerta 1.
     assert limite["acuracia"] == pytest.approx(7 / 11)
     # No empate vale a primeira classe na ordem das tabelas: DDoS antes de DoS, Web antes de Benign.
-    assert limite["recall"]["DDoS"] == 1.0
-    assert limite["recall"]["DoS"] == 0.0
-    assert limite["recall"]["Web"] == 1.0
-    assert limite["recall"]["Benign"] == pytest.approx(1 / 2)
-    assert limite["recall"]["Mirai"] is None
+    assert limite["recall_na_regra"]["DDoS"] == 1.0
+    assert limite["recall_na_regra"]["Web"] == 1.0
+    assert limite["recall_na_regra"]["Benign"] == pytest.approx(1 / 2)
+    assert limite["recall_na_regra"]["Mirai"] is None
+    # O recall por classe é o da regra de maior acerto global, e não um limite da classe: quem
+    # respondesse DoS nos vetores 0 e 1 acertaria as 3 linhas de DoS, com menos acerto no total.
+    assert limite["recall_na_regra"]["DoS"] == 0.0
+    assert set(limite) == {"acuracia", "recall_na_regra"}
 
 
 def test_teto_sobe_quando_ddos_e_dos_viram_uma_classe():
     grupos, rotulos = caso_do_teto()
     limite = teto(grupos, rotulos, "7")
     assert limite["acuracia"] == pytest.approx(10 / 11)
-    assert limite["recall"][FUSAO] == 1.0
+    assert limite["recall_na_regra"][FUSAO] == 1.0
 
 
 def test_teto_e_100_por_cento_sem_vetor_repetido_com_classes_diferentes():
@@ -260,10 +263,10 @@ def test_teto_reponderado_escolhe_a_classe_de_maior_peso_em_cada_vetor():
     # Pesos por linha: 100, 200, 100, 10 e 1. Vetor 0: DDoS 300 contra DoS 200. Vetor 1: DoS 400
     # contra DDoS 200. Vetor 2: benigno 10. Vetor 3: benigno 10 contra Web 1.
     assert limite["acuracia"] == pytest.approx((300 + 400 + 10 + 10) / 1121)
-    assert limite["recall"]["DDoS"] == pytest.approx(300 / 500)
-    assert limite["recall"]["DoS"] == pytest.approx(400 / 600)
-    assert limite["recall"]["Benign"] == 1.0
-    assert limite["recall"]["Web"] == 0.0
+    assert limite["recall_na_regra"]["DDoS"] == pytest.approx(300 / 500)
+    assert limite["recall_na_regra"]["DoS"] == pytest.approx(400 / 600)
+    assert limite["recall_na_regra"]["Benign"] == 1.0
+    assert limite["recall_na_regra"]["Web"] == 0.0
 
 
 def modelo_do_caso(nome_do_alvo="8", features=FEATURES_39, arvores=10):
@@ -286,7 +289,8 @@ def test_avaliar_reune_as_medidas_na_amostra_e_reponderadas():
         accuracy_score(alvo(rotulos, "8"), previsto, sample_weight=pesos(rotulos, populacao))
     )
     assert resultado["amostra"]["teto"] == resultado["original"]["teto"] == 1.0
-    assert resultado["amostra"]["por_classe"]["Benign"]["teto"] == 1.0
+    assert resultado["amostra"]["por_classe"]["Benign"]["recall_na_regra_do_teto"] == 1.0
+    assert "teto" not in resultado["amostra"]["por_classe"]["Benign"]
     por_rotulo = resultado["matriz_por_rotulo"]
     assert por_rotulo["classes"] == list(CATEGORIAS)
     assert len(por_rotulo["rotulos"]) == len(por_rotulo["contagem"]) == 9

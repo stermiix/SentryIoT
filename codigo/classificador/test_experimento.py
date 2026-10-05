@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from codigo.classificador import experimento as experimento_do_treino
 from codigo.classificador.avaliar import main as avaliar_modelo
 from codigo.classificador.experimento import (
     ARVORES_COM_34_CLASSES,
@@ -176,7 +177,7 @@ def test_metricas_em_formato_longo(experimento):
     linhas = ler_csv(pasta / "resultados" / "metricas_classificador.csv")
     assert list(linhas[0]) == [
         "execucao", "distribuicao", "classe", "precisao", "recall", "f1", "suporte",
-        "taxa_falso_positivo", "recall_maximo",
+        "taxa_falso_positivo", "recall_na_regra_do_teto",
     ]
     manifesto = ler_manifesto(pasta / "resultados")
     esperadas = sum(2 * len(ALVOS[execucao["alvo"]].classes) for execucao in manifesto["execucoes"])
@@ -315,6 +316,19 @@ def test_relatorio_tem_as_tabelas_e_as_tres_decisoes(experimento):
     # A última seção é a das decisões.
     assert relatorio.index("## O que os números dizem") > relatorio.index("## Custo de cada execução")
     assert "reponderad" in relatorio and "na amostra" in relatorio
+
+
+def test_relatorio_trata_o_teto_como_limite_do_conjunto_de_teste(experimento):
+    pasta, _ = experimento
+    relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
+    assert "limite por coincidência exata de vetores, calculado nas linhas de teste de cada execução" in relatorio
+    # O recall por classe na regra do teto não é apresentado como limite da classe.
+    assert "Recall na regra do teto" in relatorio and "não é um limite por classe" in relatorio
+    assert "ecall máximo" not in relatorio
+    # O teto do conjunto completo é citado como medida daquele conjunto, sem o valor e sem virar limite daqui.
+    assert "vale para o conjunto completo, na proporção natural das classes, e não é o limite destas execuções" in relatorio
+    assert not hasattr(experimento_do_treino, "TETO_NO_CONJUNTO")
+    assert not hasattr(experimento_do_treino, "RECALL_MAXIMO_DE_DOS_NO_CONJUNTO")
 
 
 def test_relatorio_mostra_para_onde_vai_o_trafego_benigno(experimento):

@@ -14,9 +14,12 @@ reúne vários rótulos muda, porque dentro dela os rótulos passam a pesar de o
 Taxa de falso positivo. A global é a fração do tráfego benigno classificada como algum ataque.
 A de cada classe é a fração das linhas das outras classes que o modelo pôs nela.
 
-Teto. Quem só vê as features dá a mesma resposta a todas as linhas com o mesmo vetor. A resposta
-que mais acerta é a classe de maior peso em cada vetor, e a acurácia dessa resposta é o limite
-que nenhum modelo passa naquele conjunto de linhas.
+Teto. Quem só vê as features dá a mesma resposta a todas as linhas com o mesmo vetor. A regra
+que mais acerta responde a classe de maior peso em cada vetor, e a acurácia dessa regra é o
+limite que nenhum modelo passa naquele conjunto de linhas. É um limite por coincidência exata de
+vetores e vale para o conjunto em que foi calculado: muda com o tamanho e com a mistura de
+classes dele. O recall de cada classe nessa regra também é medido, mas não é um limite da
+classe, porque a regra maximiza o acerto global e outra regra pode acertar mais numa classe.
 
 Uso, a partir da raiz do repositório:
     python -m codigo.classificador.avaliar modelos/rf_f39_estratificada_c8.joblib
@@ -142,10 +145,12 @@ def medir(confusao, benigno):
 
 
 def teto(grupos, rotulos, nome_do_alvo, populacao=None):
-    """Maior acurácia possível para quem só vê as features, e o recall de cada classe nesse caso.
+    """Maior acurácia possível, nestas linhas, para quem só vê as features.
 
     `grupos` diz quais linhas têm o mesmo vetor de features. Em cada grupo a resposta é a classe
-    de maior peso; no empate, a primeira na ordem das tabelas.
+    de maior peso; no empate, a primeira na ordem das tabelas. Devolve a acurácia dessa regra e o
+    recall de cada classe nela. O recall não é um limite da classe: a regra maximiza o acerto
+    global, e uma regra que desempatasse de outro modo acertaria mais numa classe e menos em outra.
     """
     classes = list(ALVOS[nome_do_alvo].classes)
     real = pd.Categorical(alvo(rotulos, nome_do_alvo), categories=classes).codes.astype(np.int64)
@@ -159,7 +164,7 @@ def teto(grupos, rotulos, nome_do_alvo, populacao=None):
     suporte = massa.sum(axis=0)
     return {
         "acuracia": float(acerto.sum() / suporte.sum()),
-        "recall": {
+        "recall_na_regra": {
             classe: float(acerto[i] / suporte[i]) if suporte[i] > 0 else None for i, classe in enumerate(classes)
         },
     }
@@ -169,7 +174,8 @@ def avaliar(previsto, rotulos, nome_do_alvo, grupos=None, populacao=None):
     """Mede as predições de um conjunto de linhas com rótulo conhecido.
 
     Devolve as medidas em `amostra` e, quando `populacao` é dada, também em `original`. Com
-    `grupos`, cada uma traz o teto. `matriz_por_rotulo` guarda a contagem de que tudo sai.
+    `grupos`, cada uma traz o teto destas linhas e, por classe, o recall na regra do teto.
+    `matriz_por_rotulo` guarda a contagem de que tudo sai.
     """
     definicao = ALVOS[nome_do_alvo]
     rotulos = np.asarray(rotulos, dtype=object)
@@ -189,7 +195,7 @@ def avaliar(previsto, rotulos, nome_do_alvo, grupos=None, populacao=None):
             limite = teto(grupos, rotulos, nome_do_alvo, contagens)
             medidas["teto"] = limite["acuracia"]
             for classe, medida in medidas["por_classe"].items():
-                medida["teto"] = limite["recall"][classe]
+                medida["recall_na_regra_do_teto"] = limite["recall_na_regra"][classe]
         resultado[nome] = medidas
     return resultado
 

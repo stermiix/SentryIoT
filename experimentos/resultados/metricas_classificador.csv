@@ -1,4 +1,4 @@
-execucao,distribuicao,classe,precisao,recall,f1,suporte,taxa_falso_positivo,recall_maximo
+execucao,distribuicao,classe,precisao,recall,f1,suporte,taxa_falso_positivo,recall_na_regra_do_teto
 f39_estratificada_c8,amostra,DDoS,0.878209,0.907445,0.892588,110000,0.093726,0.995891
 f39_estratificada_c8,amostra,DoS,0.720870,0.656100,0.686962,40000,0.046680,0.938250
 f39_estratificada_c8,amostra,Mirai,0.999365,0.996600,0.997981,30000,0.000083,1.000000

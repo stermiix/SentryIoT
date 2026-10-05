@@ -76,10 +76,8 @@ METRICAS = "metricas_classificador.csv"
 IMPORTANCIAS = "importancia_features.csv"
 MATRIZES = "matrizes_confusao"
 
-# Medidas do conjunto completo, de `experimentos/resultados/exploracao.md` (seções 2 e 8).
+# Linhas do conjunto completo que repetem o vetor de outra, de `experimentos/resultados/exploracao.md` (seção 8).
 LINHAS_REPETIDAS_NO_CONJUNTO = 0.5878
-TETO_NO_CONJUNTO = 0.9287  # 8 categorias, 39 features
-RECALL_MAXIMO_DE_DOS_NO_CONJUNTO = 0.6903
 
 NOME_DA_DIVISAO = {"estratificada": "sorteio estratificado", "grupos": "divisão por grupos"}
 NOME_DO_ALVO = {"34": "34 classes", "8": "8 categorias", "7": "7 categorias", "2": "ataque ou benigno"}
@@ -277,11 +275,11 @@ def gravar(manifesto, pasta):
     _gravar_csv(
         pasta / METRICAS,
         ["execucao", "distribuicao", "classe", "precisao", "recall", "f1", "suporte", "taxa_falso_positivo",
-         "recall_maximo"],
+         "recall_na_regra_do_teto"],
         [
             [
                 execucao["nome"], distribuicao, classe, _campo(m["precisao"]), _campo(m["recall"]), _campo(m["f1"]),
-                round(m["suporte"]), _campo(m["taxa_falso_positivo"]), _campo(m["teto"]),
+                round(m["suporte"]), _campo(m["taxa_falso_positivo"]), _campo(m["recall_na_regra_do_teto"]),
             ]
             for execucao in manifesto["execucoes"]
             for distribuicao in ("amostra", "original")
@@ -357,7 +355,7 @@ def _como_ler(m):
         "",
         (
             f"**Amostra e conjunto completo.** Todas as execuções usam a amostra de treino "
-            f"(`{m['amostra']['arquivo']}`, {_milhar(total)} linhas), que tem teto de linhas por classe. Nela, DDoS "
+            f"(`{m['amostra']['arquivo']}`, {_milhar(total)} linhas), que limita as linhas de cada classe. Nela, DDoS "
             f"e DoS somam {_pct(na_amostra / total, 1)} das linhas; no conjunto completo, de {_milhar(completo)} "
             f"linhas, somam {_pct(no_conjunto / completo, 1)}. Por isso cada medida aparece de duas formas:"
         ),
@@ -383,19 +381,27 @@ def _como_ler(m):
             f"A amostra tem {_milhar(distintos['39'])} vetores distintos com as 39 features e "
             f"{_milhar(distintos['33'])} com as 33. Com as 39, {_milhar(repetidas['39'])} linhas "
             f"({_pct(repetidas['39'] / total)}) repetem o vetor de outra linha. No conjunto completo são "
-            f"{_pct(LINHAS_REPETIDAS_NO_CONJUNTO)} (`exploracao.md`): o teto por classe retira da amostra a maior "
-            "parte das repetições das classes grandes."
+            f"{_pct(LINHAS_REPETIDAS_NO_CONJUNTO)} (`exploracao.md`): a amostra guarda uma fração pequena das "
+            "classes grandes, e a maior parte das repetições delas fica de fora."
         ),
         "",
         (
-            "**Teto.** É a maior acurácia possível nas linhas de teste para quem só vê as features da execução: em "
-            "cada vetor idêntico, a resposta é a classe de maior peso, e as linhas das outras classes são erro "
-            "certo. O teto é medido nas linhas de teste de cada execução, então depende da divisão: no sorteio de "
-            "linhas, parte das repetições de um vetor fica no treino e não conta. Como a amostra tem menos "
-            "repetições que o conjunto completo, o teto daqui é mais alto que o do dataset, que a exploração mediu "
-            f"em {_pct(TETO_NO_CONJUNTO)} para 8 categorias e 39 features, com recall de DoS de no máximo "
-            f"{_pct(RECALL_MAXIMO_DE_DOS_NO_CONJUNTO)}. A exploração não mediu o teto para 7 categorias nem para "
-            "33 features."
+            "**Teto.** É um limite por coincidência exata de vetores, calculado nas linhas de teste de cada "
+            "execução. Quem só vê as features dá a mesma resposta a todas as linhas com o mesmo vetor. A regra que "
+            "mais acerta responde, em cada vetor, a classe de maior peso, e as linhas das outras classes são erro "
+            "certo. A acurácia dessa regra é a maior possível naquelas linhas, e é com ela que a acurácia do modelo "
+            "na mesma execução se compara. O teto depende do tamanho e da mistura de classes do conjunto em que é "
+            "medido: com mais linhas, mais vetores se repetem com classes diferentes. Por isso ele muda com a "
+            "divisão. No sorteio de linhas, parte das repetições de um vetor fica no treino e não entra na conta. O "
+            "teto que a exploração mediu vale para o conjunto completo, na proporção natural das classes, e não é o "
+            "limite destas execuções."
+        ),
+        "",
+        (
+            "**Recall na regra do teto.** As tabelas por classe trazem o recall de cada classe na regra que dá o "
+            "teto. Ele não é um limite por classe: a regra maximiza o acerto global, e outra regra pode acertar "
+            "mais numa classe e menos em outra. No empate entre classes num vetor, a regra fica com a primeira na "
+            "ordem das tabelas."
         ),
         "",
         (
@@ -556,7 +562,8 @@ def _secao_por_classe(m):
         "",
         "Uma tabela para cada execução da grade. As colunas da esquerda são medidas na amostra, e as da direita",
         "são reponderadas. \"Falso positivo\" é a fração das linhas das outras classes que o modelo pôs na classe.",
-        "\"Recall máximo\" é o recall da classe na resposta que dá o teto. As mesmas medidas, com as execuções de",
+        "\"Recall na regra do teto\" é o recall da classe na regra de maior acerto global, e não um limite da",
+        "classe (ver \"Como ler os números\"). As mesmas medidas, com as execuções de",
         f"referência, estão em `{METRICAS}`, e as matrizes de confusão estão em `{MATRIZES}/`.",
     ]
     for e in m["execucoes"]:
@@ -569,8 +576,10 @@ def _secao_por_classe(m):
                 continue
             linhas.append([
                 classe, _milhar(a["suporte"]),
-                _pct(a["precisao"]), _pct(a["recall"]), _pct(a["f1"]), _pct(a["taxa_falso_positivo"]), _pct(a["teto"]),
-                _pct(o["precisao"]), _pct(o["recall"]), _pct(o["f1"]), _pct(o["taxa_falso_positivo"]), _pct(o["teto"]),
+                _pct(a["precisao"]), _pct(a["recall"]), _pct(a["f1"]), _pct(a["taxa_falso_positivo"]),
+                _pct(a["recall_na_regra_do_teto"]),
+                _pct(o["precisao"]), _pct(o["recall"]), _pct(o["f1"]), _pct(o["taxa_falso_positivo"]),
+                _pct(o["recall_na_regra_do_teto"]),
             ])
         texto += [
             "",
@@ -578,9 +587,10 @@ def _secao_por_classe(m):
             "",
             *_tabela(
                 [
-                    "Classe", "Linhas no teste", "Precisão", "Recall", "F1", "Falso positivo", "Recall máximo",
+                    "Classe", "Linhas no teste", "Precisão", "Recall", "F1", "Falso positivo",
+                    "Recall na regra do teto",
                     "Precisão (repond.)", "Recall (repond.)", "F1 (repond.)", "Falso positivo (repond.)",
-                    "Recall máximo (repond.)",
+                    "Recall na regra do teto (repond.)",
                 ],
                 linhas,
             ),
@@ -902,11 +912,10 @@ def _decisao_ddos_e_dos(m):
         "",
         "- O macro-F1 de 8 categorias e o de 7 são médias sobre conjuntos de classes diferentes e não se comparam",
         "  diretamente. Os dois estão na tabela das 10 execuções.",
-        (
-            f"- No conjunto completo, a exploração mediu o teto de {_pct(TETO_NO_CONJUNTO)} de acurácia para 8 "
-            f"categorias com as 39 features, e de {_pct(RECALL_MAXIMO_DE_DOS_NO_CONJUNTO)} para o recall de DoS. "
-            "O teto para 7 categorias no conjunto completo não foi medido."
-        ),
+        "- Os tetos desta seção são os das linhas de teste de cada execução. O teto que a exploração mediu no",
+        "  conjunto completo vale para aquele conjunto, na proporção natural das classes, e não se compara com",
+        "  eles. Nenhum deles limita o recall de DoS: o recall de uma categoria depende da regra, e a regra do",
+        "  teto maximiza o acerto global.",
         "- A terceira saída em análise, deixar o modelo dizer o tipo de flood e separar DDoS de DoS pela",
         "  quantidade de origens no alerta, não é medida aqui: as 39 features não trazem endereços de origem.",
     ]

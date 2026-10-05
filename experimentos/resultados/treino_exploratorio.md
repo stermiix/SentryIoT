@@ -9,7 +9,7 @@ os cenários do artigo do dataset. O relatório traz os números e não recomend
 
 ## Como ler os números
 
-**Amostra e conjunto completo.** Todas as execuções usam a amostra de treino (`dados/processed/amostra.csv.gz`, 1.288.479 linhas), que tem teto de linhas por classe. Nela, DDoS e DoS somam 58,2% das linhas; no conjunto completo, de 45.019.234 linhas, somam 89,5%. Por isso cada medida aparece de duas formas:
+**Amostra e conjunto completo.** Todas as execuções usam a amostra de treino (`dados/processed/amostra.csv.gz`, 1.288.479 linhas), que limita as linhas de cada classe. Nela, DDoS e DoS somam 58,2% das linhas; no conjunto completo, de 45.019.234 linhas, somam 89,5%. Por isso cada medida aparece de duas formas:
 
 - **na amostra**: calculada sobre as linhas de teste como elas são;
 - **reponderada**: cada linha de teste pesa a quantidade de linhas do seu rótulo no conjunto completo
@@ -21,9 +21,11 @@ proporções da amostra.
 
 O peso é por rótulo, entre os 34, e não por classe do alvo. O recall de um rótulo não muda com a ponderação. O de uma categoria que reúne vários rótulos muda, porque dentro dela os rótulos passam a pesar de outra forma. Na amostra, `DoS-HTTP_Flood` é 25,0% das linhas de DoS; no conjunto completo, 0,9%. A taxa de tráfego benigno classificado como ataque não muda, porque o tráfego benigno é um rótulo só.
 
-**Vetor idêntico.** Duas linhas têm o mesmo vetor quando são iguais em todas as features da execução, depois da conversão para ponto flutuante de 32 bits, que é como o scikit-learn as entrega às árvores. A amostra tem 1.140.373 vetores distintos com as 39 features e 1.140.354 com as 33. Com as 39, 206.815 linhas (16,05%) repetem o vetor de outra linha. No conjunto completo são 58,78% (`exploracao.md`): o teto por classe retira da amostra a maior parte das repetições das classes grandes.
+**Vetor idêntico.** Duas linhas têm o mesmo vetor quando são iguais em todas as features da execução, depois da conversão para ponto flutuante de 32 bits, que é como o scikit-learn as entrega às árvores. A amostra tem 1.140.373 vetores distintos com as 39 features e 1.140.354 com as 33. Com as 39, 206.815 linhas (16,05%) repetem o vetor de outra linha. No conjunto completo são 58,78% (`exploracao.md`): a amostra guarda uma fração pequena das classes grandes, e a maior parte das repetições delas fica de fora.
 
-**Teto.** É a maior acurácia possível nas linhas de teste para quem só vê as features da execução: em cada vetor idêntico, a resposta é a classe de maior peso, e as linhas das outras classes são erro certo. O teto é medido nas linhas de teste de cada execução, então depende da divisão: no sorteio de linhas, parte das repetições de um vetor fica no treino e não conta. Como a amostra tem menos repetições que o conjunto completo, o teto daqui é mais alto que o do dataset, que a exploração mediu em 92,87% para 8 categorias e 39 features, com recall de DoS de no máximo 69,03%. A exploração não mediu o teto para 7 categorias nem para 33 features.
+**Teto.** É um limite por coincidência exata de vetores, calculado nas linhas de teste de cada execução. Quem só vê as features dá a mesma resposta a todas as linhas com o mesmo vetor. A regra que mais acerta responde, em cada vetor, a classe de maior peso, e as linhas das outras classes são erro certo. A acurácia dessa regra é a maior possível naquelas linhas, e é com ela que a acurácia do modelo na mesma execução se compara. O teto depende do tamanho e da mistura de classes do conjunto em que é medido: com mais linhas, mais vetores se repetem com classes diferentes. Por isso ele muda com a divisão. No sorteio de linhas, parte das repetições de um vetor fica no treino e não entra na conta. O teto que a exploração mediu vale para o conjunto completo, na proporção natural das classes, e não é o limite destas execuções.
+
+**Recall na regra do teto.** As tabelas por classe trazem o recall de cada classe na regra que dá o teto. Ele não é um limite por classe: a regra maximiza o acerto global, e outra regra pode acertar mais numa classe e menos em outra. No empate entre classes num vetor, a regra fica com a primeira na ordem das tabelas.
 
 **Valores vazios e infinitos.** 49 linhas da amostra têm `Std` e `Variance` vazios ou `Rate` infinito. Elas são mantidas. O infinito entra como vazio, e o Random Forest do scikit-learn trata o vazio sem imputação.
 
@@ -102,12 +104,13 @@ As execuções de 34 classes e de ataque ou benigno servem de referência para o
 
 Uma tabela para cada execução da grade. As colunas da esquerda são medidas na amostra, e as da direita
 são reponderadas. "Falso positivo" é a fração das linhas das outras classes que o modelo pôs na classe.
-"Recall máximo" é o recall da classe na resposta que dá o teto. As mesmas medidas, com as execuções de
+"Recall na regra do teto" é o recall da classe na regra de maior acerto global, e não um limite da
+classe (ver "Como ler os números"). As mesmas medidas, com as execuções de
 referência, estão em `metricas_classificador.csv`, e as matrizes de confusão estão em `matrizes_confusao/`.
 
 ### `f39_estratificada_c8`: 39 features, sorteio estratificado, 8 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall máximo | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall máximo (repond.) |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | DDoS | 110.000 | 87,82% | 90,74% | 89,26% | 9,37% | 99,59% | 90,14% | 87,50% | 88,80% | 24,96% | 99,55% |
 | DoS | 40.000 | 72,09% | 65,61% | 68,70% | 4,67% | 93,83% | 53,31% | 59,88% | 56,40% | 10,90% | 91,87% |
@@ -120,7 +123,7 @@ referência, estão em `metricas_classificador.csv`, e as matrizes de confusão 
 
 ### `f39_estratificada_c7`: 39 features, sorteio estratificado, 7 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall máximo | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall máximo (repond.) |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | DDoS+DoS | 150.000 | 99,93% | 99,98% | 99,96% | 0,09% | 100,00% | 99,98% | 99,99% | 99,99% | 0,18% | 100,00% |
 | Mirai | 30.000 | 99,96% | 99,66% | 99,81% | 0,01% | 100,00% | 99,87% | 99,66% | 99,76% | 0,01% | 100,00% |
@@ -132,7 +135,7 @@ referência, estão em `metricas_classificador.csv`, e as matrizes de confusão 
 
 ### `f39_grupos_c8`: 39 features, divisão por grupos, 8 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall máximo | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall máximo (repond.) |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | DDoS | 110.134 | 87,78% | 90,86% | 89,29% | 9,42% | 98,48% | 90,10% | 87,72% | 88,89% | 25,13% | 98,64% |
 | DoS | 39.978 | 72,24% | 65,38% | 68,64% | 4,61% | 89,26% | 53,62% | 59,59% | 56,45% | 10,71% | 83,92% |
@@ -145,7 +148,7 @@ referência, estão em `metricas_classificador.csv`, e as matrizes de confusão 
 
 ### `f39_grupos_c7`: 39 features, divisão por grupos, 7 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall máximo | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall máximo (repond.) |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | DDoS+DoS | 150.112 | 99,92% | 99,98% | 99,95% | 0,11% | 100,00% | 99,98% | 99,99% | 99,98% | 0,21% | 100,00% |
 | Mirai | 30.012 | 99,93% | 99,61% | 99,77% | 0,01% | 100,00% | 99,89% | 99,60% | 99,75% | 0,01% | 100,00% |
@@ -157,7 +160,7 @@ referência, estão em `metricas_classificador.csv`, e as matrizes de confusão 
 
 ### `f33_estratificada_c8`: 33 features, sorteio estratificado, 8 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall máximo | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall máximo (repond.) |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | DDoS | 110.000 | 87,78% | 90,64% | 89,19% | 9,40% | 99,59% | 90,14% | 87,46% | 88,78% | 24,92% | 99,55% |
 | DoS | 40.000 | 71,71% | 65,25% | 68,33% | 4,73% | 93,83% | 53,23% | 59,90% | 56,37% | 10,94% | 91,87% |
@@ -170,7 +173,7 @@ referência, estão em `metricas_classificador.csv`, e as matrizes de confusão 
 
 ### `f33_estratificada_c7`: 33 features, sorteio estratificado, 7 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall máximo | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall máximo (repond.) |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | DDoS+DoS | 150.000 | 99,84% | 99,86% | 99,85% | 0,23% | 100,00% | 99,97% | 99,98% | 99,98% | 0,22% | 100,00% |
 | Mirai | 30.000 | 99,96% | 99,61% | 99,78% | 0,01% | 100,00% | 99,91% | 99,61% | 99,76% | 0,01% | 100,00% |
@@ -182,7 +185,7 @@ referência, estão em `metricas_classificador.csv`, e as matrizes de confusão 
 
 ### `f33_grupos_c8`: 33 features, divisão por grupos, 8 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall máximo | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall máximo (repond.) |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | DDoS | 110.134 | 87,63% | 90,82% | 89,20% | 9,55% | 98,48% | 90,00% | 87,75% | 88,86% | 25,42% | 98,64% |
 | DoS | 39.978 | 71,76% | 64,63% | 68,01% | 4,67% | 89,26% | 53,47% | 59,08% | 56,14% | 10,68% | 83,92% |
@@ -195,7 +198,7 @@ referência, estão em `metricas_classificador.csv`, e as matrizes de confusão 
 
 ### `f33_grupos_c7`: 33 features, divisão por grupos, 7 categorias
 
-| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall máximo | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall máximo (repond.) |
+| Classe | Linhas no teste | Precisão | Recall | F1 | Falso positivo | Recall na regra do teto | Precisão (repond.) | Recall (repond.) | F1 (repond.) | Falso positivo (repond.) | Recall na regra do teto (repond.) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | DDoS+DoS | 150.112 | 99,80% | 99,85% | 99,82% | 0,28% | 100,00% | 99,97% | 99,98% | 99,97% | 0,25% | 100,00% |
 | Mirai | 30.012 | 99,95% | 99,55% | 99,75% | 0,01% | 100,00% | 99,97% | 99,54% | 99,75% | 0,00% | 100,00% |
@@ -301,16 +304,16 @@ arquivo gravado com `joblib`, sem compressão.
 
 | Execução | Árvores | Treino (s) | Classificar o teste inteiro, um núcleo (s) | 1.000 janelas, um núcleo (ms) | 1.000 janelas, todos os núcleos (ms) | Modelo (MB) | Nós por árvore | Profundidade média |
 |---|---|---|---|---|---|---|---|---|
-| `f39_estratificada_c8` | 100 | 22,6 | 3,1 | 28,3 | 14,7 | 2.275,7 | 177.787 | 77,1 |
-| `f39_estratificada_c7` | 100 | 17,9 | 1,6 | 14,1 | 15,3 | 1.252,0 | 104.327 | 58,5 |
-| `f39_grupos_c8` | 100 | 23,0 | 3,0 | 28,9 | 11,8 | 2.277,6 | 177.931 | 76,1 |
-| `f39_grupos_c7` | 100 | 18,1 | 1,6 | 15,8 | 16,1 | 1.252,9 | 104.407 | 58,6 |
-| `f33_estratificada_c8` | 100 | 21,0 | 3,1 | 29,2 | 16,1 | 2.394,9 | 187.101 | 79,8 |
-| `f33_estratificada_c7` | 100 | 18,9 | 1,9 | 18,2 | 15,5 | 1.360,3 | 113.352 | 57,3 |
-| `f33_grupos_c8` | 100 | 21,0 | 3,5 | 32,4 | 13,1 | 2.397,0 | 187.263 | 77,4 |
-| `f33_grupos_c7` | 100 | 19,0 | 1,9 | 17,9 | 15,1 | 1.359,4 | 113.278 | 56,9 |
-| `f39_estratificada_c34` | 25 | 7,7 | 1,3 | 8,1 | 16,0 | 2.330,3 | 277.413 | 77,8 |
-| `f39_estratificada_c2` | 100 | 14,0 | 1,0 | 9,7 | 16,0 | 433,6 | 54.199 | 57,0 |
+| `f39_estratificada_c8` | 100 | 21,0 | 3,7 | 39,5 | 16,0 | 2.275,7 | 177.787 | 77,1 |
+| `f39_estratificada_c7` | 100 | 18,5 | 1,7 | 15,5 | 16,0 | 1.252,0 | 104.327 | 58,5 |
+| `f39_grupos_c8` | 100 | 22,4 | 3,0 | 29,3 | 13,2 | 2.277,6 | 177.931 | 76,1 |
+| `f39_grupos_c7` | 100 | 17,8 | 1,6 | 15,2 | 16,2 | 1.252,9 | 104.407 | 58,6 |
+| `f33_estratificada_c8` | 100 | 20,0 | 3,1 | 30,1 | 13,7 | 2.394,9 | 187.101 | 79,8 |
+| `f33_estratificada_c7` | 100 | 18,8 | 1,9 | 18,1 | 16,1 | 1.360,3 | 113.352 | 57,3 |
+| `f33_grupos_c8` | 100 | 20,7 | 3,1 | 30,3 | 16,0 | 2.397,0 | 187.263 | 77,4 |
+| `f33_grupos_c7` | 100 | 18,9 | 1,9 | 18,1 | 15,6 | 1.359,4 | 113.278 | 56,9 |
+| `f39_estratificada_c34` | 25 | 7,3 | 1,2 | 7,5 | 16,0 | 2.330,3 | 277.413 | 77,8 |
+| `f39_estratificada_c2` | 100 | 16,2 | 1,1 | 11,8 | 13,6 | 433,6 | 54.199 | 57,0 |
 
 A execução de 34 classes usa 25 árvores, e não 100. Com 34 classes cada nó guarda 34 contagens e as árvores têm mais nós, e a floresta de 100 árvores não caberia na memória da máquina usada. As medidas dessa execução não são diretamente comparáveis às das outras.
 
@@ -444,14 +447,17 @@ Custo do modelo:
 
 | Features e divisão | Modelo de 8 (MB) | Modelo de 7 (MB) | Nós por árvore, 8 | Nós por árvore, 7 | Treino de 8 (s) | Treino de 7 (s) |
 |---|---|---|---|---|---|---|
-| 39 features, sorteio estratificado | 2.275,7 | 1.252,0 | 177.787 | 104.327 | 22,6 | 17,9 |
-| 39 features, divisão por grupos | 2.277,6 | 1.252,9 | 177.931 | 104.407 | 23,0 | 18,1 |
-| 33 features, sorteio estratificado | 2.394,9 | 1.360,3 | 187.101 | 113.352 | 21,0 | 18,9 |
-| 33 features, divisão por grupos | 2.397,0 | 1.359,4 | 187.263 | 113.278 | 21,0 | 19,0 |
+| 39 features, sorteio estratificado | 2.275,7 | 1.252,0 | 177.787 | 104.327 | 21,0 | 18,5 |
+| 39 features, divisão por grupos | 2.277,6 | 1.252,9 | 177.931 | 104.407 | 22,4 | 17,8 |
+| 33 features, sorteio estratificado | 2.394,9 | 1.360,3 | 187.101 | 113.352 | 20,0 | 18,8 |
+| 33 features, divisão por grupos | 2.397,0 | 1.359,4 | 187.263 | 113.278 | 20,7 | 18,9 |
 
 - O macro-F1 de 8 categorias e o de 7 são médias sobre conjuntos de classes diferentes e não se comparam
   diretamente. Os dois estão na tabela das 10 execuções.
-- No conjunto completo, a exploração mediu o teto de 92,87% de acurácia para 8 categorias com as 39 features, e de 69,03% para o recall de DoS. O teto para 7 categorias no conjunto completo não foi medido.
+- Os tetos desta seção são os das linhas de teste de cada execução. O teto que a exploração mediu no
+  conjunto completo vale para aquele conjunto, na proporção natural das classes, e não se compara com
+  eles. Nenhum deles limita o recall de DoS: o recall de uma categoria depende da regra, e a regra do
+  teto maximiza o acerto global.
 - A terceira saída em análise, deixar o modelo dizer o tipo de flood e separar DDoS de DoS pela
   quantidade de origens no alerta, não é medida aqui: as 39 features não trazem endereços de origem.
 

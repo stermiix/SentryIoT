@@ -224,11 +224,11 @@
       "arvores": 100,
       "linhas_de_treino": 1030783,
       "linhas_de_teste": 257696,
-      "treino_segundos": 22.59928841600049,
-      "teste_segundos": 3.0782096659968374,
+      "treino_segundos": 21.001870624997537,
+      "teste_segundos": 3.651526665998972,
       "inferencia_ms_por_mil_janelas": {
-        "um_nucleo": 28.348917003313545,
-        "todos_os_nucleos": 14.663334004580975
+        "um_nucleo": 39.45387499697972,
+        "todos_os_nucleos": 15.973583002050873
       },
       "modelo_bytes": 2275715558,
       "nos_por_arvore": 177786.72,
@@ -245,7 +245,7 @@
             "f1": 0.8925879228478687,
             "suporte": 110000,
             "taxa_falso_positivo": 0.09372630267576644,
-            "teto": 0.995890909090909
+            "recall_na_regra_do_teto": 0.995890909090909
           },
           "DoS": {
             "precisao": 0.7208701862330386,
@@ -253,7 +253,7 @@
             "f1": 0.6869617569300841,
             "suporte": 40000,
             "taxa_falso_positivo": 0.0466797736292812,
-            "teto": 0.93825
+            "recall_na_regra_do_teto": 0.93825
           },
           "Mirai": {
             "precisao": 0.9993649095831801,
@@ -261,7 +261,7 @@
             "f1": 0.9979805397466496,
             "suporte": 30000,
             "taxa_falso_positivo": 8.344459279038718e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.7784221031620968,
@@ -269,7 +269,7 @@
             "f1": 0.8417644586320105,
             "suporte": 40432,
             "taxa_falso_positivo": 0.04854002503866264,
-            "teto": 0.9987386228729719
+            "recall_na_regra_do_teto": 0.9987386228729719
           },
           "Spoofing": {
             "precisao": 0.9306146635780854,
@@ -277,7 +277,7 @@
             "f1": 0.8959365194616602,
             "suporte": 20000,
             "taxa_falso_positivo": 0.00541868605277329,
-            "teto": 0.99915
+            "recall_na_regra_do_teto": 0.99915
           },
           "Web": {
             "precisao": 0.6962474645030426,
@@ -285,7 +285,7 @@
             "f1": 0.4079025549613785,
             "suporte": 4760,
             "taxa_falso_positivo": 0.002368188000126514,
-            "teto": 0.994327731092437
+            "recall_na_regra_do_teto": 0.994327731092437
           },
           "BruteForce": {
             "precisao": 0.7994296577946768,
@@ -293,7 +293,7 @@
             "f1": 0.47300337457817776,
             "suporte": 2504,
             "taxa_falso_positivo": 0.0008268284272234239,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Benign": {
             "precisao": 0.631023566654942,
@@ -301,7 +301,7 @@
             "f1": 0.5809271952075126,
             "suporte": 10000,
             "taxa_falso_positivo": 0.01270509011045798,
-            "teto": 0.9981
+            "recall_na_regra_do_teto": 0.9981
           }
         },
         "teto": 0.9882186762697132
@@ -318,7 +318,7 @@
             "f1": 0.888014103759849,
             "suporte": 32536197,
             "taxa_falso_positivo": 0.24956748429088194,
-            "teto": 0.9955302222321676
+            "recall_na_regra_do_teto": 0.9955302222321676
           },
           "DoS": {
             "precisao": 0.5331276972271873,
@@ -326,7 +326,7 @@
             "f1": 0.5640496932960989,
             "suporte": 7746554,
             "taxa_falso_positivo": 0.10898124646675585,
-            "teto": 0.9186768472407285
+            "recall_na_regra_do_teto": 0.9186768472407285
           },
           "Mirai": {
             "precisao": 0.9981912739705446,
@@ -334,7 +334,7 @@
             "f1": 0.9973738652005716,
             "suporte": 2521731,
             "taxa_falso_positivo": 0.00010715115426899411,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.544753911810366,
@@ -342,7 +342,7 @@
             "f1": 0.685994363035309,
             "suporte": 661121,
             "taxa_falso_positivo": 0.011534974333966958,
-            "teto": 0.9985837013194262
+            "recall_na_regra_do_teto": 0.9985837013194262
           },
           "Spoofing": {
             "precisao": 0.8984771300499507,
@@ -350,7 +350,7 @@
             "f1": 0.8805311472861285,
             "suporte": 465937,
             "taxa_falso_positivo": 0.0010201403522164707,
-            "teto": 0.9990416082002498
+            "recall_na_regra_do_teto": 0.9990416082002498
           },
           "Web": {
             "precisao": 0.29749687542766445,
@@ -358,7 +358,7 @@
             "f1": 0.2928870528257848,
             "suporte": 23799,
             "taxa_falso_positivo": 0.0003602287194604865,
-            "teto": 0.9943281748714752
+            "recall_na_regra_do_teto": 0.9943281748714752
           },
           "BruteForce": {
             "precisao": 0.4138713122030625,
@@ -366,7 +366,7 @@
             "f1": 0.37080862221910027,
             "suporte": 12522,
             "taxa_falso_positivo": 0.0001323383570186788,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Benign": {
             "precisao": 0.927404583289339,
@@ -374,7 +374,7 @@
             "f1": 0.6811238889634182,
             "suporte": 1051373,
             "taxa_falso_positivo": 0.001007407407325965,
-            "teto": 0.9988999999999991
+            "recall_na_regra_do_teto": 0.9988999999999991
           }
         },
         "teto": 0.9827167616097868
@@ -810,7 +810,7 @@
         "SMTP": 2.1305155119177597e-05,
         "Telnet": 1.6757134268517334e-05
       },
-      "duracao_segundos": 26.78680183400138
+      "duracao_segundos": 25.812338541996724
     },
     {
       "nome": "f39_estratificada_c7",
@@ -820,11 +820,11 @@
       "arvores": 100,
       "linhas_de_treino": 1030783,
       "linhas_de_teste": 257696,
-      "treino_segundos": 17.868321125002694,
-      "teste_segundos": 1.6236405840027146,
+      "treino_segundos": 18.470398790996114,
+      "teste_segundos": 1.7081041659985203,
       "inferencia_ms_por_mil_janelas": {
-        "um_nucleo": 14.065625000512227,
-        "todos_os_nucleos": 15.342208003858104
+        "um_nucleo": 15.502250003919471,
+        "todos_os_nucleos": 15.999291994376108
       },
       "modelo_bytes": 1251975358,
       "nos_por_arvore": 104327.42,
@@ -841,7 +841,7 @@
             "f1": 0.9995834402503356,
             "suporte": 150000,
             "taxa_falso_positivo": 0.0009378249888575249,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Mirai": {
             "precisao": 0.9995653918159936,
@@ -849,7 +849,7 @@
             "f1": 0.9980972092402189,
             "suporte": 30000,
             "taxa_falso_positivo": 5.7093668751317544e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.7779809187576178,
@@ -857,7 +857,7 @@
             "f1": 0.8412142970755982,
             "suporte": 40432,
             "taxa_falso_positivo": 0.048627476250092054,
-            "teto": 0.9987386228729719
+            "recall_na_regra_do_teto": 0.9987386228729719
           },
           "Spoofing": {
             "precisao": 0.9308470562910344,
@@ -865,7 +865,7 @@
             "f1": 0.8966357368721166,
             "suporte": 20000,
             "taxa_falso_positivo": 0.005406064889606893,
-            "teto": 0.99915
+            "recall_na_regra_do_teto": 0.99915
           },
           "Web": {
             "precisao": 0.6844241501775749,
@@ -873,7 +873,7 @@
             "f1": 0.40083197147526367,
             "suporte": 4760,
             "taxa_falso_positivo": 0.0024591200936205206,
-            "teto": 0.994327731092437
+            "recall_na_regra_do_teto": 0.994327731092437
           },
           "BruteForce": {
             "precisao": 0.7939508506616257,
@@ -881,7 +881,7 @@
             "f1": 0.47164514317798995,
             "suporte": 2504,
             "taxa_falso_positivo": 0.0008542587541929214,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Benign": {
             "precisao": 0.6300822561692127,
@@ -889,7 +889,7 @@
             "f1": 0.5793625067531064,
             "suporte": 10000,
             "taxa_falso_positivo": 0.01270912731735676,
-            "teto": 0.9981
+            "recall_na_regra_do_teto": 0.9981
           }
         },
         "teto": 0.9995576182789023
@@ -906,7 +906,7 @@
             "f1": 0.9998504556124816,
             "suporte": 40282751,
             "taxa_falso_positivo": 0.0018291980990959953,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Mirai": {
             "precisao": 0.9987375426238262,
@@ -914,7 +914,7 @@
             "f1": 0.9976497269555643,
             "suporte": 2521731,
             "taxa_falso_positivo": 7.474910702400934e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.5437733493531324,
@@ -922,7 +922,7 @@
             "f1": 0.6849767766890069,
             "suporte": 661121,
             "taxa_falso_positivo": 0.011569725754105238,
-            "teto": 0.9985837013194262
+            "recall_na_regra_do_teto": 0.9985837013194262
           },
           "Spoofing": {
             "precisao": 0.8989109977681222,
@@ -930,7 +930,7 @@
             "f1": 0.8813664362430125,
             "suporte": 465937.00000000006,
             "taxa_falso_positivo": 0.0010167082767796498,
-            "teto": 0.9990416082002498
+            "recall_na_regra_do_teto": 0.9990416082002498
           },
           "Web": {
             "precisao": 0.28282923645881086,
@@ -938,7 +938,7 @@
             "f1": 0.2831016671338074,
             "suporte": 23799.000000000004,
             "taxa_falso_positivo": 0.00038005765585478253,
-            "teto": 0.9943281748714752
+            "recall_na_regra_do_teto": 0.9943281748714752
           },
           "BruteForce": {
             "precisao": 0.41363434556847983,
@@ -946,7 +946,7 @@
             "f1": 0.37047008214577465,
             "suporte": 12522,
             "taxa_falso_positivo": 0.00013231019397022845,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Benign": {
             "precisao": 0.9272773299247592,
@@ -954,7 +954,7 @@
             "f1": 0.6794858986045494,
             "suporte": 1051373,
             "taxa_falso_positivo": 0.0010055611017574665,
-            "teto": 0.9988999999999991
+            "recall_na_regra_do_teto": 0.9988999999999991
           }
         },
         "teto": 0.9999405945230823
@@ -1355,7 +1355,7 @@
         "Telnet": 7.880202368423699e-07,
         "SMTP": 7.320504555880875e-07
       },
-      "duracao_segundos": 20.074621208004828
+      "duracao_segundos": 21.00575312499859
     },
     {
       "nome": "f39_grupos_c8",
@@ -1365,11 +1365,11 @@
       "arvores": 100,
       "linhas_de_treino": 1030491,
       "linhas_de_teste": 257988,
-      "treino_segundos": 22.99404825000238,
-      "teste_segundos": 3.0341732919987408,
+      "treino_segundos": 22.372589375001553,
+      "teste_segundos": 3.011764041999413,
       "inferencia_ms_por_mil_janelas": {
-        "um_nucleo": 28.87149999878602,
-        "todos_os_nucleos": 11.755415995139629
+        "um_nucleo": 29.34491699852515,
+        "todos_os_nucleos": 13.194833998568356
       },
       "modelo_bytes": 2277564895,
       "nos_por_arvore": 177931.2,
@@ -1386,7 +1386,7 @@
             "f1": 0.8929280491123812,
             "suporte": 110134,
             "taxa_falso_positivo": 0.09424838015880531,
-            "teto": 0.9847821744420433
+            "recall_na_regra_do_teto": 0.9847821744420433
           },
           "DoS": {
             "precisao": 0.7223911120937431,
@@ -1394,7 +1394,7 @@
             "f1": 0.6864052939786245,
             "suporte": 39978,
             "taxa_falso_positivo": 0.0460758680794459,
-            "teto": 0.8925909250087548
+            "recall_na_regra_do_teto": 0.8925909250087548
           },
           "Mirai": {
             "precisao": 0.9992647796009758,
@@ -1402,7 +1402,7 @@
             "f1": 0.9977809293401184,
             "suporte": 30012,
             "taxa_falso_positivo": 9.650138611081868e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.7796267430593589,
@@ -1410,7 +1410,7 @@
             "f1": 0.8420717349016574,
             "suporte": 40433,
             "taxa_falso_positivo": 0.04808898899128956,
-            "teto": 0.9986397249771226
+            "recall_na_regra_do_teto": 0.9986397249771226
           },
           "Spoofing": {
             "precisao": 0.9347233360064154,
@@ -1418,7 +1418,7 @@
             "f1": 0.8995909546963032,
             "suporte": 20166,
             "taxa_falso_positivo": 0.005134091883845901,
-            "teto": 0.9995041158385402
+            "recall_na_regra_do_teto": 0.9995041158385402
           },
           "Web": {
             "precisao": 0.7145877378435518,
@@ -1426,7 +1426,7 @@
             "f1": 0.40692249811888637,
             "suporte": 4753,
             "taxa_falso_positivo": 0.002132406657847454,
-            "teto": 0.9945297706711551
+            "recall_na_regra_do_teto": 0.9945297706711551
           },
           "BruteForce": {
             "precisao": 0.7752707581227437,
@@ -1434,7 +1434,7 @@
             "f1": 0.4755051203985607,
             "suporte": 2505,
             "taxa_falso_positivo": 0.0009746245347048532,
-            "teto": 0.9988023952095808
+            "recall_na_regra_do_teto": 0.9988023952095808
           },
           "Benign": {
             "precisao": 0.6324019776934575,
@@ -1442,7 +1442,7 @@
             "f1": 0.588109495295124,
             "suporte": 10007,
             "taxa_falso_positivo": 0.01289211673474984,
-            "teto": 0.997501748775857
+            "recall_na_regra_do_teto": 0.997501748775857
           }
         },
         "teto": 0.9763981270446688
@@ -1459,7 +1459,7 @@
             "f1": 0.8889264853976176,
             "suporte": 32536197,
             "taxa_falso_positivo": 0.2513204155261439,
-            "teto": 0.9864304362405595
+            "recall_na_regra_do_teto": 0.9864304362405595
           },
           "DoS": {
             "precisao": 0.5361868481138564,
@@ -1467,7 +1467,7 @@
             "f1": 0.5644899303918905,
             "suporte": 7746554.000000001,
             "taxa_falso_positivo": 0.10714030029522063,
-            "teto": 0.8392267458560155
+            "recall_na_regra_do_teto": 0.8392267458560155
           },
           "Mirai": {
             "precisao": 0.9986933394936172,
@@ -1475,7 +1475,7 @@
             "f1": 0.9974610517463277,
             "suporte": 2521731.0000000005,
             "taxa_falso_positivo": 7.734395150288279e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.5474191643815819,
@@ -1483,7 +1483,7 @@
             "f1": 0.687534856884322,
             "suporte": 661121,
             "taxa_falso_positivo": 0.011386248515524352,
-            "teto": 0.998539125732731
+            "recall_na_regra_do_teto": 0.998539125732731
           },
           "Spoofing": {
             "precisao": 0.9092456123271442,
@@ -1491,7 +1491,7 @@
             "f1": 0.8875977298971479,
             "suporte": 465937,
             "taxa_falso_positivo": 0.000904963721751614,
-            "teto": 0.9994880331043791
+            "recall_na_regra_do_teto": 0.9994880331043791
           },
           "Web": {
             "precisao": 0.3214158262521844,
@@ -1499,7 +1499,7 @@
             "f1": 0.30183846690330324,
             "suporte": 23799,
             "taxa_falso_positivo": 0.0003177041347839043,
-            "teto": 0.9945195930804706
+            "recall_na_regra_do_teto": 0.9945195930804706
           },
           "BruteForce": {
             "precisao": 0.3759572262580618,
@@ -1507,7 +1507,7 @@
             "f1": 0.358676283948962,
             "suporte": 12522,
             "taxa_falso_positivo": 0.0001583644761159516,
-            "teto": 0.9988023952095807
+            "recall_na_regra_do_teto": 0.9988023952095807
           },
           "Benign": {
             "precisao": 0.9277234302939659,
@@ -1515,7 +1515,7 @@
             "f1": 0.6902830923250928,
             "suporte": 1051373,
             "taxa_falso_positivo": 0.001023904092389624,
-            "teto": 0.9978015389227564
+            "recall_na_regra_do_teto": 0.9978015389227564
           }
         },
         "teto": 0.9624471202493424
@@ -1951,7 +1951,7 @@
         "SMTP": 2.141075599307239e-05,
         "Telnet": 1.7143752620843124e-05
       },
-      "duracao_segundos": 27.072877500002505
+      "duracao_segundos": 26.495112249998783
     },
     {
       "nome": "f39_grupos_c7",
@@ -1961,11 +1961,11 @@
       "arvores": 100,
       "linhas_de_treino": 1030491,
       "linhas_de_teste": 257988,
-      "treino_segundos": 18.097288375000062,
-      "teste_segundos": 1.5661506250035018,
+      "treino_segundos": 17.78699583299749,
+      "teste_segundos": 1.5694315000000643,
       "inferencia_ms_por_mil_janelas": {
-        "um_nucleo": 15.832332996069454,
-        "todos_os_nucleos": 16.11587499792222
+        "um_nucleo": 15.199583001958672,
+        "todos_os_nucleos": 16.215832998568658
       },
       "modelo_bytes": 1252930071,
       "nos_por_arvore": 104406.98,
@@ -1982,7 +1982,7 @@
             "f1": 0.9995138292275213,
             "suporte": 150112,
             "taxa_falso_positivo": 0.001056768882791353,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Mirai": {
             "precisao": 0.9992646567283909,
@@ -1990,7 +1990,7 @@
             "f1": 0.9976973135324545,
             "suporte": 30012,
             "taxa_falso_positivo": 9.650138611081868e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.7792380109938712,
@@ -1998,7 +1998,7 @@
             "f1": 0.8417089428304935,
             "suporte": 40433,
             "taxa_falso_positivo": 0.048180919767415134,
-            "teto": 0.9986397249771226
+            "recall_na_regra_do_teto": 0.9986397249771226
           },
           "Spoofing": {
             "precisao": 0.9339859840582037,
@@ -2006,7 +2006,7 @@
             "f1": 0.8985820530636404,
             "suporte": 20166,
             "taxa_falso_positivo": 0.00518875461479594,
-            "teto": 0.9995041158385402
+            "recall_na_regra_do_teto": 0.9995041158385402
           },
           "Web": {
             "precisao": 0.7117306680694372,
@@ -2014,7 +2014,7 @@
             "f1": 0.40667267808836793,
             "suporte": 4753,
             "taxa_falso_positivo": 0.002163997867593342,
-            "teto": 0.9945297706711551
+            "recall_na_regra_do_teto": 0.9945297706711551
           },
           "BruteForce": {
             "precisao": 0.7948003714020427,
@@ -2022,7 +2022,7 @@
             "f1": 0.4779452819653824,
             "suporte": 2505,
             "taxa_falso_positivo": 0.0008650282014850303,
-            "teto": 0.9988023952095808
+            "recall_na_regra_do_teto": 0.9988023952095808
           },
           "Benign": {
             "precisao": 0.6299862448418156,
@@ -2030,7 +2030,7 @@
             "f1": 0.5868346591212428,
             "suporte": 10007,
             "taxa_falso_positivo": 0.013017126312096491,
-            "teto": 0.997501748775857
+            "recall_na_regra_do_teto": 0.997501748775857
           }
         },
         "teto": 0.9995387382358869
@@ -2047,7 +2047,7 @@
             "f1": 0.9998349306360655,
             "suporte": 40282751.00000001,
             "taxa_falso_positivo": 0.00208384934475438,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Mirai": {
             "precisao": 0.998918559062868,
@@ -2055,7 +2055,7 @@
             "f1": 0.9974716477537463,
             "suporte": 2521731,
             "taxa_falso_positivo": 6.398527146985986e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.5478268847855032,
@@ -2063,7 +2063,7 @@
             "f1": 0.6878722977943337,
             "suporte": 661121,
             "taxa_falso_positivo": 0.011368232765846602,
-            "teto": 0.998539125732731
+            "recall_na_regra_do_teto": 0.998539125732731
           },
           "Spoofing": {
             "precisao": 0.905430748183488,
@@ -2071,7 +2071,7 @@
             "f1": 0.8851765182322865,
             "suporte": 465937,
             "taxa_falso_positivo": 0.0009457230468684671,
-            "teto": 0.9994880331043791
+            "recall_na_regra_do_teto": 0.9994880331043791
           },
           "Web": {
             "precisao": 0.31120880148599783,
@@ -2079,7 +2079,7 @@
             "f1": 0.29737666019553083,
             "suporte": 23799,
             "taxa_falso_positivo": 0.00033330870317663773,
-            "teto": 0.9945195930804706
+            "recall_na_regra_do_teto": 0.9945195930804706
           },
           "BruteForce": {
             "precisao": 0.40748071631084215,
@@ -2087,7 +2087,7 @@
             "f1": 0.3717122701018432,
             "suporte": 12522.000000000002,
             "taxa_falso_positivo": 0.00013824768757907794,
-            "teto": 0.9988023952095807
+            "recall_na_regra_do_teto": 0.9988023952095807
           },
           "Benign": {
             "precisao": 0.927505536731487,
@@ -2095,7 +2095,7 @@
             "f1": 0.6899074815763847,
             "suporte": 1051373,
             "taxa_falso_positivo": 0.0010264850628796634,
-            "teto": 0.9978015389227564
+            "recall_na_regra_do_teto": 0.9978015389227564
           }
         },
         "teto": 0.9999186750666275
@@ -2496,7 +2496,7 @@
         "SMTP": 8.852749158250696e-07,
         "Telnet": 7.19660063988769e-07
       },
-      "duracao_segundos": 20.27515712499735
+      "duracao_segundos": 19.955437541997526
     },
     {
       "nome": "f33_estratificada_c8",
@@ -2506,11 +2506,11 @@
       "arvores": 100,
       "linhas_de_treino": 1030783,
       "linhas_de_teste": 257696,
-      "treino_segundos": 21.00098729099409,
-      "teste_segundos": 3.127184083001339,
+      "treino_segundos": 19.994072250003228,
+      "teste_segundos": 3.06519895800011,
       "inferencia_ms_por_mil_janelas": {
-        "um_nucleo": 29.232875000161584,
-        "todos_os_nucleos": 16.08870799827855
+        "um_nucleo": 30.107291997410357,
+        "todos_os_nucleos": 13.67345899780048
       },
       "modelo_bytes": 2394943651,
       "nos_por_arvore": 187101.42,
@@ -2527,7 +2527,7 @@
             "f1": 0.891903375419859,
             "suporte": 110000,
             "taxa_falso_positivo": 0.09396327591810205,
-            "teto": 0.995890909090909
+            "recall_na_regra_do_teto": 0.995890909090909
           },
           "DoS": {
             "precisao": 0.7171434066990905,
@@ -2535,7 +2535,7 @@
             "f1": 0.6832824997054705,
             "suporte": 40000,
             "taxa_falso_positivo": 0.04728612376892547,
-            "teto": 0.93825
+            "recall_na_regra_do_teto": 0.93825
           },
           "Mirai": {
             "precisao": 0.9993646122462629,
@@ -2543,7 +2543,7 @@
             "f1": 0.9977463566098526,
             "suporte": 30000,
             "taxa_falso_positivo": 8.344459279038718e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.7731863903469333,
@@ -2551,7 +2551,7 @@
             "f1": 0.8379055194841984,
             "suporte": 40432,
             "taxa_falso_positivo": 0.04992083364017969,
-            "teto": 0.9986891571032845
+            "recall_na_regra_do_teto": 0.9986891571032845
           },
           "Spoofing": {
             "precisao": 0.9304141756880487,
@@ -2559,7 +2559,7 @@
             "f1": 0.8958435968574169,
             "suporte": 20000,
             "taxa_falso_positivo": 0.005435514270328487,
-            "teto": 0.99915
+            "recall_na_regra_do_teto": 0.99915
           },
           "Web": {
             "precisao": 0.6958333333333333,
@@ -2567,7 +2567,7 @@
             "f1": 0.4,
             "suporte": 4760,
             "taxa_falso_positivo": 0.0023088844608912928,
-            "teto": 0.994327731092437
+            "recall_na_regra_do_teto": 0.994327731092437
           },
           "BruteForce": {
             "precisao": 0.7913043478260869,
@@ -2575,7 +2575,7 @@
             "f1": 0.4628426109070359,
             "suporte": 2504,
             "taxa_falso_positivo": 0.0008464215179159222,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Benign": {
             "precisao": 0.6281869688385269,
@@ -2583,7 +2583,7 @@
             "f1": 0.5762234733650932,
             "suporte": 10000,
             "taxa_falso_positivo": 0.012717201731154319,
-            "teto": 0.9981
+            "recall_na_regra_do_teto": 0.9981
           }
         },
         "teto": 0.9882109151868869
@@ -2600,7 +2600,7 @@
             "f1": 0.8878022135675663,
             "suporte": 32536197.000000004,
             "taxa_falso_positivo": 0.24920377604174715,
-            "teto": 0.9955302222321676
+            "recall_na_regra_do_teto": 0.9955302222321676
           },
           "DoS": {
             "precisao": 0.5323255019761449,
@@ -2608,7 +2608,7 @@
             "f1": 0.5636956161608412,
             "suporte": 7746554,
             "taxa_falso_positivo": 0.10937227006543304,
-            "teto": 0.9186750709928639
+            "recall_na_regra_do_teto": 0.9186750709928639
           },
           "Mirai": {
             "precisao": 0.9986998580004712,
@@ -2616,7 +2616,7 @@
             "f1": 0.9974046067721217,
             "suporte": 2521730.9999999995,
             "taxa_falso_positivo": 7.694840565103446e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.5384329734707203,
@@ -2624,7 +2624,7 @@
             "f1": 0.6806410110308027,
             "suporte": 661121.0000000001,
             "taxa_falso_positivo": 0.011817319432980393,
-            "teto": 0.9985837013194262
+            "recall_na_regra_do_teto": 0.9985837013194262
           },
           "Spoofing": {
             "precisao": 0.8954823197174878,
@@ -2632,7 +2632,7 @@
             "f1": 0.8790905134824827,
             "suporte": 465937,
             "taxa_falso_positivo": 0.0010537456963822097,
-            "teto": 0.9990416082002498
+            "recall_na_regra_do_teto": 0.9990416082002498
           },
           "Web": {
             "precisao": 0.2986036722609391,
@@ -2640,7 +2640,7 @@
             "f1": 0.28934671262141576,
             "suporte": 23799,
             "taxa_falso_positivo": 0.000348672855168685,
-            "teto": 0.9943281748714752
+            "recall_na_regra_do_teto": 0.9943281748714752
           },
           "BruteForce": {
             "precisao": 0.3997308061957733,
@@ -2648,7 +2648,7 @@
             "f1": 0.3597723657981742,
             "suporte": 12522,
             "taxa_falso_positivo": 0.0001366546538671262,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Benign": {
             "precisao": 0.9262844412950937,
@@ -2656,7 +2656,7 @@
             "f1": 0.6760011498230403,
             "suporte": 1051373,
             "taxa_falso_positivo": 0.0010127707365645206,
-            "teto": 0.9988999999999991
+            "recall_na_regra_do_teto": 0.9988999999999991
           }
         },
         "teto": 0.9827164559670919
@@ -3086,7 +3086,7 @@
         "SMTP": 2.5078888959396572e-05,
         "Telnet": 2.14447075628031e-05
       },
-      "duracao_segundos": 25.21886537499813
+      "duracao_segundos": 24.044490708998637
     },
     {
       "nome": "f33_estratificada_c7",
@@ -3096,11 +3096,11 @@
       "arvores": 100,
       "linhas_de_treino": 1030783,
       "linhas_de_teste": 257696,
-      "treino_segundos": 18.85956887499924,
-      "teste_segundos": 1.8885356669998146,
+      "treino_segundos": 18.782286790999933,
+      "teste_segundos": 1.879724582999188,
       "inferencia_ms_por_mil_janelas": {
-        "um_nucleo": 18.182249994424637,
-        "todos_os_nucleos": 15.534999998635612
+        "um_nucleo": 18.138874998840038,
+        "todos_os_nucleos": 16.05879199632909
       },
       "modelo_bytes": 1360270731,
       "nos_por_arvore": 113352.04,
@@ -3117,7 +3117,7 @@
             "f1": 0.9984868280716724,
             "suporte": 150000,
             "taxa_falso_positivo": 0.002256351210815629,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Mirai": {
             "precisao": 0.9995651592186245,
@@ -3125,7 +3125,7 @@
             "f1": 0.9978295712568452,
             "suporte": 30000,
             "taxa_falso_positivo": 5.7093668751317544e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.7732532591182071,
@@ -3133,7 +3133,7 @@
             "f1": 0.8377370467349043,
             "suporte": 40432,
             "taxa_falso_positivo": 0.04987480668679579,
-            "teto": 0.9986891571032845
+            "recall_na_regra_do_teto": 0.9986891571032845
           },
           "Spoofing": {
             "precisao": 0.9302538180253818,
@@ -3141,7 +3141,7 @@
             "f1": 0.896414136179915,
             "suporte": 20000,
             "taxa_falso_positivo": 0.005456549542272483,
-            "teto": 0.99915
+            "recall_na_regra_do_teto": 0.99915
           },
           "Web": {
             "precisao": 0.6987012987012987,
@@ -3149,7 +3149,7 @@
             "f1": 0.40239341810022433,
             "suporte": 4760,
             "taxa_falso_positivo": 0.0022930701837619,
-            "teto": 0.994327731092437
+            "recall_na_regra_do_teto": 0.994327731092437
           },
           "BruteForce": {
             "precisao": 0.8,
@@ -3157,7 +3157,7 @@
             "f1": 0.4663271080928127,
             "suporte": 2504,
             "taxa_falso_positivo": 0.0008072353365309257,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Benign": {
             "precisao": 0.6262458471760798,
@@ -3165,7 +3165,7 @@
             "f1": 0.572823963533753,
             "suporte": 10000,
             "taxa_falso_positivo": 0.012717201731154319,
-            "teto": 0.9981
+            "recall_na_regra_do_teto": 0.9981
           }
         },
         "teto": 0.999549857196076
@@ -3182,7 +3182,7 @@
             "f1": 0.9997804408962402,
             "suporte": 40282750.99999999,
             "taxa_falso_positivo": 0.002168438443367202,
-            "teto": 0.9999996584195554
+            "recall_na_regra_do_teto": 0.9999996584195554
           },
           "Mirai": {
             "precisao": 0.9990605780888555,
@@ -3190,7 +3190,7 @@
             "f1": 0.9975583723558349,
             "suporte": 2521731,
             "taxa_falso_positivo": 5.557634762681656e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.5377964938206036,
@@ -3198,7 +3198,7 @@
             "f1": 0.6801947066335364,
             "suporte": 661121,
             "taxa_falso_positivo": 0.011850579717795762,
-            "teto": 0.9985837013194262
+            "recall_na_regra_do_teto": 0.9985837013194262
           },
           "Spoofing": {
             "precisao": 0.8929936305979144,
@@ -3206,7 +3206,7 @@
             "f1": 0.8785505438838029,
             "suporte": 465937,
             "taxa_falso_positivo": 0.0010834462839286602,
-            "teto": 0.9990416082002498
+            "recall_na_regra_do_teto": 0.9990416082002498
           },
           "Web": {
             "precisao": 0.30287563589830363,
@@ -3214,7 +3214,7 @@
             "f1": 0.2923531329530123,
             "suporte": 23799,
             "taxa_falso_positivo": 0.0003439631002992763,
-            "teto": 0.9943281748714752
+            "recall_na_regra_do_teto": 0.9943281748714752
           },
           "BruteForce": {
             "precisao": 0.4231632087969513,
@@ -3222,7 +3222,7 @@
             "f1": 0.3702339765625836,
             "suporte": 12522,
             "taxa_falso_positivo": 0.00012480568000049517,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Benign": {
             "precisao": 0.926220929712626,
@@ -3230,7 +3230,7 @@
             "f1": 0.6724241676479068,
             "suporte": 1051373,
             "taxa_falso_positivo": 0.0010053318817985733,
-            "teto": 0.9988999999999991
+            "recall_na_regra_do_teto": 0.9988999999999991
           }
         },
         "teto": 0.9999402888803876
@@ -3625,7 +3625,7 @@
         "SMTP": 1.910685226651426e-05,
         "Telnet": 1.7066985120494794e-05
       },
-      "duracao_segundos": 21.32632670900057
+      "duracao_segundos": 21.25342787500267
     },
     {
       "nome": "f33_grupos_c8",
@@ -3635,11 +3635,11 @@
       "arvores": 100,
       "linhas_de_treino": 1030491,
       "linhas_de_teste": 257988,
-      "treino_segundos": 20.984820249999757,
-      "teste_segundos": 3.484468291993835,
+      "treino_segundos": 20.67417545799981,
+      "teste_segundos": 3.0962176250031916,
       "inferencia_ms_por_mil_janelas": {
-        "um_nucleo": 32.39299999404466,
-        "todos_os_nucleos": 13.076290997560136
+        "um_nucleo": 30.33066700299969,
+        "todos_os_nucleos": 16.041584000049625
       },
       "modelo_bytes": 2397017244,
       "nos_por_arvore": 187263.42,
@@ -3656,7 +3656,7 @@
             "f1": 0.8919763682978487,
             "suporte": 110134,
             "taxa_falso_positivo": 0.09547932419819552,
-            "teto": 0.9847821744420433
+            "recall_na_regra_do_teto": 0.9847821744420433
           },
           "DoS": {
             "precisao": 0.7175506803665649,
@@ -3664,7 +3664,7 @@
             "f1": 0.6800810654313839,
             "suporte": 39978,
             "taxa_falso_positivo": 0.04665382321911839,
-            "teto": 0.8925909250087548
+            "recall_na_regra_do_teto": 0.8925909250087548
           },
           "Mirai": {
             "precisao": 0.9993979731763604,
@@ -3672,7 +3672,7 @@
             "f1": 0.9975129775834154,
             "suporte": 30012,
             "taxa_falso_positivo": 7.895567954521528e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.7726939280249837,
@@ -3680,7 +3680,7 @@
             "f1": 0.8364948266473045,
             "suporte": 40433,
             "taxa_falso_positivo": 0.04984946335409437,
-            "teto": 0.9986149927039795
+            "recall_na_regra_do_teto": 0.9986149927039795
           },
           "Spoofing": {
             "precisao": 0.9329232415084248,
@@ -3688,7 +3688,7 @@
             "f1": 0.8976094284758499,
             "suporte": 20166,
             "taxa_falso_positivo": 0.005272851123949845,
-            "teto": 0.9995041158385402
+            "recall_na_regra_do_teto": 0.9995041158385402
           },
           "Web": {
             "precisao": 0.7124324324324325,
@@ -3696,7 +3696,7 @@
             "f1": 0.39921247917613206,
             "suporte": 4753,
             "taxa_falso_positivo": 0.0021008154481015656,
-            "teto": 0.9945297706711551
+            "recall_na_regra_do_teto": 0.9945297706711551
           },
           "BruteForce": {
             "precisao": 0.8015414258188824,
@@ -3704,7 +3704,7 @@
             "f1": 0.4696584815128422,
             "suporte": 2505,
             "taxa_falso_positivo": 0.0008063158801172681,
-            "teto": 0.9988023952095808
+            "recall_na_regra_do_teto": 0.9988023952095808
           },
           "Benign": {
             "precisao": 0.6287598334104582,
@@ -3712,7 +3712,7 @@
             "f1": 0.5828105731596162,
             "suporte": 10007,
             "taxa_falso_positivo": 0.012940507538884028,
-            "teto": 0.997501748775857
+            "recall_na_regra_do_teto": 0.997501748775857
           }
         },
         "teto": 0.9763942508953904
@@ -3729,7 +3729,7 @@
             "f1": 0.888588416246917,
             "suporte": 32536197.000000004,
             "taxa_falso_positivo": 0.2542426803197138,
-            "teto": 0.9864302825544239
+            "recall_na_regra_do_teto": 0.9864302825544239
           },
           "DoS": {
             "precisao": 0.5347060494368779,
@@ -3737,7 +3737,7 @@
             "f1": 0.5613532290289294,
             "suporte": 7746554,
             "taxa_falso_positivo": 0.10684827751915059,
-            "teto": 0.8392267458560155
+            "recall_na_regra_do_teto": 0.8392267458560155
           },
           "Mirai": {
             "precisao": 0.9993725384945354,
@@ -3745,7 +3745,7 @@
             "f1": 0.9974504345049033,
             "suporte": 2521731.0000000005,
             "taxa_falso_positivo": 3.708957549370211e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.5404947229610443,
@@ -3753,7 +3753,7 @@
             "f1": 0.681824085865408,
             "suporte": 661121,
             "taxa_falso_positivo": 0.01169816885651939,
-            "teto": 0.998539125732731
+            "recall_na_regra_do_teto": 0.998539125732731
           },
           "Spoofing": {
             "precisao": 0.9009597931480342,
@@ -3761,7 +3761,7 @@
             "f1": 0.8826929250341209,
             "suporte": 465937,
             "taxa_falso_positivo": 0.0009945942025413026,
-            "teto": 0.9994880331043791
+            "recall_na_regra_do_teto": 0.9994880331043791
           },
           "Web": {
             "precisao": 0.3147883911481512,
@@ -3769,7 +3769,7 @@
             "f1": 0.2948862075020695,
             "suporte": 23799,
             "taxa_falso_positivo": 0.00031931987022898895,
-            "teto": 0.9945195930804706
+            "recall_na_regra_do_teto": 0.9945195930804706
           },
           "BruteForce": {
             "precisao": 0.40250645465367635,
@@ -3777,7 +3777,7 @@
             "f1": 0.3639507167364758,
             "suporte": 12522,
             "taxa_falso_positivo": 0.000137174181657837,
-            "teto": 0.9988023952095807
+            "recall_na_regra_do_teto": 0.9988023952095807
           },
           "Benign": {
             "precisao": 0.9273471765768695,
@@ -3785,7 +3785,7 @@
             "f1": 0.6850349317983663,
             "suporte": 1051373,
             "taxa_falso_positivo": 0.0010174832600655264,
-            "teto": 0.9978015389227564
+            "recall_na_regra_do_teto": 0.9978015389227564
           }
         },
         "teto": 0.9624470091776529
@@ -4215,7 +4215,7 @@
         "SMTP": 3.178903899621832e-05,
         "Telnet": 2.4110423030954455e-05
       },
-      "duracao_segundos": 25.528957167000044
+      "duracao_segundos": 24.69761324999854
     },
     {
       "nome": "f33_grupos_c7",
@@ -4225,11 +4225,11 @@
       "arvores": 100,
       "linhas_de_treino": 1030491,
       "linhas_de_teste": 257988,
-      "treino_segundos": 18.974610208999366,
-      "teste_segundos": 1.8791361669937032,
+      "treino_segundos": 18.937762374996964,
+      "teste_segundos": 1.876761332998285,
       "inferencia_ms_por_mil_janelas": {
-        "um_nucleo": 17.900832994200755,
-        "todos_os_nucleos": 15.068917004100513
+        "um_nucleo": 18.10108400241006,
+        "todos_os_nucleos": 15.63200000236975
       },
       "modelo_bytes": 1359384404,
       "nos_por_arvore": 113278.18,
@@ -4246,7 +4246,7 @@
             "f1": 0.998245105776499,
             "suporte": 150112,
             "taxa_falso_positivo": 0.002808780451629649,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Mirai": {
             "precisao": 0.9995316315947944,
@@ -4254,7 +4254,7 @@
             "f1": 0.997512645443467,
             "suporte": 30012,
             "taxa_falso_positivo": 6.140997297961189e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.7728111372022811,
@@ -4262,7 +4262,7 @@
             "f1": 0.8365010382507461,
             "suporte": 40433,
             "taxa_falso_positivo": 0.049808094504837856,
-            "teto": 0.9986149927039795
+            "recall_na_regra_do_teto": 0.9986149927039795
           },
           "Spoofing": {
             "precisao": 0.9330338040222508,
@@ -4270,7 +4270,7 @@
             "f1": 0.8977407235860222,
             "suporte": 20166,
             "taxa_falso_positivo": 0.005264441473034454,
-            "teto": 0.9995041158385402
+            "recall_na_regra_do_teto": 0.9995041158385402
           },
           "Web": {
             "precisao": 0.7236624379481522,
@@ -4278,7 +4278,7 @@
             "f1": 0.3996344806579348,
             "suporte": 4753,
             "taxa_falso_positivo": 0.001978399510336249,
-            "teto": 0.9945297706711551
+            "recall_na_regra_do_teto": 0.9945297706711551
           },
           "BruteForce": {
             "precisao": 0.7913461538461538,
@@ -4286,7 +4286,7 @@
             "f1": 0.4643159379407616,
             "suporte": 2505,
             "taxa_falso_positivo": 0.000849371582453627,
-            "teto": 0.9988023952095808
+            "recall_na_regra_do_teto": 0.9988023952095808
           },
           "Benign": {
             "precisao": 0.6296039718277335,
@@ -4294,7 +4294,7 @@
             "f1": 0.5842082708377974,
             "suporte": 10007,
             "taxa_falso_positivo": 0.012936474971872844,
-            "teto": 0.997501748775857
+            "recall_na_regra_do_teto": 0.997501748775857
           }
         },
         "teto": 0.9995348620866087
@@ -4311,7 +4311,7 @@
             "f1": 0.9997454196676097,
             "suporte": 40282751,
             "taxa_falso_positivo": 0.002453427397833367,
-            "teto": 0.9999998758683988
+            "recall_na_regra_do_teto": 0.9999998758683988
           },
           "Mirai": {
             "precisao": 0.9996548402816099,
@@ -4319,7 +4319,7 @@
             "f1": 0.9975180144510861,
             "suporte": 2521731,
             "taxa_falso_positivo": 2.0393829450843075e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon": {
             "precisao": 0.5408402667212892,
@@ -4327,7 +4327,7 @@
             "f1": 0.6821031593141353,
             "suporte": 661120.9999999999,
             "taxa_falso_positivo": 0.011682098316739015,
-            "teto": 0.998539125732731
+            "recall_na_regra_do_teto": 0.998539125732731
           },
           "Spoofing": {
             "precisao": 0.9027307719037212,
@@ -4335,7 +4335,7 @@
             "f1": 0.8835306658607214,
             "suporte": 465937,
             "taxa_falso_positivo": 0.0009748686117416526,
-            "teto": 0.9994880331043791
+            "recall_na_regra_do_teto": 0.9994880331043791
           },
           "Web": {
             "precisao": 0.3377372716517187,
@@ -4343,7 +4343,7 @@
             "f1": 0.30382287921173684,
             "suporte": 23799.000000000004,
             "taxa_falso_positivo": 0.000286355125850537,
-            "teto": 0.9945195930804706
+            "recall_na_regra_do_teto": 0.9945195930804706
           },
           "BruteForce": {
             "precisao": 0.38594095771802994,
@@ -4351,7 +4351,7 @@
             "f1": 0.3549364007658351,
             "suporte": 12522,
             "taxa_falso_positivo": 0.0001454379615181795,
-            "teto": 0.9988023952095807
+            "recall_na_regra_do_teto": 0.9988023952095807
           },
           "Benign": {
             "precisao": 0.9277031701149954,
@@ -4359,7 +4359,7 @@
             "f1": 0.6865614753350867,
             "suporte": 1051373,
             "taxa_falso_positivo": 0.0010154611053636406,
-            "teto": 0.9978015389227564
+            "recall_na_regra_do_teto": 0.9978015389227564
           }
         },
         "teto": 0.999918563994938
@@ -4754,7 +4754,7 @@
         "Telnet": 1.9064647985964242e-05,
         "SMTP": 1.8418202740792178e-05
       },
-      "duracao_segundos": 21.42957674999343
+      "duracao_segundos": 21.39361700000154
     },
     {
       "nome": "f39_estratificada_c34",
@@ -4764,11 +4764,11 @@
       "arvores": 25,
       "linhas_de_treino": 1030783,
       "linhas_de_teste": 257696,
-      "treino_segundos": 7.655048500004341,
-      "teste_segundos": 1.2571102079964476,
+      "treino_segundos": 7.328055583995592,
+      "teste_segundos": 1.225343709003937,
       "inferencia_ms_por_mil_janelas": {
-        "um_nucleo": 8.140583995555062,
-        "todos_os_nucleos": 15.959333002683707
+        "um_nucleo": 7.525916000304278,
+        "todos_os_nucleos": 16.04691700049443
       },
       "modelo_bytes": 2330292135,
       "nos_por_arvore": 277413.48,
@@ -4785,7 +4785,7 @@
             "f1": 0.9894852793911476,
             "suporte": 10000,
             "taxa_falso_positivo": 0.00036738582778890255,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-UDP_Flood": {
             "precisao": 0.6914032382420972,
@@ -4793,7 +4793,7 @@
             "f1": 0.704161758932077,
             "suporte": 10000,
             "taxa_falso_positivo": 0.012927136489890833,
-            "teto": 0.9918
+            "recall_na_regra_do_teto": 0.9918
           },
           "DDoS-SlowLoris": {
             "precisao": 0.9035323280313985,
@@ -4801,7 +4801,7 @@
             "f1": 0.9385259092372064,
             "suporte": 4480,
             "taxa_falso_positivo": 0.0018442752432705674,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-ICMP_Flood": {
             "precisao": 0.999799759711654,
@@ -4809,7 +4809,7 @@
             "f1": 0.9991995197118271,
             "suporte": 10000,
             "taxa_falso_positivo": 8.074413797558297e-06,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-RSTFINFlood": {
             "precisao": 0.9998999099189271,
@@ -4817,7 +4817,7 @@
             "f1": 0.9994497523885749,
             "suporte": 10000,
             "taxa_falso_positivo": 4.037206898779149e-06,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-PSHACK_Flood": {
             "precisao": 0.9993993392732006,
@@ -4825,7 +4825,7 @@
             "f1": 0.9988493671519335,
             "suporte": 10000,
             "taxa_falso_positivo": 2.422324139267489e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-HTTP_Flood": {
             "precisao": 0.8730001975113569,
@@ -4833,7 +4833,7 @@
             "f1": 0.8353018992724179,
             "suporte": 5520,
             "taxa_falso_positivo": 0.0025498064843601296,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-UDP_Fragmentation": {
             "precisao": 0.9928722015861862,
@@ -4841,7 +4841,7 @@
             "f1": 0.9909323180201393,
             "suporte": 10000,
             "taxa_falso_positivo": 0.00028664168981331955,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-ICMP_Fragmentation": {
             "precisao": 0.9909828674481514,
@@ -4849,7 +4849,7 @@
             "f1": 0.990040538511586,
             "suporte": 10000,
             "taxa_falso_positivo": 0.0003633486208901234,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-TCP_Flood": {
             "precisao": 0.6535614609877443,
@@ -4857,7 +4857,7 @@
             "f1": 0.5905377994627488,
             "suporte": 10000,
             "taxa_falso_positivo": 0.01152622569601447,
-            "teto": 0.9808
+            "recall_na_regra_do_teto": 0.9808
           },
           "DDoS-SYN_Flood": {
             "precisao": 0.44087927672398514,
@@ -4865,7 +4865,7 @@
             "f1": 0.31801035739402855,
             "suporte": 10000,
             "taxa_falso_positivo": 0.012733350558749435,
-            "teto": 0.9721
+            "recall_na_regra_do_teto": 0.9721
           },
           "DDoS-SynonymousIP_Flood": {
             "precisao": 0.45026940439784474,
@@ -4873,7 +4873,7 @@
             "f1": 0.5211089576135501,
             "suporte": 10000,
             "taxa_falso_positivo": 0.03048091208578257,
-            "teto": 0.9195
+            "recall_na_regra_do_teto": 0.9195
           },
           "DoS-TCP_Flood": {
             "precisao": 0.6073316283034953,
@@ -4881,7 +4881,7 @@
             "f1": 0.6556833870225494,
             "suporte": 10000,
             "taxa_falso_positivo": 0.01859537497577676,
-            "teto": 0.9045
+            "recall_na_regra_do_teto": 0.9045
           },
           "DoS-HTTP_Flood": {
             "precisao": 0.8904968644476604,
@@ -4889,7 +4889,7 @@
             "f1": 0.9064571568868157,
             "suporte": 10000,
             "taxa_falso_positivo": 0.004582229830114333,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DoS-SYN_Flood": {
             "precisao": 0.503691783415373,
@@ -4897,7 +4897,7 @@
             "f1": 0.5175063217272904,
             "suporte": 10000,
             "taxa_falso_positivo": 0.021167075770299075,
-            "teto": 0.8941
+            "recall_na_regra_do_teto": 0.8941
           },
           "DoS-UDP_Flood": {
             "precisao": 0.7050494534096825,
@@ -4905,7 +4905,7 @@
             "f1": 0.6908441724049987,
             "suporte": 10000,
             "taxa_falso_positivo": 0.011437407144241327,
-            "teto": 0.9598
+            "recall_na_regra_do_teto": 0.9598
           },
           "Mirai-greip_flood": {
             "precisao": 0.99589137188095,
@@ -4913,7 +4913,7 @@
             "f1": 0.994844586816157,
             "suporte": 10000,
             "taxa_falso_positivo": 0.00016552548284994508,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Mirai-greeth_flood": {
             "precisao": 0.9957898957497995,
@@ -4921,7 +4921,7 @@
             "f1": 0.9945935122146576,
             "suporte": 10000,
             "taxa_falso_positivo": 0.00016956268974872426,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Mirai-udpplain": {
             "precisao": 0.9973979183346677,
@@ -4929,7 +4929,7 @@
             "f1": 0.996998799519808,
             "suporte": 10000,
             "taxa_falso_positivo": 0.00010496737936825786,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon-PingSweep": {
             "precisao": 0.2619047619047619,
@@ -4937,7 +4937,7 @@
             "f1": 0.11827956989247314,
             "suporte": 432,
             "taxa_falso_positivo": 0.0003614963617140369,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon-OSScan": {
             "precisao": 0.35835001111852344,
@@ -4945,7 +4945,7 @@
             "f1": 0.3393703274718332,
             "suporte": 10000,
             "taxa_falso_positivo": 0.023298721012854465,
-            "teto": 0.9973
+            "recall_na_regra_do_teto": 0.9973
           },
           "VulnerabilityScan": {
             "precisao": 0.4656533422908969,
@@ -4953,7 +4953,7 @@
             "f1": 0.5062077779806463,
             "suporte": 10000,
             "taxa_falso_positivo": 0.025688747496931723,
-            "teto": 0.9995
+            "recall_na_regra_do_teto": 0.9995
           },
           "Recon-PortScan": {
             "precisao": 0.4186875891583452,
@@ -4961,7 +4961,7 @@
             "f1": 0.3825765804909841,
             "suporte": 10000,
             "taxa_falso_positivo": 0.019741941735030036,
-            "teto": 0.9914
+            "recall_na_regra_do_teto": 0.9914
           },
           "Recon-HostDiscovery": {
             "precisao": 0.6217318900915904,
@@ -4969,7 +4969,7 @@
             "f1": 0.6785097682871423,
             "suporte": 10000,
             "taxa_falso_positivo": 0.018341030941153674,
-            "teto": 0.9951
+            "recall_na_regra_do_teto": 0.9951
           },
           "MITM-ArpSpoofing": {
             "precisao": 0.755779109589041,
@@ -4977,7 +4977,7 @@
             "f1": 0.7301488833746897,
             "suporte": 10000,
             "taxa_falso_positivo": 0.009212906143014017,
-            "teto": 0.9986
+            "recall_na_regra_do_teto": 0.9986
           },
           "DNS_Spoofing": {
             "precisao": 0.7452160189386466,
@@ -4985,7 +4985,7 @@
             "f1": 0.7503227728672163,
             "suporte": 10000,
             "taxa_falso_positivo": 0.010428105419546542,
-            "teto": 0.995
+            "recall_na_regra_do_teto": 0.995
           },
           "SqlInjection": {
             "precisao": 0.3862433862433862,
@@ -4993,7 +4993,7 @@
             "f1": 0.12238055322715843,
             "suporte": 1004,
             "taxa_falso_positivo": 0.0004519034484907983,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "CommandInjection": {
             "precisao": 0.4992764109985528,
@@ -5001,7 +5001,7 @@
             "f1": 0.39999999999999997,
             "suporte": 1034,
             "taxa_falso_positivo": 0.0013480764585330123,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Backdoor_Malware": {
             "precisao": 0.20075757575757575,
@@ -5009,7 +5009,7 @@
             "f1": 0.12045454545454545,
             "suporte": 616,
             "taxa_falso_positivo": 0.0008207561848451844,
-            "teto": 0.9918831168831169
+            "recall_na_regra_do_teto": 0.9918831168831169
           },
           "Uploading_Attack": {
             "precisao": 0.041666666666666664,
@@ -5017,7 +5017,7 @@
             "f1": 0.013937282229965155,
             "suporte": 239,
             "taxa_falso_positivo": 0.00017867061295672677,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "XSS": {
             "precisao": 0.19742489270386265,
@@ -5025,7 +5025,7 @@
             "f1": 0.0944558521560575,
             "suporte": 741,
             "taxa_falso_positivo": 0.0007277538868673503,
-            "teto": 0.9959514170040485
+            "recall_na_regra_do_teto": 0.9959514170040485
           },
           "BrowserHijacking": {
             "precisao": 0.6181818181818182,
@@ -5033,7 +5033,7 @@
             "f1": 0.4321201617562103,
             "suporte": 1126,
             "taxa_falso_positivo": 0.0009003390887477101,
-            "teto": 0.9831261101243339
+            "recall_na_regra_do_teto": 0.9831261101243339
           },
           "DictionaryBruteForce": {
             "precisao": 0.5804111245465539,
@@ -5041,7 +5041,7 @@
             "f1": 0.46176046176046176,
             "suporte": 2504,
             "taxa_falso_positivo": 0.0027195209881187496,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "BenignTraffic": {
             "precisao": 0.5105033992819494,
@@ -5049,7 +5049,7 @@
             "f1": 0.5788402407864536,
             "suporte": 10000,
             "taxa_falso_positivo": 0.025870421807376785,
-            "teto": 0.9981
+            "recall_na_regra_do_teto": 0.9981
           }
         },
         "teto": 0.9842799267353781
@@ -5066,7 +5066,7 @@
             "f1": 0.9750554737438414,
             "suporte": 272792.99999999994,
             "taxa_falso_positivo": 0.0002356660547158023,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-UDP_Flood": {
             "precisao": 0.7851362956973149,
@@ -5074,7 +5074,7 @@
             "f1": 0.7497413275755189,
             "suporte": 5181027,
             "taxa_falso_positivo": 0.025532623907998677,
-            "teto": 0.9920000000000047
+            "recall_na_regra_do_teto": 0.9920000000000047
           },
           "DDoS-SlowLoris": {
             "precisao": 0.4680380262967051,
@@ -5082,7 +5082,7 @@
             "f1": 0.632748670976316,
             "suporte": 22400,
             "taxa_falso_positivo": 0.0005524160329765114,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-ICMP_Flood": {
             "precisao": 0.999967823594988,
@@ -5090,7 +5090,7 @@
             "f1": 0.9992834437269675,
             "suporte": 6893259,
             "taxa_falso_positivo": 5.809606180554809e-06,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-RSTFINFlood": {
             "precisao": 0.9999928945037072,
@@ -5098,7 +5098,7 @@
             "f1": 0.9994962006678116,
             "suporte": 3872808,
             "taxa_falso_positivo": 6.681236421382416e-07,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-PSHACK_Flood": {
             "precisao": 0.999750179691039,
@@ -5106,7 +5106,7 @@
             "f1": 0.999024563577171,
             "suporte": 3920372.0000000005,
             "taxa_falso_positivo": 2.37954982792479e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-HTTP_Flood": {
             "precisao": 0.7317146859664255,
@@ -5114,7 +5114,7 @@
             "f1": 0.7646658079901757,
             "suporte": 27597,
             "taxa_falso_positivo": 0.00018008120931452205,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-UDP_Fragmentation": {
             "precisao": 0.9707499632991269,
@@ -5122,7 +5122,7 @@
             "f1": 0.9797900055439837,
             "suporte": 274908.99999999994,
             "taxa_falso_positivo": 0.00018309071529328417,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-ICMP_Fragmentation": {
             "precisao": 0.9714267654516219,
@@ -5130,7 +5130,7 @@
             "f1": 0.9801837247418177,
             "suporte": 433157,
             "taxa_falso_positivo": 0.00028264129756295315,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DDoS-TCP_Flood": {
             "precisao": 0.7605021949542187,
@@ -5138,7 +5138,7 @@
             "f1": 0.6305993228142872,
             "suporte": 4306086,
             "taxa_falso_positivo": 0.01793971048369927,
-            "teto": 0.9830000000000014
+            "recall_na_regra_do_teto": 0.9830000000000014
           },
           "DDoS-SYN_Flood": {
             "precisao": 0.5368725927497501,
@@ -5146,7 +5146,7 @@
             "f1": 0.3399309371257474,
             "suporte": 3886130.0000000005,
             "taxa_falso_positivo": 0.02026893244185997,
-            "teto": 0.9824000000000015
+            "recall_na_regra_do_teto": 0.9824000000000015
           },
           "DDoS-SynonymousIP_Flood": {
             "precisao": 0.4740929801951634,
@@ -5154,7 +5154,7 @@
             "f1": 0.536715757936157,
             "suporte": 3445658.9999999995,
             "taxa_falso_positivo": 0.05685515490067909,
-            "teto": 0.9195000000000225
+            "recall_na_regra_do_teto": 0.9195000000000225
           },
           "DoS-TCP_Flood": {
             "precisao": 0.47897074772471654,
@@ -5162,7 +5162,7 @@
             "f1": 0.5728170870919043,
             "suporte": 2558256,
             "taxa_falso_positivo": 0.04669076991585074,
-            "teto": 0.9012999999999879
+            "recall_na_regra_do_teto": 0.9012999999999879
           },
           "DoS-HTTP_Flood": {
             "precisao": 0.790383952033581,
@@ -5170,7 +5170,7 @@
             "f1": 0.851559729926427,
             "suporte": 68799,
             "taxa_falso_positivo": 0.0003746591494271022,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "DoS-SYN_Flood": {
             "precisao": 0.34875992878133794,
@@ -5178,7 +5178,7 @@
             "f1": 0.4213499832176304,
             "suporte": 1942176,
             "taxa_falso_positivo": 0.04479714555251197,
-            "teto": 0.8739999999999678
+            "recall_na_regra_do_teto": 0.8739999999999678
           },
           "DoS-UDP_Flood": {
             "precisao": 0.5956885548192804,
@@ -5186,7 +5186,7 @@
             "f1": 0.6338344198261565,
             "suporte": 3177323,
             "taxa_falso_positivo": 0.03490306645307194,
-            "teto": 0.9595000000000184
+            "recall_na_regra_do_teto": 0.9595000000000184
           },
           "Mirai-greip_flood": {
             "precisao": 0.9951760194159346,
@@ -5194,7 +5194,7 @@
             "f1": 0.9944875337270066,
             "suporte": 719654.9999999999,
             "taxa_falso_positivo": 7.825811617758278e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Mirai-greeth_flood": {
             "precisao": 0.9959920997032835,
@@ -5202,7 +5202,7 @@
             "f1": 0.9946943611496325,
             "suporte": 949381,
             "taxa_falso_positivo": 8.611605080688646e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Mirai-udpplain": {
             "precisao": 0.9949818827593986,
@@ -5210,7 +5210,7 @@
             "f1": 0.9957902840370545,
             "suporte": 852695,
             "taxa_falso_positivo": 9.703912276214336e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon-PingSweep": {
             "precisao": 0.0800326906590961,
@@ -5218,7 +5218,7 @@
             "f1": 0.07816834904625233,
             "suporte": 2161,
             "taxa_falso_positivo": 4.2151465964850353e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Recon-OSScan": {
             "precisao": 0.13805986577279272,
@@ -5226,7 +5226,7 @@
             "f1": 0.1933126584085508,
             "suporte": 93970,
             "taxa_falso_positivo": 0.00420889945111854,
-            "teto": 0.9970000000000006
+            "recall_na_regra_do_teto": 0.9970000000000006
           },
           "VulnerabilityScan": {
             "precisao": 0.5863255882804257,
@@ -5234,7 +5234,7 @@
             "f1": 0.5699688752450723,
             "suporte": 357582.99999999994,
             "taxa_falso_positivo": 0.003132300722070115,
-            "teto": 0.9996
+            "recall_na_regra_do_teto": 0.9996
           },
           "Recon-PortScan": {
             "precisao": 0.19796364083295556,
@@ -5242,7 +5242,7 @@
             "f1": 0.253462021575274,
             "suporte": 78730,
             "taxa_falso_positivo": 0.0024997713643004154,
-            "teto": 0.9908999999999929
+            "recall_na_regra_do_teto": 0.9908999999999929
           },
           "Recon-HostDiscovery": {
             "precisao": 0.4907605934942801,
@@ -5250,7 +5250,7 @@
             "f1": 0.5922627954194694,
             "suporte": 128677.00000000001,
             "taxa_falso_positivo": 0.0022209787568070374,
-            "teto": 0.9939999999999997
+            "recall_na_regra_do_teto": 0.9939999999999997
           },
           "MITM-ArpSpoofing": {
             "precisao": 0.7922854451929937,
@@ -5258,7 +5258,7 @@
             "f1": 0.746769991247037,
             "suporte": 294468.99999999994,
             "taxa_falso_positivo": 0.0012190021703214235,
-            "teto": 0.9986000000000009
+            "recall_na_regra_do_teto": 0.9986000000000009
           },
           "DNS_Spoofing": {
             "precisao": 0.6154230816721932,
@@ -5266,7 +5266,7 @@
             "f1": 0.6783052155431116,
             "suporte": 171467.99999999997,
             "taxa_falso_positivo": 0.0018050372593335494,
-            "teto": 0.9953000000000033
+            "recall_na_regra_do_teto": 0.9953000000000033
           },
           "SqlInjection": {
             "precisao": 0.11121641179090927,
@@ -5274,7 +5274,7 @@
             "f1": 0.08793178703595893,
             "suporte": 5022,
             "taxa_falso_positivo": 6.482512324072602e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "CommandInjection": {
             "precisao": 0.19918396248836726,
@@ -5282,7 +5282,7 @@
             "f1": 0.24945164392953434,
             "suporte": 5168.000000000001,
             "taxa_falso_positivo": 0.00015401081251262096,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Backdoor_Malware": {
             "precisao": 0.06543713873111207,
@@ -5290,7 +5290,7 @@
             "f1": 0.0743370530180442,
             "suporte": 3078.0000000000005,
             "taxa_falso_positivo": 8.401940137924246e-05,
-            "teto": 0.991883116883117
+            "recall_na_regra_do_teto": 0.991883116883117
           },
           "Uploading_Attack": {
             "precisao": 0.008597349774190589,
@@ -5298,7 +5298,7 @@
             "f1": 0.008481227780267223,
             "suporte": 1196,
             "taxa_falso_positivo": 2.5636704087602992e-05,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "XSS": {
             "precisao": 0.08341021348894569,
@@ -5306,7 +5306,7 @@
             "f1": 0.07118036773913217,
             "suporte": 3705,
             "taxa_falso_positivo": 5.61463151121302e-05,
-            "teto": 0.9959514170040485
+            "recall_na_regra_do_teto": 0.9959514170040485
           },
           "BrowserHijacking": {
             "precisao": 0.27594391933843304,
@@ -5314,7 +5314,7 @@
             "f1": 0.3014490683328411,
             "suporte": 5630,
             "taxa_falso_positivo": 0.00010900569725403735,
-            "teto": 0.9831261101243339
+            "recall_na_regra_do_teto": 0.9831261101243339
           },
           "DictionaryBruteForce": {
             "precisao": 0.1965159838128126,
@@ -5322,7 +5322,7 @@
             "f1": 0.25984224160636826,
             "suporte": 12521.999999999998,
             "taxa_falso_positivo": 0.00043612670809619334,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "BenignTraffic": {
             "precisao": 0.883332513752496,
@@ -5330,7 +5330,7 @@
             "f1": 0.7609161495502896,
             "suporte": 1051373,
             "taxa_falso_positivo": 0.002110661396917573,
-            "teto": 0.9988999999999991
+            "recall_na_regra_do_teto": 0.9988999999999991
           }
         },
         "teto": 0.9757716482100466
@@ -6676,7 +6676,7 @@
         "SMTP": 7.990870621963191e-05,
         "Telnet": 7.657362968050536e-05
       },
-      "duracao_segundos": 9.827550791000249
+      "duracao_segundos": 9.374552415996732
     },
     {
       "nome": "f39_estratificada_c2",
@@ -6686,11 +6686,11 @@
       "arvores": 100,
       "linhas_de_treino": 1030783,
       "linhas_de_teste": 257696,
-      "treino_segundos": 13.989482083001349,
-      "teste_segundos": 1.0225328329979675,
+      "treino_segundos": 16.16260012499697,
+      "teste_segundos": 1.0708322089994908,
       "inferencia_ms_por_mil_janelas": {
-        "um_nucleo": 9.692665997135919,
-        "todos_os_nucleos": 15.956417002598755
+        "um_nucleo": 11.758291999285575,
+        "todos_os_nucleos": 13.580915998318233
       },
       "modelo_bytes": 433628998,
       "nos_por_arvore": 54198.54,
@@ -6707,7 +6707,7 @@
             "f1": 0.9848118778133115,
             "suporte": 247696,
             "taxa_falso_positivo": 0.5464,
-            "teto": 1.0
+            "recall_na_regra_do_teto": 1.0
           },
           "Benign": {
             "precisao": 0.6824131187001655,
@@ -6715,7 +6715,7 @@
             "f1": 0.5449630564065598,
             "suporte": 10000,
             "taxa_falso_positivo": 0.008522543763322782,
-            "teto": 0.9981
+            "recall_na_regra_do_teto": 0.9981
           }
         },
         "teto": 0.9999262697131504
@@ -6732,7 +6732,7 @@
             "f1": 0.9931715764799383,
             "suporte": 43967861,
             "taxa_falso_positivo": 0.5463999999999983,
-            "teto": 0.9999896483752071
+            "recall_na_regra_do_teto": 0.9999896483752071
           },
           "Benign": {
             "precisao": 0.9413519180320079,
@@ -6740,7 +6740,7 @@
             "f1": 0.6122035096689563,
             "suporte": 1051373,
             "taxa_falso_positivo": 0.0006757659876954389,
-            "teto": 0.9988999999999991
+            "recall_na_regra_do_teto": 0.9988999999999991
           }
         },
         "teto": 0.9999642008768959
@@ -6966,7 +6966,7 @@
         "Telnet": 1.1664546465866988e-06,
         "SMTP": 2.709245562090036e-07
       },
-      "duracao_segundos": 15.391624374999083
+      "duracao_segundos": 17.697664999999688
     }
   ]
 }
