@@ -3,8 +3,19 @@
 O catálogo de base tem quatro ações. Ele é o ponto de partida do agente de decisão, não um
 limite: o agente pode propor uma ação nova, fora do catálogo, desde que diga os passos e como
 desfazer. A autonomia é graduada pelo risco. Ação de risco baixo é aplicada sem aprovação;
-ação de risco alto e toda ação nova só são aplicadas depois que uma pessoa aprova. Os limites
-ficam em `politica.toml`.
+ação de risco alto e toda ação nova só são aplicadas depois que uma pessoa aprova.
+
+O risco não sai só do nome da ação e da duração. Uma ação é de risco baixo quando o alvo é
+origem ou destino do incidente aberto, não é endereço protegido, a duração cabe no prazo e o
+incidente ainda não atingiu o limite de medidas de risco baixo ativas. Os números ficam em
+`politica.toml`. O piso fica aqui, no código: isolar_dispositivo, revogar_credencial e toda
+ação nova são sempre de risco alto.
+
+Quem chama as tools é um modelo de linguagem, que pode ser enganado por conteúdo vindo da rede.
+Por isso tudo o que chega é tratado como entrada: textos têm uma linha e tamanho máximo, o alvo
+de uma ação de base é um endereço IP sem zona, e a mensagem de recusa nunca devolve a entrada
+inteira. O log também é entrada: `reconstruir` confere cada transição, e `executar` não confia
+no campo `estado` lido.
 
 Nada aqui toca a rede: aplicar uma ação é registrar um evento no log. O estado das propostas,
 das aprovações e das medidas ativas é sempre reconstruído a partir dos eventos (`reconstruir`),
@@ -539,7 +550,7 @@ def _parametros_de_base(definicao):
     return [
         ParametroDeAcao(
             nome="duracao",
-            descricao="Prazo da medida, em minutos (número inteiro, a partir de 1)",
+            descricao=f"Prazo da medida, em minutos (número inteiro, de 1 a {_milhar(MAIOR_DURACAO)})",
             obrigatorio=definicao.duracao == "obrigatoria",
         )
     ]

@@ -33,5 +33,8 @@ Texto da medida, em um ou mais parágrafos.
   `consultar_mitigacoes` devolve para a categoria. As demais só são encontradas pela pesquisa, e
   o agente de decisão pode propô-las como ação nova.
 
-A leitura e a busca estão em `codigo/mcp/base.py`. Documento fora do formato faz o stub parar
-na partida, com o nome do arquivo e o motivo.
+- O título de uma medida tem até 200 caracteres e o texto, até 2.000. Nenhum dos dois aceita
+  caractere de controle. São os limites dos textos do contrato.
+
+A leitura e a busca estão em `codigo/mcp/base.py`. Documento fora do formato ou dos limites faz
+o stub parar na partida, com o nome do arquivo e o motivo.
