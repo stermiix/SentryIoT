@@ -13,10 +13,12 @@ from codigo.classificador.avaliar import teto
 from codigo.classificador.experimento import (
     ARVORES_COM_34_CLASSES,
     GRADE,
+    GRADE_NATURAL,
     REFERENCIAS,
     Execucao,
     main,
     montar_relatorio,
+    pesos_de_treino,
     rodar,
 )
 from codigo.classificador.mapeamento import ROTULOS
@@ -66,6 +68,7 @@ def preparar_entrada(pasta, semente=0):
 
 
 POPULACAO = {rotulo: 1000 * (i + 1) for i, rotulo in enumerate(ROTULOS)}
+EXECUCOES = (*GRADE, *GRADE_NATURAL, *REFERENCIAS)
 
 
 def com_gemeas_de_outra_janela(quadro, de="XSS", para="BenignTraffic"):
@@ -121,16 +124,48 @@ def experimento(tmp_path_factory):
     return pasta, quadro
 
 
-def test_grade_tem_as_oito_combinacoes_e_as_duas_referencias():
+def test_grade_tem_as_oito_combinacoes_e_as_referencias():
     assert len(GRADE) == 8 == len(set(GRADE))
-    assert {(e.features, e.divisao, e.alvo) for e in GRADE} == {
-        (features, divisao, alvo)
+    assert {(e.features, e.divisao, e.alvo, e.priori) for e in GRADE} == {
+        (features, divisao, alvo, "amostra")
         for features in ("39", "33") for divisao in ("estratificada", "grupos") for alvo in ("8", "7")
     }
-    assert REFERENCIAS == (Execucao("39", "estratificada", "34"), Execucao("39", "estratificada", "2"))
-    nomes = [execucao.nome for execucao in (*GRADE, *REFERENCIAS)]
-    assert len(set(nomes)) == 10
     assert Execucao("33", "grupos", "7").nome == "f33_grupos_c7"
+
+
+def test_priori_natural_entra_nas_combinacoes_do_sorteio_estratificado_e_nas_referencias():
+    # A priori de treino é o quarto fator: as proporções da amostra ou a proporção natural das classes.
+    assert Execucao("39", "grupos", "8").priori == "amostra"
+    assert set(GRADE_NATURAL) == {
+        Execucao(features, "estratificada", alvo, "natural") for features in ("39", "33") for alvo in ("8", "7")
+    }
+    assert len(GRADE_NATURAL) == 4
+    assert set(REFERENCIAS) == {
+        Execucao("39", "estratificada", alvo, priori) for alvo in ("34", "2") for priori in ("amostra", "natural")
+    }
+    assert len(REFERENCIAS) == 4
+    # O nome das execuções que já existiam não muda, e a priori natural aparece no nome.
+    assert Execucao("33", "estratificada", "7", "natural").nome == "f33_estratificada_c7_natural"
+    nomes = [execucao.nome for execucao in EXECUCOES]
+    assert len(set(nomes)) == 16
+    assert [nome for nome in nomes if nome.endswith("_natural")] == [
+        "f39_estratificada_c8_natural", "f39_estratificada_c7_natural",
+        "f33_estratificada_c8_natural", "f33_estratificada_c7_natural",
+        "f39_estratificada_c34_natural", "f39_estratificada_c2_natural",
+    ]
+
+
+def test_pesos_de_treino_dao_a_cada_rotulo_o_peso_que_ele_tem_no_conjunto_completo():
+    rotulos = np.array(["DDoS-ICMP_Flood"] * 6 + ["XSS"] * 3 + ["BenignTraffic"], dtype=object)
+    populacao = {"DDoS-ICMP_Flood": 9000, "XSS": 300, "BenignTraffic": 700}
+    w = pesos_de_treino(rotulos, populacao)
+    # A soma dos pesos de cada rótulo é a fração dele no conjunto completo, e a média dos pesos é 1.
+    assert w.sum() == pytest.approx(10)
+    for rotulo, linhas in populacao.items():
+        assert w[rotulos == rotulo].sum() / w.sum() == pytest.approx(linhas / 10_000)
+        assert len(set(w[rotulos == rotulo].tolist())) == 1
+    with pytest.raises(ValueError, match="sem contagem no conjunto completo: XSS"):
+        pesos_de_treino(rotulos, {"DDoS-ICMP_Flood": 9000, "BenignTraffic": 700})
 
 
 def test_main_grava_o_relatorio_as_tabelas_as_matrizes_e_o_manifesto(experimento):
@@ -139,7 +174,7 @@ def test_main_grava_o_relatorio_as_tabelas_as_matrizes_e_o_manifesto(experimento
     assert sorted(p.name for p in resultados.iterdir()) == sorted(
         [*ARQUIVOS, "manifesto_treino_exploratorio.json", "matrizes_confusao"]
     )
-    nomes = [execucao.nome for execucao in (*GRADE, *REFERENCIAS)]
+    nomes = [execucao.nome for execucao in EXECUCOES]
     assert sorted(p.name for p in (resultados / "matrizes_confusao").iterdir()) == sorted(
         [f"{nome}.csv" for nome in nomes] + [f"{nome}_por_rotulo.csv" for nome in nomes]
     )
@@ -158,7 +193,8 @@ def test_manifesto_registra_sementes_parametros_versoes_e_o_hash_da_amostra(expe
     assert manifesto["amostra"]["sha256_do_csv_descomprimido"] == entrada["saida"]["sha256_do_csv_descomprimido"]
     assert manifesto["amostra"]["linhas"] == len(quadro) == 360
     assert manifesto["features"] == {"39": list(FEATURES_39), "33": list(FEATURES_33)}
-    assert [execucao["nome"] for execucao in manifesto["execucoes"]] == [e.nome for e in (*GRADE, *REFERENCIAS)]
+    assert [execucao["nome"] for execucao in manifesto["execucoes"]] == [e.nome for e in EXECUCOES]
+    assert [execucao["priori"] for execucao in manifesto["execucoes"]] == [e.priori for e in EXECUCOES]
     json.dumps(manifesto)
 
 
@@ -216,8 +252,8 @@ def test_execucao_de_34_classes_usa_menos_arvores(tmp_path):
     assert executar(tmp_path, "--arvores", "30") == 0
     arvores = {e["nome"]: e["arvores"] for e in ler_manifesto(tmp_path / "resultados")["execucoes"]}
     assert ARVORES_COM_34_CLASSES == 25
-    assert arvores["f39_estratificada_c34"] == 25
-    assert set(arvores.values()) == {25, 30}
+    assert arvores["f39_estratificada_c34"] == arvores["f39_estratificada_c34_natural"] == 25
+    assert sorted(arvores.values()) == [25, 25] + [30] * 14
 
 
 def test_metricas_em_formato_longo(experimento):
@@ -229,7 +265,7 @@ def test_metricas_em_formato_longo(experimento):
     ]
     manifesto = ler_manifesto(pasta / "resultados")
     esperadas = sum(2 * len(ALVOS[execucao["alvo"]].classes) for execucao in manifesto["execucoes"])
-    assert len(linhas) == esperadas == 2 * (4 * 8 + 4 * 7 + 34 + 2)
+    assert len(linhas) == esperadas == 2 * (6 * 8 + 6 * 7 + 2 * 34 + 2 * 2)
     assert {linha["distribuicao"] for linha in linhas} == {"amostra", "original"}
     principal = manifesto["execucoes"][0]
     benigno = next(
@@ -248,7 +284,7 @@ def test_importancias_em_formato_longo(experimento):
     pasta, _ = experimento
     linhas = ler_csv(pasta / "resultados" / "importancia_features.csv")
     assert list(linhas[0]) == ["execucao", "feature", "importancia"]
-    assert len(linhas) == 6 * 39 + 4 * 33
+    assert len(linhas) == 10 * 39 + 6 * 33
     de_uma = [float(linha["importancia"]) for linha in linhas if linha["execucao"] == "f33_grupos_c7"]
     assert len(de_uma) == 33 and sum(de_uma) == pytest.approx(1.0, abs=1e-4)
     assert de_uma == sorted(de_uma, reverse=True)
@@ -321,6 +357,36 @@ def test_rodar_treina_o_modelo_so_com_as_linhas_de_treino(tmp_path):
         assert not mesmas_arvores(pacote["modelo"], de_todas), execucao.nome
 
 
+def test_rodar_treina_com_a_proporcao_natural_quando_a_priori_e_natural(tmp_path):
+    quadro = quadro_sintetico(por_classe=40)
+    rotulos = quadro["Label"].to_numpy()
+    execucoes = (Execucao("39", "estratificada", "8"), Execucao("39", "estratificada", "8", "natural"))
+    registro = rodar(quadro, POPULACAO, execucoes=execucoes, arvores=5, pasta_dos_modelos=tmp_path)
+    assert [resultado["priori"] for resultado in registro["execucoes"]] == ["amostra", "natural"]
+    treino, _ = dividir(quadro, "estratificada")
+    X, y = matriz(quadro, FEATURES_39), alvo(rotulos, "8")
+    # O peso de cada linha de treino: linhas do rótulo no conjunto completo sobre as linhas dele no treino.
+    no_treino = pd.Series(rotulos[treino]).value_counts()
+    pesos = np.array([POPULACAO[rotulo] / no_treino[rotulo] for rotulo in rotulos[treino]])
+    com_pesos, _ = treinar(X[treino], y[treino], arvores=5, pesos=pesos)
+    sem_pesos, _ = treinar(X[treino], y[treino], arvores=5)
+    natural = carregar_modelo(tmp_path / "rf_f39_estratificada_c8_natural.joblib")
+    da_amostra = carregar_modelo(tmp_path / "rf_f39_estratificada_c8.joblib")
+    assert (natural["priori"], da_amostra["priori"]) == ("natural", "amostra")
+    assert mesmas_arvores(natural["modelo"], com_pesos) and not mesmas_arvores(natural["modelo"], sem_pesos)
+    assert mesmas_arvores(da_amostra["modelo"], sem_pesos)
+    # As duas execuções são avaliadas nas mesmas linhas de teste.
+    assert registro["execucoes"][0]["amostra"]["por_classe"]["Benign"]["suporte"] == (
+        registro["execucoes"][1]["amostra"]["por_classe"]["Benign"]["suporte"]
+    )
+
+
+def test_rodar_recusa_priori_desconhecida():
+    quadro = quadro_sintetico(por_classe=40)
+    with pytest.raises(ValueError, match="priori de treino desconhecida: 'uniforme'"):
+        rodar(quadro, POPULACAO, execucoes=(Execucao("39", "estratificada", "8", "uniforme"),), arvores=5)
+
+
 def test_teto_de_cada_execucao_usa_os_vetores_das_features_dela():
     quadro = com_gemeas_de_outra_janela(quadro_sintetico(por_classe=40))
     rotulos = quadro["Label"].to_numpy()
@@ -363,7 +429,7 @@ def test_refazer_o_relatorio_nao_treina_de_novo(experimento, tmp_path, capsys):
     assert main(["--saida", str(copia), "--amostra", str(tmp_path / "ausente.csv.gz"), "--refazer-relatorio"]) == 0
     for nome in ARQUIVOS:
         assert (copia / nome).read_bytes() == (pasta / "resultados" / nome).read_bytes(), nome
-    assert len(list((copia / "matrizes_confusao").iterdir())) == 20
+    assert len(list((copia / "matrizes_confusao").iterdir())) == 32
 
 
 def test_amostra_que_nao_e_a_do_manifesto_e_recusada(tmp_path, capsys):
@@ -386,7 +452,7 @@ def test_modelos_ficam_na_pasta_pedida_e_fora_dos_resultados(tmp_path):
     preparar_entrada(tmp_path)
     assert executar(tmp_path, "--modelos", str(tmp_path / "modelos")) == 0
     assert sorted(p.name for p in (tmp_path / "modelos").iterdir()) == sorted(
-        f"rf_{execucao.nome}.joblib" for execucao in (*GRADE, *REFERENCIAS)
+        f"rf_{execucao.nome}.joblib" for execucao in EXECUCOES
     )
     # O modelo guardado, avaliado pelo comando de avaliação, dá os números do experimento.
     codigo = avaliar_modelo([
@@ -408,7 +474,7 @@ def test_relatorio_tem_as_tabelas_e_as_tres_decisoes(experimento):
     assert relatorio.startswith("# Treino exploratório do classificador\n")
     for titulo in (
         "## Como ler os números",
-        "## As 10 execuções",
+        "## As 16 execuções",
         "## Resultados por classe",
         "## Importância das features",
         "## Custo de cada execução",
@@ -416,9 +482,10 @@ def test_relatorio_tem_as_tabelas_e_as_tres_decisoes(experimento):
         "### Janela de 10 ou de 100 pacotes",
         "### Divisão entre treino e teste",
         "### DDoS e DoS",
+        "### Priori de treino",
     ):
         assert f"\n{titulo}\n" in relatorio, titulo
-    for execucao in (*GRADE, *REFERENCIAS):
+    for execucao in EXECUCOES:
         assert f"`{execucao.nome}`" in relatorio
     # A última seção é a das decisões.
     assert relatorio.index("## O que os números dizem") > relatorio.index("## Custo de cada execução")
@@ -558,6 +625,52 @@ def test_relatorio_da_o_tempo_de_uma_janela_e_avisa_que_os_tempos_nao_se_compara
     assert "Os tempos não se comparam entre as linhas da tabela" in custo
 
 
+def test_relatorio_mostra_os_dois_lados_da_priori_de_treino(experimento):
+    pasta, _ = experimento
+    manifesto = ler_manifesto(pasta / "resultados")
+    relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
+    execucoes = {execucao["nome"]: execucao for execucao in manifesto["execucoes"]}
+
+    def pct(valor):
+        return f"{100 * valor:.2f}%".replace(".", ",")
+
+    # Como ler: o que é cada priori e por que a reponderação não a corrige.
+    assert "\n**Priori de treino.** " in relatorio
+    assert "- **proporções da amostra**: " in relatorio and "- **proporção natural**: " in relatorio
+    assert "muda o peso das linhas na avaliação, e não o que o modelo aprendeu" in relatorio
+    # A frase antiga dizia que a taxa do benigno não muda; ela não muda com a ponderação, mas muda com a priori.
+    assert "não muda com a ponderação, porque o tráfego benigno é um rótulo só. Ela muda com a priori de treino" in relatorio
+    secao = relatorio.split("\n### Priori de treino\n")[1].split("\n## ")[0]
+    # Os dois lados, com o custo de cada um: benigno como ataque, ataque como benigno e recall por categoria.
+    for nome in ("f39_estratificada_c8", "f33_estratificada_c7", "f39_estratificada_c34", "f39_estratificada_c2"):
+        da_amostra, natural = execucoes[nome], execucoes[f"{nome}_natural"]
+        benigno = ALVOS[da_amostra["alvo"]].benigno
+        linha = next(linha for linha in secao.splitlines() if linha.startswith(f"| `{nome}` |"))
+        esperado = [
+            pct(da_amostra["amostra"]["falso_positivo_benigno"]), pct(natural["amostra"]["falso_positivo_benigno"]),
+            *(
+                pct(execucao[distribuicao]["por_classe"][benigno]["taxa_falso_positivo"])
+                for distribuicao in ("amostra", "original") for execucao in (da_amostra, natural)
+            ),
+        ]
+        assert linha == f"| `{nome}` | " + " | ".join(esperado) + " |"
+    for categoria in ALVOS["8"].classes:
+        da_amostra, natural = execucoes["f39_estratificada_c8"], execucoes["f39_estratificada_c8_natural"]
+        recalls = [pct(execucao["original"]["por_classe"][categoria]["recall"]) for execucao in (da_amostra, natural)]
+        assert f"\n| {categoria} | {recalls[0]} | {recalls[1]} |" in secao
+    assert "dependem da priori de treino" in secao
+    assert "O relatório não recomenda nenhuma das duas" in secao
+    for palavra in ("recomenda-se", "deve-se", "o melhor", "preferível"):
+        assert palavra not in secao.lower()
+
+
+def test_relatorio_nao_diz_qual_coluna_se_compara_com_o_artigo_do_dataset(experimento):
+    pasta, _ = experimento
+    relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
+    assert "coluna comparável" not in relatorio
+    assert "Nenhuma coluna deste relatório repete esse protocolo" in relatorio
+
+
 def test_relatorio_mostra_para_onde_vai_o_trafego_benigno(experimento):
     pasta, _ = experimento
     manifesto = ler_manifesto(pasta / "resultados")
@@ -595,7 +708,7 @@ def test_relatorio_da_os_numeros_do_manifesto(experimento):
 @pytest.mark.skipif(not (RESULTADOS / "manifesto_treino_exploratorio.json").exists(), reason="experimento ainda não rodado")
 def test_resultados_versionados_sao_coerentes_entre_si():
     manifesto = ler_manifesto(RESULTADOS)
-    assert len(manifesto["execucoes"]) == 10
+    assert len(manifesto["execucoes"]) == 16
     assert (RESULTADOS / "treino_exploratorio.md").read_text(encoding="utf-8") == montar_relatorio(manifesto)
     relatorio = (RESULTADOS / "treino_exploratorio.md").read_text(encoding="utf-8")
     assert "- **Tirar as seis colunas não tira o atalho.**" in relatorio

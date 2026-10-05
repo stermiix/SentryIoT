@@ -1,6 +1,6 @@
 """Treino exploratório do classificador: a grade de execuções e o relatório.
 
-Roda o Random Forest sobre a amostra de treino em dez configurações e grava os resultados em
+Roda o Random Forest sobre a amostra de treino e grava os resultados em
 `experimentos/resultados/`. As oito execuções da grade combinam três escolhas que estão em
 aberto no `ROADMAP.md`:
 
@@ -8,8 +8,13 @@ aberto no `ROADMAP.md`:
 - divisão entre treino e teste: sorteio estratificado de linhas, ou por grupos de vetores idênticos;
 - alvo: 8 categorias, ou 7 com DDoS e DoS fundidas.
 
-As duas execuções de referência repetem, com 39 features e sorteio estratificado, os cenários de
-34 classes e de ataque ou benigno do artigo do dataset.
+Um quarto fator é a priori de treino. A amostra limita as linhas de cada rótulo, então quem
+treina nela aprende as proporções da amostra, e não as do dataset. As quatro combinações do
+sorteio estratificado são treinadas também com a proporção natural, em que cada linha de treino
+pesa o que o seu rótulo pesa no conjunto completo.
+
+As execuções de referência repetem, com 39 features e sorteio estratificado, os cenários de
+34 classes e de ataque ou benigno do artigo do dataset, com as duas prioris.
 
 O que é gravado:
 
@@ -47,6 +52,7 @@ from codigo.classificador.avaliar import (
     avaliar,
     importancias,
     matriz_de_confusao,
+    pesos,
     populacao_do_manifesto,
     tempo_por_janela,
     tempo_por_mil,
@@ -87,6 +93,8 @@ LINHAS_REPETIDAS_NO_CONJUNTO = 0.5878  # linhas que repetem as 39 features de ou
 TETO_DE_8_CATEGORIAS_NO_CONJUNTO = 0.9287  # maior acerto em 8 categorias para quem só vê as 39 features
 
 NOME_DA_DIVISAO = {"estratificada": "sorteio estratificado", "grupos": "divisão por grupos"}
+PRIORIS = ("amostra", "natural")
+NOME_DA_PRIORI = {"amostra": "priori da amostra", "natural": "priori natural"}
 NOME_DO_ALVO = {"34": "34 classes", "8": "8 categorias", "7": "7 categorias", "2": "ataque ou benigno"}
 METODO_DA_DIVISAO = {
     "estratificada": (
@@ -111,17 +119,35 @@ class Execucao:
     features: str  # "39" ou "33"
     divisao: str  # "estratificada" ou "grupos"
     alvo: str  # "34", "8", "7" ou "2"
+    priori: str = "amostra"  # "amostra", as proporções da amostra, ou "natural", as do conjunto completo
 
     @property
     def nome(self):
-        return f"f{self.features}_{self.divisao}_c{self.alvo}"
+        nome = f"f{self.features}_{self.divisao}_c{self.alvo}"
+        return nome if self.priori == "amostra" else f"{nome}_{self.priori}"
 
 
 GRADE = tuple(
     Execucao(features, divisao, classes)
     for features in ("39", "33") for divisao in DIVISOES for classes in ("8", "7")
 )
-REFERENCIAS = (Execucao("39", "estratificada", "34"), Execucao("39", "estratificada", "2"))
+# As combinações do sorteio estratificado, treinadas com a proporção natural das classes.
+GRADE_NATURAL = tuple(
+    Execucao(features, "estratificada", classes, "natural") for features in ("39", "33") for classes in ("8", "7")
+)
+REFERENCIAS = tuple(
+    Execucao("39", "estratificada", classes, priori) for classes in ("34", "2") for priori in PRIORIS
+)
+
+
+def pesos_de_treino(rotulos, populacao):
+    """Peso de cada linha de treino na priori natural, com média 1.
+
+    Cada linha pesa as linhas do seu rótulo no conjunto completo sobre as linhas dele no treino:
+    somados, os pesos de um rótulo dão a fração que ele tem no conjunto completo.
+    """
+    peso = pesos(rotulos, populacao)
+    return peso * (len(peso) / peso.sum())
 
 
 def _repetidas(grupos):
@@ -130,7 +156,7 @@ def _repetidas(grupos):
     return int(vezes[vezes > 1].sum())
 
 
-def rodar(quadro, populacao, execucoes=(*GRADE, *REFERENCIAS), semente=SEMENTE, arvores=ARVORES,
+def rodar(quadro, populacao, execucoes=(*GRADE, *GRADE_NATURAL, *REFERENCIAS), semente=SEMENTE, arvores=ARVORES,
           pasta_dos_modelos=None, sha256=None, ao_terminar=None):
     """Treina e avalia cada execução. Devolve o registro das divisões e os resultados.
 
@@ -142,6 +168,11 @@ def rodar(quadro, populacao, execucoes=(*GRADE, *REFERENCIAS), semente=SEMENTE, 
     matrizes = {nome: matriz(quadro, features) for nome, features in CONJUNTOS_DE_FEATURES.items()}
     grupos = {nome: agrupar(X) for nome, X in matrizes.items()}
     divisoes = {nome: dividir(quadro, nome, semente) for nome in DIVISOES}
+    desconhecidas = sorted({execucao.priori for execucao in execucoes} - set(PRIORIS))
+    if desconhecidas:
+        raise ValueError(
+            f"priori de treino desconhecida: {', '.join(map(repr, desconhecidas))} (as prioris são {', '.join(PRIORIS)})"
+        )
     registro = {
         "amostra": {
             "linhas": len(quadro),
@@ -182,7 +213,8 @@ def rodar(quadro, populacao, execucoes=(*GRADE, *REFERENCIAS), semente=SEMENTE, 
             X, y = matrizes[execucao.features], alvo(rotulos, execucao.alvo)
             treino, teste = divisoes[execucao.divisao]
             quantas = min(arvores, ARVORES_COM_34_CLASSES) if execucao.alvo == "34" else arvores
-            modelo, treino_segundos = treinar(X[treino], y[treino], semente, quantas)
+            naturais = pesos_de_treino(rotulos[treino], populacao) if execucao.priori == "natural" else None
+            modelo, treino_segundos = treinar(X[treino], y[treino], semente, quantas, naturais)
             X_teste = X[teste]
             antes = time.perf_counter()
             previsto = prever(modelo, X_teste)
@@ -194,7 +226,8 @@ def rodar(quadro, populacao, execucoes=(*GRADE, *REFERENCIAS), semente=SEMENTE, 
             arquivo = pasta / f"rf_{execucao.nome}.joblib"
             tamanho = salvar(
                 arquivo, modelo, features, execucao.alvo,
-                divisao=execucao.divisao, semente=semente, arvores=quantas, amostra_sha256=sha256,
+                divisao=execucao.divisao, priori=execucao.priori, semente=semente, arvores=quantas,
+                amostra_sha256=sha256,
             )
             if pasta_dos_modelos is None:
                 arquivo.unlink()
@@ -204,6 +237,7 @@ def rodar(quadro, populacao, execucoes=(*GRADE, *REFERENCIAS), semente=SEMENTE, 
                 "features": execucao.features,
                 "divisao": execucao.divisao,
                 "alvo": execucao.alvo,
+                "priori": execucao.priori,
                 "arvores": quantas,
                 "linhas_de_treino": len(treino),
                 "linhas_de_teste": len(teste),
@@ -351,8 +385,23 @@ def _tabela(cabecalho, linhas):
 
 def _descricao(execucao):
     return (
-        f"{execucao['features']} features, {NOME_DA_DIVISAO[execucao['divisao']]}, {NOME_DO_ALVO[execucao['alvo']]}"
+        f"{execucao['features']} features, {NOME_DA_DIVISAO[execucao['divisao']]}, "
+        f"{NOME_DO_ALVO[execucao['alvo']]}, {NOME_DA_PRIORI[execucao['priori']]}"
     )
+
+
+def _faixa(valores, casas=2):
+    """O menor e o maior de uma lista de percentuais: "de 1,00% a 2,00%"."""
+    return f"de {_pct(min(valores), casas)} a {_pct(max(valores), casas)}"
+
+
+def _benigno_e_janela_de_10(contagens):
+    """Linhas de tráfego benigno e linhas das categorias de ataque com janela de 10, numa contagem por rótulo."""
+    de_10 = [
+        rotulo for rotulo in ROTULOS
+        if CATEGORIA_DO_ROTULO[rotulo] not in JANELA_DE_100 and rotulo != "BenignTraffic"
+    ]
+    return contagens.get("BenignTraffic", 0), sum(contagens.get(rotulo, 0) for rotulo in de_10)
 
 
 def _como_ler(m):
@@ -388,15 +437,17 @@ def _como_ler(m):
         "  dividida pela quantidade no teste, com as contagens de `manifesto_amostra.json`. É a estimativa da",
         "  medida na distribuição original do dataset.",
         "",
-        "A ponderação altera só o cálculo da medida. O modelo é o mesmo nas duas formas e foi treinado com as",
-        "proporções da amostra.",
+        "A ponderação altera só o cálculo da medida. O modelo avaliado é o mesmo nas duas formas, e o que ele",
+        "aprendeu depende da priori de treino, descrita abaixo.",
         "",
         (
             "O peso é por rótulo, entre os 34, e não por classe do alvo. O recall de um rótulo não muda com a "
             "ponderação. O de uma categoria que reúne vários rótulos muda, porque dentro dela os rótulos passam a "
-            f"pesar de outra forma.{exemplo} A taxa de tráfego benigno classificado como ataque não muda, porque o "
-            "tráfego benigno é um rótulo só."
+            f"pesar de outra forma.{exemplo} A taxa de tráfego benigno classificado como ataque não muda com a "
+            "ponderação, porque o tráfego benigno é um rótulo só. Ela muda com a priori de treino."
         ),
+        "",
+        *_priori_de_treino(m),
         "",
         (
             "**Vetor idêntico.** Duas linhas têm o mesmo vetor quando são iguais em todas as features da execução, "
@@ -439,6 +490,37 @@ def _como_ler(m):
             "modelo. Diferenças pequenas entre execuções podem vir do sorteio, e não da escolha comparada. Para "
             "repetir com outro sorteio: `python -m codigo.classificador.experimento --semente N --saida OUTRA_PASTA`."
         ),
+    ]
+
+
+def _priori_de_treino(m):
+    """O parágrafo que explica as duas prioris de treino."""
+    amostra, populacao = m["amostra"]["linhas_por_rotulo"], m["populacao"]
+    proporcoes = []
+    for contagens in (amostra, populacao):
+        benigno, de_10 = _benigno_e_janela_de_10(contagens)
+        proporcoes.append(f"1 para {_decimal(de_10 / benigno)}" if benigno else "sem tráfego benigno")
+    return [
+        (
+            "**Priori de treino.** A amostra limita as linhas de cada rótulo, então o modelo treinado nela aprende "
+            "uma proporção entre as classes que não é a do dataset. Entre o tráfego benigno e as categorias de "
+            "ataque com janela de 10 (Recon, Spoofing, Web e BruteForce), a proporção é de "
+            f"{proporcoes[0]} na amostra e de {proporcoes[1]} no conjunto completo. A reponderação das medidas não "
+            "corrige isso: ela muda o peso das linhas na avaliação, e não o que o modelo aprendeu. Por isso as "
+            "combinações do sorteio estratificado e as execuções de referência são treinadas de duas formas:"
+        ),
+        "",
+        "- **proporções da amostra**: todas as linhas de treino pesam o mesmo. É a priori da amostra;",
+        (
+            "- **proporção natural**: cada linha de treino pesa a quantidade de linhas do seu rótulo no conjunto "
+            "completo dividida pela quantidade no treino (`sample_weight`). É a priori natural. No scikit-learn "
+            f"{m['versoes']['scikit-learn']}, o peso é a chance de a linha entrar no sorteio com reposição que monta "
+            "o conjunto de cada árvore: cada árvore recebe a mesma quantidade de linhas, na proporção das classes "
+            "do conjunto completo."
+        ),
+        "",
+        "As execuções com a priori natural têm `_natural` no nome. A divisão entre treino e teste, as linhas de",
+        "teste e a avaliação são as mesmas nas duas formas.",
     ]
 
 
@@ -518,7 +600,9 @@ def _par(valores, vazio="não se aplica"):
 
 def _destino_do_benigno(m):
     """Para onde vão as linhas benignas do teste nas execuções de 8 categorias."""
-    execucoes = [e for e in _da_grade(m, classes="8") if "BenignTraffic" in e["matriz_por_rotulo"]["rotulos"]]
+    execucoes = [
+        e for e in _da_grade(m, classes="8", priori=None) if "BenignTraffic" in e["matriz_por_rotulo"]["rotulos"]
+    ]
     if not execucoes:
         return []
     benignas = [_por_rotulo(e).loc["BenignTraffic"] for e in execucoes]
@@ -527,22 +611,21 @@ def _destino_do_benigno(m):
         for classe in ALVOS["8"].classes
     ]
     amostra, populacao = m["amostra"]["linhas_por_rotulo"], m["populacao"]
-    de_10 = [
-        rotulo for rotulo in ROTULOS
-        if CATEGORIA_DO_ROTULO[rotulo] not in JANELA_DE_100 and rotulo != "BenignTraffic"
-    ]
     total, completo = sum(amostra.values()), sum(populacao.values())
+    (benigno_na_amostra, de_10_na_amostra), (benigno, de_10) = (
+        _benigno_e_janela_de_10(contagens) for contagens in (amostra, populacao)
+    )
     return [
         "Para onde vai o tráfego benigno nas execuções de 8 categorias, como fração das linhas benignas do teste:",
         "",
         *_tabela(["Classe prevista", *(f"`{e['nome']}`" for e in execucoes)], linhas),
         "",
         (
-            f"Na amostra, o tráfego benigno é {_pct(amostra.get('BenignTraffic', 0) / total, 1)} das linhas, e as "
+            f"Na amostra, o tráfego benigno é {_pct(benigno_na_amostra / total, 1)} das linhas, e as "
             "categorias de ataque com janela de 10 (Recon, Spoofing, Web e BruteForce) somam "
-            f"{_pct(sum(amostra.get(rotulo, 0) for rotulo in de_10) / total, 1)}. No conjunto completo são "
-            f"{_pct(populacao['BenignTraffic'] / completo, 1)} e "
-            f"{_pct(sum(populacao[rotulo] for rotulo in de_10) / completo, 1)}."
+            f"{_pct(de_10_na_amostra / total, 1)}. No conjunto completo são {_pct(benigno / completo, 1)} e "
+            f"{_pct(de_10 / completo, 1)}. As execuções com `_natural` no nome foram treinadas com a proporção do "
+            "conjunto completo (ver \"Priori de treino\")."
         ),
         "",
     ]
@@ -553,7 +636,7 @@ def _secao_execucoes(m):
     for e in m["execucoes"]:
         a, o = e["amostra"], e["original"]
         globais.append([
-            f"`{e['nome']}`", e["features"], NOME_DA_DIVISAO[e["divisao"]], NOME_DO_ALVO[e["alvo"]],
+            f"`{e['nome']}`", e["features"], NOME_DA_DIVISAO[e["divisao"]], NOME_DO_ALVO[e["alvo"]], e["priori"],
             _pct(a["acuracia"]), _pct(o["acuracia"]), _pct(a["macro_f1"]), _pct(o["macro_f1"]),
             _pct(a["f1_ponderado"]), _pct(o["f1_ponderado"]), _pct(a["teto"]),
         ])
@@ -564,15 +647,16 @@ def _secao_execucoes(m):
             _pct(a["por_classe"][benigno]["recall"]), _pct(a["falso_positivo_benigno"]), _par(ataque_como_benigno),
         ])
     return [
-        "## As 10 execuções",
+        f"## As {len(m['execucoes'])} execuções",
         "",
         "Medidas globais nas linhas de teste. Em cada par de colunas, a primeira é na amostra e a segunda é",
-        "reponderada para a distribuição original. O teto é o das linhas de teste, sem reponderar, e se compara",
-        "com a acurácia na amostra (ver \"Como ler os números\").",
+        "reponderada para a distribuição original. A priori de treino é a da amostra ou a natural. O teto é o",
+        "das linhas de teste, sem reponderar, e se compara com a acurácia na amostra (ver \"Como ler os números\").",
         "",
         *_tabela(
             [
-                "Execução", "Features", "Divisão", "Alvo", "Acurácia na amostra", "Acurácia reponderada",
+                "Execução", "Features", "Divisão", "Alvo", "Priori de treino", "Acurácia na amostra",
+                "Acurácia reponderada",
                 "Macro-F1 na amostra", "Macro-F1 reponderado", "F1 ponderado na amostra", "F1 ponderado reponderado",
                 "Teto nas linhas de teste",
             ],
@@ -594,10 +678,12 @@ def _secao_execucoes(m):
         (
             "As execuções de 34 classes e de ataque ou benigno servem de referência para os cenários do artigo do "
             "dataset (Neto et al., 2023). Os valores publicados não estão neste repositório e precisam ser "
-            "conferidos no artigo antes de qualquer comparação. O artigo avalia na distribuição original, então a "
-            "coluna comparável é a reponderada."
+            "conferidos no artigo antes de qualquer comparação. A comparação depende também do protocolo: o "
+            "notebook de exemplo dos autores treina e avalia na proporção natural das classes, com divisão por "
+            "arquivo, e aqui a priori de treino muda os resultados. Nenhuma coluna deste relatório repete esse "
+            "protocolo."
             + (
-                f" A execução de 34 classes usa {m['parametros']['arvores_com_34_classes']} árvores, e as demais "
+                f" As execuções de 34 classes usam {m['parametros']['arvores_com_34_classes']} árvores, e as demais "
                 f"usam {m['parametros']['arvores']} (ver \"Custo de cada execução\")."
                 if m["parametros"]["arvores_com_34_classes"] != m["parametros"]["arvores"] else ""
             )
@@ -609,7 +695,7 @@ def _secao_por_classe(m):
     texto = [
         "## Resultados por classe",
         "",
-        "Uma tabela para cada execução da grade. As colunas da esquerda são medidas na amostra, e as da direita",
+        "Uma tabela para cada execução de 8 ou de 7 categorias. As colunas da esquerda são medidas na amostra, e as da direita",
         "são reponderadas. \"Falso positivo\" é a fração das linhas das outras classes que o modelo pôs na classe.",
         "\"Recall na regra do teto\" é o recall da classe na regra de maior acerto global nas linhas de teste,",
         "sem reponderar, e não um limite da classe (ver \"Como ler os números\"). As mesmas medidas, com as execuções de",
@@ -645,12 +731,17 @@ def _secao_por_classe(m):
     return texto
 
 
-def _da_grade(m, features=None, divisao=None, classes=None):
-    """Execuções da grade que casam com o que foi pedido, na ordem da grade."""
+def _da_grade(m, features=None, divisao=None, classes=None, priori="amostra"):
+    """Execuções de 8 ou de 7 categorias que casam com o que foi pedido, na ordem em que rodaram.
+
+    Sem dizer a priori, valem as da grade das três escolhas, treinadas com as proporções da
+    amostra. `priori=None` traz também as treinadas com a proporção natural.
+    """
     return [
         e for e in m["execucoes"]
         if e["alvo"] in ("8", "7")
         and features in (None, e["features"]) and divisao in (None, e["divisao"]) and classes in (None, e["alvo"])
+        and priori in (None, e["priori"])
     ]
 
 
@@ -663,7 +754,7 @@ def _secao_importancias(m):
         f"janela estão marcadas. A tabela completa, com as execuções de referência, está em `{IMPORTANCIAS}`.",
     ]
     for features in CONJUNTOS_DE_FEATURES:
-        execucoes = _da_grade(m, features=features)
+        execucoes = _da_grade(m, features=features, priori=None)
         if not execucoes:
             continue
         linhas = [
@@ -690,9 +781,9 @@ def _nota_das_34_classes(m):
         return []
     return [
         (
-            f"A execução de 34 classes usa {p['arvores_com_34_classes']} árvores, e não {p['arvores']}. Com 34 "
+            f"As execuções de 34 classes usam {p['arvores_com_34_classes']} árvores, e não {p['arvores']}. Com 34 "
             "classes cada nó guarda 34 contagens e as árvores têm mais nós, e a floresta de "
-            f"{p['arvores']} árvores não caberia na memória da máquina usada. As medidas dessa execução não são "
+            f"{p['arvores']} árvores não caberia na memória da máquina usada. As medidas dessas execuções não são "
             "diretamente comparáveis às das outras."
         ),
         "",
@@ -1016,6 +1107,133 @@ def _decisao_ddos_e_dos(m):
     ]
 
 
+def _pares_de_priori(m):
+    """Pares de execuções que só diferem na priori de treino: a da amostra e a natural."""
+    def chave(e):
+        return e["features"], e["divisao"], e["alvo"]
+
+    naturais = {chave(e): e for e in m["execucoes"] if e["priori"] == "natural"}
+    return [(e, naturais[chave(e)]) for e in m["execucoes"] if e["priori"] == "amostra" and chave(e) in naturais]
+
+
+def _ataque_como_benigno(execucao, distribuicao):
+    return execucao[distribuicao]["por_classe"][ALVOS[execucao["alvo"]].benigno]["taxa_falso_positivo"]
+
+
+def _decisao_priori(m):
+    pares = _pares_de_priori(m)
+    if not pares:
+        return []
+    nomes = [NOME_DA_PRIORI[priori] for priori in PRIORIS]
+    colunas = [texto.format(*nomes) for texto in CABECALHO_DA_VARIACAO]
+    benigno = [
+        [
+            f"`{a['nome']}`",
+            *(_pct(e["amostra"]["falso_positivo_benigno"]) for e in (a, n)),
+            *(_pct(_ataque_como_benigno(e, distribuicao)) for distribuicao in ("amostra", "original") for e in (a, n)),
+        ]
+        for a, n in pares
+    ]
+    acuracia = [[f"`{a['nome']}`", *_variacao(a, n, "acuracia")] for a, n in pares]
+    macro = [[f"`{a['nome']}`", *_variacao(a, n, "macro_f1")] for a, n in pares]
+    por_categoria = []
+    for nome_do_alvo in ("8", "7"):
+        do_alvo = [(a, n) for a, n in pares if a["alvo"] == nome_do_alvo]
+        if not do_alvo:
+            continue
+        linhas = []
+        for classe in ALVOS[nome_do_alvo].classes:
+            celulas = [classe]
+            for a, n in do_alvo:
+                antes, depois = (e["original"]["por_classe"][classe]["recall"] for e in (a, n))
+                if antes is None or depois is None:
+                    celulas += [_pct(antes), _pct(depois), "sem linhas"]
+                else:
+                    celulas += [_pct(antes), _pct(depois), _pp(depois - antes)]
+            linhas.append(celulas)
+        por_categoria += [
+            f"Recall reponderado de cada classe nas execuções de {NOME_DO_ALVO[nome_do_alvo]}:",
+            "",
+            *_tabela(
+                [
+                    "Classe",
+                    *(
+                        coluna
+                        for a, _ in do_alvo
+                        for coluna in (
+                            f"{a['features']} features, {nomes[0]}", f"{a['features']} features, {nomes[1]}",
+                            "Diferença (p.p.)",
+                        )
+                    ),
+                ],
+                linhas,
+            ),
+            "",
+        ]
+    # As frases de resumo usam os pares de 8 e de 7 categorias, que são os da decisão.
+    principais = [(a, n) for a, n in pares if a["alvo"] in ("8", "7")] or pares
+    da_amostra, naturais = ([e for par in principais for e in (par[i],)] for i in (0, 1))
+    resumo = [
+        (
+            f"- Com a {nomes[0]}, {_faixa([e['amostra']['falso_positivo_benigno'] for e in da_amostra])} do tráfego "
+            f"benigno de teste é classificado como ataque nas execuções de 8 e de 7 categorias. Com a {nomes[1]}, "
+            f"{_faixa([e['amostra']['falso_positivo_benigno'] for e in naturais])}."
+        ),
+        (
+            "- Nas mesmas execuções, o ataque classificado como benigno, reponderado, é "
+            f"{_faixa([_ataque_como_benigno(e, 'original') for e in da_amostra])} com a {nomes[0]} e "
+            f"{_faixa([_ataque_como_benigno(e, 'original') for e in naturais])} com a {nomes[1]}."
+        ),
+    ]
+    com_recon = [(a, n) for a, n in principais if "Recon" in a["original"]["por_classe"]]
+    if com_recon and all(e["original"]["por_classe"]["Recon"]["recall"] is not None for par in com_recon for e in par):
+        resumo.append(
+            "- O recall reponderado de Recon é "
+            f"{_faixa([a['original']['por_classe']['Recon']['recall'] for a, _ in com_recon])} com a {nomes[0]} e "
+            f"{_faixa([n['original']['por_classe']['Recon']['recall'] for _, n in com_recon])} com a {nomes[1]}."
+        )
+    return [
+        "### Priori de treino",
+        "",
+        "O que muda das proporções da amostra para a proporção natural no treino, com as features, a divisão e o",
+        "alvo fixos. As duas execuções de cada par são avaliadas nas mesmas linhas de teste.",
+        "",
+        "Tráfego benigno e ataques. \"Benigno como ataque\" é a fração das linhas benignas de teste classificadas",
+        "como algum ataque, igual na amostra e reponderada. \"Ataque como benigno\" é a fração das linhas de ataque",
+        "classificadas como tráfego benigno:",
+        "",
+        *_tabela(
+            [
+                "Execução",
+                *(f"Benigno como ataque, {nome}" for nome in nomes),
+                *(f"Ataque como benigno na amostra, {nome}" for nome in nomes),
+                *(f"Ataque como benigno reponderado, {nome}" for nome in nomes),
+            ],
+            benigno,
+        ),
+        "",
+        "Acurácia:",
+        "",
+        *_tabela(["Execução", *colunas], acuracia),
+        "",
+        "Macro-F1:",
+        "",
+        *_tabela(["Execução", *colunas], macro),
+        "",
+        *por_categoria,
+        (
+            "- A taxa de tráfego benigno classificado como ataque e os recalls reponderados dependem da priori de "
+            "treino. A reponderação corrige só a avaliação: o modelo treinado com as proporções da amostra continua "
+            "com a priori da amostra."
+        ),
+        *resumo,
+        "- A priori natural usada aqui é a proporção das classes no conjunto completo do dataset. A proporção do",
+        "  tráfego de uma rede em operação é outra e não é medida aqui.",
+        "- O relatório não recomenda nenhuma das duas. Os dois lados estão nas tabelas acima e, classe a classe, em",
+        "  \"Resultados por classe\".",
+    ]
+
+
 def _como_foram_obtidos(m):
     p = m["parametros"]
     return [
@@ -1030,6 +1248,9 @@ def _como_foram_obtidos(m):
             f"- Modelo: `RandomForestClassifier` do scikit-learn com os parâmetros padrão, {p['arvores']} árvores, "
             "`n_jobs=-1` e sem `StandardScaler`. Não houve busca de hiperparâmetros."
         ),
+        "- Priori de treino: sem pesos nas execuções com as proporções da amostra. Nas de proporção natural, o",
+        "  `sample_weight` de cada linha de treino é a contagem do rótulo no conjunto completo dividida pela",
+        "  contagem dele no treino, levada à média 1.",
         "- As métricas saem da matriz de confusão de cada execução. As reponderadas usam a matriz que abre a",
         f"  classe real nos 34 rótulos (`{MATRIZES}/*_por_rotulo.csv`) e as contagens do conjunto completo.",
         "- A média macro é sobre as classes do alvo. Os percentuais das tabelas são arredondados, e os valores",
@@ -1055,10 +1276,12 @@ def montar_relatorio(m):
                 f"{v['scikit-learn']}, pandas {v['pandas']} e numpy {v['numpy']}."
             ),
             "",
-            "Dez execuções do Random Forest sobre a amostra de treino do CICIoT2023 (Neto et al., 2023). Oito",
-            "combinam três escolhas que estão em aberto no `ROADMAP.md`: as colunas que dependem do tamanho da",
-            "janela, a divisão entre treino e teste e a separação entre DDoS e DoS. Duas servem de referência para",
-            "os cenários do artigo do dataset. O relatório traz os números e não recomenda nenhuma das saídas.",
+            "Execuções do Random Forest sobre a amostra de treino do CICIoT2023 (Neto et al., 2023). A grade",
+            "combina três escolhas que estão em aberto no `ROADMAP.md`: as colunas que dependem do tamanho da",
+            "janela, a divisão entre treino e teste e a separação entre DDoS e DoS. As combinações do sorteio",
+            "estratificado são treinadas também com a proporção natural das classes, porque a priori de treino muda",
+            "os resultados. As execuções de 34 classes e de ataque ou benigno servem de referência para os cenários",
+            "do artigo do dataset. O relatório traz os números e não recomenda nenhuma das saídas.",
         ],
         _como_ler(m),
         _secao_divisoes(m),
@@ -1071,13 +1294,17 @@ def montar_relatorio(m):
             "",
             "Só o que mudou e quanto, sem recomendação. As diferenças são da segunda coluna menos a primeira, em",
             "pontos percentuais. \"Na amostra\" é medido nas linhas de teste como elas são, e \"reponderada\" é a",
-            "estimativa na distribuição original do dataset.",
+            "estimativa na distribuição original do dataset. As três primeiras subseções usam as execuções",
+            "treinadas com as proporções da amostra. A quarta trata da priori de treino, uma escolha de método que",
+            "este experimento expôs.",
             "",
             *_decisao_janela(m),
             "",
             *_decisao_divisao(m),
             "",
             *_decisao_ddos_e_dos(m),
+            "",
+            *_decisao_priori(m),
         ],
         _como_foram_obtidos(m),
     ]
