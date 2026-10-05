@@ -802,6 +802,56 @@ def test_leitura_da_diferenca_frente_ao_ruido_de_semente():
     assert "não variou entre as sementes" in leitura([0.01, 0.02], 0.0)
 
 
+def manifesto_de_tres_sementes(por_execucao):
+    """Manifesto mínimo: para cada nome, o registro da execução nas sementes 42, 7 e 9 (ou só nas primeiras)."""
+    sementes = (42, 7, 9)
+    por_semente = {semente: [] for semente in sementes}
+    for nome, registros in por_execucao.items():
+        for semente, registro in zip(sementes, registros):
+            por_semente[semente].append({"nome": nome, "semente": semente, **registro})
+    return {
+        "semente": 42,
+        "execucoes": por_semente[42],
+        "repeticoes": [{"semente": semente, "execucoes": por_semente[semente]} for semente in sementes[1:]],
+    }
+
+
+def test_ruido_e_a_maior_variacao_de_uma_mesma_execucao_entre_as_sementes():
+    manifesto = manifesto_de_tres_sementes({
+        "a": [{"valor": 0.80}, {"valor": 0.81}, {"valor": 0.79}],
+        "b": [{"valor": 0.50}, {"valor": 0.56}, {"valor": 0.53}],
+        "c": [{"valor": 0.10}],
+    })
+    ruido = experimento_do_treino._ruido
+
+    def valor(execucao):
+        return execucao["valor"]
+
+    # Em `a` a medida vai de 0,79 a 0,81; em `b`, de 0,50 a 0,56. Vale a maior variação.
+    assert ruido(manifesto, manifesto["execucoes"], valor) == pytest.approx(0.06)
+    assert ruido(manifesto, manifesto["execucoes"][:1], valor) == pytest.approx(0.02)
+    # Execução que rodou com uma semente só não tem variação a medir.
+    assert ruido(manifesto, manifesto["execucoes"][2:], valor) == 0.0
+
+
+def test_aviso_dos_tempos_traz_a_maior_variacao_entre_as_repeticoes():
+    def tempos(mil, uma, nos):
+        return {"inferencia_ms_por_mil_janelas": {"um_nucleo": mil}, "inferencia_ms_por_janela_avulsa": uma, "nos_por_arvore": nos}
+
+    manifesto = manifesto_de_tres_sementes({
+        "a": [tempos(10.0, 1.0, 1000.0), tempos(12.0, 1.1, 1010.0), tempos(15.0, 1.3, 1020.0)],
+        "b": [tempos(20.0, 2.0, 500.0), tempos(21.0, 2.1, 500.0), tempos(20.5, 2.0, 500.0)],
+        "c": [tempos(90.0, 9.0, 100.0)],
+    })
+    aviso = " ".join(experimento_do_treino._aviso_dos_tempos(manifesto))
+    assert "Os tempos não se comparam entre as linhas da tabela" in aviso
+    # Em `a`, de 10 para 15 ms por 1.000 janelas e de 1,0 para 1,3 ms por janela, entre modelos 2% diferentes.
+    assert "cujos modelos diferem em até 2,0% na quantidade de nós" in aviso
+    assert "o tempo por 1.000 janelas com um núcleo variou até 50% e o de uma janela por chamada, até 30%" in aviso
+    sem_repeticao = manifesto_de_tres_sementes({"c": [tempos(90.0, 9.0, 100.0)]})
+    assert "variou" not in " ".join(experimento_do_treino._aviso_dos_tempos(sem_repeticao))
+
+
 def test_cada_decisao_diz_como_a_diferenca_se_compara_com_o_ruido_de_semente(experimento):
     pasta, _ = experimento
     relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
