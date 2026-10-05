@@ -6,6 +6,9 @@ dados/processed/*
 *.pcapng
 *.csv.gz
 
+# Log de eventos de uma execucao do sistema (o exemplo versionado fica em codigo/mcp/exemplos/)
+dados/eventos/
+
 # Modelos treinados
 *.pkl
 *.joblib
@@ -19,6 +22,10 @@ __pycache__/
 venv/
 env/
 .ipynb_checkpoints/
+
+# Frontend
+node_modules/
+frontend/dist/
 
 # Segredos e ambiente
 .env

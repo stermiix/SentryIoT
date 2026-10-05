@@ -1,7 +1,9 @@
 import io
 import math
 import struct
+from collections import Counter
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -437,6 +439,89 @@ def test_ler_pcap_limita_o_registro_mesmo_sem_limite_declarado():
     dados = cabecalho + struct.pack("<IIII", 1, 0, 300_000, 300_000) + b"\x00" * 64
     with pytest.raises(ValueError, match="corrompido"):
         list(ler_pcap(io.BytesIO(dados)))
+
+
+def test_ler_pcap_corta_no_limite_declarado_o_registro_maior_que_ele():
+    # A libpcap entrega só os bytes até o limite de captura declarado no cabeçalho, e é com ela
+    # que o tcpdump dos autores fatia o pcap. O Mirai-greip_flood21.pcap oficial declara 1500
+    # bytes e traz quadros de 1514.
+    cabecalho = PCAP_LE + struct.pack("<HHiIII", 2, 4, 0, 0, 60, 1)  # limite de captura de 60 bytes
+    longo, curto = bytes(range(200)), bytes(range(50))
+    dados = cabecalho + struct.pack("<IIII", 1, 0, len(longo), len(longo)) + longo
+    dados += struct.pack("<IIII", 2, 0, len(curto), len(curto)) + curto
+    assert list(ler_pcap(io.BytesIO(dados))) == [(1.0, longo[:60]), (2.0, curto)]
+
+
+def test_ler_pcap_recusa_registro_acima_do_maior_aceito_mesmo_com_limite_declarado_menor():
+    cabecalho = PCAP_LE + struct.pack("<HHiIII", 2, 4, 0, 0, 60, 1)
+    dados = cabecalho + struct.pack("<IIII", 1, 0, 300_000, 300_000) + b"\x00" * 64
+    with pytest.raises(ValueError, match="corrompido"):
+        list(ler_pcap(io.BytesIO(dados)))
+
+
+def cabecalho_pcap(limite):
+    """Cabeçalho de um pcap Ethernet, com o limite de captura declarado."""
+    return PCAP_LE + struct.pack("<HHiIII", 2, 4, 0, 0, limite, 1)
+
+
+def registro_pcap(segundos, quadro):
+    return struct.pack("<IIII", segundos, 0, len(quadro), len(quadro)) + quadro
+
+
+QUADRO_DE_262144_BYTES = bytes(range(256)) * 1024
+
+
+def test_ler_pcap_aceita_registro_de_exatamente_262144_bytes():
+    assert len(QUADRO_DE_262144_BYTES) == 262_144
+    dados = cabecalho_pcap(262_144) + registro_pcap(1, QUADRO_DE_262144_BYTES) + registro_pcap(2, quadro_tcp())
+    assert list(ler_pcap(io.BytesIO(dados))) == [(1.0, QUADRO_DE_262144_BYTES), (2.0, quadro_tcp())]
+
+
+def test_ler_pcap_recusa_registro_de_262145_bytes():
+    dados = cabecalho_pcap(262_144) + registro_pcap(1, QUADRO_DE_262144_BYTES + b"\x00")
+    with pytest.raises(ValueError, match=r"pacote 1 com tamanho impossível \(262145 bytes, limite de 262144\)"):
+        list(ler_pcap(io.BytesIO(dados)))
+
+
+def test_ler_pcap_com_limite_declarado_zero_entrega_o_quadro_inteiro():
+    # Limite 0 no cabeçalho quer dizer que nenhum limite foi declarado, e não que o quadro tem 0 bytes.
+    a, b = quadro_tcp(), quadro_udp()
+    dados = cabecalho_pcap(0) + registro_pcap(1, a) + registro_pcap(2, b)
+    assert list(ler_pcap(io.BytesIO(dados))) == [(1.0, a), (2.0, b)]
+
+
+@pytest.mark.parametrize("limite", [262_145, 300_000, 0x7FFFFFFF, 0xFFFFFFFF])
+def test_ler_pcap_com_limite_declarado_acima_de_262144_se_comporta_como_262144(limite):
+    a = quadro_tcp()
+    dados = cabecalho_pcap(limite) + registro_pcap(1, a) + registro_pcap(2, QUADRO_DE_262144_BYTES)
+    assert list(ler_pcap(io.BytesIO(dados))) == [(1.0, a), (2.0, QUADRO_DE_262144_BYTES)]
+    # O registro de 262.145 bytes é recusado mesmo cabendo no limite declarado.
+    com_maior = dados + registro_pcap(3, QUADRO_DE_262144_BYTES + b"\x00")
+    with pytest.raises(ValueError, match=r"pacote 3 com tamanho impossível \(262145 bytes, limite de 262144\)"):
+        list(ler_pcap(io.BytesIO(com_maior)))
+
+
+PCAP_DE_MIRAI = Path(__file__).resolve().parents[2] / "CICIoT2023" / "Mirai-greip_flood21.pcap"
+
+
+@pytest.mark.skipif(not PCAP_DE_MIRAI.exists(), reason="dataset ausente")
+def test_mirai_greip_flood21_real_nenhum_quadro_entregue_passa_de_1500_bytes():
+    # Varredura à parte, só dos cabeçalhos: o arquivo declara 1500 bytes e traz registros maiores.
+    with open(PCAP_DE_MIRAI, "rb") as arquivo:
+        cabecalho = arquivo.read(24)
+        assert cabecalho[:4] == PCAP_LE
+        assert struct.unpack("<II", cabecalho[16:24]) == (1500, 1)
+        registros = maiores = 0
+        while len(registro := arquivo.read(16)) == 16:
+            capturado = struct.unpack("<I", registro[8:12])[0]
+            registros += 1
+            maiores += capturado > 1500
+            arquivo.seek(capturado, 1)
+    assert maiores > 0
+    tamanhos = Counter(len(quadro) for _, quadro in ler_pcap(PCAP_DE_MIRAI))
+    assert sum(tamanhos.values()) == registros
+    assert max(tamanhos) == 1500
+    assert tamanhos[1500] >= maiores
 
 
 def test_instante_precisa_ser_um_numero_finito():

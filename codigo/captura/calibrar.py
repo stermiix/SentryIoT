@@ -325,6 +325,8 @@ def montar_relatorio(resultados):
         "- A coluna `LLC` vale 1 em todo quadro IPv4, igual à coluna `IPv`.",
         "- A coluna `SMTP` só é marcada em TCP; tráfego UDP na porta 25 não a ativa.",
         "- Quadros IPv6 não geram linha.",
+        "- Quadro maior que o limite de captura declarado no cabeçalho do pcap entra cortado nesse",
+        "  limite, como a libpcap entrega ao `tcpdump` que fatia o arquivo.",
         "- A última janela de cada pedaço pode ficar incompleta. Com um único quadro, `Std` e",
         "  `Variance` ficam vazios e `Rate` é infinito.",
         "",

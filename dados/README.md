@@ -35,7 +35,9 @@ TCC/CICIoT2023/
 ├── <34 pastas, uma por ataque>/ <- CSVs por ataque, sem rótulo (usados na calibração)
 ├── DictionaryBruteForce.pcap    <- 39 MB, um dos pcaps da calibração
 ├── Recon-PortScan.pcap          <- 192 MB
-├── DDoS-HTTP_Flood-.pcap        <- cerca de 0,6 GB (estimativa), a baixar: flood para a janela de 100
+├── DoS-HTTP_Flood1.pcap         <- 1,5 GB, flood para a janela de 100
+├── Mirai-greip_flood21.pcap     <- 705 MB, flood para a janela de 100
+├── DDoS-HTTP_Flood-.pcap        <- 611 MB, flood para a janela de 100
 ├── pcap2csv/                    <- o extrator DOS AUTORES (código de referência)
 ├── example.ipynb                <- notebook de ML dos autores (ler as ressalvas abaixo)
 ├── tools/                       <- notas das ferramentas usadas
@@ -109,7 +111,7 @@ Pôr o dicionário em maiúsculas também não resolve: o tráfego benigno apare
 ## Decisões já tomadas
 
 **Usamos as 39 features do `MERGED_CSV`.** Treino e operação partem do mesmo conjunto de colunas,
-e o extrator reproduz os valores oficiais nas classes já calibradas, que usam janela de 10. A
+e o extrator reproduz os valores oficiais nos cinco pcaps calibrados, com janela de 10 e de 100. A
 leitura é de arquivo pcap; a captura ao vivo ainda não foi entregue. (Havia uma versão de 46
 features; as 7 extras não saem do código publicado pelos autores, porque as linhas que as
 calculariam estão comentadas no `Feature_extraction.py`, linhas 132 e 171. Por isso ela foi
@@ -170,20 +172,27 @@ Stack real dos autores (de `tools/`, do código e do artigo): `tcpdump` captura 
 o parsing, `mergecap` junta capturas e `PySpark` junta os CSVs. O Scapy é importado pelo código,
 mas não contribui para nenhuma das 39 colunas.
 
-**Resultado da calibração** (03/10/2026, detalhes em `experimentos/resultados/calibracao.md`):
+**Resultado da calibração** (04/10/2026, detalhes em `experimentos/resultados/calibracao.md`):
 
-| Arquivo | Pacotes | Quadros IPv4 e ARP | Linhas no CSV oficial | Linhas reproduzidas |
-|---|---|---|---|---|
-| `DictionaryBruteForce.pcap` | 133.138 | 130.632 | 13.064 | 13.064 |
-| `Recon-PortScan.pcap` | 831.856 | 822.771 | 82.284 | 82.284 |
+| Arquivo | Janela | Pacotes | Quadros IPv4 e ARP | Linhas no CSV oficial | Linhas reproduzidas |
+|---|---|---|---|---|---|
+| `DictionaryBruteForce.pcap` | 10 | 133.138 | 130.632 | 13.064 | 13.064 |
+| `Recon-PortScan.pcap` | 10 | 831.856 | 822.771 | 82.284 | 82.284 |
+| `DDoS-HTTP_Flood-.pcap` | 100 | 2.881.005 | 2.875.590 | 28.790 | 28.790 |
+| `DoS-HTTP_Flood1.pcap` | 100 | 3.114.983 | 3.109.872 | 31.175 | 31.175 |
+| `Mirai-greip_flood21.pcap` | 100 | 1.196.296 | 1.195.447 | 11.991 | 11.991 |
 
-A diferença entre pacotes e quadros mantidos (1,88% e 1,09%) vem do filtro: IPv6, STP e outros
-tipos de quadro ficam de fora. A soma da coluna `Number` do CSV oficial é igual à contagem de
-quadros IPv4 e ARP nos dois pcaps.
+A diferença entre pacotes e quadros mantidos vem do filtro: IPv6, STP e outros tipos de quadro
+ficam de fora. A soma da coluna `Number` do CSV oficial é igual à contagem de quadros IPv4 e ARP
+nos cinco pcaps.
 
-Os dois pcaps disponíveis são de classes com janela de 10. A janela de 100 ainda não foi
-calibrada, porque não temos pcap de nenhuma classe de flood. O calibrador lê o tamanho da janela
-do próprio CSV oficial, então basta acrescentar o pcap à pasta do dataset.
+A janela de 100 foi calibrada em 04/10/2026 com um pcap de cada família que a usa: DDoS, DoS e
+Mirai. O calibrador lê o tamanho da janela do próprio CSV oficial, então basta acrescentar um
+pcap à pasta do dataset para conferir outra classe.
+
+O pcap de Mirai declara no cabeçalho um limite de captura de 1500 bytes e traz quadros maiores.
+A libpcap, usada pelo `tcpdump` com que os autores fatiam o arquivo, entrega esses quadros
+cortados no limite. O extrator faz o mesmo, e só assim as linhas oficiais são reproduzidas.
 
 ---
 
@@ -214,8 +223,10 @@ Consequências para o projeto:
 
 Saídas em avaliação, a decidir antes do treino:
 
-1. Remover `Number`, `Tot sum` e as quatro contagens. Não se perde informação, porque elas são
-   função de colunas que ficam. Reduz o atalho, mas não o elimina.
+1. Remover `Number`, `Tot sum` e as quatro contagens. `Tot sum` e as contagens são o produto de
+   uma coluna que fica por `Number`; o que sai é a leitura direta do tamanho da janela. No treino
+   exploratório isso custou menos de 0,3 ponto de acurácia e não eliminou o atalho: sem as seis
+   colunas o modelo ainda separa os dois grupos de janela em mais de 99,8% das linhas de teste.
 2. Uniformizar em 100, reagrupando as classes de janela 10 a partir dos CSVs por ataque. É o mais
    correto e pode ser conferido com o nosso extrator nos dois pcaps, mas deixa as classes raras
    com dez vezes menos linhas.
@@ -302,16 +313,26 @@ CICIoT2023/
 | `preparar.py` | Lê a amostra, escolhe as features (as 39, ou 33 sem as que dependem da janela) e o alvo (34 classes, 8 categorias, 7 com DDoS e DoS fundidas, ou ataque e benigno) e separa treino e teste, por sorteio estratificado de linhas ou por grupos de vetores idênticos. **Semente fixa** |
 | `treinar.py` | Treina o Random Forest com os parâmetros padrão do scikit-learn e salva o modelo em `modelos/`, fora do git, com as features, o alvo e a divisão usados. Sem `StandardScaler` |
 | `avaliar.py` | Acurácia, macro-F1, precisão, recall e F1 por classe, matriz de confusão, taxa de falso positivo, teto, importância das features, tempo de inferência e tamanho do modelo. Mede na distribuição da amostra e reponderado para a do conjunto completo. Também pontua um CSV de fora com as 39 colunas e o rótulo conhecido, como a saída do extrator |
-| `experimento.py` | Roda o treino exploratório: dez execuções que combinam features, divisão e alvo. Grava o relatório, as tabelas, as matrizes de confusão e o manifesto do experimento |
+| `experimento.py` | Roda o treino exploratório: execuções que combinam features, divisão, alvo e proporção das classes no treino, com três sementes. Grava o relatório, as tabelas, as matrizes de confusão e o manifesto do experimento |
 
 **Frente de MCP e agentes** — `codigo/mcp/` e `codigo/agente/`
 
 | Arquivo | O que faz |
 |---|---|
-| `mcp/contrato.json` | O contrato da tool: o que o classificador recebe e devolve. **Primeiro artefato a existir** — é ele que destrava as duas frentes em paralelo |
-| `mcp/stub.py` | Devolve predições falsas no formato do contrato, para a frente de agentes trabalhar antes de o modelo existir |
-| `mcp/servidor.py` | O servidor MCP de verdade, expondo o classificador como tool |
-| `agente/agentes.py` | O sistema multiagente: triagem, contexto e mitigação |
+| `mcp/README.md` | Por onde começar na frente de agentes: como subir o stub, ligar um cliente MCP, chamar cada tool, aprovar pelo terminal e ler o log de eventos |
+| `mcp/tipos.py` | Os tipos do contrato, numa fonte só: o que cada uma das nove tools recebe e devolve e o formato de cada linha do log de eventos |
+| `mcp/contrato.json` | O mesmo contrato em JSON Schema, gerado de `tipos.py`. Um teste falha se os dois divergirem. É ele que destrava as duas frentes em paralelo |
+| `mcp/acoes.py` | O catálogo de ações, as ações novas, a política de risco e o ambiente simulado, com desfazer |
+| `mcp/politica.toml` | Os limites da política de risco, que a equipe ajusta sem mexer no código |
+| `mcp/base.py` | A leitura da base local de documentos e a busca usada por `pesquisar_solucoes` |
+| `mcp/base_provisoria/` | Os documentos da base local. Conteúdo provisório do stub, a substituir pelo levantamento de mitigações da equipe |
+| `mcp/eventos.py` | Gravação e leitura do log de eventos, que a interface web lê |
+| `mcp/cenarios.py` | Os quatro incidentes de exemplo do stub, com números ilustrativos: flood, força bruta, varredura de portas e falso positivo |
+| `mcp/stub.py` | O servidor MCP de mentira: responde às nove tools com os cenários, para a frente de agentes trabalhar antes de o modelo existir |
+| `mcp/aprovar.py` | O comando de terminal com que a pessoa aprova, rejeita ou promove uma proposta de ação |
+| `mcp/roteiro.py` | Gera `mcp/exemplos/incidente_flood.jsonl`, o log de exemplo de um incidente inteiro, insumo do modo replay da interface web |
+| `mcp/servidor.py` | O servidor MCP de verdade, que expõe o classificador pelas mesmas tools do contrato |
+| `agente/agentes.py` | O sistema multiagente: triagem, decisão e execução |
 | `agente/prompts/` | Os prompts de cada agente, em arquivos separados |
 | `agente/acionamento.py` | A política de acionamento: agrega, deduplica e decide quando vale chamar a LLM. Sem isso, um DDoS gera milhares de chamadas por segundo |
 | `agente/teste_tool_poisoning.py` | O experimento de segurança do MCP: uma tool com descrição envenenada, para medir se o agente cai |
@@ -323,7 +344,7 @@ CICIoT2023/
 | `resultados/calibracao.md` | O relatório da calibração: o que bateu, o que divergiu e quanto |
 | `resultados/exploracao.md` | A exploração do `MERGED_CSV` completo: linhas por classe e por categoria, janela por classe, valores vazios e infinitos, colunas redundantes e linhas repetidas |
 | `resultados/manifesto_amostra.json` | O registro da amostra: semente, teto, contagem por classe no conjunto e na amostra, hash dos arquivos lidos e hash da amostra |
-| `resultados/treino_exploratorio.md` | O relatório do treino exploratório: as dez execuções, as medidas por classe, a importância das features, o custo e o que os números dizem sobre as decisões em aberto |
+| `resultados/treino_exploratorio.md` | O relatório do treino exploratório: as execuções, as medidas por classe, a importância das features, o custo e o que os números dizem sobre as decisões em aberto |
 | `resultados/manifesto_treino_exploratorio.json` | O registro do experimento: semente, parâmetros, versões, hash da amostra, as duas divisões e todos os números de cada execução |
 | `resultados/metricas_classificador.csv` | Precisão, recall, F1, suporte e taxa de falso positivo por classe, em formato longo: uma linha por execução, distribuição e classe |
 | `resultados/importancia_features.csv` | Importância de cada feature em cada execução, em formato longo |
@@ -360,7 +381,8 @@ Requer Python 3.11 ou mais novo. As versões ficam fixadas no `requirements.txt`
 
 ## O que NUNCA vai para o git
 
-`CICIoT2023/`, arquivos `.pcap`, CSVs grandes, modelos treinados (`.pkl`, `.joblib`) e `.env`.
+`CICIoT2023/`, arquivos `.pcap`, CSVs grandes, modelos treinados (`.pkl`, `.joblib`), `.env` e o
+log de eventos de uma execução (`dados/eventos/`).
 
 ## O que SEMPRE vai para o git
 
