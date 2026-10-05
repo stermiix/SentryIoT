@@ -5,7 +5,8 @@
 #
 # Uma ação só é de risco baixo quando todas as condições abaixo valem ao mesmo tempo:
 #   - a ação está marcada aqui como de risco baixo e a duração pedida cabe no prazo máximo;
-#   - o alvo é uma origem ou um destino do incidente, e o incidente está aberto;
+#   - o alvo faz parte do incidente, no papel que a ação aceita (alvos_de_risco_baixo), e o
+#     incidente está aberto;
 #   - o alvo não é um endereço protegido;
 #   - o incidente ainda não atingiu o limite de medidas de risco baixo ativas.
 # Fora disso a proposta não é recusada: vira de risco alto e espera a aprovação.
@@ -19,11 +20,18 @@
 risco = "baixo"
 # Prazo máximo, em minutos, para a medida contar como risco baixo. Acima dele, risco alto.
 prazo_maximo_de_risco_baixo = 60
+# Em que alvos a medida conta como risco baixo: "origens" (só quem ataca) ou "origens_e_destinos"
+# (também o dispositivo atacado). Limitar a taxa de um destino o mantém em serviço.
+alvos_de_risco_baixo = "origens_e_destinos"
 
 [bloquear_ip]
 risco = "baixo"
 # Bloqueio sem prazo ou com prazo maior que este, em minutos, é de risco alto.
 prazo_maximo_de_risco_baixo = 15
+# Bloquear um destino do incidente tira do ar o dispositivo atacado, que é o que o ataque quer.
+# Por isso o bloqueio só é de risco baixo sobre uma origem. O endereço que aparece nas origens e
+# nos destinos conta como destino.
+alvos_de_risco_baixo = "origens"
 
 [isolar_dispositivo]
 risco = "alto"

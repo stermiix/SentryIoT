@@ -5,11 +5,13 @@ limite: o agente pode propor uma ação nova, fora do catálogo, desde que diga 
 desfazer. A autonomia é graduada pelo risco. Ação de risco baixo é aplicada sem aprovação;
 ação de risco alto e toda ação nova só são aplicadas depois que uma pessoa aprova.
 
-O risco não sai só do nome da ação e da duração. Uma ação é de risco baixo quando o alvo é
-origem ou destino do incidente aberto, não é endereço protegido, a duração cabe no prazo e o
-incidente ainda não atingiu o limite de medidas de risco baixo ativas. Os números ficam em
-`politica.toml`. O piso fica aqui, no código: isolar_dispositivo, revogar_credencial e toda
-ação nova são sempre de risco alto.
+O risco não sai só do nome da ação e da duração. Uma ação é de risco baixo quando o alvo faz
+parte do incidente aberto, no papel que a política aceita para a ação, não é endereço
+protegido, a duração cabe no prazo e o incidente ainda não atingiu o limite de medidas de risco
+baixo ativas. O papel depende da ação: limitar a taxa vale para origem e para destino, e
+bloquear só para origem, porque o destino é o dispositivo atacado e bloqueá-lo tira a vítima do
+ar. Os números e os papéis ficam em `politica.toml`. O piso fica aqui, no código:
+isolar_dispositivo, revogar_credencial e toda ação nova são sempre de risco alto.
 
 Quem chama as tools é um modelo de linguagem, que pode ser enganado por conteúdo vindo da rede.
 Por isso tudo o que chega é tratado como entrada: textos têm uma linha e tamanho máximo, o alvo
@@ -165,6 +167,12 @@ BASE = {
 _SEMPRE_DE_RISCO_ALTO = ("isolar_dispositivo", "revogar_credencial")
 # Nomes das seções e das chaves de `politica.toml`.
 _PRAZO = "prazo_maximo_de_risco_baixo"
+_ALVOS = "alvos_de_risco_baixo"
+# Em que papel o alvo precisa estar no incidente para a ação contar como de risco baixo. A origem
+# vale sempre. O destino é o dispositivo atacado, e só vale para a ação que a política disser.
+_SO_ORIGENS = "origens"
+_ORIGENS_E_DESTINOS = "origens_e_destinos"
+ALVOS_DE_RISCO_BAIXO = (_SO_ORIGENS, _ORIGENS_E_DESTINOS)
 _LIMITES = "limites"
 _MEDIDAS = "medidas_de_risco_baixo_por_incidente"
 _REDE = "rede"
@@ -179,7 +187,8 @@ _REDES_LOCAIS = "redes_locais"
 class Politica:
     """A política de risco, como sai de `politica.toml`."""
 
-    # Para cada ação de base, o risco e o prazo máximo, em minutos, para ela contar como risco baixo.
+    # Para cada ação de base, o risco, o prazo máximo, em minutos, para ela contar como risco baixo
+    # e os alvos em que o risco baixo vale: só as origens do incidente, ou as origens e os destinos.
     acoes: dict
     # Máximo de medidas de risco baixo ativas ao mesmo tempo em um incidente.
     medidas_de_risco_baixo_por_incidente: int
@@ -232,7 +241,7 @@ def carregar_politica(caminho=POLITICA_PADRAO):
 
     regras = {}
     for nome, definicao in BASE.items():
-        regra = secao(nome, ("risco", _PRAZO))
+        regra = secao(nome, ("risco", _PRAZO, _ALVOS))
         if regra.get("risco") not in RISCOS:
             raise invalida(f"o risco de {nome} precisa ser baixo ou alto, e veio {regra.get('risco')!r}")
         if nome in _SEMPRE_DE_RISCO_ALTO and regra["risco"] != "alto":
@@ -248,7 +257,20 @@ def carregar_politica(caminho=POLITICA_PADRAO):
         elif regra["risco"] == "baixo":
             # Sem prazo máximo, a medida de risco baixo não teria teto de duração.
             raise invalida(f"{nome} é de risco baixo e precisa de {_PRAZO}, em minutos")
-        regras[nome] = {"risco": regra["risco"], _PRAZO: prazo}
+        alvos = regra.get(_ALVOS)
+        if alvos is not None:
+            if nome in _SEMPRE_DE_RISCO_ALTO:
+                raise invalida(f"{nome} é sempre de risco alto, então não pode ter {_ALVOS}")
+            if alvos not in ALVOS_DE_RISCO_BAIXO:
+                raise invalida(
+                    f"{_ALVOS} de {nome} precisa ser {' ou '.join(map(repr, ALVOS_DE_RISCO_BAIXO))}, e veio {alvos!r}"
+                )
+        elif regra["risco"] == "baixo":
+            # Sem a regra escrita, bloquear o dispositivo atacado poderia passar por medida de risco baixo.
+            raise invalida(
+                f"{nome} é de risco baixo e precisa de {_ALVOS}: {' ou '.join(map(repr, ALVOS_DE_RISCO_BAIXO))}"
+            )
+        regras[nome] = {"risco": regra["risco"], _PRAZO: prazo, _ALVOS: alvos}
 
     limites = secao(_LIMITES, (_MEDIDAS,))
     medidas = limites.get(_MEDIDAS)
@@ -288,10 +310,17 @@ def _risco(estado, politica, incidente, acao, alvo, parametros):
         return "alto"
     regra = politica.acoes[acao]
     duracao = parametros.get("duracao")
+    origens, destinos = _enderecos_do_incidente(estado, incidente)
+    # O endereço que é destino do incidente é o dispositivo atacado, mesmo que também apareça entre as
+    # origens (as respostas dele ao ataque saem dele). Ele só é alvo de risco baixo na ação que aceita destino.
+    if regra[_ALVOS] == _ORIGENS_E_DESTINOS:
+        alvo_aceito = alvo in origens or alvo in destinos
+    else:
+        alvo_aceito = alvo in origens and alvo not in destinos
     condicoes = (
         regra["risco"] == "baixo",
         regra[_PRAZO] is not None and type(duracao) is int and duracao <= regra[_PRAZO],
-        alvo in _enderecos_do_incidente(estado, incidente),
+        alvo_aceito,
         alvo not in politica.enderecos_protegidos,
         _medidas_de_risco_baixo(estado, incidente) < politica.medidas_de_risco_baixo_por_incidente,
     )
@@ -299,11 +328,14 @@ def _risco(estado, politica, incidente, acao, alvo, parametros):
 
 
 def _enderecos_do_incidente(estado, incidente):
-    """Origens e destinos do incidente, na última versão dele. Incidente encerrado não tem alvo."""
+    """As origens e os destinos do incidente, na última versão dele. Incidente encerrado não tem alvo."""
     ocorrido = estado.incidentes.get(incidente)
     if ocorrido is None or ocorrido.estado != "aberto":
-        return frozenset()
-    return frozenset(item.endereco for item in (*ocorrido.origens, *ocorrido.destinos))
+        return frozenset(), frozenset()
+    return (
+        frozenset(item.endereco for item in ocorrido.origens),
+        frozenset(item.endereco for item in ocorrido.destinos),
+    )
 
 
 def _medidas_de_risco_baixo(estado, incidente):
@@ -320,12 +352,16 @@ def _regra(politica, acao):
     if acao in _SEMPRE_DE_RISCO_ALTO or regra["risco"] == "alto":
         return _REGRA_DE_RISCO_ALTO
     sem_prazo = "sem duracao, " if BASE[acao].duracao == "opcional" else ""
+    if regra[_ALVOS] == _ORIGENS_E_DESTINOS:
+        papel, destino = "origem ou destino", ""
+    else:
+        papel, destino = "origem", "alvo que é destino do incidente, isto é, o dispositivo atacado, "
     return (
-        f"Risco baixo quando o alvo é origem ou destino do incidente, a duracao é de até {regra[_PRAZO]} "
+        f"Risco baixo quando o alvo é {papel} do incidente, a duracao é de até {regra[_PRAZO]} "
         f"minutos e o incidente tem menos de {politica.medidas_de_risco_baixo_por_incidente} medidas de risco "
         f"baixo ativas: o agente de execução aplica sem aprovação. Fora disso ({sem_prazo}duracao maior, alvo "
-        "que não consta do incidente, endereço protegido pela política ou limite de medidas atingido), risco "
-        "alto: só com aprovação humana."
+        f"que não consta do incidente, {destino}endereço protegido pela política ou limite de medidas atingido), "
+        "risco alto: só com aprovação humana."
     )
 
 

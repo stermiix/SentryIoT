@@ -285,6 +285,18 @@ def test_acao_sobre_o_gateway_exige_aprovacao_mesmo_quando_ele_e_destino_do_inci
     assert not chamar(stub, "propor_acao", id="inc-0003", alvo="192.168.137.20", **limite).exige_aprovacao
 
 
+def test_bloquear_o_destino_do_incidente_exige_aprovacao_e_limitar_a_taxa_dele_nao(stub):
+    # No flood, 192.168.137.20 é o dispositivo atacado.
+    assert [item.endereco for item in POR_NOME["flood"].incidente.destinos] == ["192.168.137.20"]
+    bloqueio = chamar(stub, "propor_acao", id="inc-0001", alvo="192.168.137.20", **BLOQUEIO)
+    assert (bloqueio.risco, bloqueio.exige_aprovacao, bloqueio.estado) == ("alto", True, "aguardando_aprovacao")
+    recusado(stub, "proposta_nao_liberada", "executar_acao", id_proposta=bloqueio.id)
+    limite = chamar(stub, "propor_acao", id="inc-0001", alvo="192.168.137.20", **BLOQUEIO | {"acao": "limitar_taxa"})
+    assert (limite.risco, limite.exige_aprovacao, limite.estado) == ("baixo", False, "liberada")
+    assert chamar(stub, "executar_acao", id_proposta=limite.id).estado == "aplicada"
+    assert chamar(stub, "consultar_estado").bloqueios == []
+
+
 @pytest.mark.parametrize("alvo", ["127.0.0.1", "0.0.0.0", "255.255.255.255", "192.168.137.255", "224.0.0.1", "::1", "fe80::1"])
 def test_endereco_especial_e_recusado_e_registrado(stub, alvo):
     mensagem = recusado(stub, "alvo_nao_permitido", "propor_acao", id="inc-0001", alvo=alvo, **BLOQUEIO)
