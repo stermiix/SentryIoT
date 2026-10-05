@@ -329,7 +329,7 @@ def _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros):
     endereco = alvo.rpartition("@")[2]
     origens, destinos = _enderecos_do_incidente(estado, incidente)
     valem = set()
-    # O primeiro teste é o piso do código, que nenhuma política baixa.
+    # O piso do código, que nenhuma política baixa, e a ação que a política marca como de risco alto.
     if acao in _SEMPRE_DE_RISCO_ALTO or regra["risco"] != "baixo":
         valem.add("acao_sempre_de_risco_alto")
     else:
