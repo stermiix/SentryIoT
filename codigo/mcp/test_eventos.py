@@ -6,8 +6,18 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from codigo.mcp.eventos import CAMINHO_PADRAO, LogInvalido, Registro, agora, ler, novo
-from codigo.mcp.tipos import ChamadaDeLLM
+from codigo.mcp.eventos import (
+    CAMINHO_PADRAO,
+    TIPOS_DO_AGENTE,
+    GravadorDoAgente,
+    LogInvalido,
+    Registro,
+    agora,
+    ler,
+    novo,
+)
+from codigo.mcp.test_tipos import DADOS_POR_TIPO
+from codigo.mcp.tipos import TIPOS_DE_EVENTO, ChamadaDeLLM, Recomendacao
 
 RAIZ = Path(__file__).resolve().parents[2]
 INICIO = datetime(2026, 10, 20, 14, 3, 41, tzinfo=UTC)
@@ -178,6 +188,133 @@ def test_linhas_em_branco_sao_ignoradas(registro):
     with open(registro.caminho, "a", encoding="utf-8") as arquivo:
         arquivo.write("\n")
     assert [evento.id for evento in registro.gravar(novo("janelas_classificadas", LOTE))] == ["ev-000002"]
+
+
+def test_arquivo_sem_quebra_de_linha_no_fim_nao_cola_o_evento_seguinte(registro):
+    registro.gravar(novo("janelas_classificadas", LOTE))
+    registro.caminho.write_bytes(registro.caminho.read_bytes().removesuffix(b"\n"))
+    assert not registro.caminho.read_bytes().endswith(b"\n")
+
+    # Sem a quebra, o evento novo era escrito na mesma linha do anterior, e o log deixava de ser lido.
+    registro.gravar(novo("llm_chamada", CHAMADA, "inc-0001"))
+    registro.gravar(novo("janelas_classificadas", LOTE))
+    assert [evento.id for evento in registro.ler()] == ["ev-000001", "ev-000002", "ev-000003"]
+    linhas = registro.caminho.read_text(encoding="utf-8").split("\n")
+    assert [linha.count('"id":"ev-') for linha in linhas] == [1, 1, 1, 0]
+
+
+def chamada_de_tool(**argumentos):
+    return {"agente": None, "nome": "obter_janelas", "argumentos": argumentos, "resultado": {}, "duracao_ms": 1.0}
+
+
+def aninhado(niveis):
+    valor = atual = {}
+    for _ in range(niveis):
+        atual["a"] = {}
+        atual = atual["a"]
+    return valor
+
+
+@pytest.mark.parametrize("rascunho", [
+    novo("tool_chamada", chamada_de_tool(limite=10**5000), "inc-0001"),
+    novo("llm_chamada", CHAMADA | {"tokens_entrada": 10**5000}, "inc-0001"),
+    novo("tool_chamada", chamada_de_tool(x="\ud800"), "inc-0001"),
+    novo("tool_chamada", chamada_de_tool(x=aninhado(3000)), "inc-0001"),
+    novo("tool_chamada", chamada_de_tool(x=float("nan")), "inc-0001"),
+], ids=["inteiro de 5000 dígitos em argumentos", "inteiro de 5000 dígitos em contagem", "surrogate solto", "3000 níveis", "nan"])
+def test_evento_que_nao_seria_lido_de_volta_nao_e_gravado(registro, rascunho):
+    # Antes, a linha era gravada e o log inteiro deixava de ser lido: toda chamada seguinte falhava.
+    registro.gravar(novo("janelas_classificadas", LOTE))
+    antes = registro.caminho.read_bytes()
+    with pytest.raises(ValueError, match="não pode ser gravado") as captura:
+        registro.gravar(novo("janelas_classificadas", LOTE), rascunho)
+    assert len(str(captura.value)) < 600
+    assert registro.caminho.read_bytes() == antes
+    assert [evento.id for evento in registro.gravar(novo("janelas_classificadas", LOTE))] == ["ev-000002"]
+    assert len(registro.ler()) == 2
+
+
+def test_cada_evento_ocupa_uma_linha_para_qualquer_leitor(registro):
+    # NEL, separador de linha e separador de parágrafo dividem a linha para quem lê com splitlines().
+    texto = "a\x85b\u2028c\u2029d\x1ce\nf"
+    registro.gravar(novo("tool_chamada", chamada_de_tool(x=texto), "inc-0001"))
+    registro.gravar(novo("janelas_classificadas", LOTE))
+    bruto = registro.caminho.read_text(encoding="utf-8")
+    assert len(bruto.splitlines()) == 2
+    assert all(json.loads(linha)["id"] for linha in bruto.splitlines())
+    assert registro.ler()[0].dados.argumentos == {"x": texto}
+
+
+# --- o que o código dos agentes grava --------------------------------------------------------
+
+
+@pytest.fixture
+def gravador(registro):
+    return GravadorDoAgente("decisao", registro.caminho, relogio=RelogioDeTeste())
+
+
+def test_gravador_do_agente_grava_chamada_ao_modelo_e_recomendacao(gravador, registro):
+    assert TIPOS_DO_AGENTE == ("llm_chamada", "recomendacao_emitida")
+    assert (gravador.agente, gravador.caminho) == ("decisao", registro.caminho)
+    chamada = CHAMADA | {"agente": "decisao"}
+    recomendacao = {"agente": "decisao", "texto": "Bloquear a origem.\n\nSe não resolver, limitar a taxa.", "propostas": []}
+    gravados = gravador.gravar(novo("llm_chamada", chamada, "inc-0001"))
+    gravados += gravador.gravar(
+        novo("recomendacao_emitida", Recomendacao.model_validate(recomendacao), "inc-0001"),
+        novo("llm_chamada", ChamadaDeLLM.model_validate(chamada), "inc-0001"),
+    )
+    assert [(evento.id, evento.tipo) for evento in gravados] == [
+        ("ev-000001", "llm_chamada"), ("ev-000002", "recomendacao_emitida"), ("ev-000003", "llm_chamada"),
+    ]
+    assert gravados == registro.ler()
+
+
+@pytest.mark.parametrize("tipo", [tipo for tipo in TIPOS_DE_EVENTO if tipo not in ("llm_chamada", "recomendacao_emitida")])
+def test_gravador_do_agente_recusa_todos_os_outros_eventos(gravador, registro, tipo):
+    # Aprovação, proposta, execução, incidente: nada disso é o agente quem grava.
+    with pytest.raises(ValueError, match=f"llm_chamada e recomendacao_emitida.*{tipo}"):
+        gravador.gravar(novo(tipo, DADOS_POR_TIPO[tipo], "inc-0001"))
+    # Um evento permitido no mesmo lote também não entra.
+    with pytest.raises(ValueError, match=tipo):
+        gravador.gravar(novo("llm_chamada", CHAMADA | {"agente": "decisao"}, "inc-0001"), novo(tipo, DADOS_POR_TIPO[tipo]))
+    assert registro.ler() == []
+
+
+def test_gravador_so_grava_em_nome_do_proprio_agente(gravador, registro):
+    with pytest.raises(ValueError, match="decisao.*triagem"):
+        gravador.gravar(novo("llm_chamada", CHAMADA, "inc-0001"))
+    with pytest.raises(ValueError, match="decisao.*execucao"):
+        gravador.gravar(novo("recomendacao_emitida", {"agente": "execucao", "texto": "Bloquear.", "propostas": []}))
+    with pytest.raises(ValueError, match="agente desconhecido"):
+        GravadorDoAgente("detector", registro.caminho)
+    assert registro.ler() == []
+
+
+def test_recomendacao_so_cita_proposta_que_existe_no_log(gravador, registro):
+    registro.gravar(
+        novo("incidente_aberto", DADOS_POR_TIPO["incidente_aberto"], "inc-0001"),
+        novo("acao_proposta", DADOS_POR_TIPO["acao_proposta"], "inc-0001"),
+    )
+    recomendacao = {"agente": "decisao", "texto": "Bloquear a origem.", "propostas": ["prop-0001"]}
+    gravador.gravar(novo("recomendacao_emitida", recomendacao, "inc-0001"))
+    with pytest.raises(ValueError, match="prop-0099"):
+        gravador.gravar(novo("recomendacao_emitida", recomendacao | {"propostas": ["prop-0001", "prop-0099"]}, "inc-0001"))
+    assert [evento.tipo for evento in registro.ler()] == ["incidente_aberto", "acao_proposta", "recomendacao_emitida"]
+
+
+@pytest.mark.parametrize("rascunho", [
+    {"tipo": "llm_chamada"}, {"dados": CHAMADA}, {}, "llm_chamada", None,
+    novo("llm_chamada", CHAMADA | {"agente": "decisao", "tokens_entrada": -1}),
+    novo("recomendacao_emitida", {"agente": "decisao", "texto": "ok\x1b[2J", "propostas": []}),
+])
+def test_gravador_recusa_rascunho_malformado_sem_gravar(gravador, registro, rascunho):
+    with pytest.raises(ValueError):
+        gravador.gravar(rascunho)
+    assert registro.ler() == []
+
+
+def test_gravador_do_agente_so_oferece_a_gravacao(gravador):
+    assert [nome for nome in dir(gravador) if not nome.startswith("_")] == ["agente", "caminho", "gravar"]
 
 
 def test_gravacoes_simultaneas_nao_repetem_identificador(tmp_path):
