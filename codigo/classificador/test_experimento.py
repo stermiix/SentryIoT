@@ -415,6 +415,82 @@ def test_relatorio_trata_o_teto_como_limite_do_conjunto_de_teste(experimento):
     assert not hasattr(experimento_do_treino, "RECALL_MAXIMO_DE_DOS_NO_CONJUNTO")
 
 
+def test_relatorio_nao_atribui_o_sorteio_estratificado_aos_autores_do_dataset(experimento):
+    pasta, _ = experimento
+    relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
+    assert "método dos autores" not in relatorio
+    assert "- **Sorteio estratificado de linhas**: " in relatorio
+    # O que os autores fazem é dito à parte, como outra divisão.
+    assert "O notebook de exemplo dos autores do dataset divide de outra forma: por arquivo" in relatorio
+
+
+def test_relatorio_diz_o_que_sao_as_seis_colunas_que_saem(experimento):
+    pasta, _ = experimento
+    relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
+    trecho = relatorio.split("### Janela de 10 ou de 100 pacotes")[1].split("\n### ")[0]
+    # `Number` não sai das colunas que ficam; as outras cinco são o produto de uma delas por `Number`.
+    assert "são função de colunas que ficam" not in relatorio
+    assert "`Number` é a quantidade de quadros da janela e não é função das colunas que ficam" in trecho
+    assert "são o produto de uma coluna que fica por `Number`" in trecho
+    assert "guardam a mesma informação" not in trecho
+
+
+def com_as_33_features_assim(manifesto, previsao):
+    """O manifesto com outra resposta do modelo de 33 features: `previsao` dá a classe de cada rótulo."""
+    for execucao in manifesto["execucoes"]:
+        if execucao["features"] == "33" and execucao["alvo"] in ("8", "7"):
+            tabela = execucao["matriz_por_rotulo"]
+            for rotulo, linha in zip(tabela["rotulos"], tabela["contagem"]):
+                total = sum(linha)
+                linha[:] = [0] * len(linha)
+                linha[tabela["classes"].index(previsao(rotulo, execucao["alvo"]))] = total
+    return manifesto
+
+
+def test_relatorio_diz_que_tirar_as_seis_colunas_nao_tira_o_atalho(experimento):
+    pasta, _ = experimento
+    # O modelo de 33 features acerta todas as linhas: os dois grupos de janela continuam separados.
+    manifesto = com_as_33_features_assim(
+        ler_manifesto(pasta / "resultados"), lambda rotulo, nome: ALVOS[nome].classe_do_rotulo[rotulo]
+    )
+    trecho = montar_relatorio(manifesto).split("### Janela de 10 ou de 100 pacotes")[1].split("\n### ")[0]
+    # A resposta à pergunta da decisão, com o número que a sustenta.
+    assert (
+        "- **Tirar as seis colunas não tira o atalho.** Sem elas, o modelo ainda põe de 100,00% a 100,00% das "
+        "linhas de teste no grupo de janela certo"
+    ) in trecho
+
+
+def test_relatorio_so_afirma_que_o_atalho_fica_quando_o_modelo_de_33_ainda_separa_as_janelas(experimento):
+    pasta, _ = experimento
+
+    def flood_vira_varredura(rotulo, nome):
+        return "Recon" if rotulo == "DDoS-ICMP_Flood" else ALVOS[nome].classe_do_rotulo[rotulo]
+
+    # Um modelo de 33 features que pusesse um flood inteiro numa categoria de janela de 10.
+    manifesto = com_as_33_features_assim(ler_manifesto(pasta / "resultados"), flood_vira_varredura)
+    relatorio = montar_relatorio(manifesto)
+    assert "Tirar as seis colunas não tira o atalho" not in relatorio
+    frase = next(linha for linha in relatorio.splitlines() if linha.startswith("- Sem as seis colunas, o modelo põe de "))
+    # No sorteio estratificado o flood é 8 das 72 linhas de teste.
+    assert "88,89%" in frase and "das linhas de teste no grupo de janela certo" in frase
+
+
+def test_medidas_do_conjunto_completo_sao_as_da_exploracao_versionada():
+    # O relatório cita medidas que não saem deste experimento: o teste as prende ao texto de onde vêm.
+    exploracao = (RESULTADOS / "exploracao.md").read_text(encoding="utf-8")
+    secao = exploracao.split("\n## 8. Linhas repetidas\n")[1].split("\n## ")[0]
+    repetidas = f"{100 * experimento_do_treino.LINHAS_REPETIDAS_NO_CONJUNTO:.2f}%".replace(".", ",")
+    assert f"linhas ({repetidas}) têm uma combinação que aparece mais de uma vez" in secao
+    assert experimento_do_treino.FONTE_DO_CONJUNTO_COMPLETO == "`exploracao.md`, seção 8"
+
+
+def test_relatorio_diz_de_onde_vem_a_medida_do_conjunto_completo(experimento):
+    pasta, _ = experimento
+    relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
+    assert relatorio.count("58,78% (`exploracao.md`, seção 8)") == 2
+
+
 def test_relatorio_mostra_para_onde_vai_o_trafego_benigno(experimento):
     pasta, _ = experimento
     manifesto = ler_manifesto(pasta / "resultados")
@@ -454,6 +530,8 @@ def test_resultados_versionados_sao_coerentes_entre_si():
     manifesto = ler_manifesto(RESULTADOS)
     assert len(manifesto["execucoes"]) == 10
     assert (RESULTADOS / "treino_exploratorio.md").read_text(encoding="utf-8") == montar_relatorio(manifesto)
+    relatorio = (RESULTADOS / "treino_exploratorio.md").read_text(encoding="utf-8")
+    assert "- **Tirar as seis colunas não tira o atalho.**" in relatorio
     amostra = json.loads((RESULTADOS / "manifesto_amostra.json").read_text(encoding="utf-8"))
     assert manifesto["amostra"]["sha256_do_csv_descomprimido"] == amostra["saida"]["sha256_do_csv_descomprimido"]
     for execucao in manifesto["execucoes"]:

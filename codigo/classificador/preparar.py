@@ -4,8 +4,10 @@ Reúne o que vem antes do treino: ler a amostra, escolher as features, escolher 
 treino e teste. Nada aqui é decidido de uma vez por todas: os conjuntos de features, os alvos e
 as duas divisões existem lado a lado para que o experimento compare as alternativas.
 
-Features. As 39 do dataset ou 33, sem as seis colunas que dependem do tamanho da janela.
-As seis são função de colunas que ficam (`dados/README.md`).
+Features. As 39 do dataset ou 33, sem as seis colunas que dependem do tamanho da janela:
+`Number`, que é a quantidade de quadros da janela, e cinco colunas que são o produto de uma
+coluna que fica por `Number`. As 33 que ficam ainda variam com o tamanho da janela
+(`dados/README.md`): tirar as seis não tira esse atalho.
 
 Alvo. As 34 classes, as 8 categorias dos autores, 7 categorias com DDoS e DoS fundidas, ou
 ataque e benigno.

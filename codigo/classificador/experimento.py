@@ -76,8 +76,11 @@ METRICAS = "metricas_classificador.csv"
 IMPORTANCIAS = "importancia_features.csv"
 MATRIZES = "matrizes_confusao"
 
-# Linhas do conjunto completo que repetem o vetor de outra, de `experimentos/resultados/exploracao.md` (seção 8).
-LINHAS_REPETIDAS_NO_CONJUNTO = 0.5878
+# Medida do conjunto completo que o relatório cita. Não sai deste experimento, que só lê a amostra:
+# vem de `experimentos/resultados/exploracao.md`, seção 8 ("Linhas repetidas"), e um teste confere o
+# valor contra o texto versionado da exploração.
+FONTE_DO_CONJUNTO_COMPLETO = "`exploracao.md`, seção 8"
+LINHAS_REPETIDAS_NO_CONJUNTO = 0.5878  # linhas que repetem as 39 features de outra linha
 
 NOME_DA_DIVISAO = {"estratificada": "sorteio estratificado", "grupos": "divisão por grupos"}
 NOME_DO_ALVO = {"34": "34 classes", "8": "8 categorias", "7": "7 categorias", "2": "ataque ou benigno"}
@@ -92,6 +95,9 @@ METODO_DA_DIVISAO = {
 }
 # Categorias cujas classes o dataset agrega em janelas de 100 quadros; as demais usam 10.
 JANELA_DE_100 = ("DDoS", "DoS", "Mirai", FUSAO)
+# O relatório só afirma que o atalho da janela continua sem as seis colunas se o modelo de 33
+# features ainda puser ao menos esta fração das linhas de teste no grupo de janela certo.
+SEPARACAO_QUE_MANTEM_O_ATALHO = 0.99
 
 
 @dataclass(frozen=True)
@@ -381,8 +387,8 @@ def _como_ler(m):
             f"A amostra tem {_milhar(distintos['39'])} vetores distintos com as 39 features e "
             f"{_milhar(distintos['33'])} com as 33. Com as 39, {_milhar(repetidas['39'])} linhas "
             f"({_pct(repetidas['39'] / total)}) repetem o vetor de outra linha. No conjunto completo são "
-            f"{_pct(LINHAS_REPETIDAS_NO_CONJUNTO)} (`exploracao.md`): a amostra guarda uma fração pequena das "
-            "classes grandes, e a maior parte das repetições delas fica de fora."
+            f"{_pct(LINHAS_REPETIDAS_NO_CONJUNTO)} ({FONTE_DO_CONJUNTO_COMPLETO}): a amostra guarda uma fração "
+            "pequena das classes grandes, e a maior parte das repetições delas fica de fora."
         ),
         "",
         (
@@ -438,8 +444,9 @@ def _secao_divisoes(m):
             "são as mesmas em todas as execuções que as usam, quaisquer que sejam as features e o alvo."
         ),
         "",
-        "- **Sorteio estratificado**: sorteio de linhas com a mesma fração de cada um dos 34 rótulos no teste.",
-        "  É o método dos autores do dataset.",
+        "- **Sorteio estratificado de linhas**: sorteio de linhas com a mesma fração de cada um dos 34 rótulos",
+        "  no teste. O notebook de exemplo dos autores do dataset divide de outra forma: por arquivo, com 80% dos",
+        "  CSVs no treino, na proporção natural das classes e sem estratificar.",
         "- **Divisão por grupos**: todas as linhas com o mesmo vetor nas 33 features ficam do mesmo lado. Linhas",
         "  iguais nas 39 também são iguais nas 33, então nenhum vetor aparece no treino e no teste, com",
         "  qualquer dos dois conjuntos de features. O sorteio dos grupos é estratificado pelo rótulo mais",
@@ -734,6 +741,23 @@ def _decisao_janela(m):
     com_39 = _da_grade(m, features="39")
     soma = [sum(e["importancias"][coluna] for coluna in DEPENDENTES_DA_JANELA) for e in com_39]
     posicao = [list(e["importancias"]).index("Number") + 1 for e in com_39]
+    # Fração das linhas de teste que o modelo põe no grupo de janela certo, com e sem as seis colunas.
+    separa = {features: [1 - _entre_janelas(e) for e in _da_grade(m, features=features)] for features in ("39", "33")}
+    faixas = {features: f"de {_pct(min(valores))} a {_pct(max(valores))}" for features, valores in separa.items()}
+    if min(separa["33"]) >= SEPARACAO_QUE_MANTEM_O_ATALHO:
+        atalho = (
+            f"- **Tirar as seis colunas não tira o atalho.** Sem elas, o modelo ainda põe {faixas['33']} das "
+            f"linhas de teste no grupo de janela certo (com as 39, {faixas['39']}). As 33 features que ficam "
+            "continuam variando com o tamanho da janela: `Min`, `Max` e `Std` dependem dele, e as médias de uma "
+            "janela de 100 têm passos de 0,01, contra 0,1 na de 10 (`dados/README.md`). Como na amostra a janela "
+            "acompanha a classe, o experimento não separa o que o modelo aprende do tráfego do que aprende da "
+            "janela."
+        )
+    else:
+        atalho = (
+            f"- Sem as seis colunas, o modelo põe {faixas['33']} das linhas de teste no grupo de janela certo "
+            f"(com as 39, {faixas['39']})."
+        )
     colunas = [texto.format("39", "33") for texto in CABECALHO_DA_VARIACAO]
     return [
         "### Janela de 10 ou de 100 pacotes",
@@ -766,8 +790,12 @@ def _decisao_janela(m):
             f"{_pct(max(soma), 1)} da importância, e `Number` fica entre a {min(posicao)}ª e a {max(posicao)}ª "
             "posição das 39."
         ),
-        "- As seis colunas são função de colunas que ficam (`dados/README.md`), então as 33 guardam a mesma",
-        "  informação sobre o tráfego. O que sai é a leitura direta do tamanho da janela.",
+        (
+            "- `Number` é a quantidade de quadros da janela e não é função das colunas que ficam. As outras cinco "
+            "(`Tot sum`, `ack_count`, `syn_count`, `fin_count` e `rst_count`) são o produto de uma coluna que fica "
+            "por `Number` (`exploracao.md`, seção 7). O que sai é a leitura direta do tamanho da janela."
+        ),
+        atalho,
         "- Este experimento não mede o efeito de classificar tráfego agregado com uma janela diferente da do",
         "  treino. Treino e teste vêm da mesma amostra, em que a janela acompanha a classe, com 39 ou com 33",
         "  features. A medida direta é pontuar capturas processadas pelo extrator com outro tamanho de janela",
@@ -816,8 +844,9 @@ def _decisao_divisao(m):
         ),
         (
             f"- Na amostra, {_pct(amostra['linhas_repetidas']['39'] / amostra['linhas'])} das linhas repetem o "
-            f"vetor de outra. No conjunto completo são {_pct(LINHAS_REPETIDAS_NO_CONJUNTO)}. A diferença entre as "
-            "duas divisões medida aqui é a da amostra, com menos repetição do que haveria no dataset inteiro."
+            f"vetor de outra. No conjunto completo são {_pct(LINHAS_REPETIDAS_NO_CONJUNTO)} "
+            f"({FONTE_DO_CONJUNTO_COMPLETO}). A diferença entre as duas divisões medida aqui é a da amostra, com "
+            "menos repetição do que haveria no dataset inteiro."
         ),
         "- O teto das duas divisões não mede a mesma coisa. Na divisão por grupos, todas as repetições de um",
         "  vetor ficam do mesmo lado, e o teto conta os conflitos de classe inteiros. No sorteio de linhas, parte",

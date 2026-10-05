@@ -21,7 +21,7 @@ proporções da amostra.
 
 O peso é por rótulo, entre os 34, e não por classe do alvo. O recall de um rótulo não muda com a ponderação. O de uma categoria que reúne vários rótulos muda, porque dentro dela os rótulos passam a pesar de outra forma. Na amostra, `DoS-HTTP_Flood` é 25,0% das linhas de DoS; no conjunto completo, 0,9%. A taxa de tráfego benigno classificado como ataque não muda, porque o tráfego benigno é um rótulo só.
 
-**Vetor idêntico.** Duas linhas têm o mesmo vetor quando são iguais em todas as features da execução, depois da conversão para ponto flutuante de 32 bits, que é como o scikit-learn as entrega às árvores. A amostra tem 1.140.373 vetores distintos com as 39 features e 1.140.354 com as 33. Com as 39, 206.815 linhas (16,05%) repetem o vetor de outra linha. No conjunto completo são 58,78% (`exploracao.md`): a amostra guarda uma fração pequena das classes grandes, e a maior parte das repetições delas fica de fora.
+**Vetor idêntico.** Duas linhas têm o mesmo vetor quando são iguais em todas as features da execução, depois da conversão para ponto flutuante de 32 bits, que é como o scikit-learn as entrega às árvores. A amostra tem 1.140.373 vetores distintos com as 39 features e 1.140.354 com as 33. Com as 39, 206.815 linhas (16,05%) repetem o vetor de outra linha. No conjunto completo são 58,78% (`exploracao.md`, seção 8): a amostra guarda uma fração pequena das classes grandes, e a maior parte das repetições delas fica de fora.
 
 **Teto.** É um limite por coincidência exata de vetores, calculado nas linhas de teste de cada execução. Quem só vê as features dá a mesma resposta a todas as linhas com o mesmo vetor. A regra que mais acerta responde, em cada vetor, a classe de maior peso, e as linhas das outras classes são erro certo. A acurácia dessa regra é a maior possível naquelas linhas, e é com ela que a acurácia do modelo na mesma execução se compara. O teto depende do tamanho e da mistura de classes do conjunto em que é medido: com mais linhas, mais vetores se repetem com classes diferentes. Por isso ele muda com a divisão. No sorteio de linhas, parte das repetições de um vetor fica no treino e não entra na conta. O teto que a exploração mediu vale para o conjunto completo, na proporção natural das classes, e não é o limite destas execuções.
 
@@ -35,8 +35,9 @@ O peso é por rótulo, entre os 34, e não por classe do alvo. O recall de um r�
 
 As duas divisões reservam 20% das linhas para o teste e são as mesmas em todas as execuções que as usam, quaisquer que sejam as features e o alvo.
 
-- **Sorteio estratificado**: sorteio de linhas com a mesma fração de cada um dos 34 rótulos no teste.
-  É o método dos autores do dataset.
+- **Sorteio estratificado de linhas**: sorteio de linhas com a mesma fração de cada um dos 34 rótulos
+  no teste. O notebook de exemplo dos autores do dataset divide de outra forma: por arquivo, com 80% dos
+  CSVs no treino, na proporção natural das classes e sem estratificar.
 - **Divisão por grupos**: todas as linhas com o mesmo vetor nas 33 features ficam do mesmo lado. Linhas
   iguais nas 39 também são iguais nas 33, então nenhum vetor aparece no treino e no teste, com
   qualquer dos dois conjuntos de features. O sorteio dos grupos é estratificado pelo rótulo mais
@@ -361,8 +362,8 @@ classificado como ataque:
 | divisão por grupos, 7 categorias | 0,005% | 0,167% | 0,002% | 0,027% | 45,08% | 45,51% |
 
 - Nas quatro execuções com 39 features, as seis colunas somam de 24,8% a 29,4% da importância, e `Number` fica entre a 2ª e a 3ª posição das 39.
-- As seis colunas são função de colunas que ficam (`dados/README.md`), então as 33 guardam a mesma
-  informação sobre o tráfego. O que sai é a leitura direta do tamanho da janela.
+- `Number` é a quantidade de quadros da janela e não é função das colunas que ficam. As outras cinco (`Tot sum`, `ack_count`, `syn_count`, `fin_count` e `rst_count`) são o produto de uma coluna que fica por `Number` (`exploracao.md`, seção 7). O que sai é a leitura direta do tamanho da janela.
+- **Tirar as seis colunas não tira o atalho.** Sem elas, o modelo ainda põe de 99,83% a 99,86% das linhas de teste no grupo de janela certo (com as 39, de 99,99% a 100,00%). As 33 features que ficam continuam variando com o tamanho da janela: `Min`, `Max` e `Std` dependem dele, e as médias de uma janela de 100 têm passos de 0,01, contra 0,1 na de 10 (`dados/README.md`). Como na amostra a janela acompanha a classe, o experimento não separa o que o modelo aprende do tráfego do que aprende da janela.
 - Este experimento não mede o efeito de classificar tráfego agregado com uma janela diferente da do
   treino. Treino e teste vêm da mesma amostra, em que a janela acompanha a classe, com 39 ou com 33
   features. A medida direta é pontuar capturas processadas pelo extrator com outro tamanho de janela
@@ -401,7 +402,7 @@ Teto:
 | 33 features, 7 categorias | 99,95% | 99,95% | 0,00 | 99,99% | 99,99% | 0,00 |
 
 - No sorteio estratificado, 38.934 das 257.696 linhas de teste (15,11%) têm o mesmo vetor de uma linha do treino, com as 39 features. Na divisão por grupos, nenhuma.
-- Na amostra, 16,05% das linhas repetem o vetor de outra. No conjunto completo são 58,78%. A diferença entre as duas divisões medida aqui é a da amostra, com menos repetição do que haveria no dataset inteiro.
+- Na amostra, 16,05% das linhas repetem o vetor de outra. No conjunto completo são 58,78% (`exploracao.md`, seção 8). A diferença entre as duas divisões medida aqui é a da amostra, com menos repetição do que haveria no dataset inteiro.
 - O teto das duas divisões não mede a mesma coisa. Na divisão por grupos, todas as repetições de um
   vetor ficam do mesmo lado, e o teto conta os conflitos de classe inteiros. No sorteio de linhas, parte
   das repetições fica no treino, e o teto só conta os conflitos que caíram no teste.
