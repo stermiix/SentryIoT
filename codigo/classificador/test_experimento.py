@@ -654,8 +654,8 @@ def test_relatorio_diz_que_tirar_as_seis_colunas_nao_tira_o_atalho(experimento):
     trecho = montar_relatorio(manifesto).split("### Janela de 10 ou de 100 pacotes")[1].split("\n### ")[0]
     # A resposta à pergunta da decisão, com o número que a sustenta.
     assert (
-        "- **Tirar as seis colunas não tira o atalho.** Sem elas, o modelo ainda põe de 100,00% a 100,00% das "
-        "linhas de teste no grupo de janela certo"
+        "- **Tirar as seis colunas não tira o atalho.** Sem elas, o modelo ainda põe 100,00% das linhas de teste "
+        "no grupo de janela certo"
     ) in trecho
 
 
@@ -669,7 +669,7 @@ def test_relatorio_so_afirma_que_o_atalho_fica_quando_o_modelo_de_33_ainda_separ
     manifesto = com_as_33_features_assim(ler_manifesto(pasta / "resultados"), flood_vira_varredura)
     relatorio = montar_relatorio(manifesto)
     assert "Tirar as seis colunas não tira o atalho" not in relatorio
-    frase = next(linha for linha in relatorio.splitlines() if linha.startswith("- Sem as seis colunas, o modelo põe de "))
+    frase = next(linha for linha in relatorio.splitlines() if linha.startswith("- Sem as seis colunas, o modelo põe "))
     # No sorteio estratificado o flood é 8 das 72 linhas de teste.
     assert "88,89%" in frase and "das linhas de teste no grupo de janela certo" in frase
 
@@ -870,10 +870,22 @@ def test_relatorio_mostra_os_dois_lados_da_priori_de_treino(experimento):
         linhas for rotulo, linhas in na_amostra.items() if ALVOS["8"].classe_do_rotulo[rotulo] == menor
     ) - natural["amostra"]["por_classe"][menor]["suporte"]
     frase = next(linha for linha in secao.splitlines() if linha.startswith("- Com a priori natural, cada árvore sorteia"))
-    assert f"{menor} com cerca de {round(esperadas[menor])} linhas sorteadas, contra {de_treino} linhas de treino" in frase
+    assert f": {menor} com cerca de {round(esperadas[menor])} linhas sorteadas, contra {de_treino} linhas de treino na amostra; " in frase
+    # O tamanho do modelo também muda com a priori.
+    frase = next(linha for linha in secao.splitlines() if linha.startswith("- O tamanho do modelo"))
+    megas = [execucoes[nome]["modelo_bytes"] / 1e6 for nome in ("f39_estratificada_c8", "f39_estratificada_c8_natural")]
+    for valor in megas:
+        assert f"{valor:.1f}".replace(".", ",") in frase
     assert "O relatório não recomenda nenhuma das duas" in secao
     for palavra in ("recomenda-se", "deve-se", "o melhor", "preferível"):
         assert palavra not in secao.lower()
+
+
+def test_faixa_de_um_valor_so_nao_repete_o_valor():
+    faixa = experimento_do_treino._faixa
+    assert faixa([0.4606, 0.4722, 0.4618]) == "de 46,06% a 47,22%"
+    assert faixa([0.00101, 0.00099]) == "0,10%"
+    assert faixa([0.248, 0.312], 1) == "de 24,8% a 31,2%"
 
 
 def test_relatorio_nao_diz_qual_coluna_se_compara_com_o_artigo_do_dataset(experimento):

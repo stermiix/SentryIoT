@@ -447,8 +447,9 @@ def _nas_sementes(m):
 
 
 def _faixa(valores, casas=2):
-    """O menor e o maior de uma lista de percentuais: "de 1,00% a 2,00%"."""
-    return f"de {_pct(min(valores), casas)} a {_pct(max(valores), casas)}"
+    """O menor e o maior de uma lista de percentuais: "de 1,00% a 2,00%", ou o valor só, se os dois coincidem."""
+    menor, maior = _pct(min(valores), casas), _pct(max(valores), casas)
+    return menor if menor == maior else f"de {menor} a {maior}"
 
 
 def _benigno_e_janela_de_10(contagens):
@@ -1357,13 +1358,35 @@ def _linhas_sorteadas_por_arvore(m, natural):
     return (
         f"- Com a priori natural, cada árvore sorteia {_milhar(natural['linhas_de_treino'])} linhas do treino, com "
         "reposição, na proporção do conjunto completo, e as categorias pequenas entram com poucas linhas: "
-        + " e ".join(
+        + "; ".join(
             f"{classe} com cerca de {_milhar(sorteadas)} linhas sorteadas, contra {_milhar(de_treino)} linhas de "
             "treino na amostra"
             for sorteadas, classe, de_treino in menores
         )
         + "."
     )
+
+
+def _tamanho_do_modelo_por_priori(m, pares):
+    """A frase que compara o tamanho do modelo nas duas prioris, por alvo, na semente principal."""
+    partes = []
+    for nome_do_alvo in ("8", "7"):
+        do_alvo = [par for par in pares if par[0]["alvo"] == nome_do_alvo]
+        if do_alvo:
+            megas = ([_decimal(par[i]["modelo_bytes"] / 1e6) for par in do_alvo] for i in (0, 1))
+            da_amostra, naturais = (" e ".join(dict.fromkeys(valores)) for valores in megas)
+            partes.append(
+                f"com {NOME_DO_ALVO[nome_do_alvo]}, {da_amostra} MB com a {NOME_DA_PRIORI['amostra']} e {naturais} MB "
+                f"com a {NOME_DA_PRIORI['natural']}"
+            )
+    if not partes:
+        return []
+    return [
+        (
+            f"- O tamanho do modelo também muda com a priori, na semente {m['semente']}: {'; '.join(partes)}. Os "
+            "valores de cada alvo são os das execuções com 39 e com 33 features."
+        ),
+    ]
 
 
 def _decisao_priori(m):
@@ -1438,6 +1461,7 @@ def _decisao_priori(m):
     de_8 = next((n for a, n in pares if a["alvo"] == "8"), None)
     if de_8 is not None:
         resumo.append(_linhas_sorteadas_por_arvore(m, de_8))
+    resumo += _tamanho_do_modelo_por_priori(m, pares)
     de_uma_para_outra = f"da {nomes[0]} para a {nomes[1]}"
     return [
         "### Priori de treino",
