@@ -95,6 +95,10 @@ def carregar_modelo(caminho):
     return pacote
 
 
+def _decimal(valor):
+    return f"{valor:.1f}".replace(".", ",")
+
+
 def _positivo(texto):
     try:
         valor = int(texto)
@@ -147,10 +151,10 @@ def main(argv=None):
         return 130
     print(
         f"{len(treino)} linhas de treino, {len(features)} features, {len(modelo.classes_)} classes, "
-        f"{argumentos.arvores} árvores em {segundos:.1f} s",
+        f"{argumentos.arvores} árvores em {_decimal(segundos)} s",
         file=sys.stderr,
     )
-    print(f"modelo em {saida} ({tamanho / 1e6:.1f} MB)", file=sys.stderr)
+    print(f"modelo em {saida} ({_decimal(tamanho / 1e6)} MB)", file=sys.stderr)
     return 0
 
 
