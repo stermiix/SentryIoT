@@ -235,6 +235,11 @@ Saídas em avaliação, a decidir antes do treino:
 O extrator aceita qualquer tamanho de janela: `--janela 100` na linha de comando ou
 `Extrator(janela=100)` no código.
 
+O teste direto, com cinco pcaps extraídos nas duas janelas e pontuados pelo modelo de 7
+categorias, está em `experimentos/resultados/teste_da_janela.md`. Para refazê-lo:
+
+    python -m codigo.classificador.janela
+
 Duas outras diferenças entre o artigo do dataset e os arquivos publicados, para não citar errado:
 
 - A Tabela 4 do artigo lista 47 atributos, e os CSVs trazem 39. Faltam `ts`, `flow duration`,
@@ -314,6 +319,7 @@ CICIoT2023/
 | `treinar.py` | Treina o Random Forest com os parâmetros padrão do scikit-learn e salva o modelo em `modelos/`, fora do git, com as features, o alvo e a divisão usados. Sem `StandardScaler` |
 | `avaliar.py` | Acurácia, macro-F1, precisão, recall e F1 por classe, matriz de confusão, taxa de falso positivo, teto, importância das features, tempo de inferência e tamanho do modelo. Mede na distribuição da amostra e reponderado para a do conjunto completo. Também pontua um CSV de fora com as 39 colunas e o rótulo conhecido, como a saída do extrator |
 | `experimento.py` | Roda o treino exploratório: execuções que combinam features, divisão, alvo e proporção das classes no treino, com três sementes. Grava o relatório, as tabelas, as matrizes de confusão e o manifesto do experimento |
+| `janela.py` | Roda o teste direto do atalho da janela: extrai cinco pcaps com janela de 10 e de 100, em leitura contínua, treina os quatro modelos de 7 categorias (39 ou 33 features, priori da amostra ou natural), pontua cada extração e grava o relatório, a tabela e o manifesto do teste |
 
 **Frente de MCP e agentes** — `codigo/mcp/` e `codigo/agente/`
 
@@ -349,6 +355,9 @@ CICIoT2023/
 | `resultados/metricas_classificador.csv` | Precisão, recall, F1, suporte e taxa de falso positivo por classe, em formato longo: uma linha por execução, distribuição e classe |
 | `resultados/importancia_features.csv` | Importância de cada feature em cada execução, em formato longo |
 | `resultados/matrizes_confusao/` | O que o modelo confunde com o quê, em CSV. Dois arquivos por execução: a matriz do alvo e a que abre a classe real nos 34 rótulos |
+| `resultados/teste_da_janela.md` | O relatório do teste direto do atalho da janela: a fração das janelas de cada pcap na categoria esperada, com a janela do dataset e com a outra, a distribuição das previsões e o que os números dizem sobre cada saída em avaliação |
+| `resultados/teste_da_janela.csv` | Os números do teste da janela, em formato longo: uma linha por captura, janela, modelo e categoria prevista |
+| `resultados/manifesto_teste_da_janela.json` | O registro do teste da janela: semente, parâmetros, versões, hash da amostra, tamanho e hash de cada pcap, as contagens de cada extração e todos os números |
 | `resultados/avaliacao_agentes.csv` | A qualidade das recomendações — **a tabela que ainda não tem métrica definida** |
 | `resultados/custo_latencia.csv` | Tokens e tempo de resposta por alerta |
 | `notebooks/` | Exploração livre. Nada que vá para o artigo nasce aqui sem virar script |
@@ -364,7 +373,7 @@ CICIoT2023/
 
 1. `mcp/contrato.json` — destrava as duas frentes
 2. `captura/extrator.py` e `captura/calibrar.py` — caminho crítico
-3. `classificador/mapeamento.py` → `explorar.py` e `amostrar.py` → `preparar.py` → `treinar.py` → `avaliar.py` → `experimento.py`
+3. `classificador/mapeamento.py` → `explorar.py` e `amostrar.py` → `preparar.py` → `treinar.py` → `avaliar.py` → `experimento.py` → `janela.py`
 4. `mcp/stub.py` (em paralelo a tudo, desde o contrato) → `mcp/servidor.py`
 5. `agente/` — depois que o servidor responde
 6. `experimentos/resultados/` — as tabelas vazias devem existir **antes** dos experimentos
