@@ -317,6 +317,17 @@ def test_linhas_com_o_mesmo_campo_vazio_contam_como_repetidas(tmp_path):
     assert (d.distintas, d.repetidas) == (2, 2)
 
 
+@pytest.mark.parametrize("coluna", COLUNAS)
+def test_linhas_que_diferem_em_uma_so_coluna_nao_sao_repetidas(tmp_path, coluna):
+    base = linha("XSS", desvio=3.0)
+    campos = base.split(",")
+    posicao = COLUNAS.index(coluna)
+    campos[posicao] = str(float(campos[posicao]) + 1)
+    d = explorar_linhas(tmp_path, [base, base, ",".join(campos)]).duplicatas
+    # As duas linhas iguais formam uma combinação, e a que muda só nessa coluna forma outra.
+    assert (d.distintas, d.repetidas, d.maior_grupo) == (2, 2, 2)
+
+
 def test_repeticao_e_encontrada_entre_arquivos_e_entre_blocos(tmp_path):
     arquivos = [
         escrever(tmp_path / "Merged01.csv", LINHAS_REPETIDAS[::2]),
