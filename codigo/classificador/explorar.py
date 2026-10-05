@@ -435,6 +435,16 @@ def _plural(quantidade, singular, plural):
     return f"{_milhar(quantidade)} {singular if quantidade == 1 else plural}"
 
 
+def _cerca_de(quantidade, singular, plural):
+    """Quantidade arredondada para leitura: 2,0 milhões de linhas, 310 mil linhas, 47 linhas."""
+    if quantidade >= 999_500:
+        milhoes = round(quantidade / 1_000_000, 1)
+        return f"{_decimal(milhoes)} {'milhão' if milhoes < 2 else 'milhões'} de {plural}"
+    if quantidade >= 1000:
+        return f"{round(quantidade / 1000)} mil {plural}"
+    return _plural(round(quantidade), singular, plural)
+
+
 def _e(itens):
     """Enumeração em português: "a", "a e b", "a, b e c"."""
     itens = list(itens)
@@ -940,34 +950,58 @@ def _secao_por_ataque(e, por_ataque):
         f"{_pct(registro['linhas'] - e.por_rotulo[rotulo], registro['linhas'])} |"
         for rotulo, registro in por_ataque.items()
     ]
-    la = sum(registro["linhas"] for registro in por_ataque.values())
-    no_merged = sum(e.por_rotulo[rotulo] for rotulo in por_ataque)
+    # Classe com CSV por ataque cortado tem a referência incompleta e fica fora do total: a
+    # diferença dela mistura o que falta ao `MERGED_CSV` com o que falta à própria referência.
+    inteiras = {rotulo: r for rotulo, r in por_ataque.items() if r["linhas"] and not r["incompletos"]}
+    cortadas = [rotulo for rotulo, r in por_ataque.items() if r["incompletos"]]
+    incompletos = [nome for r in por_ataque.values() for nome in r["incompletos"]]
+    terminam = (
+        f"{_plural(len(incompletos), 'arquivo por ataque', 'arquivos por ataque')} "
+        f"{'termina' if len(incompletos) == 1 else 'terminam'} no meio de uma linha, e a linha incompleta não "
+        f"foi contada: {_nomes(incompletos)}."
+    )
+    if not inteiras:
+        texto += ["", "Nenhuma classe tem todos os CSVs por ataque inteiros, e por isso a tabela não tem linha de total."]
+        return [*texto, "", terminam] if cortadas else texto
+
+    la = sum(r["linhas"] for r in inteiras.values())
+    no_merged = sum(e.por_rotulo[rotulo] for rotulo in inteiras)
+    nome = "Total das classes com CSVs por ataque inteiros" if cortadas else "Total"
     texto.append(
-        f"| Total | {sum(r['arquivos'] for r in por_ataque.values())} | {_milhar(la)} | {_milhar(no_merged)} | "
+        f"| {nome} | {sum(r['arquivos'] for r in inteiras.values())} | {_milhar(la)} | {_milhar(no_merged)} | "
         f"{_milhar(la - no_merged)} | {_pct(la - no_merged, la)} |"
     )
-    inteiras = [
-        (registro["linhas"] - e.por_rotulo[rotulo]) / registro["linhas"]
-        for rotulo, registro in por_ataque.items() if registro["linhas"] and not registro["incompletos"]
-    ]
-    if inteiras:
+    fatias = [(r["linhas"] - e.por_rotulo[rotulo]) / r["linhas"] for rotulo, r in inteiras.items()]
+    classes = _plural(len(inteiras), "classe", "classes")
+    if cortadas:
+        abertura = f"A linha de total soma só as {classes} cujos CSVs por ataque estão inteiros. Nelas, o"
+    else:
+        abertura = f"Nas {classes}, todas com os CSVs por ataque inteiros, o"
+    frase = (
+        f"{abertura} `MERGED_CSV` tem {_pct(abs(la - no_merged), la)} {'menos' if no_merged <= la else 'mais'} "
+        f"linhas que os CSVs por ataque, e a diferença por classe vai de {_pct(min(fatias), 1)} a "
+        f"{_pct(max(fatias), 1)}. O `MERGED_CSV` é embaralhado, então linhas perdidas em arquivos truncados "
+        "faltam em todas as classes em proporção parecida."
+    )
+    if cortadas and 0 < no_merged < la:
+        # Com a mesma perda em todas as classes, faltam linhas × perda / (1 − perda) ao conjunto todo.
+        faltam = e.linhas * (la - no_merged) / no_merged
+        frase += (
+            " Aplicada a todas as classes, essa proporção corresponde a cerca de "
+            f"{_cerca_de(faltam, 'linha', 'linhas')} a menos no `MERGED_CSV`."
+        )
+    texto += ["", frase]
+    if cortadas:
+        todas = sum(r["linhas"] for r in por_ataque.values())
+        diferenca = todas - sum(e.por_rotulo[rotulo] for rotulo in por_ataque)
+        dela = "dessa classe" if len(cortadas) == 1 else "dessas classes"
         texto += [
             "",
             (
-                f"Nas {_plural(len(inteiras), 'classe', 'classes')} cujos CSVs por ataque estão inteiros, a "
-                f"diferença vai de {_pct(min(inteiras), 1)} a {_pct(max(inteiras), 1)} das linhas. O `MERGED_CSV` é "
-                "embaralhado, então linhas perdidas em arquivos truncados faltam em todas as classes em "
-                "proporção parecida."
-            ),
-        ]
-    incompletos = [nome for registro in por_ataque.values() for nome in registro["incompletos"]]
-    if incompletos:
-        verbo = "termina" if len(incompletos) == 1 else "terminam"
-        texto += [
-            "",
-            (
-                f"{_plural(len(incompletos), 'arquivo por ataque', 'arquivos por ataque')} {verbo} no meio de "
-                f"uma linha, e a linha incompleta não foi contada: {_nomes(incompletos)}."
+                f"{_nomes(cortadas)} {'fica' if len(cortadas) == 1 else 'ficam'} fora do total porque {terminam} "
+                f"Com a referência incompleta, a diferença {dela} não mede o que falta ao `MERGED_CSV`. Somadas "
+                f"todas as classes, a diferença seria de {_plural(diferenca, 'linha', 'linhas')}, ou "
+                f"{_pct(diferenca, todas)}."
             ),
         ]
     return texto

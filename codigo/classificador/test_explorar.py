@@ -6,6 +6,7 @@ from codigo.captura.extrator import COLUNAS
 from codigo.classificador.amostrar import CABECALHO
 from codigo.classificador.explorar import (
     RELACOES,
+    _cerca_de,
     contar_por_ataque,
     explorar,
     main,
@@ -566,8 +567,75 @@ def test_relatorio_compara_com_os_csvs_por_ataque(tmp_path):
     assert "| `DDoS-ICMP_Flood` | 2 | 9 | 7 | 2 | 22,22% |" in relatorio
     assert "| `XSS` | 1 | 2 | 1 | 1 | 50,00% |" in relatorio
     assert "`XSS.pcap.csv`" in relatorio
-    assert "Nas 2 classes cujos CSVs por ataque estão inteiros, a diferença vai de 0,00% a 22,22%" in relatorio
+    assert "a diferença por classe vai de 0,00% a 22,22%" in relatorio
     assert "CSVs por ataque" not in montar_relatorio(e)
+
+
+def test_total_da_comparacao_deixa_de_fora_a_classe_com_csv_por_ataque_cortado(tmp_path):
+    raiz = pastas_por_ataque(tmp_path)
+    e = explorar([raiz / "MERGED_CSV" / "Merged01.csv"])
+    relatorio = montar_relatorio(e, por_ataque=contar_por_ataque(raiz))
+    # XSS tem um CSV por ataque cortado. O total soma DDoS-ICMP_Flood (9 e 7) e BenignTraffic (4 e 4).
+    assert "| Total das classes com CSVs por ataque inteiros | 3 | 13 | 11 | 2 | 15,38% |" in relatorio
+    assert "| Total | 4 | 15 | 12 | 3 | 20,00% |" not in relatorio
+    assert "A linha de total soma só as 2 classes cujos CSVs por ataque estão inteiros" in relatorio
+    assert "o `MERGED_CSV` tem 15,38% menos linhas que os CSVs por ataque" in relatorio
+    # 17 linhas no MERGED_CSV com perda de 2 em 13: faltam 17 × 2 / 11, cerca de 3 linhas.
+    assert "Aplicada a todas as classes, essa proporção corresponde a cerca de 3 linhas a menos no `MERGED_CSV`." in relatorio
+    assert (
+        "`XSS` fica fora do total porque 1 arquivo por ataque termina no meio de uma linha, e a linha "
+        "incompleta não foi contada: `XSS.pcap.csv`. Com a referência incompleta, a diferença dessa classe não "
+        "mede o que falta ao `MERGED_CSV`. Somadas todas as classes, a diferença seria de 3 linhas, ou 20,00%."
+    ) in relatorio
+
+
+def test_estimativa_das_linhas_que_faltam_ao_conjunto_todo(tmp_path):
+    e = explorar(caso(tmp_path))  # 17 linhas, 7 delas de DDoS-ICMP_Flood
+    por_ataque = {
+        "DDoS-ICMP_Flood": {"arquivos": 1, "linhas": 14, "incompletos": []},
+        "XSS": {"arquivos": 1, "linhas": 2, "incompletos": ["XSS.pcap.csv"]},
+    }
+    relatorio = montar_relatorio(e, por_ataque=por_ataque)
+    assert "| Total das classes com CSVs por ataque inteiros | 1 | 14 | 7 | 7 | 50,00% |" in relatorio
+    # Com metade das linhas perdida em todas as classes, o conjunto de 17 linhas teria 34: faltam 17.
+    assert "corresponde a cerca de 17 linhas a menos no `MERGED_CSV`" in relatorio
+
+
+def test_total_da_comparacao_soma_todas_as_classes_quando_nenhum_csv_por_ataque_esta_cortado(tmp_path):
+    raiz = pastas_por_ataque(tmp_path)
+    e = explorar([raiz / "MERGED_CSV" / "Merged01.csv"])
+    por_ataque = contar_por_ataque(raiz)
+    del por_ataque["XSS"]
+    relatorio = montar_relatorio(e, por_ataque=por_ataque)
+    assert "| Total | 3 | 13 | 11 | 2 | 15,38% |" in relatorio
+    assert "fora do total" not in relatorio and "Total das classes" not in relatorio
+    assert "Nas 2 classes, todas com os CSVs por ataque inteiros, o `MERGED_CSV` tem 15,38% menos linhas" in relatorio
+    # Sem classe de fora, o total já é a diferença do conjunto todo, e não há o que estimar.
+    assert "cerca de" not in relatorio
+
+
+def test_comparacao_sem_nenhuma_classe_inteira_nao_tem_total(tmp_path):
+    raiz = pastas_por_ataque(tmp_path)
+    e = explorar([raiz / "MERGED_CSV" / "Merged01.csv"])
+    por_ataque = {"XSS": contar_por_ataque(raiz)["XSS"]}
+    relatorio = montar_relatorio(e, por_ataque=por_ataque)
+    assert "| `XSS` | 1 | 2 | 1 | 1 | 50,00% |" in relatorio
+    assert "| Total" not in relatorio.split("## 10. ")[1]
+    assert "Nenhuma classe tem todos os CSVs por ataque inteiros, e por isso a tabela não tem linha de total." in relatorio
+    assert "1 arquivo por ataque termina no meio de uma linha, e a linha incompleta não foi contada: `XSS.pcap.csv`." in relatorio
+    assert "fora do total" not in relatorio
+
+
+@pytest.mark.parametrize("quantidade,texto", [
+    (2_003_163.4, "2,0 milhões de linhas"),
+    (1_449_999, "1,4 milhão de linhas"),
+    (999_500, "1,0 milhão de linhas"),
+    (310_400, "310 mil linhas"),
+    (3.09, "3 linhas"),
+    (1.2, "1 linha"),
+])
+def test_quantidade_aproximada_por_extenso(quantidade, texto):
+    assert _cerca_de(quantidade, "linha", "linhas") == texto
 
 
 def test_main_grava_o_relatorio(tmp_path, capsys):
