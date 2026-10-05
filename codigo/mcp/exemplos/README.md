@@ -9,7 +9,9 @@ modelo de linguagem ou de uma captura, e nada pode ser citado como resultado.
 
 O arquivo é gerado, não editado à mão. Para gerar de novo, a partir da raiz do repositório:
 
-    python -m codigo.mcp.roteiro
+    python -m codigo.mcp.roteiro --sobrescrever
+
+Sem `--sobrescrever`, o roteiro não grava por cima de um arquivo que já existe.
 
 Um teste compara o arquivo versionado com o que o roteiro gera. Se o contrato, os cenários ou
 o roteiro mudarem, o teste falha até o arquivo ser gerado de novo.

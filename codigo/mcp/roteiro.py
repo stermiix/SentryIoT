@@ -8,12 +8,15 @@ a primeira ação é desfeita e a ação nova vai para o catálogo.
 
 Não há agente nem modelo de linguagem aqui. As chamadas de tool são feitas de verdade no stub,
 uma por uma, na ordem do roteiro. As chamadas ao modelo e as recomendações são eventos escritos
-à mão, com tokens e durações ilustrativos. O relógio também é de mentira, para que o arquivo
-saia igual a cada execução.
+à mão, com tokens e durações ilustrativos, e gravados como o código dos agentes vai gravar: pelo
+`GravadorDoAgente`. O relógio também é de mentira, para que o arquivo saia igual a cada
+execução.
 
 Uso, a partir da raiz do repositório:
-    python -m codigo.mcp.roteiro
+    python -m codigo.mcp.roteiro --sobrescrever                 gera de novo o exemplo versionado
     python -m codigo.mcp.roteiro --saida outro/caminho.jsonl
+
+O roteiro não grava por cima de um arquivo que já existe, a não ser com `--sobrescrever`.
 """
 import argparse
 import sys
@@ -22,9 +25,9 @@ from pathlib import Path
 
 from codigo.mcp.acoes import PedidoRecusado, decidir, promover, reconstruir
 from codigo.mcp.cenarios import CENARIOS
-from codigo.mcp.eventos import Registro, novo
+from codigo.mcp.eventos import GravadorDoAgente, Registro, novo
 from codigo.mcp.stub import Stub
-from codigo.mcp.tipos import ChamadaDeLLM, Recomendacao
+from codigo.mcp.tipos import AGENTES, ChamadaDeLLM, Recomendacao
 
 SAIDA_PADRAO = Path(__file__).with_name("exemplos") / "incidente_flood.jsonl"
 MODELO = "modelo-de-exemplo"
@@ -47,15 +50,24 @@ class RelogioDoRoteiro:
         self.instante += timedelta(seconds=segundos)
 
 
-def executar(saida=SAIDA_PADRAO):
-    """Roda o roteiro e grava o log em `saida`, substituindo o arquivo que houver."""
+def executar(saida=SAIDA_PADRAO, sobrescrever=False):
+    """Roda o roteiro e grava o log em `saida`.
+
+    Se o arquivo já existe, só é substituído com `sobrescrever`: o caminho vem da linha de
+    comando, e o arquivo que está lá pode não ser um log de exemplo.
+    """
     saida = Path(saida)
-    saida.unlink(missing_ok=True)
+    if saida.exists():
+        if not sobrescrever:
+            raise FileExistsError(f"{saida} já existe. Para gravar por cima dele, use --sobrescrever")
+        saida.unlink()
     # O lote sai do classificador quando o incidente é aberto, no fim do primeiro período.
     relogio = RelogioDoRoteiro(_FLOOD.incidente.fim)
     registro = Registro(saida, relogio)
     # Um stub por agente, sobre o mesmo log: cada um só atende as tools da sua linha.
-    triagem, decisao, execucao = (Stub(registro, agente=agente, cenarios=[_FLOOD]) for agente in ("triagem", "decisao", "execucao"))
+    triagem, decisao, execucao = (Stub(registro, agente=agente, cenarios=[_FLOOD]) for agente in AGENTES)
+    # O que cada agente grava por conta própria passa pelo gravador restrito dele.
+    gravadores = {agente: GravadorDoAgente(agente, saida, relogio) for agente in AGENTES}
 
     def modelo(agente, tokens_entrada, tokens_saida, segundos):
         relogio.esperar(segundos)
@@ -63,10 +75,11 @@ def executar(saida=SAIDA_PADRAO):
             agente=agente, modelo=MODELO, tokens_entrada=tokens_entrada, tokens_saida=tokens_saida,
             duracao_ms=segundos * 1000,
         )
-        registro.gravar(novo("llm_chamada", chamada, _INCIDENTE))
+        gravadores[agente].gravar(novo("llm_chamada", chamada, _INCIDENTE))
 
     def recomendar(texto, *propostas):
-        registro.gravar(novo("recomendacao_emitida", Recomendacao(agente="decisao", texto=texto, propostas=propostas), _INCIDENTE))
+        recomendacao = Recomendacao(agente="decisao", texto=texto, propostas=propostas)
+        gravadores["decisao"].gravar(novo("recomendacao_emitida", recomendacao, _INCIDENTE))
 
     def pessoa(funcao, *argumentos, espera, **opcoes):
         relogio.esperar(espera)
@@ -168,12 +181,15 @@ def main(argv=None):
         description="Gera o log de eventos de exemplo: um incidente de flood, do começo ao fim, no stub.",
     )
     analisador.add_argument("--saida", default=str(SAIDA_PADRAO), help=f"arquivo a gravar (padrão: {SAIDA_PADRAO})")
+    analisador.add_argument(
+        "--sobrescrever", action="store_true", help="grava por cima do arquivo de saída, se ele já existir"
+    )
     try:
         argumentos = analisador.parse_args(argv)
     except SystemExit as encerramento:
         return encerramento.code
     try:
-        saida = executar(argumentos.saida)
+        saida = executar(argumentos.saida, sobrescrever=argumentos.sobrescrever)
     except (OSError, ValueError) as erro:
         print(f"erro: {erro}", file=sys.stderr)
         return 1
