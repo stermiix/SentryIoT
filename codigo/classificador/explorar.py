@@ -95,6 +95,10 @@ def _zeros():
     return dict.fromkeys(ROTULOS, 0)
 
 
+def _sem_erros():
+    return dict.fromkeys(CATEGORIAS, 0)
+
+
 @dataclass
 class Duplicatas:
     """Linhas com os mesmos valores nas 39 features."""
@@ -108,8 +112,13 @@ class Duplicatas:
     com_outro_rotulo_por_rotulo: dict = field(default_factory=_zeros)
     com_outra_categoria_por_rotulo: dict = field(default_factory=_zeros)
     combinacoes: dict = field(default_factory=dict)  # rótulos com a mesma combinação -> linhas
-    # Linhas de cada categoria que ficam fora da categoria mais frequente da sua combinação.
-    erro_minimo_por_categoria: dict = field(default_factory=lambda: dict.fromkeys(CATEGORIAS, 0))
+    # Linhas de cada categoria erradas pela regra de maior acerto global, que responde em cada
+    # combinação a categoria mais frequente nela. Só a soma é um mínimo: outra regra erra menos
+    # numa categoria e mais em outra.
+    erro_por_categoria: dict = field(default_factory=_sem_erros)
+    # O mesmo para a regra que responde uma categoria em toda combinação que tenha alguma linha
+    # dela e, nas outras combinações, a mais frequente. Categoria favorecida -> categoria -> linhas.
+    erro_ao_favorecer: dict = field(default_factory=lambda: {nome: _sem_erros() for nome in CATEGORIAS})
 
 
 @dataclass
@@ -270,15 +279,29 @@ def _contar_repetidas(hashes, codigos):
         for mascara, quantas in sorted(zip(mascaras.tolist(), linhas.tolist()), key=lambda par: -par[1])
     }
 
-    # Quem só vê as 39 features dá uma resposta por combinação. A que mais acerta é a categoria
-    # mais frequente da combinação; as linhas das outras categorias são o erro que sobra.
+    # Quem só vê as 39 features dá uma resposta por combinação. A que mais acerta no conjunto é a
+    # categoria mais frequente da combinação; as linhas das outras categorias são o erro que sobra.
     em_conflito = np.repeat(varias_categorias, tamanho)
     grupo = np.repeat(np.cumsum(varias_categorias) - 1, tamanho)[em_conflito]
     categoria = _CATEGORIA_DO_CODIGO[codigos[em_conflito]]
     por_grupo = np.bincount(
         grupo * len(CATEGORIAS) + categoria, minlength=int(varias_categorias.sum()) * len(CATEGORIAS)
     ).reshape(-1, len(CATEGORIAS))
-    por_grupo[np.arange(len(por_grupo)), por_grupo.argmax(axis=1)] = 0
+    vencedora = por_grupo.argmax(axis=1)  # no empate, a primeira na ordem de CATEGORIAS
+    da_vencedora = por_grupo.max(axis=1)
+
+    def por_categoria(categorias, linhas):
+        return np.bincount(categorias, weights=linhas, minlength=len(CATEGORIAS)).astype(np.int64)
+
+    erro = por_grupo.sum(axis=0) - por_categoria(vencedora, da_vencedora)
+    erro_ao_favorecer = {}
+    for indice, nome in enumerate(CATEGORIAS):
+        # Mudam de resposta as combinações que têm a categoria sem que ela seja a mais frequente:
+        # as linhas dela passam a acerto, e as da que era a mais frequente passam a erro.
+        mudam = (por_grupo[:, indice] > 0) & (vencedora != indice)
+        favorecendo = erro + por_categoria(vencedora[mudam], da_vencedora[mudam])
+        favorecendo[indice] -= por_grupo[mudam, indice].sum()
+        erro_ao_favorecer[nome] = dict(zip(CATEGORIAS, favorecendo.tolist()))
     return Duplicatas(
         distintas=len(inicio),
         repetidas=int(tamanho[repetido].sum()),
@@ -289,7 +312,8 @@ def _contar_repetidas(hashes, codigos):
         com_outro_rotulo_por_rotulo=_por_rotulo(codigos, np.repeat(varios_rotulos, tamanho)),
         com_outra_categoria_por_rotulo=_por_rotulo(codigos, em_conflito),
         combinacoes=combinacoes,
-        erro_minimo_por_categoria=dict(zip(CATEGORIAS, por_grupo.sum(axis=0).tolist())),
+        erro_por_categoria=dict(zip(CATEGORIAS, erro.tolist())),
+        erro_ao_favorecer=erro_ao_favorecer,
     )
 
 
@@ -484,11 +508,14 @@ def _resumo(e):
         f"{_pct(e.duplicatas.com_outra_categoria, total)} têm uma combinação de valores que também aparece em "
         "outra categoria."
     )
-    erro = sum(e.duplicatas.erro_minimo_por_categoria.values())
+    erro = sum(e.duplicatas.erro_por_categoria.values())
     if erro:
         texto.append(
             f"- Por causa dessas combinações, o acerto em 8 categorias não passa de {_pct(total - erro, total)} "
-            "para quem vê só as 39 features, medido no conjunto completo."
+            "para quem vê só as 39 features e é avaliado no conjunto completo, na proporção natural das "
+            "classes. Esse valor não é uma propriedade das 39 features: muda com o tamanho e com a mistura "
+            "de classes do conjunto avaliado, e um modelo avaliado numa amostra pode passar dele de forma "
+            "legítima (seção 8)."
         )
     if cortados:
         verbo = "termina" if cortados == 1 else "terminam"
@@ -762,6 +789,41 @@ def _secao_redundancias(e):
     return texto
 
 
+def _limites_do_acerto(e):
+    """O que a tabela de erros por categoria permite afirmar, e o que não permite."""
+    d, total, linhas = e.duplicatas, e.linhas, e.por_categoria
+    teto = _pct(total - sum(d.erro_por_categoria.values()), total)
+    # O exemplo de outra regra favorece a categoria de menor acerto na tabela. A seção só existe
+    # quando alguma combinação reúne categorias diferentes, e então alguma categoria tem erro.
+    com_erro = [nome for nome in CATEGORIAS if d.erro_por_categoria[nome]]
+    favorecida = max(com_erro, key=lambda nome: d.erro_por_categoria[nome] / linhas[nome])
+    erros = d.erro_ao_favorecer[favorecida]
+    # Das outras categorias, a que mais perde linhas quando a favorecida passa a ser a resposta.
+    perdedora = max(
+        (nome for nome in CATEGORIAS if nome != favorecida),
+        key=lambda nome: erros[nome] - d.erro_por_categoria[nome],
+    )
+    return [
+        (
+            f"Só a linha Total é um limite superior: nenhuma regra que dependa só das 39 features acerta mais "
+            f"que {teto} das linhas do conjunto completo. Os valores por categoria não são limites. São o "
+            "recall de cada categoria na regra de maior acerto global, e outra regra os redistribui. Na regra "
+            f"que responde {favorecida} em toda combinação que tenha alguma linha de {favorecida}, o acerto de "
+            f"{favorecida} é de {_pct(linhas[favorecida] - erros[favorecida], linhas[favorecida])}, o de "
+            f"{perdedora} é de {_pct(linhas[perdedora] - erros[perdedora], linhas[perdedora])} e o acerto "
+            f"global é de {_pct(total - sum(erros.values()), total)}."
+        ),
+        "",
+        (
+            "O limite da linha Total vale para a avaliação no conjunto completo, na proporção natural das "
+            "classes, e conta só a coincidência exata dos 39 valores. Não é uma propriedade das 39 features em "
+            "si: muda com o tamanho e com a mistura de classes do conjunto avaliado. Um modelo avaliado numa "
+            f"amostra pode passar de {teto} de forma legítima, e o limite de um conjunto de teste precisa ser "
+            "calculado nesse conjunto."
+        ),
+    ]
+
+
 def _secao_repetidas(e):
     d, total = e.duplicatas, e.linhas
     texto = [
@@ -804,23 +866,27 @@ def _secao_repetidas(e):
             for rotulo in presentes
         ]
     if d.com_outra_categoria:
-        erro = sum(d.erro_minimo_por_categoria.values())
+        erro = sum(d.erro_por_categoria.values())
         texto += [
             "",
-            "Um classificador que veja só as 39 features dá a mesma resposta para todas as linhas de uma",
-            "combinação. A resposta que mais acerta é a categoria mais frequente da combinação, e as linhas das",
-            "outras categorias são erro certo. A tabela dá esse erro mínimo em 8 categorias, medido no conjunto",
-            "completo. No empate vale a primeira categoria na ordem da tabela.",
+            (
+                "Um classificador que veja só as 39 features dá a mesma resposta para todas as linhas de uma "
+                "combinação. A regra de maior acerto global responde, em cada combinação, a categoria mais "
+                "frequente nela, e as linhas das outras categorias são erro. No empate vale a primeira "
+                f"categoria na ordem da tabela, e por isso {CATEGORIAS[0]} tem preferência sobre {CATEGORIAS[1]}. "
+                "A tabela dá os erros e o acerto de cada categoria nessa regra, medidos no conjunto completo."
+            ),
             "",
-            "| Categoria | Linhas | Erro mínimo | Acerto máximo |",
+            "| Categoria | Linhas | Erros na regra de maior acerto global | Acerto nessa regra |",
             "|---|---|---|---|",
         ]
         texto += [
-            f"| {nome} | {_milhar(linhas)} | {_milhar(d.erro_minimo_por_categoria[nome])} | "
-            f"{_pct(linhas - d.erro_minimo_por_categoria[nome], linhas)} |"
+            f"| {nome} | {_milhar(linhas)} | {_milhar(d.erro_por_categoria[nome])} | "
+            f"{_pct(linhas - d.erro_por_categoria[nome], linhas)} |"
             for nome, linhas in e.por_categoria.items() if linhas
         ]
         texto.append(f"| Total | {_milhar(total)} | {_milhar(erro)} | {_pct(total - erro, total)} |")
+        texto += ["", *_limites_do_acerto(e)]
     if d.combinacoes:
         mostradas = list(d.combinacoes.items())[:COMBINACOES_NO_RELATORIO]
         texto += [

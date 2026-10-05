@@ -11,7 +11,7 @@ from codigo.classificador.explorar import (
     main,
     montar_relatorio,
 )
-from codigo.classificador.mapeamento import ROTULOS
+from codigo.classificador.mapeamento import CATEGORIAS, ROTULOS
 
 DATASET = Path(__file__).resolve().parents[2] / "CICIoT2023"
 MERGED = DATASET / "MERGED_CSV"
@@ -271,29 +271,98 @@ LINHAS_EM_CONFLITO = [
 ]
 
 
-def test_erro_minimo_de_quem_so_ve_as_39_features(tmp_path):
+def erros(**por_categoria):
+    """Erros por categoria, com zero nas que não foram citadas."""
+    return dict.fromkeys(CATEGORIAS, 0) | por_categoria
+
+
+def test_erros_na_regra_de_maior_acerto_global(tmp_path):
     d = explorar_linhas(tmp_path, LINHAS_EM_CONFLITO, linhas_por_bloco=4).duplicatas
-    assert d.erro_minimo_por_categoria == {
-        "DDoS": 1, "DoS": 1, "Mirai": 0, "Recon": 0, "Spoofing": 0, "Web": 0, "BruteForce": 0, "Benign": 0,
-    }
+    assert d.erro_por_categoria == erros(DDoS=1, DoS=1)
     assert d.com_outra_categoria == 5
 
 
-def test_sem_conflito_o_erro_minimo_e_zero(tmp_path):
+def test_sem_conflito_nao_ha_erro_em_nenhuma_regra(tmp_path):
     d = explorar(caso(tmp_path)).duplicatas
-    assert set(d.erro_minimo_por_categoria.values()) == {0}
-    assert list(d.erro_minimo_por_categoria) == ["DDoS", "DoS", "Mirai", "Recon", "Spoofing", "Web", "BruteForce", "Benign"]
+    assert d.erro_por_categoria == erros()
+    assert list(d.erro_por_categoria) == ["DDoS", "DoS", "Mirai", "Recon", "Spoofing", "Web", "BruteForce", "Benign"]
+    assert d.erro_ao_favorecer == {nome: erros() for nome in CATEGORIAS}
 
 
-def test_relatorio_traz_o_erro_minimo_por_categoria(tmp_path):
+def test_erros_na_regra_que_favorece_uma_categoria(tmp_path):
+    d = explorar_linhas(tmp_path, LINHAS_EM_CONFLITO, linhas_por_bloco=4).duplicatas
+    assert list(d.erro_ao_favorecer) == list(CATEGORIAS)
+    # Respondendo DoS em toda combinação com linha de DoS, o empate passa a errar a linha de DDoS.
+    assert d.erro_ao_favorecer["DoS"] == erros(DDoS=2)
+    # Respondendo DDoS, erram as três linhas de DoS: as duas da maioria e a do empate.
+    assert d.erro_ao_favorecer["DDoS"] == erros(DoS=3)
+    # Categoria que não divide combinação com outra: nada muda em relação à regra de maior acerto.
+    assert d.erro_ao_favorecer["Benign"] == d.erro_por_categoria
+
+
+LINHAS_COM_TRES_CATEGORIAS = [
+    # Uma combinação com 3 linhas benignas, 1 de Recon e 1 de Spoofing.
+    *[linha("BENIGN", media=70.0)] * 3,
+    linha("RECON-PORTSCAN", media=70.0),
+    linha("DNS_SPOOFING", media=70.0),
+    # Outra só com Recon e Spoofing, em que Spoofing é a mais frequente.
+    linha("RECON-OSSCAN", media=71.0),
+    *[linha("MITM-ARPSPOOFING", media=71.0)] * 2,
+    linha("XSS"),
+]
+
+
+def test_favorecer_uma_categoria_erra_todas_as_outras_linhas_das_combinacoes_dela(tmp_path):
+    d = explorar_linhas(tmp_path, LINHAS_COM_TRES_CATEGORIAS, linhas_por_bloco=4).duplicatas
+    assert d.erro_por_categoria == erros(Recon=2, Spoofing=1)
+    assert d.erro_ao_favorecer["Recon"] == erros(Spoofing=3, Benign=3)
+    assert d.erro_ao_favorecer["Spoofing"] == erros(Recon=2, Benign=3)
+    assert d.erro_ao_favorecer["Benign"] == erros(Recon=2, Spoofing=1)
+    assert d.erro_ao_favorecer["Web"] == erros(Recon=2, Spoofing=1)
+
+
+def test_relatorio_traz_os_erros_por_categoria_na_regra_de_maior_acerto_global(tmp_path):
     relatorio = montar_relatorio(explorar_linhas(tmp_path, LINHAS_EM_CONFLITO))
+    assert "| Categoria | Linhas | Erros na regra de maior acerto global | Acerto nessa regra |" in relatorio
     assert "| DDoS | 4 | 1 | 75,00% |" in relatorio
     assert "| DoS | 3 | 1 | 66,67% |" in relatorio
     assert "| Benign | 2 | 0 | 100,00% |" in relatorio
     assert "| Total | 9 | 2 | 77,78% |" in relatorio
+    assert "Erro mínimo" not in relatorio and "Acerto máximo" not in relatorio and "erro mínimo" not in relatorio
+
+
+def test_relatorio_diz_que_os_valores_por_categoria_nao_sao_limites(tmp_path):
+    relatorio = montar_relatorio(explorar_linhas(tmp_path, LINHAS_EM_CONFLITO))
+    secao = relatorio.split("## 8. ")[1].split("## 9. ")[0]
+    assert "No empate vale a primeira categoria na ordem da tabela, e por isso DDoS tem preferência sobre DoS." in secao
+    assert "Só a linha Total é um limite superior" in secao
+    assert "Os valores por categoria não são limites" in secao
+    # A categoria de menor acerto na tabela é DoS. Favorecida, ela acerta tudo e DDoS perde o empate.
+    assert (
+        "Na regra que responde DoS em toda combinação que tenha alguma linha de DoS, o acerto de DoS é de "
+        "100,00%, o de DDoS é de 50,00% e o acerto global é de 77,78%."
+    ) in secao
+    outro = montar_relatorio(explorar_linhas(tmp_path, LINHAS_COM_TRES_CATEGORIAS))
+    assert (
+        "Na regra que responde Recon em toda combinação que tenha alguma linha de Recon, o acerto de Recon é de "
+        "100,00%, o de Benign é de 0,00% e o acerto global é de 33,33%."
+    ) in outro
+
+
+def test_relatorio_diz_que_o_limite_global_depende_do_conjunto_avaliado(tmp_path):
+    relatorio = montar_relatorio(explorar_linhas(tmp_path, LINHAS_EM_CONFLITO))
     resumo = relatorio.split("## Resumo\n")[1].split("## 1. ")[0]
     assert "o acerto em 8 categorias não passa de 77,78%" in resumo
-    assert "não passa de" not in montar_relatorio(explorar(caso(tmp_path)))
+    assert "avaliado no conjunto completo, na proporção natural das classes" in resumo
+    assert "não é uma propriedade das 39 features" in resumo
+    assert "um modelo avaliado numa amostra pode passar dele" in resumo
+    secao = relatorio.split("## 8. ")[1].split("## 9. ")[0]
+    assert "vale para a avaliação no conjunto completo, na proporção natural das classes" in secao
+    assert "coincidência exata" in secao
+    assert "Não é uma propriedade das 39 features em si" in secao
+    assert "Um modelo avaliado numa amostra pode passar de 77,78% de forma legítima" in secao
+    sem_conflito = montar_relatorio(explorar(caso(tmp_path)))
+    assert "não passa de" not in sem_conflito and "limite superior" not in sem_conflito
 
 
 def test_valores_negativos_sao_contados(tmp_path):
