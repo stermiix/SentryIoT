@@ -11,38 +11,97 @@ das aprovações e das medidas ativas é sempre reconstruído a partir dos event
 e as funções deste módulo não gravam nada. Elas recebem o estado e devolvem o resultado e os
 rascunhos dos eventos, que quem chamou grava com `eventos.Registro`.
 """
-import ipaddress
 import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from codigo.mcp.eventos import novo
 from codigo.mcp.tipos import (
+    MAIOR_NOME_DE_ACAO,
+    MAXIMO_DE_PASSOS,
+    TEXTO_CURTO,
+    TEXTO_LONGO,
     AcaoDoCatalogo,
     Ambiente,
     Decisao,
     Execucao,
+    NomeDeAcao,
     ParametroDeAcao,
     ParametrosDeAcaoNova,
     Promocao,
     Proposta,
+    TextoLongo,
+    endereco_canonico,
 )
 
 POLITICA_PADRAO = Path(__file__).with_name("politica.toml")
 RISCOS = ("baixo", "alto")
-_NOME_DE_ACAO = re.compile(r"[a-z][a-z0-9_]{0,59}")
-_USUARIO = re.compile(r"[A-Za-z0-9._-]{1,64}")
-_MAIOR_ALVO = 200
+# Maior prazo aceito em uma proposta: um ano, em minutos. Medida para mais tempo que isso é medida
+# sem prazo, e número sem teto no log é número que o leitor do log pode não conseguir ler.
+MAIOR_DURACAO = 525_600
+_NOME_DE_ACAO = TypeAdapter(NomeDeAcao)
+_TEXTO_LONGO = TypeAdapter(TextoLongo)
+# Nome de conta: sem espaço e sem nada que um interpretador de comandos trate de modo especial. Não
+# começa por hífen, para nunca ser lido como opção de um comando.
+_USUARIO = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._-]{0,63}")
+_MAIOR_ALVO = TEXTO_CURTO
+# Quanto de um valor recebido aparece em uma mensagem de recusa.
+_MAIOR_TRECHO = 60
+_MAIS_NOMES = 5
 _REGRA_DE_RISCO_ALTO = "Risco alto: só com aprovação humana."
 
 
+def _milhar(numero):
+    return f"{numero:,}".replace(",", ".")
+
+
+_UMA_LINHA = f"um texto de uma linha, com até {_milhar(TEXTO_LONGO)} caracteres, sem caractere de controle"
+
+
+def resumir(valor, maximo=_MAIOR_TRECHO):
+    """Como um valor recebido aparece em uma mensagem: escapado e cortado.
+
+    A mensagem de recusa volta para o agente e vai para o log. Ela nunca devolve a entrada
+    inteira nem repete sequência de terminal ou quebra de linha que veio nela.
+    """
+    if isinstance(valor, str):
+        if len(valor) <= maximo:
+            return repr(valor)
+        return f"{valor[:maximo]!r} (cortado: {_milhar(len(valor))} caracteres)"
+    if valor is None or isinstance(valor, bool | float):
+        return repr(valor)
+    if isinstance(valor, int):
+        # Inteiro muito grande não é convertido em texto: o Python limita essa conversão.
+        return repr(valor) if valor.bit_length() <= 64 else f"um inteiro de {valor.bit_length()} bits"
+    return f"um valor do tipo {type(valor).__name__}"
+
+
+def _resumir_nomes(nomes):
+    """Lista de nomes vindos de fora (chaves de parametros) para uma mensagem, com no máximo cinco."""
+    nomes = list(nomes)
+    mostrados = ", ".join(resumir(nome, 30) for nome in nomes[:_MAIS_NOMES])
+    return mostrados if len(nomes) <= _MAIS_NOMES else f"{mostrados} e mais {len(nomes) - _MAIS_NOMES}"
+
+
+def _visivel(texto):
+    """O texto com tudo o que não é imprimível trocado pela sequência de escape correspondente."""
+    return "".join(
+        letra if letra.isprintable() else letra.encode("unicode_escape").decode("ascii") for letra in texto
+    )
+
+
 class PedidoRecusado(Exception):
-    """Um pedido que o sistema recusa, com o motivo (um dos códigos do contrato) e a mensagem."""
+    """Um pedido que o sistema recusa, com o motivo (um dos códigos do contrato) e a mensagem.
+
+    A mensagem é sempre de uma linha, imprimível e dentro do tamanho de um texto longo do contrato,
+    mesmo que quem a montou tenha deixado passar um trecho da entrada.
+    """
 
     def __init__(self, motivo, mensagem):
+        mensagem = _visivel(mensagem)[:TEXTO_LONGO]
         super().__init__(mensagem)
         self.motivo = motivo
         self.mensagem = mensagem
@@ -266,22 +325,31 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
     `acao_proposta`. Não aplica nada: proposta de risco baixo já nasce liberada para o agente
     de execução, e a de risco alto fica aguardando a decisão de uma pessoa.
     """
-    if incidente not in estado.incidentes:
-        raise PedidoRecusado("identificador_desconhecido", f"Não existe incidente com o identificador {incidente!r}.")
-    if not isinstance(justificativa, str) or not justificativa.strip():
-        raise PedidoRecusado("argumentos_invalidos", "A proposta precisa de uma justificativa.")
+    if not isinstance(incidente, str) or incidente not in estado.incidentes:
+        raise PedidoRecusado(
+            "identificador_desconhecido", f"Não existe incidente com o identificador {resumir(incidente)}."
+        )
+    justificativa = _justificativa(justificativa)
     if not isinstance(parametros, dict):
         raise PedidoRecusado("argumentos_invalidos", "O campo parametros precisa ser um objeto.")
+    if not isinstance(acao, str):
+        raise PedidoRecusado("argumentos_invalidos", f"O nome da ação precisa ser um texto. Veio {resumir(acao)}.")
 
     if acao in BASE:
         alvo = _alvo_de_base(acao, alvo)
         parametros = _parametros_validos(acao, parametros)
     elif acao in estado.promovidas:
+        # Os passos e a forma de desfazer são os do catálogo: a pessoa aprova o que foi promovido,
+        # e não uma variação com o mesmo nome. Por isso a proposta não aceita parâmetro nenhum.
+        if parametros:
+            raise PedidoRecusado(
+                "argumentos_invalidos",
+                f"{acao} foi promovida ao catálogo e é proposta sem parâmetros: os passos e a forma de "
+                f"desfazer são os do catálogo. Veio: {_resumir_nomes(parametros)}.",
+            )
         alvo = _alvo_livre(acao, alvo)
-        # Os passos e a forma de desfazer vêm do catálogo: a pessoa aprova o que foi promovido,
-        # e não uma variação com o mesmo nome.
         promovida = estado.promovidas[acao]
-        parametros = parametros | {
+        parametros = {
             "descricao": promovida.descricao,
             "passos": promovida.passos,
             "efeito_esperado": promovida.efeito_esperado,
@@ -289,12 +357,14 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
             "fonte": promovida.fonte,
         }
     else:
-        if not isinstance(acao, str) or not _NOME_DE_ACAO.fullmatch(acao):
+        try:
+            _NOME_DE_ACAO.validate_python(acao)
+        except ValidationError:
             raise PedidoRecusado(
                 "argumentos_invalidos",
                 f"O nome de uma ação nova usa só letras minúsculas sem acento, números e sublinhado, começa por "
-                f"letra e tem até 60 caracteres, como ativar_syn_cookies. Veio {acao!r}.",
-            )
+                f"letra e tem até {MAIOR_NOME_DE_ACAO} caracteres, como ativar_syn_cookies. Veio {resumir(acao)}.",
+            ) from None
         alvo = _alvo_livre(acao, alvo)
         parametros = _parametros_de_acao_nova(acao, parametros)
 
@@ -314,11 +384,26 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
     return proposta, [novo("acao_proposta", proposta, incidente)]
 
 
-def _endereco(texto):
-    """Endereço IP na forma canônica, ou None se o texto não é um endereço."""
+def _justificativa(justificativa):
     try:
-        return str(ipaddress.ip_address(texto.strip()))
-    except (AttributeError, ValueError):
+        return _TEXTO_LONGO.validate_python(justificativa)
+    except ValidationError:
+        raise PedidoRecusado(
+            "argumentos_invalidos", f"A proposta precisa de uma justificativa: {_UMA_LINHA}."
+        ) from None
+
+
+def _endereco(texto):
+    """Endereço IP na forma canônica, ou None se o texto não é um endereço que o sistema aceita.
+
+    Não aceita zona de IPv6 (`fe80::1%eth0`): o que vem depois de `%` é texto livre, e o alvo de
+    uma ação acaba como argumento de um comando no servidor de verdade.
+    """
+    if not isinstance(texto, str) or len(texto) > _MAIOR_ALVO:
+        return None
+    try:
+        return endereco_canonico(texto.strip())
+    except ValueError:
         return None
 
 
@@ -329,15 +414,18 @@ def _alvo_de_base(acao, alvo):
         if endereco is None:
             raise PedidoRecusado(
                 "alvo_malformado",
-                f"O alvo de {acao} precisa ser um endereço IP, como 203.0.113.7. Veio {alvo!r}.",
+                f"O alvo de {acao} precisa ser um endereço IP, sem zona, como 203.0.113.7. Veio {resumir(alvo)}.",
             )
         return endereco
-    usuario, arroba, dispositivo = alvo.strip().rpartition("@") if isinstance(alvo, str) else ("", "", "")
+    cabe = isinstance(alvo, str) and len(alvo) <= _MAIOR_ALVO
+    usuario, arroba, dispositivo = alvo.strip().rpartition("@") if cabe else ("", "", "")
     endereco = _endereco(dispositivo)
     if not arroba or not _USUARIO.fullmatch(usuario) or endereco is None:
         raise PedidoRecusado(
             "alvo_malformado",
-            f"O alvo de {acao} precisa ter o formato usuario@endereco, como admin@192.168.137.31. Veio {alvo!r}.",
+            f"O alvo de {acao} precisa ter o formato usuario@endereco, como admin@192.168.137.31. O usuário usa "
+            f"letras sem acento, números, ponto, hífen e sublinhado, e não começa por ponto nem por hífen. "
+            f"Veio {resumir(alvo)}.",
         )
     return f"{usuario}@{endereco}"
 
@@ -361,7 +449,7 @@ def _parametros_validos(acao, parametros):
     if desconhecidos:
         raise PedidoRecusado(
             "argumentos_invalidos",
-            f"{acao} não aceita o parâmetro {', '.join(desconhecidos)}. "
+            f"{acao} não aceita o parâmetro {_resumir_nomes(desconhecidos)}. "
             + (f"Aceita: {', '.join(aceitos)}." if aceitos else "Essa ação não tem parâmetros."),
         )
     duracao = parametros.get("duracao")
@@ -369,10 +457,11 @@ def _parametros_validos(acao, parametros):
         if definicao.duracao == "obrigatoria":
             raise PedidoRecusado("argumentos_invalidos", f"{acao} exige o parâmetro duracao, em minutos.")
         return {}
-    if type(duracao) is not int or duracao < 1:
+    if type(duracao) is not int or not 1 <= duracao <= MAIOR_DURACAO:
         raise PedidoRecusado(
             "argumentos_invalidos",
-            f"O parâmetro duracao de {acao} é o prazo em minutos: um número inteiro, a partir de 1. Veio {duracao!r}.",
+            f"O parâmetro duracao de {acao} é o prazo em minutos: um número inteiro, de 1 a "
+            f"{_milhar(MAIOR_DURACAO)} (um ano). Veio {resumir(duracao)}.",
         )
     return {"duracao": duracao}
 
@@ -381,12 +470,16 @@ def _parametros_de_acao_nova(acao, parametros):
     try:
         return ParametrosDeAcaoNova.model_validate(parametros).model_dump(mode="json")
     except ValidationError as erro:
-        campos = sorted({str(defeito["loc"][0]) if defeito["loc"] else "parametros" for defeito in erro.errors()})
+        # O nome de um campo a mais vem do agente: entra na mensagem escapado e cortado.
+        defeitos = {defeito["loc"][0] if defeito["loc"] else "parametros" for defeito in erro.errors()}
+        conhecidos = sorted(campo for campo in defeitos if campo in ParametrosDeAcaoNova.model_fields)
+        a_mais = sorted(str(campo) for campo in defeitos if campo not in ParametrosDeAcaoNova.model_fields)
+        campos = ", ".join(filter(None, [", ".join(conhecidos), _resumir_nomes(a_mais) if a_mais else ""]))
         raise PedidoRecusado(
             "acao_nova_incompleta",
             f"{acao} não está no catálogo, e uma ação nova precisa trazer em parametros: descricao, passos "
-            f"(lista com ao menos um passo), efeito_esperado e como_desfazer, e pode trazer fonte. "
-            f"Falta ou está inválido: {', '.join(campos)}.",
+            f"(lista de 1 a {MAXIMO_DE_PASSOS} passos), efeito_esperado e como_desfazer, e pode trazer fonte. "
+            f"Cada um é {_UMA_LINHA}; a fonte tem até {TEXTO_CURTO}. Falta ou está inválido: {campos}.",
         ) from None
 
 
@@ -394,9 +487,9 @@ def _parametros_de_acao_nova(acao, parametros):
 
 
 def _proposta(estado, identificador):
-    if identificador not in estado.propostas:
+    if not isinstance(identificador, str) or identificador not in estado.propostas:
         raise PedidoRecusado(
-            "identificador_desconhecido", f"Não existe proposta com o identificador {identificador!r}."
+            "identificador_desconhecido", f"Não existe proposta com o identificador {resumir(identificador)}."
         )
     return estado.propostas[identificador]
 
@@ -420,7 +513,10 @@ def decidir(estado, id_proposta, aprovar, canal="terminal", motivo=None):
             "liberada": "já foi aprovada" if proposta.exige_aprovacao else "é de risco baixo e não exige aprovação",
         }[proposta.estado]
         raise PedidoRecusado("argumentos_invalidos", f"A proposta {proposta.id} {situacao}.")
-    decisao = Decisao(proposta=proposta.id, canal=canal, motivo=motivo or None)
+    try:
+        decisao = Decisao(proposta=proposta.id, canal=canal, motivo=motivo or None)
+    except ValidationError:
+        raise PedidoRecusado("argumentos_invalidos", f"O motivo da decisão precisa ser {_UMA_LINHA}.") from None
     decidida = proposta.model_copy(update={"estado": "liberada" if aprovar else "rejeitada"})
     return decidida, [novo("acao_aprovada" if aprovar else "acao_rejeitada", decisao, proposta.incidente)]
 
@@ -461,8 +557,8 @@ def executar(estado, id_proposta, instante):
 
 def desfazer(estado, id_execucao, instante):
     """Reverte uma ação aplicada no ambiente simulado."""
-    if id_execucao not in estado.execucoes:
-        if id_execucao in estado.propostas:
+    if not isinstance(id_execucao, str) or id_execucao not in estado.execucoes:
+        if isinstance(id_execucao, str) and id_execucao in estado.propostas:
             proposta = estado.propostas[id_execucao]
             if proposta.estado in ("executada", "desfeita"):
                 execucao = _execucao_da_proposta(estado, proposta)
@@ -471,7 +567,7 @@ def desfazer(estado, id_execucao, instante):
                 detalhe = "Ela não foi aplicada: não há o que desfazer."
             raise PedidoRecusado("acao_nao_aplicada", f"{id_execucao} é uma proposta. {detalhe}")
         raise PedidoRecusado(
-            "identificador_desconhecido", f"Não existe execução com o identificador {id_execucao!r}."
+            "identificador_desconhecido", f"Não existe execução com o identificador {resumir(id_execucao)}."
         )
     execucao = estado.execucoes[id_execucao]
     if execucao.estado == "desfeita":
