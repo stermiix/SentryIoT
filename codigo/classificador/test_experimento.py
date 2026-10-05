@@ -681,8 +681,9 @@ def test_medidas_do_conjunto_completo_sao_as_da_exploracao_versionada():
     repetidas = f"{100 * experimento_do_treino.LINHAS_REPETIDAS_NO_CONJUNTO:.2f}%".replace(".", ",")
     assert f"linhas ({repetidas}) têm uma combinação que aparece mais de uma vez" in secao
     teto_de_8 = f"{100 * experimento_do_treino.TETO_DE_8_CATEGORIAS_NO_CONJUNTO:.2f}%".replace(".", ",")
+    # A linha de total da tabela de 8 categorias: linhas do conjunto completo, erros e o acerto que é o teto.
     total = next(linha for linha in secao.splitlines() if linha.startswith("| Total |"))
-    assert total.endswith(f"| {teto_de_8} |") and "em 8 categorias, medido no conjunto\ncompleto" in secao
+    assert total.startswith("| Total | 45.019.234 |") and total.endswith(f"| {teto_de_8} |")
     assert experimento_do_treino.FONTE_DO_CONJUNTO_COMPLETO == "`exploracao.md`, seção 8"
 
 
