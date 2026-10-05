@@ -60,6 +60,20 @@ RELACOES = (
 )
 # Valor de `Protocol Type` e o protocolo que ele indica. O extrator dá 0 aos quadros ARP.
 PROTOCOLOS = {0: "ARP (sem protocolo IP)", 1: "ICMP", 2: "IGMP", 6: "TCP", 17: "UDP", 47: "GRE"}
+# Arquivos do `MERGED_CSV` que já vêm da fonte oficial cortados no meio de uma linha, com o SHA-256
+# de cada um. Em 04/10/2026 eles e os três CSVs por ataque de `DoS-UDP_Flood` com o mesmo defeito
+# foram baixados de novo da fonte oficial e vieram idênticos byte a byte aos da cópia local.
+CORTADOS_NA_ORIGEM = {
+    "Merged42.csv": "2f8c6871ec1358154f0581d82ff2399b2928133e3e5e7eaed5bb602873fae906",
+    "Merged44.csv": "8d9392669871b7fbfe5903a8f01991e7ec47618e066b5177b9f5c10abab0a137",
+    "Merged46.csv": "7d0e575cd9c460a44622ce94c77e5e64f4e745898b0aaa3b5f3383f8b48d0e92",
+    "Merged47.csv": "206212048ede7d584060031baad8267d2885ed1350a8806cbc7801f8a2527a78",
+    "Merged48.csv": "0be517a673535e7338c51972627d636033e846c8a02aaa6b8dd7e43a201d66da",
+    "Merged49.csv": "150d7108eaa35920860545e7adb273afbe417308f69e9276a30d7349083a3f80",
+    "Merged50.csv": "9d30f0c62865f15529451cb6bd13d48f66b907ca9e2842dfb2d44f291844afb7",
+    "Merged51.csv": "02f796c65566e2596dd45549993c05637fddb972126fec823eed0b4e6cb0d3d1",
+    "Merged52.csv": "346b8e45c721bcc216d263acfa77a4acfbe6bd7ef874b6cbc186b8d92eb89705",
+}
 
 _CODIGO = {rotulo: codigo for codigo, rotulo in enumerate(ROTULOS)}
 _CATEGORIA_DO_CODIGO = np.array(
@@ -445,6 +459,12 @@ def _cerca_de(quantidade, singular, plural):
     return _plural(round(quantidade), singular, plural)
 
 
+def _cortados_na_origem(e):
+    """Se todos os arquivos cortados são, byte a byte, os que já vêm cortados da fonte oficial."""
+    cortados = [a for a in e.arquivos if a["final_incompleto"]]
+    return bool(cortados) and all(CORTADOS_NA_ORIGEM.get(a["nome"]) == a["sha256"] for a in cortados)
+
+
 def _e(itens):
     """Enumeração em português: "a", "a e b", "a, b e c"."""
     itens = list(itens)
@@ -529,10 +549,11 @@ def _resumo(e):
         )
     if cortados:
         verbo = "termina" if cortados == 1 else "terminam"
-        texto.append(
-            f"- {_plural(cortados, 'arquivo', 'arquivos')} {verbo} no meio de uma linha, sinal de arquivo "
-            "truncado."
-        )
+        if _cortados_na_origem(e):
+            motivo = "truncado já na fonte oficial" if cortados == 1 else "truncados já na fonte oficial"
+        else:
+            motivo = "sinal de arquivo truncado"
+        texto.append(f"- {_plural(cortados, 'arquivo', 'arquivos')} {verbo} no meio de uma linha, {motivo}.")
     return texto
 
 
@@ -556,13 +577,23 @@ def _secao_arquivos(e):
     cortados = [a for a in e.arquivos if a["final_incompleto"]]
     if cortados:
         verbo = "termina" if len(cortados) == 1 else "terminam"
+        if _cortados_na_origem(e):
+            origem = (
+                "As linhas que viriam depois do corte não fazem parte deste relatório. O corte está na "
+                "origem, e não na cópia local: baixados de novo da fonte oficial em 04/10/2026, os arquivos "
+                "do `MERGED_CSV` com esse defeito e os três CSVs por ataque de `DoS-UDP_Flood` que também "
+                "terminam no meio de uma linha vieram idênticos byte a byte."
+            )
+        else:
+            origem = (
+                "O corte indica arquivo truncado, na origem ou na cópia local, e as linhas que viriam depois "
+                "dele não fazem parte deste relatório."
+            )
         texto += [
             "",
             (
                 f"{_plural(len(cortados), 'arquivo', 'arquivos')} {verbo} no meio de uma linha, sem a quebra "
-                "de linha final. A linha incompleta de cada um ficou fora de todas as contagens. O corte "
-                "indica arquivo truncado, na origem ou na cópia local, e as linhas que viriam depois dele "
-                "não fazem parte deste relatório."
+                f"de linha final. A linha incompleta de cada um ficou fora de todas as contagens. {origem}"
             ),
             "",
             "| Arquivo | Linhas completas | Bytes |",

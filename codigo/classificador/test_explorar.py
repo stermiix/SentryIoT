@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -5,6 +6,7 @@ import pytest
 from codigo.captura.extrator import COLUNAS
 from codigo.classificador.amostrar import CABECALHO
 from codigo.classificador.explorar import (
+    CORTADOS_NA_ORIGEM,
     RELACOES,
     _cerca_de,
     contar_por_ataque,
@@ -16,6 +18,7 @@ from codigo.classificador.mapeamento import CATEGORIAS, ROTULOS
 
 DATASET = Path(__file__).resolve().parents[2] / "CICIoT2023"
 MERGED = DATASET / "MERGED_CSV"
+MANIFESTO = Path(__file__).resolve().parents[2] / "experimentos" / "resultados" / "manifesto_amostra.json"
 
 
 def _texto(valor):
@@ -448,6 +451,30 @@ def test_arquivo_cortado_no_fim_e_registrado(tmp_path):
     assert "termina no meio de uma linha" in relatorio and "| `Merged42.csv` | 17 |" in relatorio
 
 
+def test_corte_so_e_atribuido_a_origem_quando_o_arquivo_e_o_da_fonte_oficial(tmp_path, monkeypatch):
+    arquivo = escrever(tmp_path / "Merged42.csv", LINHAS_DO_CASO)
+    with open(arquivo, "a") as cortado:
+        cortado.write("20.0,6,64.0,960")
+    e = explorar([arquivo])
+    # O nome é o de um arquivo truncado na origem, mas o conteúdo é outro: a origem do corte fica em aberto.
+    relatorio = montar_relatorio(e)
+    assert "na origem ou na cópia local" in relatorio and "O corte está na origem" not in relatorio
+    assert "- 1 arquivo termina no meio de uma linha, sinal de arquivo truncado." in relatorio
+    monkeypatch.setitem(CORTADOS_NA_ORIGEM, "Merged42.csv", e.arquivos[0]["sha256"])
+    relatorio = montar_relatorio(e)
+    assert "O corte está na origem, e não na cópia local" in relatorio
+    assert "baixados de novo da fonte oficial em 04/10/2026" in relatorio and "idênticos byte a byte" in relatorio
+    assert "na origem ou na cópia local" not in relatorio
+    assert "- 1 arquivo termina no meio de uma linha, truncado já na fonte oficial." in relatorio
+
+
+def test_arquivos_cortados_na_origem_sao_os_registrados_no_manifesto_da_amostra():
+    entrada = json.loads(MANIFESTO.read_text(encoding="utf-8"))["entrada"]
+    assert len(CORTADOS_NA_ORIGEM) == 9
+    assert sorted(CORTADOS_NA_ORIGEM) == entrada["arquivos_com_final_incompleto"]
+    assert CORTADOS_NA_ORIGEM == {a["nome"]: a["sha256"] for a in entrada["arquivos"] if a["final_incompleto"]}
+
+
 def test_relatorio_traz_as_contagens_com_percentuais(tmp_path):
     relatorio = montar_relatorio(explorar(caso(tmp_path)))
     assert relatorio.startswith("# Exploração do MERGED_CSV\n")
@@ -662,6 +689,7 @@ def test_merged52_real():
     e = explorar([MERGED / "Merged52.csv"])
     assert e.linhas == sum(e.por_rotulo.values()) > 60_000
     assert e.arquivos[0]["final_incompleto"] is True
+    assert e.arquivos[0]["sha256"] == CORTADOS_NA_ORIGEM["Merged52.csv"]
     assert max(e.janela["DDoS-ICMP_Flood"]) == 100 and max(e.janela["BenignTraffic"]) == 10
     assert ("AVG", "Tot size") in e.identicas and ("IPv", "LLC") in e.identicas
     assert all(relacao.fora == 0 for relacao in e.relacoes.values())
