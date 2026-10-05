@@ -63,6 +63,22 @@ def test_treinar_com_a_mesma_semente_da_o_mesmo_modelo():
     assert not mesmas_arvores(primeiro, outro)
 
 
+def test_treinar_com_pesos_da_a_cada_linha_o_peso_pedido():
+    X, y = caso()
+    pesos = np.where(y == "Benign", 10.0, 1.0)
+    modelo, _ = treinar(X, y, semente=5, arvores=10, pesos=pesos)
+    esperado = RandomForestClassifier(n_estimators=10, random_state=5, n_jobs=-1).fit(X, y, sample_weight=pesos)
+    assert mesmas_arvores(modelo, esperado)
+    # Os pesos mudam o modelo.
+    sem_pesos, _ = treinar(X, y, semente=5, arvores=10)
+    assert not mesmas_arvores(modelo, sem_pesos)
+    # O resultado só depende da proporção entre os pesos, e não da escala deles.
+    em_outra_escala, _ = treinar(X, y, semente=5, arvores=10, pesos=4 * pesos)
+    assert mesmas_arvores(modelo, em_outra_escala)
+    with pytest.raises(ValueError):
+        treinar(X, y, pesos=np.ones(len(y) - 1))
+
+
 def test_prever_soma_os_votos_das_arvores_em_ordem_fixa():
     X, y = caso()
     modelo, _ = treinar(X, y, arvores=15)

@@ -35,11 +35,18 @@ from codigo.classificador.preparar import (
 ARVORES = 100  # o padrão do scikit-learn, escrito aqui para constar do registro
 
 
-def treinar(X, y, semente=SEMENTE, arvores=ARVORES):
-    """Treina o Random Forest e devolve o modelo e os segundos gastos no treino."""
+def treinar(X, y, semente=SEMENTE, arvores=ARVORES, pesos=None):
+    """Treina o Random Forest e devolve o modelo e os segundos gastos no treino.
+
+    `pesos` é o peso de cada linha no treino, o `sample_weight` do scikit-learn. Sem ele, todas as
+    linhas pesam o mesmo, e a priori que o modelo aprende é a proporção das classes em `y`. Na
+    versão do scikit-learn que o projeto fixa, o peso é a chance de a linha entrar no sorteio com
+    reposição que monta o conjunto de cada árvore: o que conta é a proporção entre os pesos, e não
+    a escala deles.
+    """
     modelo = RandomForestClassifier(n_estimators=arvores, random_state=semente, n_jobs=-1)
     inicio = time.perf_counter()
-    modelo.fit(X, y)
+    modelo.fit(X, y, sample_weight=pesos)
     return modelo, time.perf_counter() - inicio
 
 
