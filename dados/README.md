@@ -299,9 +299,10 @@ CICIoT2023/
 | `mapeamento.py` | Os 34 rótulos na grafia dos autores, a normalização da grafia (o `MERGED_CSV` usa MAIÚSCULAS e `BENIGN`) e o agrupamento em 8 categorias e em ataque ou benigno, igual ao `dict_7classes` e ao `dict_2classes` |
 | `amostrar.py` | Percorre os 63 arquivos do `MERGED_CSV` em fluxo, guarda todas as linhas das classes raras e sorteia no máximo 50.000 das demais. **Semente fixa.** Grava `dados/processed/amostra.csv.gz`, com as 39 features, `Label` e `Categoria`, e o manifesto da amostra |
 | `explorar.py` | Lê o `MERGED_CSV` inteiro e gera `experimentos/resultados/exploracao.md` |
-| `preparar.py` | Aplica o agrupamento em 8 categorias e separa treino e teste. Grava a divisão usada |
-| `treinar.py` | Treina o Random Forest e salva o modelo. Sem `StandardScaler` |
-| `avaliar.py` | Recall por classe, matriz de confusão, taxa de falso positivo, importância das features, tempo de inferência e tamanho do modelo |
+| `preparar.py` | Lê a amostra, escolhe as features (as 39, ou 33 sem as que dependem da janela) e o alvo (34 classes, 8 categorias, 7 com DDoS e DoS fundidas, ou ataque e benigno) e separa treino e teste, por sorteio estratificado de linhas ou por grupos de vetores idênticos. **Semente fixa** |
+| `treinar.py` | Treina o Random Forest com os parâmetros padrão do scikit-learn e salva o modelo em `modelos/`, fora do git, com as features, o alvo e a divisão usados. Sem `StandardScaler` |
+| `avaliar.py` | Acurácia, macro-F1, precisão, recall e F1 por classe, matriz de confusão, taxa de falso positivo, teto, importância das features, tempo de inferência e tamanho do modelo. Mede na distribuição da amostra e reponderado para a do conjunto completo. Também pontua um CSV de fora com as 39 colunas e o rótulo conhecido, como a saída do extrator |
+| `experimento.py` | Roda o treino exploratório: dez execuções que combinam features, divisão e alvo. Grava o relatório, as tabelas, as matrizes de confusão e o manifesto do experimento |
 
 **Frente de MCP e agentes** — `codigo/mcp/` e `codigo/agente/`
 
@@ -322,8 +323,11 @@ CICIoT2023/
 | `resultados/calibracao.md` | O relatório da calibração: o que bateu, o que divergiu e quanto |
 | `resultados/exploracao.md` | A exploração do `MERGED_CSV` completo: linhas por classe e por categoria, janela por classe, valores vazios e infinitos, colunas redundantes e linhas repetidas |
 | `resultados/manifesto_amostra.json` | O registro da amostra: semente, teto, contagem por classe no conjunto e na amostra, hash dos arquivos lidos e hash da amostra |
-| `resultados/metricas_classificador.csv` | Recall, precisão e F1 por classe |
-| `resultados/matriz_confusao.png` | O que o modelo confunde com o quê |
+| `resultados/treino_exploratorio.md` | O relatório do treino exploratório: as dez execuções, as medidas por classe, a importância das features, o custo e o que os números dizem sobre as decisões em aberto |
+| `resultados/manifesto_treino_exploratorio.json` | O registro do experimento: semente, parâmetros, versões, hash da amostra, as duas divisões e todos os números de cada execução |
+| `resultados/metricas_classificador.csv` | Precisão, recall, F1, suporte e taxa de falso positivo por classe, em formato longo: uma linha por execução, distribuição e classe |
+| `resultados/importancia_features.csv` | Importância de cada feature em cada execução, em formato longo |
+| `resultados/matrizes_confusao/` | O que o modelo confunde com o quê, em CSV. Dois arquivos por execução: a matriz do alvo e a que abre a classe real nos 34 rótulos |
 | `resultados/avaliacao_agentes.csv` | A qualidade das recomendações — **a tabela que ainda não tem métrica definida** |
 | `resultados/custo_latencia.csv` | Tokens e tempo de resposta por alerta |
 | `notebooks/` | Exploração livre. Nada que vá para o artigo nasce aqui sem virar script |
@@ -339,7 +343,7 @@ CICIoT2023/
 
 1. `mcp/contrato.json` — destrava as duas frentes
 2. `captura/extrator.py` e `captura/calibrar.py` — caminho crítico
-3. `classificador/mapeamento.py` → `explorar.py` e `amostrar.py` → `preparar.py` → `treinar.py` → `avaliar.py`
+3. `classificador/mapeamento.py` → `explorar.py` e `amostrar.py` → `preparar.py` → `treinar.py` → `avaliar.py` → `experimento.py`
 4. `mcp/stub.py` (em paralelo a tudo, desde o contrato) → `mcp/servidor.py`
 5. `agente/` — depois que o servidor responde
 6. `experimentos/resultados/` — as tabelas vazias devem existir **antes** dos experimentos
