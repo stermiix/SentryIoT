@@ -13,6 +13,10 @@ bloquear só para origem, porque o destino é o dispositivo atacado e bloqueá-l
 ar. Os números e os papéis ficam em `politica.toml`. O piso fica aqui, no código:
 isolar_dispositivo, revogar_credencial e toda ação nova são sempre de risco alto.
 
+A proposta de risco alto diz por quê: traz a lista dos motivos, cada um com um código estável e
+uma frase (`tipos.MOTIVOS_DE_RISCO_ALTO`). A lista sai da mesma conta que decide o risco, e por
+isso é vazia quando o risco é baixo, e só então.
+
 Quem chama as tools é um modelo de linguagem, que pode ser enganado por conteúdo vindo da rede.
 Por isso tudo o que chega é tratado como entrada: textos têm uma linha e tamanho máximo, o alvo
 de uma ação de base é um endereço IP sem zona, e a mensagem de recusa nunca devolve a entrada
@@ -36,12 +40,14 @@ from codigo.mcp.eventos import LogInvalido, novo
 from codigo.mcp.tipos import (
     MAIOR_NOME_DE_ACAO,
     MAXIMO_DE_PASSOS,
+    MOTIVOS_DE_RISCO_ALTO,
     TEXTO_CURTO,
     TEXTO_LONGO,
     AcaoDoCatalogo,
     Ambiente,
     Decisao,
     Execucao,
+    MotivoDeRiscoAlto,
     NomeDeAcao,
     ParametroDeAcao,
     ParametrosDeAcaoNova,
@@ -299,32 +305,44 @@ def carregar_politica(caminho=POLITICA_PADRAO):
     )
 
 
-def _risco(estado, politica, incidente, acao, alvo, parametros):
-    """Risco de aplicar agora a ação no incidente. É baixo só quando todas as condições valem.
+def _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros):
+    """Os códigos dos motivos pelos quais aplicar agora a ação no incidente é de risco alto.
 
-    O nome da ação e a duração não bastam: bloquear por 10 minutos o gateway, ou um endereço que
-    não tem relação com o incidente, não é uma medida de risco baixo.
+    Sem motivo, o risco é baixo. O nome da ação e a duração não bastam para isso: bloquear por 10
+    minutos o gateway, o dispositivo atacado ou um endereço que não tem relação com o incidente
+    não é uma medida de risco baixo. Saem todos os motivos que valem, na ordem da tabela do
+    contrato, para a pessoa que decide ver o quadro inteiro.
     """
-    # Piso do código, que nenhuma política baixa.
-    if acao not in BASE or acao in _SEMPRE_DE_RISCO_ALTO:
-        return "alto"
+    if acao not in BASE:
+        # Ação nova ou promovida: é sempre de risco alto, e o alvo é texto livre, sem o que conferir.
+        return ["acao_sempre_de_risco_alto" if acao in estado.promovidas else "acao_nova"]
     regra = politica.acoes[acao]
-    duracao = parametros.get("duracao")
+    # O alvo de revogar_credencial é usuario@endereco: o que se compara com o incidente é o endereço.
+    endereco = alvo.rpartition("@")[2]
     origens, destinos = _enderecos_do_incidente(estado, incidente)
-    # O endereço que é destino do incidente é o dispositivo atacado, mesmo que também apareça entre as
-    # origens (as respostas dele ao ataque saem dele). Ele só é alvo de risco baixo na ação que aceita destino.
-    if regra[_ALVOS] == _ORIGENS_E_DESTINOS:
-        alvo_aceito = alvo in origens or alvo in destinos
+    valem = set()
+    # O primeiro teste é o piso do código, que nenhuma política baixa.
+    if acao in _SEMPRE_DE_RISCO_ALTO or regra["risco"] != "baixo":
+        valem.add("acao_sempre_de_risco_alto")
     else:
-        alvo_aceito = alvo in origens and alvo not in destinos
-    condicoes = (
-        regra["risco"] == "baixo",
-        regra[_PRAZO] is not None and type(duracao) is int and duracao <= regra[_PRAZO],
-        alvo_aceito,
-        alvo not in politica.enderecos_protegidos,
-        _medidas_de_risco_baixo(estado, incidente) < politica.medidas_de_risco_baixo_por_incidente,
-    )
-    return "baixo" if all(condicoes) else "alto"
+        # As três condições seguintes só existem na ação que pode ser de risco baixo.
+        duracao = parametros.get("duracao")
+        if regra[_PRAZO] is None or type(duracao) is not int or duracao > regra[_PRAZO]:
+            valem.add("prazo_acima_do_limite")
+        # O endereço que é destino do incidente é o dispositivo atacado, mesmo que também apareça entre
+        # as origens (as respostas dele ao ataque saem dele). Só a ação que aceita destino o trata como
+        # alvo de risco baixo.
+        if endereco in destinos and regra[_ALVOS] != _ORIGENS_E_DESTINOS:
+            valem.add("alvo_e_destino_do_incidente")
+        if _medidas_de_risco_baixo(estado, incidente) >= politica.medidas_de_risco_baixo_por_incidente:
+            valem.add("orcamento_de_risco_baixo_esgotado")
+    # O que se diz do alvo vale para toda ação de base, inclusive a que já é sempre de risco alto: quem
+    # aprova o isolamento de um dispositivo precisa saber que ele é o gateway, ou que é alheio ao incidente.
+    if endereco not in origens and endereco not in destinos:
+        valem.add("alvo_fora_do_incidente")
+    if endereco in politica.enderecos_protegidos:
+        valem.add("alvo_protegido")
+    return [codigo for codigo in MOTIVOS_DE_RISCO_ALTO if codigo in valem]
 
 
 def _enderecos_do_incidente(estado, incidente):
@@ -558,6 +576,19 @@ def _conferir_proposta_nova(estado, proposta):
         proposta.nova == (proposta.acao not in BASE and proposta.acao not in estado.promovidas),
         f"a proposta {proposta.id} vem com nova = {proposta.nova}, o que não confere com o catálogo",
     )
+    # Os motivos são texto do sistema na tela de aprovação: existem se e só se o risco é alto, não se
+    # repetem e trazem a frase do contrato, e não outra.
+    codigos = [motivo.codigo for motivo in proposta.motivos_de_risco_alto]
+    _exigir(
+        bool(codigos) == de_risco_alto,
+        f"a proposta {proposta.id} é de risco {proposta.risco} e "
+        + ("traz motivo de risco alto" if codigos else "não traz nenhum motivo de risco alto"),
+    )
+    _exigir(len(set(codigos)) == len(codigos), f"a proposta {proposta.id} repete um motivo de risco alto")
+    _exigir(
+        all(motivo.descricao == MOTIVOS_DE_RISCO_ALTO[motivo.codigo] for motivo in proposta.motivos_de_risco_alto),
+        f"a proposta {proposta.id} traz um motivo de risco alto com uma frase que não é a do contrato",
+    )
 
 
 def catalogo(estado, politica):
@@ -608,9 +639,10 @@ def ambiente(estado):
 def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
     """Registra a proposta de uma ação do catálogo ou de uma ação nova.
 
-    Devolve a proposta, com o nível de risco e se ela exige aprovação, e o rascunho do evento
-    `acao_proposta`. Não aplica nada: proposta de risco baixo já nasce liberada para o agente
-    de execução, e a de risco alto fica aguardando a decisão de uma pessoa.
+    Devolve a proposta, com o nível de risco, os motivos quando o risco é alto e se ela exige
+    aprovação, e o rascunho do evento `acao_proposta`. Não aplica nada: proposta de risco baixo
+    já nasce liberada para o agente de execução, e a de risco alto fica aguardando a decisão de
+    uma pessoa.
 
     Alvo que não consta do incidente, endereço protegido e limite de medidas atingido não são
     motivo de recusa: a proposta é registrada como de risco alto, e quem decide é a pessoa.
@@ -663,7 +695,7 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
         alvo = _alvo_livre(acao, alvo)
         parametros = _parametros_de_acao_nova(acao, parametros)
 
-    risco = _risco(estado, politica, incidente, acao, alvo, parametros)
+    motivos = _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros)
     proposta = Proposta(
         id=f"prop-{len(estado.propostas) + 1:04d}",
         incidente=incidente,
@@ -672,9 +704,12 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
         parametros=parametros,
         justificativa=justificativa,
         nova=acao not in BASE and acao not in estado.promovidas,
-        risco=risco,
-        exige_aprovacao=risco == "alto",
-        estado="aguardando_aprovacao" if risco == "alto" else "liberada",
+        risco="alto" if motivos else "baixo",
+        motivos_de_risco_alto=[
+            MotivoDeRiscoAlto(codigo=codigo, descricao=MOTIVOS_DE_RISCO_ALTO[codigo]) for codigo in motivos
+        ],
+        exige_aprovacao=bool(motivos),
+        estado="aguardando_aprovacao" if motivos else "liberada",
     )
     return proposta, [novo("acao_proposta", proposta, incidente)]
 
@@ -878,7 +913,8 @@ def _risco_de_agora(estado, politica, proposta):
         return "alto"
     if (alvo, parametros) != (proposta.alvo, proposta.parametros):
         return "alto"
-    return _risco(estado, politica, proposta.incidente, proposta.acao, alvo, parametros)
+    motivos = _motivos_de_risco_alto(estado, politica, proposta.incidente, proposta.acao, alvo, parametros)
+    return "alto" if motivos else "baixo"
 
 
 def desfazer(estado, id_execucao, instante):

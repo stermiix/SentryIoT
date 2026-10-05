@@ -13,6 +13,7 @@ from codigo.mcp.tipos import (
     LIMITE_DE_JANELAS,
     MAIOR_NOME_DE_ACAO,
     MAXIMO_DE_PASSOS,
+    MOTIVOS_DE_RISCO_ALTO,
     TEXTO_CURTO,
     TEXTO_LONGO,
     TIPOS_DE_EVENTO,
@@ -78,8 +79,19 @@ PROPOSTA = {
     "justificativa": "Origem com mais quadros no incidente.",
     "nova": False,
     "risco": "baixo",
+    "motivos_de_risco_alto": [],
     "exige_aprovacao": False,
     "estado": "liberada",
+}
+# A mesma proposta sem prazo: de risco alto, com o motivo.
+PROPOSTA_DE_RISCO_ALTO = PROPOSTA | {
+    "parametros": {},
+    "risco": "alto",
+    "motivos_de_risco_alto": [
+        {"codigo": "prazo_acima_do_limite", "descricao": MOTIVOS_DE_RISCO_ALTO["prazo_acima_do_limite"]},
+    ],
+    "exige_aprovacao": True,
+    "estado": "aguardando_aprovacao",
 }
 EXECUCAO = {
     "id": "exec-0001",
@@ -154,8 +166,13 @@ def test_contrato_versionado_e_igual_ao_gerado_de_tipos():
 def test_texto_do_contrato_e_json_com_as_chaves_do_contrato():
     documento = json.loads(texto_do_contrato())
     assert documento == contrato()
-    assert set(documento) == {"$schema", "titulo", "versao", "limite_de_janelas", "tools", "evento", "$defs"}
+    assert set(documento) == {
+        "$schema", "titulo", "versao", "limite_de_janelas", "motivos_de_risco_alto", "tools", "evento", "$defs",
+    }
     assert documento["limite_de_janelas"] == LIMITE_DE_JANELAS == 20
+    # A tabela dos motivos vai no contrato: a frase de cada código é a que o log precisa trazer.
+    assert documento["motivos_de_risco_alto"] == MOTIVOS_DE_RISCO_ALTO
+    assert list(documento["motivos_de_risco_alto"]) == list(MOTIVOS_DE_RISCO_ALTO)
 
 
 def test_sao_as_nove_tools_da_especificacao_na_ordem_da_tabela():
@@ -278,6 +295,47 @@ def test_proposta_e_execucao_validas():
             Proposta.model_validate(PROPOSTA | trocas)
     with pytest.raises(ValidationError):
         Execucao.model_validate(EXECUCAO | {"estado": "pendente"})
+
+
+def test_motivos_de_risco_alto_sao_sete_codigos_com_uma_frase_cada():
+    assert tuple(MOTIVOS_DE_RISCO_ALTO) == (
+        "acao_sempre_de_risco_alto", "acao_nova", "prazo_acima_do_limite", "alvo_fora_do_incidente",
+        "alvo_e_destino_do_incidente", "alvo_protegido", "orcamento_de_risco_baixo_esgotado",
+    )
+    for codigo, frase in MOTIVOS_DE_RISCO_ALTO.items():
+        # O código é um identificador curto. A frase é o que a pessoa lê: uma linha, com ponto final.
+        assert codigo.replace("_", "").isalpha() and codigo.islower() and len(codigo) <= 40
+        assert frase[0].isupper() and frase.endswith(".") and frase.isprintable() and len(frase) <= TEXTO_CURTO
+    assert len(set(MOTIVOS_DE_RISCO_ALTO.values())) == len(MOTIVOS_DE_RISCO_ALTO)
+    esquema = contrato()["$defs"]
+    assert esquema["MotivoDeRiscoAlto"]["properties"]["codigo"]["enum"] == list(MOTIVOS_DE_RISCO_ALTO)
+    assert esquema["MotivoDeRiscoAlto"]["required"] == ["codigo", "descricao"]
+    assert "motivos_de_risco_alto" in esquema["Proposta"]["required"]
+
+
+def test_proposta_traz_os_motivos_do_risco_alto():
+    assert Proposta.model_validate(PROPOSTA).motivos_de_risco_alto == []
+    alta = Proposta.model_validate(PROPOSTA_DE_RISCO_ALTO)
+    assert [(motivo.codigo, motivo.descricao) for motivo in alta.motivos_de_risco_alto] == [
+        ("prazo_acima_do_limite", MOTIVOS_DE_RISCO_ALTO["prazo_acima_do_limite"]),
+    ]
+    assert alta.model_dump(mode="json") == PROPOSTA_DE_RISCO_ALTO
+    todos = [{"codigo": codigo, "descricao": frase} for codigo, frase in MOTIVOS_DE_RISCO_ALTO.items()]
+    assert len(Proposta.model_validate(PROPOSTA_DE_RISCO_ALTO | {"motivos_de_risco_alto": todos}).motivos_de_risco_alto) == 7
+    sem_o_campo = {campo: valor for campo, valor in PROPOSTA.items() if campo != "motivos_de_risco_alto"}
+    for invalida in (
+        sem_o_campo,
+        PROPOSTA | {"motivos_de_risco_alto": None},
+        PROPOSTA | {"motivos_de_risco_alto": ["prazo_acima_do_limite"]},
+        PROPOSTA | {"motivos_de_risco_alto": [{"codigo": "motivo_inventado", "descricao": "Um motivo."}]},
+        PROPOSTA | {"motivos_de_risco_alto": [{"codigo": "acao_nova"}]},
+        PROPOSTA | {"motivos_de_risco_alto": [{"codigo": "acao_nova", "descricao": ""}]},
+        PROPOSTA | {"motivos_de_risco_alto": [{"codigo": "acao_nova", "descricao": "ok\x1b[2Jtela apagada"}]},
+        PROPOSTA | {"motivos_de_risco_alto": [{"codigo": "acao_nova", "descricao": "d", "peso": 1}]},
+        PROPOSTA | {"motivos_de_risco_alto": [*todos, todos[0]]},
+    ):
+        with pytest.raises(ValidationError):
+            Proposta.model_validate(invalida)
 
 
 def test_acao_nova_exige_descricao_passos_efeito_e_como_desfazer():
@@ -519,6 +577,11 @@ def test_esquema_json_traz_os_limites_de_texto():
         return jsonschema.Draft202012Validator(esquema, format_checker=jsonschema.FormatChecker()).is_valid(dados)
 
     assert valido("Proposta", PROPOSTA)
+    assert valido("Proposta", PROPOSTA_DE_RISCO_ALTO)
+    sem_o_campo = {campo: valor for campo, valor in PROPOSTA.items() if campo != "motivos_de_risco_alto"}
+    assert not valido("Proposta", sem_o_campo)
+    for motivo in ({"codigo": "motivo_inventado", "descricao": "Um motivo."}, {"codigo": "acao_nova"}, "acao_nova"):
+        assert not valido("Proposta", PROPOSTA_DE_RISCO_ALTO | {"motivos_de_risco_alto": [motivo]})
     for texto in ("ok\x1b[2J", "linha\noutra", "ok\u2028outra", "x" * 2_001):
         assert not valido("Proposta", PROPOSTA | {"justificativa": texto})
     assert not valido("Proposta", PROPOSTA | {"acao": "Bloquear IP"})

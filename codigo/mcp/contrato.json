@@ -1,8 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "titulo": "Contrato MCP do SentryIoT",
-  "versao": "0.1.0",
+  "versao": "0.2.0",
   "limite_de_janelas": 20,
+  "motivos_de_risco_alto": {
+    "acao_sempre_de_risco_alto": "A ação é sempre de risco alto, qualquer que seja o alvo ou o prazo.",
+    "acao_nova": "A ação é nova, fora do catálogo.",
+    "prazo_acima_do_limite": "A medida não tem prazo, ou o prazo pedido passa do máximo aceito para risco baixo.",
+    "alvo_fora_do_incidente": "O alvo não está entre as origens nem entre os destinos do incidente.",
+    "alvo_e_destino_do_incidente": "O alvo é destino do incidente, isto é, o dispositivo atacado, e esta ação só é de risco baixo sobre uma origem.",
+    "alvo_protegido": "O alvo é um endereço protegido pela política.",
+    "orcamento_de_risco_baixo_esgotado": "O incidente já tem o máximo de medidas de risco baixo ativas."
+  },
   "tools": {
     "obter_incidente": {
       "descricao": "Devolve o resumo do incidente: categoria, confiança do classificador, período, quantidade de janelas, origens, destinos e as features que mais pesaram.",
@@ -2059,6 +2068,38 @@
       "title": "Mitigacoes",
       "type": "object"
     },
+    "MotivoDeRiscoAlto": {
+      "additionalProperties": false,
+      "description": "Um motivo pelo qual a proposta é de risco alto.",
+      "properties": {
+        "codigo": {
+          "description": "Código do motivo, curto e estável",
+          "enum": [
+            "acao_sempre_de_risco_alto",
+            "acao_nova",
+            "prazo_acima_do_limite",
+            "alvo_fora_do_incidente",
+            "alvo_e_destino_do_incidente",
+            "alvo_protegido",
+            "orcamento_de_risco_baixo_esgotado"
+          ],
+          "type": "string"
+        },
+        "descricao": {
+          "description": "O motivo em uma frase, para a pessoa que decide",
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "codigo",
+        "descricao"
+      ],
+      "title": "MotivoDeRiscoAlto",
+      "type": "object"
+    },
     "ParametroDeAcao": {
       "additionalProperties": false,
       "properties": {
@@ -2213,6 +2254,14 @@
           ],
           "type": "string"
         },
+        "motivos_de_risco_alto": {
+          "description": "Por que a proposta é de risco alto: todos os motivos que valem. Vazio quando o risco é baixo",
+          "items": {
+            "$ref": "#/$defs/MotivoDeRiscoAlto"
+          },
+          "maxItems": 7,
+          "type": "array"
+        },
         "exige_aprovacao": {
           "type": "boolean"
         },
@@ -2236,6 +2285,7 @@
         "justificativa",
         "nova",
         "risco",
+        "motivos_de_risco_alto",
         "exige_aprovacao",
         "estado"
       ],

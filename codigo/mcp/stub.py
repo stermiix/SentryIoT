@@ -118,7 +118,11 @@ _RESUMOS = {
     "obter_janelas": lambda r: {"janelas": len(r.janelas), "total": r.total},
     "consultar_mitigacoes": lambda r: {"mitigacoes": len(r.mitigacoes), "acoes": len(r.acoes)},
     "pesquisar_solucoes": lambda r: {"trechos": [f"{trecho.origem}: {trecho.titulo}" for trecho in r.trechos]},
-    "propor_acao": lambda r: {"proposta": r.id, "risco": r.risco, "exige_aprovacao": r.exige_aprovacao},
+    "propor_acao": lambda r: {
+        "proposta": r.id, "risco": r.risco,
+        "motivos_de_risco_alto": [motivo.codigo for motivo in r.motivos_de_risco_alto],
+        "exige_aprovacao": r.exige_aprovacao,
+    },
     "verificar_efeito": lambda r: {"resultado": r.resultado},
     "executar_acao": lambda r: {"execucao": r.id, "estado": r.estado},
     "desfazer_acao": lambda r: {"execucao": r.id, "estado": r.estado},

@@ -13,6 +13,7 @@ from codigo.mcp.test_acoes import ACAO_NOVA
 from codigo.mcp.tipos import (
     ARQUIVO_DO_CONTRATO,
     LIMITE_DE_JANELAS,
+    MOTIVOS_DE_RISCO_ALTO,
     TOOLS,
     Ambiente,
     Incidente,
@@ -297,6 +298,25 @@ def test_bloquear_o_destino_do_incidente_exige_aprovacao_e_limitar_a_taxa_dele_n
     assert chamar(stub, "consultar_estado").bloqueios == []
 
 
+def test_resposta_de_propor_acao_e_o_log_dizem_por_que_o_risco_e_alto(stub):
+    antes = len(stub.registro.ler())
+    proposta = chamar(stub, "propor_acao", id="inc-0003", alvo="192.168.137.1", **BLOQUEIO | {"parametros": {}})
+    # Na varredura, o gateway é um dos destinos. Bloqueio sem prazo, do destino, em endereço protegido.
+    esperados = ["prazo_acima_do_limite", "alvo_e_destino_do_incidente", "alvo_protegido"]
+    assert [motivo.codigo for motivo in proposta.motivos_de_risco_alto] == esperados
+    assert [motivo.descricao for motivo in proposta.motivos_de_risco_alto] == [MOTIVOS_DE_RISCO_ALTO[c] for c in esperados]
+
+    chamada, gravada = stub.registro.ler()[antes:]
+    assert (chamada.tipo, gravada.tipo) == ("tool_chamada", "acao_proposta")
+    assert chamada.dados.resultado == {
+        "proposta": proposta.id, "risco": "alto", "motivos_de_risco_alto": esperados, "exige_aprovacao": True,
+    }
+    assert gravada.dados == proposta
+
+    baixa = chamar(stub, "propor_acao", id="inc-0003", alvo="192.0.2.45", **BLOQUEIO)
+    assert (baixa.risco, baixa.motivos_de_risco_alto) == ("baixo", [])
+
+
 @pytest.mark.parametrize("alvo", ["127.0.0.1", "0.0.0.0", "255.255.255.255", "192.168.137.255", "224.0.0.1", "::1", "fe80::1"])
 def test_endereco_especial_e_recusado_e_registrado(stub, alvo):
     mensagem = recusado(stub, "alvo_nao_permitido", "propor_acao", id="inc-0001", alvo=alvo, **BLOQUEIO)
@@ -518,7 +538,9 @@ def test_resumo_de_cada_tool_no_log(stub):
     assert resumos == {
         "consultar_mitigacoes": {"mitigacoes": 3, "acoes": 4},
         "pesquisar_solucoes": {"trechos": ["flood.md: Ativar SYN cookies no dispositivo ou no gateway"]},
-        "propor_acao": {"proposta": "prop-0001", "risco": "baixo", "exige_aprovacao": False},
+        "propor_acao": {
+            "proposta": "prop-0001", "risco": "baixo", "motivos_de_risco_alto": [], "exige_aprovacao": False,
+        },
         "executar_acao": {"execucao": "exec-0001", "estado": "aplicada"},
         "verificar_efeito": {"resultado": "persiste"},
         "consultar_estado": {
@@ -719,8 +741,12 @@ def log_invalido(stub, *trechos):
 
 PROPOSTA_FORJADA = {
     "id": "prop-0001", "incidente": "inc-0001", "acao": "isolar_dispositivo", "alvo": "192.168.137.1",
-    "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto", "exige_aprovacao": True,
-    "estado": "liberada",
+    "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
+    "motivos_de_risco_alto": [
+        {"codigo": codigo, "descricao": MOTIVOS_DE_RISCO_ALTO[codigo]}
+        for codigo in ("acao_sempre_de_risco_alto", "alvo_fora_do_incidente", "alvo_protegido")
+    ],
+    "exige_aprovacao": True, "estado": "liberada",
 }
 
 
@@ -734,7 +760,8 @@ def test_proposta_escrita_por_fora_ja_liberada_nao_executa(stub):
 def test_proposta_escrita_por_fora_com_o_risco_trocado_nao_executa(stub):
     # Bem formada e coerente, mas o risco gravado é mentira: quem decide é o cálculo de agora.
     forjada = PROPOSTA_FORJADA | {
-        "acao": "bloquear_ip", "parametros": {"duracao": 10}, "risco": "baixo", "exige_aprovacao": False,
+        "acao": "bloquear_ip", "parametros": {"duracao": 10}, "risco": "baixo", "motivos_de_risco_alto": [],
+        "exige_aprovacao": False,
     }
     acrescentar(stub, "acao_proposta", forjada)
     assert chamar(stub, "consultar_estado").bloqueios == []
@@ -865,6 +892,10 @@ def test_chamada_pelo_servidor_devolve_o_resultado_estruturado(stub):
         "justificativa": "Dispositivo sob ataque.",
     })
     assert proposta.structured_content["exige_aprovacao"] is True
+    assert proposta.structured_content["motivos_de_risco_alto"] == [{
+        "codigo": "acao_sempre_de_risco_alto", "descricao": MOTIVOS_DE_RISCO_ALTO["acao_sempre_de_risco_alto"],
+    }]
+    assert json.loads(proposta.content[0].text) == proposta.structured_content
     assert chamar_pelo_servidor(servidor, "consultar_estado", {}).structured_content["isolamentos"] == []
 
 

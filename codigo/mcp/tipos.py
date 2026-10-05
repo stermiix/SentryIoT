@@ -35,7 +35,7 @@ from typing_extensions import TypedDict
 from codigo.captura.extrator import COLUNAS
 from codigo.classificador.mapeamento import CATEGORIAS
 
-VERSAO = "0.1.0"
+VERSAO = "0.2.0"
 # Máximo de janelas que o agente recebe por chamada. Um flood tem milhares de janelas, e mandar
 # todas para a LLM custaria tokens demais.
 LIMITE_DE_JANELAS = 20
@@ -62,6 +62,21 @@ Categoria = Literal[CATEGORIAS]
 Agente = Literal[AGENTES]
 Risco = Literal["baixo", "alto"]
 ResultadoDoEfeito = Literal["cessou", "diminuiu", "persiste"]
+# Por que uma proposta é de risco alto. O código é curto e estável, para quem programa sobre o
+# contrato, e a frase é a que a pessoa lê antes de aprovar. A ordem é a da lista na proposta.
+MOTIVOS_DE_RISCO_ALTO = {
+    "acao_sempre_de_risco_alto": "A ação é sempre de risco alto, qualquer que seja o alvo ou o prazo.",
+    "acao_nova": "A ação é nova, fora do catálogo.",
+    "prazo_acima_do_limite": "A medida não tem prazo, ou o prazo pedido passa do máximo aceito para risco baixo.",
+    "alvo_fora_do_incidente": "O alvo não está entre as origens nem entre os destinos do incidente.",
+    "alvo_e_destino_do_incidente": (
+        "O alvo é destino do incidente, isto é, o dispositivo atacado, e esta ação só é de risco baixo sobre "
+        "uma origem."
+    ),
+    "alvo_protegido": "O alvo é um endereço protegido pela política.",
+    "orcamento_de_risco_baixo_esgotado": "O incidente já tem o máximo de medidas de risco baixo ativas.",
+}
+CodigoDeRiscoAlto = Literal[tuple(MOTIVOS_DE_RISCO_ALTO)]
 MotivoDeRecusa = Literal[
     "identificador_desconhecido",
     "argumentos_invalidos",
@@ -262,6 +277,13 @@ class ParametrosDeAcaoNova(Modelo):
     fonte: Texto | None = Field(None, description="De onde a solução veio, quando houver")
 
 
+class MotivoDeRiscoAlto(Modelo):
+    """Um motivo pelo qual a proposta é de risco alto."""
+
+    codigo: CodigoDeRiscoAlto = Field(description="Código do motivo, curto e estável")
+    descricao: TextoLongo = Field(description="O motivo em uma frase, para a pessoa que decide")
+
+
 class Proposta(Modelo):
     id: Texto = Field(description="Identificador da proposta, como prop-0001")
     incidente: Texto
@@ -271,6 +293,10 @@ class Proposta(Modelo):
     justificativa: TextoLongo
     nova: bool = Field(description="Verdadeiro quando a ação não está no catálogo")
     risco: Risco
+    motivos_de_risco_alto: list[MotivoDeRiscoAlto] = Field(
+        max_length=len(MOTIVOS_DE_RISCO_ALTO),
+        description="Por que a proposta é de risco alto: todos os motivos que valem. Vazio quando o risco é baixo",
+    )
     exige_aprovacao: bool
     estado: Literal["aguardando_aprovacao", "liberada", "rejeitada", "executada", "desfeita"]
 
@@ -554,7 +580,10 @@ class _SemTituloDeCampo(GenerateJsonSchema):
 
 
 def contrato():
-    """O contrato em JSON Schema: as nove tools, o evento do log e as definições dos tipos."""
+    """O contrato em JSON Schema: as nove tools, o evento do log e as definições dos tipos.
+
+    Traz também a tabela dos motivos de risco alto, com a frase de cada código.
+    """
     modelos = dict.fromkeys(
         [*(tool.entrada for tool in TOOLS), *(tool.saida for tool in TOOLS), ParametrosDeAcaoNova, Evento]
     )
@@ -568,6 +597,7 @@ def contrato():
         "titulo": "Contrato MCP do SentryIoT",
         "versao": VERSAO,
         "limite_de_janelas": LIMITE_DE_JANELAS,
+        "motivos_de_risco_alto": MOTIVOS_DE_RISCO_ALTO,
         "tools": {
             tool.nome: {
                 "descricao": tool.descricao,
