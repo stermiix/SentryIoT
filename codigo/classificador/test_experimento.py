@@ -38,7 +38,10 @@ from codigo.classificador.treinar import carregar_modelo, treinar
 RESULTADOS = Path(__file__).resolve().parents[2] / "experimentos" / "resultados"
 ARQUIVOS = ("treino_exploratorio.md", "metricas_classificador.csv", "importancia_features.csv")
 # O que muda de uma execução para outra sem que os resultados mudem: data e medidas de tempo.
-VARIAVEIS = ("gerado_em", "treino_segundos", "teste_segundos", "inferencia_ms_por_mil_janelas", "duracao_segundos")
+VARIAVEIS = (
+    "gerado_em", "treino_segundos", "teste_segundos", "inferencia_ms_por_mil_janelas",
+    "inferencia_ms_por_janela_avulsa", "duracao_segundos",
+)
 
 
 def preparar_entrada(pasta, semente=0):
@@ -183,6 +186,8 @@ def test_cada_execucao_traz_as_medidas_nas_duas_distribuicoes_e_o_custo(experime
             assert list(medidas["por_classe"]) == classes
         assert execucao["treino_segundos"] > 0 and execucao["modelo_bytes"] > 0
         assert set(execucao["inferencia_ms_por_mil_janelas"]) == {"um_nucleo", "todos_os_nucleos"}
+        assert all(valor > 0 for valor in execucao["inferencia_ms_por_mil_janelas"].values())
+        assert execucao["inferencia_ms_por_janela_avulsa"] > 0
         assert len(execucao["importancias"]) == int(execucao["features"])
         assert execucao["arvores"] == 5
         assert execucao["linhas_de_teste"] == sum(map(sum, execucao["matriz_por_rotulo"]["contagem"]))
@@ -511,6 +516,20 @@ def test_relatorio_diz_de_onde_vem_a_medida_do_conjunto_completo(experimento):
     pasta, _ = experimento
     relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
     assert relatorio.count("58,78% (`exploracao.md`, seção 8)") == 2
+
+
+def test_relatorio_da_o_tempo_de_uma_janela_e_avisa_que_os_tempos_nao_se_comparam(experimento):
+    pasta, _ = experimento
+    manifesto = ler_manifesto(pasta / "resultados")
+    relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
+    custo = relatorio.split("## Custo de cada execução")[1].split("\n## ")[0]
+    cabecalho = next(linha for linha in custo.splitlines() if linha.startswith("| Execução |"))
+    assert "| Uma janela por chamada, um núcleo (ms) |" in cabecalho
+    principal = manifesto["execucoes"][0]
+    linha = next(linha for linha in custo.splitlines() if linha.startswith(f"| `{principal['nome']}` |"))
+    assert f"| {principal['inferencia_ms_por_janela_avulsa']:.2f} |".replace(".", ",") in linha
+    assert "é o caso da operação" in custo
+    assert "Os tempos não se comparam entre as linhas da tabela" in custo
 
 
 def test_relatorio_mostra_para_onde_vai_o_trafego_benigno(experimento):

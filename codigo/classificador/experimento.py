@@ -43,10 +43,12 @@ import pandas as pd
 import sklearn
 
 from codigo.classificador.avaliar import (
+    JANELAS_AVULSAS,
     avaliar,
     importancias,
     matriz_de_confusao,
     populacao_do_manifesto,
+    tempo_por_janela,
     tempo_por_mil,
 )
 from codigo.classificador.mapeamento import CATEGORIA_DO_ROTULO, ROTULOS
@@ -184,6 +186,7 @@ def rodar(quadro, populacao, execucoes=(*GRADE, *REFERENCIAS), semente=SEMENTE, 
             )
             if pasta_dos_modelos is None:
                 arquivo.unlink()
+            com_um_nucleo = lambda lote, modelo=modelo: prever(modelo, lote)
             resultado = {
                 "nome": execucao.nome,
                 "features": execucao.features,
@@ -195,9 +198,10 @@ def rodar(quadro, populacao, execucoes=(*GRADE, *REFERENCIAS), semente=SEMENTE, 
                 "treino_segundos": treino_segundos,
                 "teste_segundos": teste_segundos,
                 "inferencia_ms_por_mil_janelas": {
-                    "um_nucleo": tempo_por_mil(lambda lote, modelo=modelo: prever(modelo, lote), X_teste),
+                    "um_nucleo": tempo_por_mil(com_um_nucleo, X_teste),
                     "todos_os_nucleos": tempo_por_mil(modelo.predict, X_teste),
                 },
+                "inferencia_ms_por_janela_avulsa": tempo_por_janela(com_um_nucleo, X_teste),
                 "modelo_bytes": tamanho,
                 "nos_por_arvore": float(np.mean([arvore.tree_.node_count for arvore in modelo.estimators_])),
                 "profundidade_media": float(np.mean([arvore.tree_.max_depth for arvore in modelo.estimators_])),
@@ -680,12 +684,22 @@ def _nota_das_34_classes(m):
     ]
 
 
+def _aviso_dos_tempos(m):
+    """Por que os tempos da tabela de custo não se comparam entre execuções."""
+    return [
+        "Os tempos não se comparam entre as linhas da tabela. Eles são da máquina em que o experimento rodou e",
+        "mudam de uma medida para outra com o mesmo modelo, conforme o que mais a máquina faz na hora. Servem",
+        "para a ordem de grandeza, e não para dizer que uma configuração é mais rápida do que outra.",
+    ]
+
+
 def _secao_custo(m):
     linhas = [
         [
             f"`{e['nome']}`", e["arvores"], _decimal(e["treino_segundos"]), _decimal(e["teste_segundos"]),
             _decimal(e["inferencia_ms_por_mil_janelas"]["um_nucleo"]),
             _decimal(e["inferencia_ms_por_mil_janelas"]["todos_os_nucleos"]),
+            _decimal(e["inferencia_ms_por_janela_avulsa"], 2),
             _decimal(e["modelo_bytes"] / 1e6), _milhar(e["nos_por_arvore"]), _decimal(e["profundidade_media"]),
         ]
         for e in m["execucoes"]
@@ -693,14 +707,18 @@ def _secao_custo(m):
     return [
         "## Custo de cada execução",
         "",
-        "Os tempos são da máquina em que o experimento rodou e mudam de uma execução para outra. O tempo de",
-        "inferência é a mediana de cinco classificações de um lote de 1.000 janelas. O tamanho do modelo é o do",
-        "arquivo gravado com `joblib`, sem compressão.",
+        "O tempo de inferência sai de duas formas. \"1.000 janelas\" é a mediana de cinco classificações de um",
+        f"lote de 1.000 janelas. \"Uma janela por chamada\" é a mediana de {JANELAS_AVULSAS} classificações de uma",
+        "janela sozinha, e é o caso da operação, em que cada janela é classificada assim que o extrator a",
+        "produz. O tamanho do modelo é o do arquivo gravado com `joblib`, sem compressão.",
+        "",
+        *_aviso_dos_tempos(m),
         "",
         *_tabela(
             [
                 "Execução", "Árvores", "Treino (s)", "Classificar o teste inteiro, um núcleo (s)",
-                "1.000 janelas, um núcleo (ms)", "1.000 janelas, todos os núcleos (ms)", "Modelo (MB)",
+                "1.000 janelas, um núcleo (ms)", "1.000 janelas, todos os núcleos (ms)",
+                "Uma janela por chamada, um núcleo (ms)", "Modelo (MB)",
                 "Nós por árvore", "Profundidade média",
             ],
             linhas,
