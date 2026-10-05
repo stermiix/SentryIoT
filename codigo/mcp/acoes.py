@@ -181,6 +181,7 @@ _ORIGENS_E_DESTINOS = "origens_e_destinos"
 ALVOS_DE_RISCO_BAIXO = (_SO_ORIGENS, _ORIGENS_E_DESTINOS)
 _LIMITES = "limites"
 _MEDIDAS = "medidas_de_risco_baixo_por_incidente"
+_PENDENTES = "propostas_aguardando_aprovacao_por_incidente"
 _REDE = "rede"
 _PROTEGIDOS = "enderecos_protegidos"
 _REDES_LOCAIS = "redes_locais"
@@ -198,6 +199,8 @@ class Politica:
     acoes: dict
     # Máximo de medidas de risco baixo ativas ao mesmo tempo em um incidente.
     medidas_de_risco_baixo_por_incidente: int
+    # Máximo de propostas de um incidente aguardando aprovação ao mesmo tempo. A seguinte é recusada.
+    propostas_aguardando_aprovacao_por_incidente: int
     # Endereços em que qualquer ação é de risco alto, na forma canônica.
     enderecos_protegidos: frozenset
     # Redes locais: o endereço de rede e o de broadcast de cada uma não são aceitos como alvo.
@@ -278,10 +281,14 @@ def carregar_politica(caminho=POLITICA_PADRAO):
             )
         regras[nome] = {"risco": regra["risco"], _PRAZO: prazo, _ALVOS: alvos}
 
-    limites = secao(_LIMITES, (_MEDIDAS,))
+    limites = secao(_LIMITES, (_MEDIDAS, _PENDENTES))
     medidas = limites.get(_MEDIDAS)
     if type(medidas) is not int or medidas < 0:
         raise invalida(f"{_MEDIDAS} precisa ser um número inteiro, a partir de 0")
+    pendentes = limites.get(_PENDENTES)
+    # Com zero, nenhuma proposta de risco alto chegaria à pessoa.
+    if type(pendentes) is not int or pendentes < 1:
+        raise invalida(f"{_PENDENTES} precisa ser um número inteiro, a partir de 1")
 
     rede = secao(_REDE, (_PROTEGIDOS, _REDES_LOCAIS))
     protegidos, redes = [], []
@@ -300,6 +307,7 @@ def carregar_politica(caminho=POLITICA_PADRAO):
     return Politica(
         acoes=regras,
         medidas_de_risco_baixo_por_incidente=medidas,
+        propostas_aguardando_aprovacao_por_incidente=pendentes,
         enderecos_protegidos=frozenset(protegidos),
         redes_locais=tuple(redes),
     )
@@ -646,6 +654,9 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
 
     Alvo que não consta do incidente, endereço protegido e limite de medidas atingido não são
     motivo de recusa: a proposta é registrada como de risco alto, e quem decide é a pessoa.
+
+    A fila da pessoa tem teto. A proposta de risco alto é recusada quando o incidente já tem o
+    máximo de propostas aguardando aprovação que a política aceita.
     """
     if not isinstance(incidente, str) or incidente not in estado.incidentes:
         raise PedidoRecusado(
@@ -696,6 +707,8 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
         parametros = _parametros_de_acao_nova(acao, parametros)
 
     motivos = _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros)
+    if motivos:
+        _conferir_fila_de_aprovacao(estado, politica, incidente)
     proposta = Proposta(
         id=f"prop-{len(estado.propostas) + 1:04d}",
         incidente=incidente,
@@ -712,6 +725,27 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
         estado="aguardando_aprovacao" if motivos else "liberada",
     )
     return proposta, [novo("acao_proposta", proposta, incidente)]
+
+
+def _conferir_fila_de_aprovacao(estado, politica, incidente):
+    """Recusa a proposta de risco alto quando a fila de aprovação do incidente está no teto.
+
+    Sem o teto, um agente enganado por conteúdo vindo da rede poderia registrar propostas sem
+    parar: a pessoa teria de ler todas, e o log cresceria sem limite. A conferência vem depois das
+    outras: o pedido malformado continua recusado pelo próprio defeito.
+    """
+    pendentes = sum(
+        1 for proposta in estado.propostas.values()
+        if proposta.incidente == incidente and proposta.estado == "aguardando_aprovacao"
+    )
+    if pendentes >= politica.propostas_aguardando_aprovacao_por_incidente:
+        quantas = "1 proposta" if pendentes == 1 else f"{pendentes} propostas"
+        raise PedidoRecusado(
+            "limite_de_propostas_pendentes",
+            f"O incidente {incidente} já tem {quantas} aguardando aprovação, que é o máximo aceito pela "
+            "política, e esta proposta não foi registrada. Uma nova proposta de risco alto só entra depois que "
+            "uma pessoa aprovar ou rejeitar alguma das pendentes.",
+        )
 
 
 def _justificativa(justificativa):

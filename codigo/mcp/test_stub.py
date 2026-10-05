@@ -347,6 +347,27 @@ def test_a_sexta_medida_de_risco_baixo_no_incidente_exige_aprovacao(stub):
     assert not chamar(stub, "propor_acao", id="inc-0002", alvo="198.51.100.23", **BLOQUEIO).exige_aprovacao
 
 
+def test_a_decima_primeira_proposta_pendente_do_incidente_e_recusada_e_registrada(stub):
+    for _ in range(10):
+        assert chamar(stub, "propor_acao", id="inc-0001", alvo="192.168.137.20", **ISOLAMENTO).exige_aprovacao
+    mensagem = recusado(stub, "limite_de_propostas_pendentes", "propor_acao", id="inc-0001", alvo="192.168.137.20", **ISOLAMENTO)
+    assert "inc-0001" in mensagem and "10 propostas aguardando aprovação" in mensagem
+    assert tipos(stub).count("acao_proposta") == 10
+    # O teto é de cada incidente, e a proposta de risco baixo não entra na conta.
+    assert chamar(stub, "propor_acao", id="inc-0002", alvo="192.168.137.31", **ISOLAMENTO).exige_aprovacao
+    assert not chamar(stub, "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO).exige_aprovacao
+    # A pessoa rejeita uma das pendentes, e a seguinte volta a entrar.
+    aprovar(stub, "prop-0001", aprovar=False)
+    assert chamar(stub, "propor_acao", id="inc-0001", alvo="192.168.137.20", **ISOLAMENTO).id == "prop-0013"
+    recusado(stub, "limite_de_propostas_pendentes", "propor_acao", id="inc-0001", alvo="192.168.137.20", **SYN_COOKIES)
+
+    # Pelo servidor, a recusa chega ao cliente como erro de tool, com a mesma mensagem.
+    resposta = chamar_pelo_servidor(criar_servidor(stub), "propor_acao", {
+        "id": "inc-0001", "acao": "isolar_dispositivo", "alvo": "192.168.137.20", "justificativa": "Dispositivo sob ataque.",
+    })
+    assert resposta.is_error is True and resposta.content[0].text == mensagem
+
+
 def test_incidente_encerrado_nao_recebe_proposta(stub):
     execucao = aplicar(stub, "inc-0002", "198.51.100.23", **BLOQUEIO)
     assert chamar(stub, "verificar_efeito", id_execucao=execucao.id).resultado == "cessou"

@@ -384,6 +384,19 @@ def test_evento_de_cada_tipo_e_valido_e_volta_igual(tipo):
     assert validar_evento(lido.model_dump(mode="json")) == lido
 
 
+def test_motivos_de_recusa_do_contrato():
+    motivos = contrato()["$defs"]["Recusa"]["properties"]["motivo"]["enum"]
+    assert motivos == [
+        "identificador_desconhecido", "argumentos_invalidos", "alvo_malformado", "alvo_nao_permitido",
+        "incidente_encerrado", "limite_de_propostas_pendentes", "acao_nova_incompleta", "proposta_nao_liberada",
+        "proposta_ja_executada", "acao_nao_aplicada", "tool_fora_da_linha",
+    ]
+    for motivo in motivos:
+        assert validar_evento(evento("recusa", dados=DADOS_POR_TIPO["recusa"] | {"motivo": motivo})).dados.motivo == motivo
+    with pytest.raises(ValidationError):
+        validar_evento(evento("recusa", dados=DADOS_POR_TIPO["recusa"] | {"motivo": "fila_cheia"}))
+
+
 def test_evento_sem_incidente_traz_o_campo_nulo():
     lido = validar_evento(evento("janelas_classificadas", incidente=None))
     assert lido.model_dump(mode="json")["incidente"] is None

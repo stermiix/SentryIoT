@@ -43,6 +43,10 @@ risco = "alto"
 # Máximo de medidas de risco baixo ativas ao mesmo tempo em um incidente. A seguinte vira de
 # risco alto. Medida aprovada por uma pessoa e medida já desfeita não entram na conta.
 medidas_de_risco_baixo_por_incidente = 5
+# Máximo de propostas de um incidente que esperam a decisão da pessoa ao mesmo tempo. A seguinte
+# é recusada, até que alguma das pendentes seja aprovada ou rejeitada. Sem este teto, um agente
+# enganado encheria a fila de aprovação. Proposta de risco baixo não entra na conta.
+propostas_aguardando_aprovacao_por_incidente = 10
 
 [rede]
 # Endereços em que qualquer ação é de risco alto, mesmo que apareçam no incidente. Os valores são

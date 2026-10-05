@@ -121,7 +121,9 @@ def gravar_politica(tmp_path, trocas=None):
         "bloquear_ip": ['risco = "baixo"', "prazo_maximo_de_risco_baixo = 15", 'alvos_de_risco_baixo = "origens"'],
         "isolar_dispositivo": ['risco = "alto"'],
         "revogar_credencial": ['risco = "alto"'],
-        "limites": ["medidas_de_risco_baixo_por_incidente = 5"],
+        "limites": [
+            "medidas_de_risco_baixo_por_incidente = 5", "propostas_aguardando_aprovacao_por_incidente = 10",
+        ],
         "rede": ['enderecos_protegidos = ["192.168.137.1", "192.168.137.2"]', 'redes_locais = ["192.168.137.0/24"]'],
     } | (trocas or {})
     secoes = [f"[{nome}]\n" + "\n".join(linhas) for nome, linhas in regras.items() if linhas is not None]
@@ -146,6 +148,7 @@ def test_politica_padrao_e_a_tabela_da_especificacao():
             "revogar_credencial": {"risco": "alto", "prazo_maximo_de_risco_baixo": None, "alvos_de_risco_baixo": None},
         },
         medidas_de_risco_baixo_por_incidente=5,
+        propostas_aguardando_aprovacao_por_incidente=10,
         # O gateway e a máquina de captura, com valores de exemplo.
         enderecos_protegidos=frozenset({"192.168.137.1", "192.168.137.2"}),
         redes_locais=(ipaddress.ip_network("192.168.137.0/24"),),
@@ -181,12 +184,13 @@ def test_a_equipe_ajusta_os_limites_no_arquivo_de_politica(tmp_path):
     caminho = gravar_politica(tmp_path, {
         "limitar_taxa": ['risco = "alto"'],
         "bloquear_ip": ['risco = "baixo"', "prazo_maximo_de_risco_baixo = 60", 'alvos_de_risco_baixo = "origens"'],
-        "limites": ["medidas_de_risco_baixo_por_incidente = 1"],
+        "limites": ["medidas_de_risco_baixo_por_incidente = 1", "propostas_aguardando_aprovacao_por_incidente = 3"],
         "rede": ['enderecos_protegidos = ["192.168.137.20", "2001:DB8::1"]', "redes_locais = []"],
     })
     politica = carregar_politica(caminho)
     assert politica.enderecos_protegidos == frozenset({"192.168.137.20", "2001:db8::1"})
     assert (politica.medidas_de_risco_baixo_por_incidente, politica.redes_locais) == (1, ())
+    assert politica.propostas_aguardando_aprovacao_por_incidente == 3
     mundo = Mundo(politica)
     assert mundo.propor("bloquear_ip", parametros={"duracao": 45}).risco == "baixo"
     assert mundo.propor("bloquear_ip", parametros={"duracao": 61}).risco == "alto"
@@ -194,7 +198,11 @@ def test_a_equipe_ajusta_os_limites_no_arquivo_de_politica(tmp_path):
     # O destino do incidente passou a ser endereço protegido, e o limite de medidas caiu para 1.
     assert mundo.propor("bloquear_ip", "192.168.137.20", {"duracao": 10}).risco == "alto"
     mundo.executar("prop-0001")
-    assert mundo.propor("bloquear_ip", parametros={"duracao": 10}).risco == "alto"
+    # Com uma medida ativa, a seguinte é de risco alto. Seria a quarta proposta à espera da pessoa, e o
+    # teto do arquivo é de três: ela só entra depois que uma das pendentes é decidida.
+    recusado("limite_de_propostas_pendentes", mundo.propor, "bloquear_ip", parametros={"duracao": 10})
+    mundo.decidir("prop-0002", aprovar=False)
+    assert motivos(mundo.propor("bloquear_ip", parametros={"duracao": 10})) == ["orcamento_de_risco_baixo_esgotado"]
 
 
 @pytest.mark.parametrize("trocas,trecho_do_erro", [
@@ -238,6 +246,13 @@ def test_a_equipe_ajusta_os_limites_no_arquivo_de_politica(tmp_path):
     ({"limites": ["medidas_de_risco_baixo_por_incidente = -1"]}, "medidas_de_risco_baixo_por_incidente"),
     ({"limites": ['medidas_de_risco_baixo_por_incidente = "5"']}, "medidas_de_risco_baixo_por_incidente"),
     ({"limites": ["medidas_de_risco_baixo_por_incidente = 5", "outro = 1"]}, "outro"),
+    # O teto de propostas que esperam a pessoa: obrigatório, inteiro e de ao menos 1.
+    ({"limites": ["medidas_de_risco_baixo_por_incidente = 5"]}, "propostas_aguardando_aprovacao_por_incidente"),
+    *(
+        ({"limites": ["medidas_de_risco_baixo_por_incidente = 5", f"propostas_aguardando_aprovacao_por_incidente = {valor}"]},
+         "propostas_aguardando_aprovacao_por_incidente")
+        for valor in ("0", "-1", '"10"', "2.5", "true")
+    ),
     ({"rede": ["redes_locais = []"]}, "enderecos_protegidos"),
     ({"rede": ["enderecos_protegidos = []"]}, "redes_locais"),
     ({"rede": ['enderecos_protegidos = "192.168.137.1"', "redes_locais = []"]}, "enderecos_protegidos"),
@@ -970,6 +985,75 @@ def test_piso_do_codigo_nao_depende_da_politica(mundo):
     assert mundo.propor("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA).risco == "alto"
     for numero in (1, 2, 3):
         recusado("proposta_nao_liberada", mundo.executar, f"prop-000{numero}")
+
+
+# --- teto de propostas aguardando aprovação --------------------------------------------------
+
+
+def test_sao_no_maximo_10_propostas_aguardando_aprovacao_por_incidente():
+    mundo = Mundo(incidente=INCIDENTE_COM_VARIAS_ORIGENS)
+    for _ in range(10):
+        assert mundo.propor("isolar_dispositivo", "192.168.137.20").estado == "aguardando_aprovacao"
+
+    # A décima primeira é recusada, e a mensagem diz quantas estão pendentes.
+    mensagem = recusado("limite_de_propostas_pendentes", mundo.propor, "isolar_dispositivo", "192.168.137.20")
+    assert "inc-0001" in mensagem and "10 propostas aguardando aprovação" in mensagem
+    # Vale para qualquer proposta que ficaria esperando a pessoa: ação nova e ação de base de risco alto.
+    recusado("limite_de_propostas_pendentes", mundo.propor, "ativar_syn_cookies", "192.168.137.20", ACAO_NOVA)
+    recusado("limite_de_propostas_pendentes", mundo.propor, "bloquear_ip", ORIGENS[0])
+    recusado("limite_de_propostas_pendentes", mundo.propor, "bloquear_ip", "192.168.137.20", {"duracao": 10})
+    assert len(mundo.estado.propostas) == 10 and mundo.tipos().count("acao_proposta") == 10
+
+    # A proposta de risco baixo não espera ninguém e continua entrando.
+    baixa = mundo.propor("bloquear_ip", ORIGENS[0], {"duracao": 10})
+    assert (baixa.id, baixa.estado) == ("prop-0011", "liberada")
+
+    # Cada decisão da pessoa, de rejeitar ou de aprovar, abre uma vaga.
+    mundo.decidir("prop-0001", aprovar=False)
+    assert mundo.propor("isolar_dispositivo", "192.168.137.20").id == "prop-0012"
+    recusado("limite_de_propostas_pendentes", mundo.propor, "isolar_dispositivo", "192.168.137.20")
+    mundo.decidir("prop-0002")
+    assert mundo.propor("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA).estado == "aguardando_aprovacao"
+    recusado("limite_de_propostas_pendentes", mundo.propor, "isolar_dispositivo", "192.168.137.20")
+
+
+def test_o_teto_de_propostas_pendentes_e_por_incidente_e_sai_da_politica(mundo):
+    politica = replace(mundo.politica, propostas_aguardando_aprovacao_por_incidente=2)
+    mundo = Mundo(politica)
+    mundo.aplicar([novo("incidente_aberto", INCIDENTE_DA_ESPECIFICACAO | {"id": "inc-0002"}, "inc-0002")])
+    mundo.propor("isolar_dispositivo", "192.168.137.20")
+    mundo.propor("isolar_dispositivo", "192.168.137.20")
+    mensagem = recusado("limite_de_propostas_pendentes", mundo.propor, "isolar_dispositivo", "192.168.137.20")
+    assert "inc-0001" in mensagem and "2 propostas aguardando aprovação" in mensagem and "10" not in mensagem
+    # O outro incidente tem a sua conta.
+    assert mundo.propor("isolar_dispositivo", "192.168.137.20", incidente="inc-0002").estado == "aguardando_aprovacao"
+
+    de_uma = Mundo(replace(mundo.politica, propostas_aguardando_aprovacao_por_incidente=1))
+    de_uma.propor("isolar_dispositivo", "192.168.137.20")
+    assert "1 proposta aguardando aprovação" in recusado(
+        "limite_de_propostas_pendentes", de_uma.propor, "isolar_dispositivo", "192.168.137.20",
+    )
+
+
+def test_no_teto_o_pedido_malformado_continua_recusado_pelo_proprio_defeito(mundo):
+    for _ in range(10):
+        mundo.propor("isolar_dispositivo", "192.168.137.20")
+    recusado("alvo_malformado", mundo.propor, "isolar_dispositivo", "servidor")
+    recusado("alvo_nao_permitido", mundo.propor, "isolar_dispositivo", "127.0.0.1")
+    recusado("acao_nova_incompleta", mundo.propor, "ativar_syn_cookies", "192.168.137.20", {})
+    recusado("argumentos_invalidos", mundo.propor, "isolar_dispositivo", "192.168.137.20", justificativa="")
+    recusado("identificador_desconhecido", mundo.propor, "isolar_dispositivo", "192.168.137.20", incidente="inc-0099")
+
+
+def test_medidas_que_passam_do_orcamento_tambem_param_no_teto_de_pendentes():
+    # Esgotado o orçamento de risco baixo, cada nova proposta vira de risco alto e entra na fila da
+    # pessoa. O teto impede que essa fila cresça sem fim.
+    mundo = Mundo(incidente=INCIDENTE_COM_VARIAS_ORIGENS)
+    for origem in ORIGENS[:5]:
+        mundo.executar(mundo.propor("bloquear_ip", origem, {"duracao": 10}).id)
+    for _ in range(10):
+        assert motivos(mundo.propor("bloquear_ip", ORIGENS[5], {"duracao": 10})) == ["orcamento_de_risco_baixo_esgotado"]
+    recusado("limite_de_propostas_pendentes", mundo.propor, "bloquear_ip", ORIGENS[5], {"duracao": 10})
 
 
 # --- a proposta diz por que é de risco alto --------------------------------------------------
