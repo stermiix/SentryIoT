@@ -15,6 +15,7 @@ from codigo.classificador.experimento import (
     GRADE,
     GRADE_NATURAL,
     REFERENCIAS,
+    REPETICOES,
     Execucao,
     main,
     montar_relatorio,
@@ -84,11 +85,30 @@ def com_gemeas_de_outra_janela(quadro, de="XSS", para="BenignTraffic"):
     return pd.concat([quadro, gemeas], ignore_index=True)
 
 
-def executar(pasta, *extras, saida=None):
+def executar(pasta, *extras, saida=None, repeticoes=()):
+    """Roda o experimento. Sem dizer as sementes das repetições, roda só a semente principal."""
     return main([
         "--amostra", str(pasta / "amostra.csv.gz"), "--manifesto-da-amostra", str(pasta / "manifesto_amostra.json"),
-        "--saida", str(saida or pasta / "resultados"), "--arvores", "5", *extras,
+        "--saida", str(saida or pasta / "resultados"), "--arvores", "5",
+        *(() if repeticoes is None else ("--repeticoes", *map(str, repeticoes))), *extras,
     ])
+
+
+def tabela_depois_de(texto, marca):
+    """As linhas da primeira tabela do relatório que aparece depois de `marca`."""
+    linhas = texto.split(marca, 1)[1].splitlines()
+    inicio = next(i for i, linha in enumerate(linhas) if linha.startswith("|"))
+    fim = next((i for i in range(inicio, len(linhas)) if not linhas[i].startswith("|")), len(linhas))
+    return linhas[inicio:fim]
+
+
+def pct(valor):
+    return f"{100 * valor:.2f}%".replace(".", ",")
+
+
+def pp(diferenca):
+    texto = f"{100 * diferenca:+.2f}".replace(".", ",")
+    return "0,00" if texto in ("+0,00", "-0,00") else texto
 
 
 def ler_manifesto(pasta):
@@ -120,8 +140,17 @@ def sem_variaveis(valor):
 def experimento(tmp_path_factory):
     pasta = tmp_path_factory.mktemp("experimento")
     quadro = preparar_entrada(pasta)
-    assert executar(pasta) == 0
+    # Com as sementes padrão das repetições, como o comando roda sem opções.
+    assert executar(pasta, repeticoes=None) == 0
     return pasta, quadro
+
+
+@pytest.fixture(scope="module")
+def sem_repeticoes(tmp_path_factory):
+    pasta = tmp_path_factory.mktemp("uma_semente")
+    preparar_entrada(pasta)
+    assert executar(pasta) == 0
+    return pasta
 
 
 def test_grade_tem_as_oito_combinacoes_e_as_referencias():
@@ -187,6 +216,7 @@ def test_manifesto_registra_sementes_parametros_versoes_e_o_hash_da_amostra(expe
     manifesto = ler_manifesto(pasta / "resultados")
     entrada = json.loads((pasta / "manifesto_amostra.json").read_text(encoding="utf-8"))
     assert manifesto["semente"] == 42
+    assert [execucao["semente"] for execucao in manifesto["execucoes"]] == [42] * 16
     assert manifesto["parametros"]["arvores"] == 5 and manifesto["parametros"]["fracao_de_teste"] == 0.2
     assert manifesto["parametros"]["arvores_com_34_classes"] == min(5, ARVORES_COM_34_CLASSES)
     assert set(manifesto["versoes"]) == {"python", "numpy", "pandas", "scikit-learn", "joblib"}
@@ -312,7 +342,7 @@ def test_acuracia_do_manifesto_sai_das_matrizes_gravadas(experimento):
 
 def test_duas_execucoes_dao_os_mesmos_resultados(experimento, tmp_path):
     pasta, _ = experimento
-    assert executar(pasta, saida=tmp_path / "de_novo") == 0
+    assert executar(pasta, saida=tmp_path / "de_novo", repeticoes=None) == 0
     primeira, segunda = pasta / "resultados", tmp_path / "de_novo"
     assert sem_variaveis(ler_manifesto(primeira)) == sem_variaveis(ler_manifesto(segunda))
     iguais = ["metricas_classificador.csv", "importancia_features.csv"]
@@ -327,6 +357,55 @@ def test_outra_semente_muda_a_divisao_e_os_modelos(experimento, tmp_path):
     padrao, outra = ler_manifesto(pasta / "resultados"), ler_manifesto(tmp_path / "outra")
     assert outra["semente"] == 7
     assert outra["divisoes"]["grupos"]["sha256_do_teste"] != padrao["divisoes"]["grupos"]["sha256_do_teste"]
+
+
+def test_grade_e_repetida_com_as_sementes_7_e_2026(experimento):
+    pasta, quadro = experimento
+    manifesto = ler_manifesto(pasta / "resultados")
+    assert REPETICOES == (7, 2026)
+    assert [repeticao["semente"] for repeticao in manifesto["repeticoes"]] == [7, 2026]
+    repetidas = [execucao.nome for execucao in (*GRADE, *GRADE_NATURAL)]
+    for repeticao in manifesto["repeticoes"]:
+        semente = repeticao["semente"]
+        # A grade das três escolhas e as execuções com a priori natural; as referências rodam uma vez.
+        assert [execucao["nome"] for execucao in repeticao["execucoes"]] == repetidas
+        assert {execucao["semente"] for execucao in repeticao["execucoes"]} == {semente}
+        # A semente da repetição vale para a divisão e para o modelo.
+        for nome, registro in repeticao["divisoes"].items():
+            _, teste = dividir(quadro, nome, semente=semente)
+            assert registro["sha256_do_teste"] == impressao_digital(teste)
+            assert registro["sha256_do_teste"] != manifesto["divisoes"][nome]["sha256_do_teste"]
+    json.dumps(manifesto)
+
+
+def test_repeticao_da_os_numeros_de_rodar_o_experimento_com_aquela_semente(experimento, tmp_path):
+    pasta, _ = experimento
+    assert executar(pasta, "--semente", "7", saida=tmp_path / "sete") == 0
+    sozinha = {execucao["nome"]: execucao for execucao in ler_manifesto(tmp_path / "sete")["execucoes"]}
+    repeticao = ler_manifesto(pasta / "resultados")["repeticoes"][0]
+    assert repeticao["semente"] == 7
+    for execucao in repeticao["execucoes"]:
+        assert sem_variaveis(execucao) == sem_variaveis(sozinha[execucao["nome"]]), execucao["nome"]
+    assert sem_variaveis(repeticao["divisoes"]) == sem_variaveis(ler_manifesto(tmp_path / "sete")["divisoes"])
+
+
+def test_sementes_das_repeticoes_sao_escolhidas_na_linha_de_comando(tmp_path, capsys):
+    preparar_entrada(tmp_path)
+    assert executar(tmp_path, repeticoes=(3,)) == 0
+    assert [repeticao["semente"] for repeticao in ler_manifesto(tmp_path / "resultados")["repeticoes"]] == [3]
+    # Sem repetições, o manifesto diz que não houve nenhuma.
+    assert executar(tmp_path, saida=tmp_path / "uma") == 0
+    assert ler_manifesto(tmp_path / "uma")["repeticoes"] == []
+    # A semente principal sai das repetições padrão, para não rodar duas vezes a mesma coisa.
+    assert executar(tmp_path, "--semente", "2026", saida=tmp_path / "outra", repeticoes=None) == 0
+    outra = ler_manifesto(tmp_path / "outra")
+    assert outra["semente"] == 2026 and [repeticao["semente"] for repeticao in outra["repeticoes"]] == [7]
+    capsys.readouterr()
+    # Pedir a mesma semente duas vezes é erro, e nada é gravado.
+    for sementes in ((42,), (5, 5)):
+        assert executar(tmp_path, saida=tmp_path / "erro", repeticoes=sementes) == 1
+        assert "sementes das repetições precisam ser diferentes" in capsys.readouterr().err
+    assert not (tmp_path / "erro").exists()
 
 
 def test_semente_pedida_chega_ao_modelo(tmp_path):
@@ -450,7 +529,8 @@ def test_main_sem_a_amostra_ou_com_opcao_invalida(tmp_path, capsys):
 
 def test_modelos_ficam_na_pasta_pedida_e_fora_dos_resultados(tmp_path):
     preparar_entrada(tmp_path)
-    assert executar(tmp_path, "--modelos", str(tmp_path / "modelos")) == 0
+    # Só os modelos da semente principal são guardados: os das repetições ocupariam o triplo do disco.
+    assert executar(tmp_path, "--modelos", str(tmp_path / "modelos"), repeticoes=(7,)) == 0
     assert sorted(p.name for p in (tmp_path / "modelos").iterdir()) == sorted(
         f"rf_{execucao.nome}.joblib" for execucao in EXECUCOES
     )
@@ -554,7 +634,8 @@ def test_relatorio_diz_o_que_sao_as_seis_colunas_que_saem(experimento):
 
 def com_as_33_features_assim(manifesto, previsao):
     """O manifesto com outra resposta do modelo de 33 features: `previsao` dá a classe de cada rótulo."""
-    for execucao in manifesto["execucoes"]:
+    repetidas = [execucao for repeticao in manifesto["repeticoes"] for execucao in repeticao["execucoes"]]
+    for execucao in (*manifesto["execucoes"], *repetidas):
         if execucao["features"] == "33" and execucao["alvo"] in ("8", "7"):
             tabela = execucao["matriz_por_rotulo"]
             for rotulo, linha in zip(tabela["rotulos"], tabela["contagem"]):
@@ -623,6 +704,125 @@ def test_relatorio_da_o_tempo_de_uma_janela_e_avisa_que_os_tempos_nao_se_compara
     assert f"| {principal['inferencia_ms_por_janela_avulsa']:.2f} |".replace(".", ",") in linha
     assert "é o caso da operação" in custo
     assert "Os tempos não se comparam entre as linhas da tabela" in custo
+    # A variação medida entre as repetições da mesma configuração, do manifesto.
+    variacao = max(
+        max(tempos) / min(tempos) - 1
+        for nome in {execucao["nome"] for repeticao in manifesto["repeticoes"] for execucao in repeticao["execucoes"]}
+        for tempos in [[e["inferencia_ms_por_mil_janelas"]["um_nucleo"] for e in em_cada_semente(manifesto, nome)]]
+    )
+    assert f"o tempo por 1.000 janelas com um núcleo variou até {100 * variacao:.0f}%" in custo
+
+
+def em_cada_semente(manifesto, nome):
+    """A execução de mesmo nome na semente principal e em cada repetição."""
+    todas = [*manifesto["execucoes"], *(e for repeticao in manifesto["repeticoes"] for e in repeticao["execucoes"])]
+    return [execucao for execucao in todas if execucao["nome"] == nome]
+
+
+def test_relatorio_traz_a_faixa_de_cada_execucao_entre_as_sementes(experimento):
+    pasta, _ = experimento
+    manifesto = ler_manifesto(pasta / "resultados")
+    relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
+    assert "\n**Sementes.** " in relatorio and "**Uma semente.**" not in relatorio
+    assert "repetidas com as sementes 7 e 2026" in relatorio
+    tabela = tabela_depois_de(relatorio, "\nFaixa de cada medida nas 3 sementes (42, 7 e 2026), do menor ao maior valor.")
+    linhas = {linha.split(" | ")[0]: linha for linha in tabela[2:]}
+    # As execuções repetidas, e só elas.
+    assert list(linhas) == [f"| `{execucao.nome}`" for execucao in (*GRADE, *GRADE_NATURAL)]
+    for nome in ("f39_estratificada_c8", "f33_estratificada_c7_natural"):
+        execucoes = em_cada_semente(manifesto, nome)
+        assert len(execucoes) == 3
+        celulas = []
+        for chave, distribuicao in (
+            ("acuracia", "amostra"), ("acuracia", "original"), ("macro_f1", "amostra"), ("macro_f1", "original"),
+            ("falso_positivo_benigno", "amostra"),
+        ):
+            valores = [execucao[distribuicao][chave] for execucao in execucoes]
+            celulas.append(f"{pct(min(valores))} a {pct(max(valores))}")
+        assert linhas[f"| `{nome}`"] == f"| `{nome}` | " + " | ".join(celulas) + " |"
+
+
+def test_tabelas_de_decisao_trazem_a_faixa_da_diferenca_entre_as_sementes(experimento):
+    pasta, _ = experimento
+    manifesto = ler_manifesto(pasta / "resultados")
+    relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
+    decisoes = relatorio.split("## O que os números dizem sobre cada decisão em aberto")[1]
+
+    def diferencas(antes, depois, medida):
+        return [medida(d) - medida(a) for a, d in zip(em_cada_semente(manifesto, antes), em_cada_semente(manifesto, depois))]
+
+    def celulas(antes, depois, chave):
+        resultado = []
+        for distribuicao in ("amostra", "original"):
+            medidas = diferencas(antes, depois, lambda e, d=distribuicao: e[d][chave])
+            a, d = (em_cada_semente(manifesto, nome)[0][distribuicao][chave] for nome in (antes, depois))
+            assert medidas[0] == d - a and len(medidas) == 3
+            resultado += [pct(a), pct(d), pp(d - a), f"{pp(min(medidas))} a {pp(max(medidas))}"]
+        return " | ".join(resultado)
+
+    casos = (
+        ("### Janela de 10 ou de 100 pacotes", "\nAcurácia:\n", "sorteio estratificado, 8 categorias",
+         "f39_estratificada_c8", "f33_estratificada_c8", "acuracia"),
+        ("### Divisão entre treino e teste", "\nMacro-F1:\n", "33 features, 7 categorias",
+         "f33_estratificada_c7", "f33_grupos_c7", "macro_f1"),
+        ("### DDoS e DoS", "\nAcurácia:\n", "39 features, divisão por grupos",
+         "f39_grupos_c8", "f39_grupos_c7", "acuracia"),
+        ("### Priori de treino", "\nAcurácia:\n", "`f39_estratificada_c8`",
+         "f39_estratificada_c8", "f39_estratificada_c8_natural", "acuracia"),
+    )
+    for secao, titulo, rotulo, antes, depois, chave in casos:
+        tabela = tabela_depois_de(decisoes.split(secao)[1], titulo)
+        assert tabela[0].count("| Diferença (p.p.) | Faixa da diferença nas 3 sementes (p.p.) |") == 2, secao
+        linha = next(linha for linha in tabela if linha.startswith(f"| {rotulo} |"))
+        assert linha == f"| {rotulo} | {celulas(antes, depois, chave)} |", secao
+    # As referências não foram repetidas.
+    tabela = tabela_depois_de(decisoes.split("### Priori de treino")[1], "\nAcurácia:\n")
+    linha = next(linha for linha in tabela if linha.startswith("| `f39_estratificada_c2` |"))
+    assert linha.count("| sem repetição |") == 2
+
+
+def test_leitura_da_diferenca_frente_ao_ruido_de_semente():
+    leitura = experimento_do_treino._leitura
+    # A diferença muda de sinal de uma comparação para outra.
+    assert "não se distingue do ruído de semente" in leitura([-0.0011, 0.0013, 0.0002], 0.002)
+    assert "não se distingue do ruído de semente" in leitura([0.0, 0.0013], 0.002)
+    # Mesmo sinal em todas, e do tamanho da variação de uma mesma execução entre sementes.
+    pequena = leitura([-0.0026, -0.0013, -0.0018], 0.0019)
+    assert "tem o mesmo sinal em todas as comparações" in pequena and "pequena e consistente" in pequena
+    assert "a menor, de 0,13 p.p., não chega a 2 vezes" in pequena and "(0,19 p.p.)" in pequena
+    # Uma diferença que quase zera numa das comparações segue pequena, sem razão de "0,0 vezes".
+    assert "vezes a maior" in leitura([-0.0059, -0.0001], 0.0051) and "0,0 vezes" not in leitura([-0.0059, -0.0001], 0.0051)
+    # Mesmo sinal em todas, e muitas vezes maior do que essa variação.
+    grande = leitura([0.0923, 0.0931, 0.0926], 0.0019)
+    assert "muito acima do ruído de semente" in grande and "48,6 vezes" in grande
+    # Entre uma coisa e outra.
+    media = leitura([0.0100, 0.0080], 0.002)
+    assert "acima do ruído de semente" in media and "muito acima" not in media and "pequena" not in media
+    # Sem variação entre sementes não há com o que comparar o tamanho.
+    assert "não variou entre as sementes" in leitura([0.01, 0.02], 0.0)
+
+
+def test_cada_decisao_diz_como_a_diferenca_se_compara_com_o_ruido_de_semente(experimento):
+    pasta, _ = experimento
+    relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
+    decisoes = relatorio.split("## O que os números dizem sobre cada decisão em aberto")[1]
+    for secao, comparacoes in (
+        ("### Janela de 10 ou de 100 pacotes", "12 comparações (4 pares de execuções, 3 sementes)"),
+        ("### Divisão entre treino e teste", "12 comparações (4 pares de execuções, 3 sementes)"),
+        ("### DDoS e DoS", "12 comparações (4 pares de execuções, 3 sementes)"),
+        ("### Priori de treino", "12 comparações (4 pares de execuções, 3 sementes)"),
+    ):
+        trecho = decisoes.split(secao)[1].split("\n### ")[0]
+        frase = next(linha for linha in trecho.splitlines() if linha.startswith("- Acurácia"))
+        assert comparacoes in frase, secao
+        assert "Na amostra, a diferença vai de " in frase and "Reponderada, vai de " in frase, secao
+
+
+def test_relatorio_de_uma_semente_nao_traz_faixas(sem_repeticoes):
+    relatorio = (sem_repeticoes / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
+    assert "\n**Uma semente.** " in relatorio and "**Sementes.**" not in relatorio
+    assert "Faixa" not in relatorio and "comparações" not in relatorio and "sem repetição" not in relatorio
+    assert relatorio == montar_relatorio(ler_manifesto(sem_repeticoes / "resultados"))
 
 
 def test_relatorio_mostra_os_dois_lados_da_priori_de_treino(experimento):
@@ -630,10 +830,6 @@ def test_relatorio_mostra_os_dois_lados_da_priori_de_treino(experimento):
     manifesto = ler_manifesto(pasta / "resultados")
     relatorio = (pasta / "resultados" / "treino_exploratorio.md").read_text(encoding="utf-8")
     execucoes = {execucao["nome"]: execucao for execucao in manifesto["execucoes"]}
-
-    def pct(valor):
-        return f"{100 * valor:.2f}%".replace(".", ",")
-
     # Como ler: o que é cada priori e por que a reponderação não a corrige.
     assert "\n**Priori de treino.** " in relatorio
     assert "- **proporções da amostra**: " in relatorio and "- **proporção natural**: " in relatorio
@@ -642,23 +838,39 @@ def test_relatorio_mostra_os_dois_lados_da_priori_de_treino(experimento):
     assert "não muda com a ponderação, porque o tráfego benigno é um rótulo só. Ela muda com a priori de treino" in relatorio
     secao = relatorio.split("\n### Priori de treino\n")[1].split("\n## ")[0]
     # Os dois lados, com o custo de cada um: benigno como ataque, ataque como benigno e recall por categoria.
+    benigno_como_ataque = tabela_depois_de(secao, "\nTráfego benigno classificado como ataque, como fração")
+    ataque_como_benigno = tabela_depois_de(secao, "\nAtaque classificado como tráfego benigno, como fração")
+    assert benigno_como_ataque[0].startswith("| Execução | Priori da amostra | Priori natural | Diferença (p.p.) |")
     for nome in ("f39_estratificada_c8", "f33_estratificada_c7", "f39_estratificada_c34", "f39_estratificada_c2"):
         da_amostra, natural = execucoes[nome], execucoes[f"{nome}_natural"]
         benigno = ALVOS[da_amostra["alvo"]].benigno
-        linha = next(linha for linha in secao.splitlines() if linha.startswith(f"| `{nome}` |"))
-        esperado = [
-            pct(da_amostra["amostra"]["falso_positivo_benigno"]), pct(natural["amostra"]["falso_positivo_benigno"]),
-            *(
-                pct(execucao[distribuicao]["por_classe"][benigno]["taxa_falso_positivo"])
-                for distribuicao in ("amostra", "original") for execucao in (da_amostra, natural)
-            ),
-        ]
-        assert linha == f"| `{nome}` | " + " | ".join(esperado) + " |"
+        taxas = [execucao["amostra"]["falso_positivo_benigno"] for execucao in (da_amostra, natural)]
+        linha = next(linha for linha in benigno_como_ataque if linha.startswith(f"| `{nome}` |"))
+        assert linha.startswith(f"| `{nome}` | {pct(taxas[0])} | {pct(taxas[1])} | {pp(taxas[1] - taxas[0])} |")
+        linha = next(linha for linha in ataque_como_benigno if linha.startswith(f"| `{nome}` |"))
+        for distribuicao in ("amostra", "original"):
+            taxas = [e[distribuicao]["por_classe"][benigno]["taxa_falso_positivo"] for e in (da_amostra, natural)]
+            assert f"| {pct(taxas[0])} | {pct(taxas[1])} | {pp(taxas[1] - taxas[0])} |" in linha
     for categoria in ALVOS["8"].classes:
         da_amostra, natural = execucoes["f39_estratificada_c8"], execucoes["f39_estratificada_c8_natural"]
         recalls = [pct(execucao["original"]["por_classe"][categoria]["recall"]) for execucao in (da_amostra, natural)]
         assert f"\n| {categoria} | {recalls[0]} | {recalls[1]} |" in secao
     assert "dependem da priori de treino" in secao
+    # Quantas linhas das categorias pequenas cada árvore recebe com a priori natural.
+    natural = execucoes["f39_estratificada_c8_natural"]
+    populacao, na_amostra = manifesto["populacao"], manifesto["amostra"]["linhas_por_rotulo"]
+    esperadas = {
+        categoria: natural["linhas_de_treino"] * sum(
+            populacao[rotulo] for rotulo in na_amostra if ALVOS["8"].classe_do_rotulo[rotulo] == categoria
+        ) / sum(populacao.values())
+        for categoria in ALVOS["8"].classes
+    }
+    menor = min(esperadas, key=esperadas.get)
+    de_treino = sum(
+        linhas for rotulo, linhas in na_amostra.items() if ALVOS["8"].classe_do_rotulo[rotulo] == menor
+    ) - natural["amostra"]["por_classe"][menor]["suporte"]
+    frase = next(linha for linha in secao.splitlines() if linha.startswith("- Com a priori natural, cada árvore sorteia"))
+    assert f"{menor} com cerca de {round(esperadas[menor])} linhas sorteadas, contra {de_treino} linhas de treino" in frase
     assert "O relatório não recomenda nenhuma das duas" in secao
     for palavra in ("recomenda-se", "deve-se", "o melhor", "preferível"):
         assert palavra not in secao.lower()
@@ -709,6 +921,8 @@ def test_relatorio_da_os_numeros_do_manifesto(experimento):
 def test_resultados_versionados_sao_coerentes_entre_si():
     manifesto = ler_manifesto(RESULTADOS)
     assert len(manifesto["execucoes"]) == 16
+    assert manifesto["semente"] == 42 and [repeticao["semente"] for repeticao in manifesto["repeticoes"]] == [7, 2026]
+    assert all(len(repeticao["execucoes"]) == 12 for repeticao in manifesto["repeticoes"])
     assert (RESULTADOS / "treino_exploratorio.md").read_text(encoding="utf-8") == montar_relatorio(manifesto)
     relatorio = (RESULTADOS / "treino_exploratorio.md").read_text(encoding="utf-8")
     assert "- **Tirar as seis colunas não tira o atalho.**" in relatorio

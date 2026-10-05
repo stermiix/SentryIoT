@@ -16,19 +16,27 @@ pesa o que o seu rótulo pesa no conjunto completo.
 As execuções de referência repetem, com 39 features e sorteio estratificado, os cenários de
 34 classes e de ataque ou benigno do artigo do dataset, com as duas prioris.
 
+Sementes. Tudo roda com a semente principal, na divisão e no modelo. A grade e as execuções com
+a proporção natural são repetidas com outras sementes, para que o relatório mostre a faixa de
+cada medida entre sementes e compare com ela as diferenças entre as escolhas.
+
 O que é gravado:
 
 - `manifesto_treino_exploratorio.json`: sementes, parâmetros, versões, hash da amostra, as
-  divisões e todos os números de cada execução. Os outros arquivos saem dele;
+  divisões e todos os números de cada execução, as da semente principal e as das repetições.
+  Os outros arquivos saem dele;
 - `treino_exploratorio.md`: o relatório;
-- `metricas_classificador.csv` e `importancia_features.csv`, em formato longo;
-- `matrizes_confusao/`: duas por execução, a do alvo e a que abre a classe real nos 34 rótulos.
+- `metricas_classificador.csv` e `importancia_features.csv`, em formato longo, com as execuções
+  da semente principal;
+- `matrizes_confusao/`: duas por execução da semente principal, a do alvo e a que abre a classe
+  real nos 34 rótulos.
 
-Com a mesma amostra e a mesma semente, os números são os mesmos a cada execução. Só mudam a
+Com a mesma amostra e as mesmas sementes, os números são os mesmos a cada execução. Só mudam a
 data e as medidas de tempo.
 
 Uso, a partir da raiz do repositório:
     python -m codigo.classificador.experimento
+    python -m codigo.classificador.experimento --repeticoes
     python -m codigo.classificador.experimento --refazer-relatorio
 """
 import argparse
@@ -94,6 +102,12 @@ TETO_DE_8_CATEGORIAS_NO_CONJUNTO = 0.9287  # maior acerto em 8 categorias para q
 
 NOME_DA_DIVISAO = {"estratificada": "sorteio estratificado", "grupos": "divisão por grupos"}
 PRIORIS = ("amostra", "natural")
+REPETICOES = (7, 2026)  # sementes com que a grade é repetida, além da principal
+# Uma diferença com o mesmo sinal em todas as sementes é comparada com a maior variação de uma mesma
+# execução entre sementes. O relatório a chama de pequena abaixo do primeiro fator e de muito acima do
+# ruído a partir do segundo.
+FATOR_DE_DIFERENCA_PEQUENA = 2
+FATOR_DE_MUITO_ACIMA_DO_RUIDO = 10
 NOME_DA_PRIORI = {"amostra": "priori da amostra", "natural": "priori natural"}
 NOME_DO_ALVO = {"34": "34 classes", "8": "8 categorias", "7": "7 categorias", "2": "ataque ou benigno"}
 METODO_DA_DIVISAO = {
@@ -238,6 +252,7 @@ def rodar(quadro, populacao, execucoes=(*GRADE, *GRADE_NATURAL, *REFERENCIAS), s
                 "divisao": execucao.divisao,
                 "alvo": execucao.alvo,
                 "priori": execucao.priori,
+                "semente": semente,
                 "arvores": quantas,
                 "linhas_de_treino": len(treino),
                 "linhas_de_teste": len(teste),
@@ -262,8 +277,11 @@ def rodar(quadro, populacao, execucoes=(*GRADE, *GRADE_NATURAL, *REFERENCIAS), s
     return registro
 
 
-def montar_manifesto(registro, populacao, amostra, manifesto_da_amostra, sha256, semente, arvores):
-    """O registro do experimento: o que é preciso para refazê-lo e todos os números que ele produziu."""
+def montar_manifesto(registro, populacao, amostra, manifesto_da_amostra, sha256, semente, arvores, repeticoes=()):
+    """O registro do experimento: o que é preciso para refazê-lo e todos os números que ele produziu.
+
+    `repeticoes` traz, para cada semente além da principal, as divisões e as execuções repetidas.
+    """
     return {
         "descricao": "Treino exploratório do Random Forest sobre a amostra do CICIoT2023",
         "gerado_por": "python -m codigo.classificador.experimento",
@@ -297,6 +315,7 @@ def montar_manifesto(registro, populacao, amostra, manifesto_da_amostra, sha256,
         "dependentes_da_janela": list(DEPENDENTES_DA_JANELA),
         "divisoes": registro["divisoes"],
         "execucoes": registro["execucoes"],
+        "repeticoes": list(repeticoes),
     }
 
 
@@ -388,6 +407,43 @@ def _descricao(execucao):
         f"{execucao['features']} features, {NOME_DA_DIVISAO[execucao['divisao']]}, "
         f"{NOME_DO_ALVO[execucao['alvo']]}, {NOME_DA_PRIORI[execucao['priori']]}"
     )
+
+
+def _enumerar(itens):
+    """Os itens em texto corrido: "42, 7 e 2026"."""
+    itens = [str(item) for item in itens]
+    return itens[0] if len(itens) == 1 else f"{', '.join(itens[:-1])} e {itens[-1]}"
+
+
+def _todas(m):
+    """Todas as execuções do manifesto: as da semente principal e as das repetições."""
+    return [*m["execucoes"], *(e for repeticao in m["repeticoes"] for e in repeticao["execucoes"])]
+
+
+def _sementes(m):
+    """As sementes do experimento, a começar pela principal."""
+    return [m["semente"], *(repeticao["semente"] for repeticao in m["repeticoes"])]
+
+
+def _outras_sementes(m):
+    """As sementes das repetições, em texto corrido: "a semente 7" ou "as sementes 7 e 2026"."""
+    outras = [repeticao["semente"] for repeticao in m["repeticoes"]]
+    return f"{'a semente' if len(outras) == 1 else 'as sementes'} {_enumerar(outras)}"
+
+
+def _em_cada_semente(m, execucao):
+    """A mesma configuração em cada semente em que rodou, a começar pela principal."""
+    return [e for e in _todas(m) if e["nome"] == execucao["nome"]]
+
+
+def _de_todas_as_sementes(m, execucoes):
+    """As execuções dadas e as repetições delas com as outras sementes."""
+    return [repetida for e in execucoes for repetida in _em_cada_semente(m, e)]
+
+
+def _nas_sementes(m):
+    """Complemento de frase que diz que a conta inclui as repetições."""
+    return f", contadas as {len(_sementes(m))} sementes" if m["repeticoes"] else ""
 
 
 def _faixa(valores, casas=2):
@@ -485,12 +541,32 @@ def _como_ler(m):
             "Random Forest do scikit-learn trata o vazio sem imputação."
         ),
         "",
-        (
+        _paragrafo_das_sementes(m),
+    ]
+
+
+def _paragrafo_das_sementes(m):
+    """O parágrafo que diz com que sementes o experimento rodou e como ler a faixa entre elas."""
+    if not m["repeticoes"]:
+        return (
             f"**Uma semente.** Cada execução foi feita uma vez, com a semente {m['semente']} na divisão e no "
             "modelo. Diferenças pequenas entre execuções podem vir do sorteio, e não da escolha comparada. Para "
-            "repetir com outro sorteio: `python -m codigo.classificador.experimento --semente N --saida OUTRA_PASTA`."
-        ),
-    ]
+            f"repetir a grade com outras sementes: `{m['gerado_por']} --repeticoes "
+            f"{' '.join(map(str, REPETICOES))}`."
+        )
+    quantas = len(_sementes(m))
+    return (
+        f"**Sementes.** As tabelas trazem os valores da semente {m['semente']}, usada na divisão e no modelo. A "
+        f"grade das três escolhas e as execuções com a priori natural foram repetidas com {_outras_sementes(m)}, "
+        "cada uma com outra divisão e outros modelos. A faixa entre sementes vai do menor ao maior valor das "
+        f"{quantas} sementes. Uma diferença "
+        "entre duas escolhas que muda de sinal de uma comparação para outra não se distingue do ruído de semente. "
+        "Uma diferença com o mesmo sinal em todas as comparações é consistente, e o tamanho dela é comparado com a "
+        "maior variação de uma mesma execução entre sementes: o relatório a chama de pequena quando não chega a "
+        f"{FATOR_DE_DIFERENCA_PEQUENA} vezes essa variação, e de muito acima do ruído a partir de "
+        f"{FATOR_DE_MUITO_ACIMA_DO_RUIDO} vezes. Com {quantas} sementes isso descreve a variação observada e não é "
+        f"um teste estatístico. As execuções de referência rodaram só com a semente {m['semente']}."
+    )
 
 
 def _priori_de_treino(m):
@@ -583,7 +659,10 @@ def _secao_divisoes(m):
             linhas,
         ),
         "",
-        "O hash das linhas de teste de cada divisão está no manifesto do experimento.",
+        (
+            f"A tabela é a da semente {m['semente']}. O hash das linhas de teste de cada divisão está no manifesto "
+            "do experimento" + (", com as divisões das repetições." if m["repeticoes"] else ".")
+        ),
     ]
 
 
@@ -631,6 +710,38 @@ def _destino_do_benigno(m):
     ]
 
 
+def _faixas_entre_sementes(m):
+    """A tabela com a faixa de cada medida global nas sementes, para as execuções repetidas."""
+    if not m["repeticoes"]:
+        return []
+    medidas = (
+        ("acuracia", "amostra"), ("acuracia", "original"), ("macro_f1", "amostra"), ("macro_f1", "original"),
+        ("falso_positivo_benigno", "amostra"),
+    )
+    linhas = []
+    for execucao in m["execucoes"]:
+        repetidas = _em_cada_semente(m, execucao)
+        if len(repetidas) > 1:
+            faixas = ([e[distribuicao][chave] for e in repetidas] for chave, distribuicao in medidas)
+            linhas.append([f"`{execucao['nome']}`", *(f"{_pct(min(v))} a {_pct(max(v))}" for v in faixas)])
+    sementes = _sementes(m)
+    return [
+        (
+            f"Faixa de cada medida nas {len(sementes)} sementes ({_enumerar(sementes)}), do menor ao maior valor. As "
+            f"execuções de referência rodaram só com a semente {m['semente']}."
+        ),
+        "",
+        *_tabela(
+            [
+                "Execução", "Acurácia na amostra", "Acurácia reponderada", "Macro-F1 na amostra",
+                "Macro-F1 reponderado", "Benigno classificado como ataque",
+            ],
+            linhas,
+        ),
+        "",
+    ]
+
+
 def _secao_execucoes(m):
     globais, de_interesse = [], []
     for e in m["execucoes"]:
@@ -663,6 +774,7 @@ def _secao_execucoes(m):
             globais,
         ),
         "",
+        *_faixas_entre_sementes(m),
         "Classes de interesse. Onde há dois valores, o primeiro é na amostra e o segundo é reponderado. O recall",
         "do tráfego benigno e a taxa de benigno classificado como ataque são iguais nas duas distribuições.",
         "",
@@ -792,11 +904,24 @@ def _nota_das_34_classes(m):
 
 def _aviso_dos_tempos(m):
     """Por que os tempos da tabela de custo não se comparam entre execuções."""
-    return [
+    aviso = [
         "Os tempos não se comparam entre as linhas da tabela. Eles são da máquina em que o experimento rodou e",
         "mudam de uma medida para outra com o mesmo modelo, conforme o que mais a máquina faz na hora. Servem",
         "para a ordem de grandeza, e não para dizer que uma configuração é mais rápida do que outra.",
     ]
+    repetidas = [e for e in (_em_cada_semente(m, execucao) for execucao in m["execucoes"]) if len(e) > 1]
+    if repetidas:
+        def variacao(medida):
+            return max(max(valores) / min(valores) - 1 for valores in ([medida(e) for e in grupo] for grupo in repetidas))
+
+        aviso.append(
+            f"Entre as repetições de uma mesma configuração nas {len(_sementes(m))} sementes, cujos modelos diferem "
+            f"em até {_pct(variacao(lambda e: e['nos_por_arvore']), 1)} na quantidade de nós, o tempo por 1.000 "
+            "janelas com um núcleo variou até "
+            f"{_pct(variacao(lambda e: e['inferencia_ms_por_mil_janelas']['um_nucleo']), 0)} e o de uma janela por "
+            f"chamada, até {_pct(variacao(lambda e: e['inferencia_ms_por_janela_avulsa']), 0)}."
+        )
+    return aviso
 
 
 def _secao_custo(m):
@@ -837,25 +962,99 @@ def _secao_custo(m):
     ]
 
 
-def _variacao(antes, depois, chave):
-    """Uma medida em duas execuções, na amostra e reponderada: valores e diferença em pontos percentuais."""
-    celulas = []
-    for distribuicao in ("amostra", "original"):
-        a, d = antes[distribuicao][chave], depois[distribuicao][chave]
-        celulas += [_pct(a), _pct(d), _pp(d - a)]
+def _global(chave):
+    """Leitor de uma medida global: a função que a tira de uma execução, numa das duas distribuições."""
+    return lambda execucao, distribuicao: execucao[distribuicao][chave]
+
+
+def _teto_de_teste(execucao):
+    return execucao["amostra"]["teto"]
+
+
+def _diferencas(m, antes, depois, medida):
+    """`medida(depois) - medida(antes)` em cada semente em que as duas configurações rodaram."""
+    depois_na = {e["semente"]: e for e in _em_cada_semente(m, depois)}
+    return [
+        medida(depois_na[e["semente"]]) - medida(e) for e in _em_cada_semente(m, antes) if e["semente"] in depois_na
+    ]
+
+
+def _comparar(m, antes, depois, medida):
+    """Células de uma comparação: os dois valores, a diferença e, havendo repetições, a faixa dela entre sementes."""
+    a, d = medida(antes), medida(depois)
+    celulas = [_pct(a), _pct(d), _pp(d - a)]
+    if m["repeticoes"]:
+        diferencas = _diferencas(m, antes, depois, medida)
+        celulas.append(f"{_pp(min(diferencas))} a {_pp(max(diferencas))}" if len(diferencas) > 1 else "sem repetição")
     return celulas
 
 
-def _variacao_do_teto(antes, depois):
-    """O teto das linhas de teste em duas execuções e a diferença em pontos percentuais."""
-    a, d = antes["amostra"]["teto"], depois["amostra"]["teto"]
-    return [_pct(a), _pct(d), _pp(d - a)]
+def _colunas_da_comparacao(m, prefixo, nomes):
+    """As colunas de `_comparar` para duas escolhas."""
+    colunas = [f"{prefixo}{nomes[0]}", f"{prefixo}{nomes[1]}", "Diferença (p.p.)"]
+    if m["repeticoes"]:
+        colunas.append(f"Faixa da diferença nas {len(_sementes(m))} sementes (p.p.)")
+    return colunas
 
 
-CABECALHO_DO_TETO = ("Teto, {0}", "Teto, {1}", "Diferença (p.p.)")
-CABECALHO_DA_VARIACAO = (
-    "Na amostra, {0}", "Na amostra, {1}", "Diferença (p.p.)", "Reponderada, {0}", "Reponderada, {1}", "Diferença (p.p.)",
-)
+def _variacao(m, antes, depois, medida):
+    """Uma medida em duas execuções, na amostra e reponderada. `medida` lê a execução e a distribuição."""
+    return [
+        celula
+        for distribuicao in ("amostra", "original")
+        for celula in _comparar(m, antes, depois, lambda e, d=distribuicao: medida(e, d))
+    ]
+
+
+def _colunas_da_variacao(m, nomes):
+    return [*_colunas_da_comparacao(m, "Na amostra, ", nomes), *_colunas_da_comparacao(m, "Reponderada, ", nomes)]
+
+
+def _ruido(m, execucoes, medida):
+    """A maior variação de uma mesma execução entre sementes: o maior valor menos o menor."""
+    faixas = ([medida(e) for e in _em_cada_semente(m, execucao)] for execucao in execucoes)
+    return max((max(valores) - min(valores) for valores in faixas if len(valores) > 1), default=0.0)
+
+
+def _leitura(diferencas, ruido):
+    """Como uma diferença entre duas escolhas, medida em várias comparações, fica frente ao ruído de semente."""
+    menor, maior = min(diferencas), max(diferencas)
+    if menor <= 0 <= maior:
+        return "muda de sinal de uma comparação para outra: não se distingue do ruído de semente"
+    if ruido <= 0:
+        return "tem o mesmo sinal em todas as comparações, e a mesma execução não variou entre as sementes"
+    tamanho = min(abs(menor), abs(maior))
+    vezes = tamanho / ruido
+    if vezes < FATOR_DE_DIFERENCA_PEQUENA:
+        classe, razao = "é pequena e consistente", f"não chega a {FATOR_DE_DIFERENCA_PEQUENA}"
+    elif vezes >= FATOR_DE_MUITO_ACIMA_DO_RUIDO:
+        classe, razao = "está muito acima do ruído de semente", f"é {_decimal(vezes)}"
+    else:
+        classe, razao = "está acima do ruído de semente", f"é {_decimal(vezes)}"
+    return (
+        f"tem o mesmo sinal em todas as comparações; {classe}: a menor, de {_pp(tamanho).lstrip('+')} p.p., {razao} "
+        f"vezes a maior variação de uma mesma execução entre sementes ({_pp(ruido).lstrip('+')} p.p.)"
+    )
+
+
+def _resumo_das_diferencas(m, titulo, pares, medida):
+    """A frase que resume uma comparação em todos os pares e sementes, na amostra e reponderada."""
+    pares = [par for par in pares if len(_em_cada_semente(m, par[0])) > 1 and len(_em_cada_semente(m, par[1])) > 1]
+    if not pares:
+        return []
+    frases, quantas = [], 0
+    for distribuicao, inicio in (("amostra", "Na amostra, a diferença vai de"), ("original", "Reponderada, vai de")):
+        def valor(execucao, distribuicao=distribuicao):
+            return medida(execucao, distribuicao)
+
+        diferencas = [d for antes, depois in pares for d in _diferencas(m, antes, depois, valor)]
+        ruido = _ruido(m, [e for par in pares for e in par], valor)
+        quantas = len(diferencas)
+        frases.append(f"{inicio} {_pp(min(diferencas))} a {_pp(max(diferencas))} p.p. e {_leitura(diferencas, ruido)}.")
+    return [
+        f"- {titulo}, nas {quantas} comparações ({len(pares)} pares de execuções, {len(_sementes(m))} sementes). "
+        + " ".join(frases)
+    ]
 
 
 def _entre_janelas(execucao, populacao=None):
@@ -874,11 +1073,11 @@ def _decisao_janela(m):
     ]
     populacao = m["populacao"]
     acuracia = [
-        [f"{NOME_DA_DIVISAO[com['divisao']]}, {NOME_DO_ALVO[com['alvo']]}", *_variacao(com, sem, "acuracia")]
+        [f"{NOME_DA_DIVISAO[com['divisao']]}, {NOME_DO_ALVO[com['alvo']]}", *_variacao(m, com, sem, _global("acuracia"))]
         for com, sem in pares
     ]
     macro = [
-        [f"{NOME_DA_DIVISAO[com['divisao']]}, {NOME_DO_ALVO[com['alvo']]}", *_variacao(com, sem, "macro_f1")]
+        [f"{NOME_DA_DIVISAO[com['divisao']]}, {NOME_DO_ALVO[com['alvo']]}", *_variacao(m, com, sem, _global("macro_f1"))]
         for com, sem in pares
     ]
     cruzados = [
@@ -890,16 +1089,20 @@ def _decisao_janela(m):
         ]
         for com, sem in pares
     ]
-    com_39 = _da_grade(m, features="39")
+    com_39 = _de_todas_as_sementes(m, _da_grade(m, features="39"))
     soma = [sum(e["importancias"][coluna] for coluna in DEPENDENTES_DA_JANELA) for e in com_39]
     posicao = [list(e["importancias"]).index("Number") + 1 for e in com_39]
     # Fração das linhas de teste que o modelo põe no grupo de janela certo, com e sem as seis colunas.
-    separa = {features: [1 - _entre_janelas(e) for e in _da_grade(m, features=features)] for features in ("39", "33")}
-    faixas = {features: f"de {_pct(min(valores))} a {_pct(max(valores))}" for features, valores in separa.items()}
+    separa = {
+        features: [1 - _entre_janelas(e) for e in _de_todas_as_sementes(m, _da_grade(m, features=features))]
+        for features in ("39", "33")
+    }
+    faixas = {features: _faixa(valores) for features, valores in separa.items()}
     if min(separa["33"]) >= SEPARACAO_QUE_MANTEM_O_ATALHO:
         atalho = (
             f"- **Tirar as seis colunas não tira o atalho.** Sem elas, o modelo ainda põe {faixas['33']} das "
-            f"linhas de teste no grupo de janela certo (com as 39, {faixas['39']}). As 33 features que ficam "
+            f"linhas de teste no grupo de janela certo (com as 39, {faixas['39']}){_nas_sementes(m)}. As 33 "
+            "features que ficam "
             "continuam variando com o tamanho da janela: `Min`, `Max` e `Std` dependem dele, e as médias de uma "
             "janela de 100 têm passos de 0,01, contra 0,1 na de 10 (`dados/README.md`). Como na amostra a janela "
             "acompanha a classe, o experimento não separa o que o modelo aprende do tráfego do que aprende da "
@@ -908,9 +1111,9 @@ def _decisao_janela(m):
     else:
         atalho = (
             f"- Sem as seis colunas, o modelo põe {faixas['33']} das linhas de teste no grupo de janela certo "
-            f"(com as 39, {faixas['39']})."
+            f"(com as 39, {faixas['39']}){_nas_sementes(m)}."
         )
-    colunas = [texto.format("39", "33") for texto in CABECALHO_DA_VARIACAO]
+    colunas = _colunas_da_variacao(m, ("39", "33"))
     return [
         "### Janela de 10 ou de 100 pacotes",
         "",
@@ -926,7 +1129,7 @@ def _decisao_janela(m):
         "",
         "Erros entre os dois grupos de janela, isto é, linha de DDoS, DoS ou Mirai (janela de 100) classificada",
         "em categoria de janela de 10, ou o contrário, como fração das linhas de teste. Ao lado, o tráfego benigno",
-        "classificado como ataque:",
+        f"classificado como ataque. Valores da semente {m['semente']}:",
         "",
         *_tabela(
             [
@@ -937,10 +1140,12 @@ def _decisao_janela(m):
             cruzados,
         ),
         "",
+        *_resumo_das_diferencas(m, "Acurácia, de 39 para 33 features", pares, _global("acuracia")),
+        *_resumo_das_diferencas(m, "Macro-F1, de 39 para 33 features", pares, _global("macro_f1")),
         (
-            f"- Nas quatro execuções com 39 features, as seis colunas somam de {_pct(min(soma), 1)} a "
-            f"{_pct(max(soma), 1)} da importância, e `Number` fica entre a {min(posicao)}ª e a {max(posicao)}ª "
-            "posição das 39."
+            f"- Nas {len(com_39)} execuções com 39 features e priori da amostra{_nas_sementes(m)}, as seis colunas "
+            f"somam {_faixa(soma, 1)} da importância, e `Number` fica entre a {min(posicao)}ª e a "
+            f"{max(posicao)}ª posição das 39."
         ),
         (
             "- `Number` é a quantidade de quadros da janela e não é função das colunas que ficam. As outras cinco "
@@ -961,14 +1166,14 @@ def _decisao_divisao(m):
         for linhas in _da_grade(m, divisao="estratificada") for grupos in _da_grade(m, divisao="grupos")
         if (linhas["features"], linhas["alvo"]) == (grupos["features"], grupos["alvo"])
     ]
-    colunas = [texto.format("sorteio", "grupos") for texto in CABECALHO_DA_VARIACAO]
+    colunas = _colunas_da_variacao(m, ("sorteio", "grupos"))
 
     def rotulo_do_par(e):
         return f"{e['features']} features, {NOME_DO_ALVO[e['alvo']]}"
 
-    acuracia = [[rotulo_do_par(a), *_variacao(a, b, "acuracia")] for a, b in pares]
-    macro = [[rotulo_do_par(a), *_variacao(a, b, "macro_f1")] for a, b in pares]
-    teto = [[rotulo_do_par(a), *_variacao_do_teto(a, b)] for a, b in pares]
+    acuracia = [[rotulo_do_par(a), *_variacao(m, a, b, _global("acuracia"))] for a, b in pares]
+    macro = [[rotulo_do_par(a), *_variacao(m, a, b, _global("macro_f1"))] for a, b in pares]
+    teto = [[rotulo_do_par(a), *_comparar(m, a, b, _teto_de_teste)] for a, b in pares]
     estratificada, amostra = m["divisoes"]["estratificada"], m["amostra"]
     no_treino = estratificada["teste_com_vetor_no_treino"]["39"]
     return [
@@ -987,10 +1192,17 @@ def _decisao_divisao(m):
         "",
         "Teto nas linhas de teste:",
         "",
-        *_tabela(["Features e alvo", *(texto.format("sorteio", "grupos") for texto in CABECALHO_DO_TETO)], teto),
+        *_tabela(["Features e alvo", *_colunas_da_comparacao(m, "Teto, ", ("sorteio", "grupos"))], teto),
         "",
+        *_resumo_das_diferencas(
+            m, "Acurácia, do sorteio estratificado para a divisão por grupos", pares, _global("acuracia")
+        ),
+        *_resumo_das_diferencas(
+            m, "Macro-F1, do sorteio estratificado para a divisão por grupos", pares, _global("macro_f1")
+        ),
         (
-            f"- No sorteio estratificado, {_milhar(no_treino)} das {_milhar(estratificada['teste'])} linhas de "
+            f"- No sorteio estratificado da semente {m['semente']}, {_milhar(no_treino)} das "
+            f"{_milhar(estratificada['teste'])} linhas de "
             f"teste ({_pct(no_treino / estratificada['teste'])}) têm o mesmo vetor de uma linha do treino, com as "
             "39 features. Na divisão por grupos, nenhuma."
         ),
@@ -1028,13 +1240,13 @@ def _decisao_ddos_e_dos(m):
         if (oito["features"], oito["divisao"]) == (sete["features"], sete["divisao"])
     ]
     populacao = m["populacao"]
-    colunas = [texto.format("8", "7") for texto in CABECALHO_DA_VARIACAO]
+    colunas = _colunas_da_variacao(m, ("8", "7"))
 
     def rotulo_do_par(e):
         return f"{e['features']} features, {NOME_DA_DIVISAO[e['divisao']]}"
 
-    acuracia = [[rotulo_do_par(a), *_variacao(a, b, "acuracia")] for a, b in pares]
-    teto = [[rotulo_do_par(a), *_variacao_do_teto(a, b)] for a, b in pares]
+    acuracia = [[rotulo_do_par(a), *_variacao(m, a, b, _global("acuracia"))] for a, b in pares]
+    teto = [[rotulo_do_par(a), *_comparar(m, a, b, _teto_de_teste)] for a, b in pares]
     detalhe = []
     for oito, sete in pares:
         na_amostra, reponderada = _trocas(oito), _trocas(oito, populacao)
@@ -1065,12 +1277,12 @@ def _decisao_ddos_e_dos(m):
         "",
         "Teto nas linhas de teste:",
         "",
-        *_tabela(["Features e divisão", *(texto.format("8", "7") for texto in CABECALHO_DO_TETO)], teto),
+        *_tabela(["Features e divisão", *_colunas_da_comparacao(m, "Teto, ", ("8", "7"))], teto),
         "",
         "Recall das duas categorias e peso das trocas entre elas. Em cada célula, o primeiro valor é na amostra",
         "e o segundo é reponderado. \"Trocas\" são as linhas de DDoS classificadas como DoS e as de DoS",
         "classificadas como DDoS. A penúltima coluna conta essas trocas como acerto no modelo de 8 categorias, e",
-        "a última é o modelo treinado com 7.",
+        f"a última é o modelo treinado com 7. Valores da semente {m['semente']}.",
         "",
         *_tabela(
             [
@@ -1091,8 +1303,9 @@ def _decisao_ddos_e_dos(m):
             custo,
         ),
         "",
+        *_resumo_das_diferencas(m, "Acurácia, de 8 para 7 categorias", pares, _global("acuracia")),
         "- O macro-F1 de 8 categorias e o de 7 são médias sobre conjuntos de classes diferentes e não se comparam",
-        "  diretamente. Os dois estão na tabela das 10 execuções.",
+        "  diretamente. Os dois estão na tabela das execuções.",
         (
             "- Os tetos desta seção são os das linhas de teste de cada execução. No conjunto completo a diferença "
             "entre o teto de 8 e o de 7 categorias é bem maior do que a medida aqui: lá o teto de 8 categorias é "
@@ -1120,22 +1333,49 @@ def _ataque_como_benigno(execucao, distribuicao):
     return execucao[distribuicao]["por_classe"][ALVOS[execucao["alvo"]].benigno]["taxa_falso_positivo"]
 
 
+def _benigno_como_ataque(execucao):
+    return execucao["amostra"]["falso_positivo_benigno"]
+
+
+def _linhas_sorteadas_por_arvore(m, natural):
+    """A frase que diz quantas linhas das categorias pequenas cada árvore recebe com a priori natural.
+
+    Cada árvore sorteia tantas linhas quantas há no treino, na proporção do conjunto completo:
+    a categoria entra, em média, com as linhas de treino vezes a fração dela no conjunto completo.
+    """
+    definicao = ALVOS[natural["alvo"]]
+    amostra, populacao = m["amostra"]["linhas_por_rotulo"], m["populacao"]
+    completo = sum(populacao.values())
+    por_classe = []
+    for classe in definicao.classes:
+        rotulos = [rotulo for rotulo in amostra if definicao.classe_do_rotulo[rotulo] == classe]
+        if rotulos:
+            sorteadas = natural["linhas_de_treino"] * sum(populacao[rotulo] for rotulo in rotulos) / completo
+            de_treino = sum(amostra[rotulo] for rotulo in rotulos) - natural["amostra"]["por_classe"][classe]["suporte"]
+            por_classe.append((sorteadas, classe, de_treino))
+    menores = sorted(por_classe)[:2]
+    return (
+        f"- Com a priori natural, cada árvore sorteia {_milhar(natural['linhas_de_treino'])} linhas do treino, com "
+        "reposição, na proporção do conjunto completo, e as categorias pequenas entram com poucas linhas: "
+        + " e ".join(
+            f"{classe} com cerca de {_milhar(sorteadas)} linhas sorteadas, contra {_milhar(de_treino)} linhas de "
+            "treino na amostra"
+            for sorteadas, classe, de_treino in menores
+        )
+        + "."
+    )
+
+
 def _decisao_priori(m):
     pares = _pares_de_priori(m)
     if not pares:
         return []
     nomes = [NOME_DA_PRIORI[priori] for priori in PRIORIS]
-    colunas = [texto.format(*nomes) for texto in CABECALHO_DA_VARIACAO]
-    benigno = [
-        [
-            f"`{a['nome']}`",
-            *(_pct(e["amostra"]["falso_positivo_benigno"]) for e in (a, n)),
-            *(_pct(_ataque_como_benigno(e, distribuicao)) for distribuicao in ("amostra", "original") for e in (a, n)),
-        ]
-        for a, n in pares
-    ]
-    acuracia = [[f"`{a['nome']}`", *_variacao(a, n, "acuracia")] for a, n in pares]
-    macro = [[f"`{a['nome']}`", *_variacao(a, n, "macro_f1")] for a, n in pares]
+    colunas = _colunas_da_variacao(m, nomes)
+    benigno = [[f"`{a['nome']}`", *_comparar(m, a, n, _benigno_como_ataque)] for a, n in pares]
+    ataque = [[f"`{a['nome']}`", *_variacao(m, a, n, _ataque_como_benigno)] for a, n in pares]
+    acuracia = [[f"`{a['nome']}`", *_variacao(m, a, n, _global("acuracia"))] for a, n in pares]
+    macro = [[f"`{a['nome']}`", *_variacao(m, a, n, _global("macro_f1"))] for a, n in pares]
     por_categoria = []
     for nome_do_alvo in ("8", "7"):
         do_alvo = [(a, n) for a, n in pares if a["alvo"] == nome_do_alvo]
@@ -1152,7 +1392,10 @@ def _decisao_priori(m):
                     celulas += [_pct(antes), _pct(depois), _pp(depois - antes)]
             linhas.append(celulas)
         por_categoria += [
-            f"Recall reponderado de cada classe nas execuções de {NOME_DO_ALVO[nome_do_alvo]}:",
+            (
+                f"Recall reponderado de cada classe nas execuções de {NOME_DO_ALVO[nome_do_alvo]}, na semente "
+                f"{m['semente']}:"
+            ),
             "",
             *_tabela(
                 [
@@ -1170,14 +1413,15 @@ def _decisao_priori(m):
             ),
             "",
         ]
-    # As frases de resumo usam os pares de 8 e de 7 categorias, que são os da decisão.
+    # As frases de resumo usam os pares de 8 e de 7 categorias, que são os da decisão, em todas as sementes.
     principais = [(a, n) for a, n in pares if a["alvo"] in ("8", "7")] or pares
-    da_amostra, naturais = ([e for par in principais for e in (par[i],)] for i in (0, 1))
+    da_amostra, naturais = (_de_todas_as_sementes(m, [par[i] for par in principais]) for i in (0, 1))
+    onde = f"nas execuções de 8 e de 7 categorias{_nas_sementes(m)}"
     resumo = [
         (
-            f"- Com a {nomes[0]}, {_faixa([e['amostra']['falso_positivo_benigno'] for e in da_amostra])} do tráfego "
-            f"benigno de teste é classificado como ataque nas execuções de 8 e de 7 categorias. Com a {nomes[1]}, "
-            f"{_faixa([e['amostra']['falso_positivo_benigno'] for e in naturais])}."
+            f"- Com a {nomes[0]}, {_faixa([_benigno_como_ataque(e) for e in da_amostra])} do tráfego benigno de "
+            f"teste é classificado como ataque {onde}. Com a {nomes[1]}, "
+            f"{_faixa([_benigno_como_ataque(e) for e in naturais])}."
         ),
         (
             "- Nas mesmas execuções, o ataque classificado como benigno, reponderado, é "
@@ -1185,32 +1429,30 @@ def _decisao_priori(m):
             f"{_faixa([_ataque_como_benigno(e, 'original') for e in naturais])} com a {nomes[1]}."
         ),
     ]
-    com_recon = [(a, n) for a, n in principais if "Recon" in a["original"]["por_classe"]]
-    if com_recon and all(e["original"]["por_classe"]["Recon"]["recall"] is not None for par in com_recon for e in par):
+    if all(e["original"]["por_classe"].get("Recon", {}).get("recall") is not None for e in (*da_amostra, *naturais)):
         resumo.append(
             "- O recall reponderado de Recon é "
-            f"{_faixa([a['original']['por_classe']['Recon']['recall'] for a, _ in com_recon])} com a {nomes[0]} e "
-            f"{_faixa([n['original']['por_classe']['Recon']['recall'] for _, n in com_recon])} com a {nomes[1]}."
+            f"{_faixa([e['original']['por_classe']['Recon']['recall'] for e in da_amostra])} com a {nomes[0]} e "
+            f"{_faixa([e['original']['por_classe']['Recon']['recall'] for e in naturais])} com a {nomes[1]}."
         )
+    de_8 = next((n for a, n in pares if a["alvo"] == "8"), None)
+    if de_8 is not None:
+        resumo.append(_linhas_sorteadas_por_arvore(m, de_8))
+    de_uma_para_outra = f"da {nomes[0]} para a {nomes[1]}"
     return [
         "### Priori de treino",
         "",
         "O que muda das proporções da amostra para a proporção natural no treino, com as features, a divisão e o",
         "alvo fixos. As duas execuções de cada par são avaliadas nas mesmas linhas de teste.",
         "",
-        "Tráfego benigno e ataques. \"Benigno como ataque\" é a fração das linhas benignas de teste classificadas",
-        "como algum ataque, igual na amostra e reponderada. \"Ataque como benigno\" é a fração das linhas de ataque",
-        "classificadas como tráfego benigno:",
+        "Tráfego benigno classificado como ataque, como fração das linhas benignas de teste. A medida é igual na",
+        "amostra e reponderada:",
         "",
-        *_tabela(
-            [
-                "Execução",
-                *(f"Benigno como ataque, {nome}" for nome in nomes),
-                *(f"Ataque como benigno na amostra, {nome}" for nome in nomes),
-                *(f"Ataque como benigno reponderado, {nome}" for nome in nomes),
-            ],
-            benigno,
-        ),
+        *_tabela(["Execução", *_colunas_da_comparacao(m, "", [nome.capitalize() for nome in nomes])], benigno),
+        "",
+        "Ataque classificado como tráfego benigno, como fração das linhas de ataque de teste:",
+        "",
+        *_tabela(["Execução", *colunas], ataque),
         "",
         "Acurácia:",
         "",
@@ -1227,6 +1469,8 @@ def _decisao_priori(m):
             "com a priori da amostra."
         ),
         *resumo,
+        *_resumo_das_diferencas(m, f"Acurácia, {de_uma_para_outra}", pares, _global("acuracia")),
+        *_resumo_das_diferencas(m, f"Macro-F1, {de_uma_para_outra}", pares, _global("macro_f1")),
         "- A priori natural usada aqui é a proporção das classes no conjunto completo do dataset. A proporção do",
         "  tráfego de uma rede em operação é outra e não é medida aqui.",
         "- O relatório não recomenda nenhuma das duas. Os dois lados estão nas tabelas acima e, classe a classe, em",
@@ -1239,7 +1483,14 @@ def _como_foram_obtidos(m):
     return [
         "## Como os números foram obtidos",
         "",
-        f"- Comando: `{m['gerado_por']}`, a partir da raiz do repositório. Semente {m['semente']} na divisão e no modelo.",
+        (
+            f"- Comando: `{m['gerado_por']}`, a partir da raiz do repositório. Semente {m['semente']} na divisão e "
+            "no modelo"
+            + (
+                f", e a grade repetida com {_outras_sementes(m)}."
+                if m["repeticoes"] else "."
+            )
+        ),
         (
             f"- Amostra: `{m['amostra']['arquivo']}`, com SHA-256 do CSV descomprimido "
             f"`{m['amostra']['sha256_do_csv_descomprimido']}`, conferido com `manifesto_amostra.json` antes de treinar."
@@ -1257,7 +1508,9 @@ def _como_foram_obtidos(m):
         f"  completos estão em `{MANIFESTO}`.",
         f"- `{METRICAS}` tem uma linha por execução, distribuição e classe. A distribuição `amostra` é a medida",
         "  nas linhas de teste, e `original` é a reponderada.",
-        f"- Com a mesma amostra e a mesma semente, `{METRICAS}`, `{IMPORTANCIAS}` e as matrizes saem idênticos.",
+        f"- `{METRICAS}`, `{IMPORTANCIAS}` e as matrizes trazem as execuções da semente {m['semente']}. As",
+        f"  repetições com as outras sementes estão em `{MANIFESTO}`, com as mesmas medidas.",
+        f"- Com a mesma amostra e as mesmas sementes, `{METRICAS}`, `{IMPORTANCIAS}` e as matrizes saem idênticos.",
         "  As medidas de tempo mudam a cada execução.",
         "",
     ]
@@ -1282,6 +1535,17 @@ def montar_relatorio(m):
             "estratificado são treinadas também com a proporção natural das classes, porque a priori de treino muda",
             "os resultados. As execuções de 34 classes e de ataque ou benigno servem de referência para os cenários",
             "do artigo do dataset. O relatório traz os números e não recomenda nenhuma das saídas.",
+            *(
+                [
+                    "",
+                    (
+                        f"As tabelas são da semente {m['semente']}. A grade e as execuções com a proporção natural "
+                        f"foram repetidas com {_outras_sementes(m)}, e as comparações entre escolhas trazem a "
+                        "faixa entre sementes."
+                    ),
+                ]
+                if m["repeticoes"] else []
+            ),
         ],
         _como_ler(m),
         _secao_divisoes(m),
@@ -1297,6 +1561,16 @@ def montar_relatorio(m):
             "estimativa na distribuição original do dataset. As três primeiras subseções usam as execuções",
             "treinadas com as proporções da amostra. A quarta trata da priori de treino, uma escolha de método que",
             "este experimento expôs.",
+            *(
+                [
+                    "",
+                    (
+                        f"Os valores das tabelas são da semente {m['semente']}. A coluna de faixa e as frases que "
+                        f"resumem cada comparação usam as {len(_sementes(m))} sementes (ver \"Como ler os números\")."
+                    ),
+                ]
+                if m["repeticoes"] else []
+            ),
             "",
             *_decisao_janela(m),
             "",
@@ -1313,7 +1587,8 @@ def montar_relatorio(m):
 
 def _relatar(resultado):
     print(
-        f"{resultado['nome']}: {resultado['arvores']} árvores, treino em {_decimal(resultado['treino_segundos'])} s, "
+        f"{resultado['nome']}, semente {resultado['semente']}: {resultado['arvores']} árvores, treino em "
+        f"{_decimal(resultado['treino_segundos'])} s, "
         f"acurácia de {_pct(resultado['amostra']['acuracia'])} na amostra e "
         f"{_pct(resultado['original']['acuracia'])} reponderada",
         file=sys.stderr,
@@ -1328,10 +1603,18 @@ def main(argv=None):
     analisador.add_argument("--amostra", default="dados/processed/amostra.csv.gz")
     analisador.add_argument("--manifesto-da-amostra", default="experimentos/resultados/manifesto_amostra.json")
     analisador.add_argument("--saida", default="experimentos/resultados", help="pasta dos resultados")
-    analisador.add_argument("--semente", type=int, default=SEMENTE, help=f"padrão: {SEMENTE}")
+    analisador.add_argument("--semente", type=int, default=SEMENTE, help=f"semente principal (padrão: {SEMENTE})")
+    analisador.add_argument(
+        "--repeticoes", type=int, nargs="*", default=None, metavar="SEMENTE",
+        help=(
+            "sementes com que a grade é repetida (padrão: "
+            f"{' '.join(map(str, REPETICOES))}; sem valores, não repete)"
+        ),
+    )
     analisador.add_argument("--arvores", type=_positivo, default=ARVORES, help=f"padrão: {ARVORES}")
     analisador.add_argument(
-        "--modelos", default=None, help="pasta onde guardar os modelos treinados (padrão: não guardar)"
+        "--modelos", default=None,
+        help="pasta onde guardar os modelos treinados com a semente principal (padrão: não guardar)",
     )
     analisador.add_argument(
         "--refazer-relatorio", action="store_true",
@@ -1346,6 +1629,12 @@ def main(argv=None):
         if argumentos.refazer_relatorio:
             manifesto = json.loads((saida / MANIFESTO).read_text(encoding="utf-8"))
         else:
+            sementes_das_repeticoes = (
+                [semente for semente in REPETICOES if semente != argumentos.semente]
+                if argumentos.repeticoes is None else argumentos.repeticoes
+            )
+            if len({argumentos.semente, *sementes_das_repeticoes}) != len(sementes_das_repeticoes) + 1:
+                raise ValueError("as sementes das repetições precisam ser diferentes entre si e da semente principal")
             quadro, sha256 = carregar(argumentos.amostra)
             da_amostra = json.loads(Path(argumentos.manifesto_da_amostra).read_text(encoding="utf-8"))
             if sha256 != da_amostra["saida"]["sha256_do_csv_descomprimido"]:
@@ -1357,9 +1646,19 @@ def main(argv=None):
                 quadro, populacao, semente=argumentos.semente, arvores=argumentos.arvores,
                 pasta_dos_modelos=argumentos.modelos, sha256=sha256, ao_terminar=_relatar,
             )
+            repeticoes = []
+            for semente in sementes_das_repeticoes:
+                # Os modelos das repetições não são guardados: só servem para medir a variação entre sementes.
+                repetido = rodar(
+                    quadro, populacao, execucoes=(*GRADE, *GRADE_NATURAL), semente=semente,
+                    arvores=argumentos.arvores, sha256=sha256, ao_terminar=_relatar,
+                )
+                repeticoes.append(
+                    {"semente": semente, "divisoes": repetido["divisoes"], "execucoes": repetido["execucoes"]}
+                )
             manifesto = montar_manifesto(
                 registro, populacao, argumentos.amostra, argumentos.manifesto_da_amostra, sha256,
-                argumentos.semente, argumentos.arvores,
+                argumentos.semente, argumentos.arvores, repeticoes,
             )
         gravar(manifesto, saida)
     except (OSError, ValueError, KeyError) as erro:
