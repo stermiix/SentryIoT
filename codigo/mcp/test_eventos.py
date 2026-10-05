@@ -165,6 +165,24 @@ def test_linha_invalida_no_arquivo_da_erro_com_o_numero_da_linha(registro, linha
         registro.gravar(novo("janelas_classificadas", LOTE))
 
 
+def test_erro_de_linha_fora_do_contrato_diz_o_campo_e_nao_repete_o_conteudo_da_linha(registro):
+    registro.gravar(novo("janelas_classificadas", LOTE))
+    invalida = {
+        "id": "ev-000002", "instante": "2026-10-20T14:03:41Z", "tipo": "llm_chamada", "incidente": None,
+        "dados": CHAMADA | {"modelo": "segredo-do-log", "tokens_entrada": -5, "tokens_saida": "muitos", "duracao_ms": -1},
+    }
+    with open(registro.caminho, "a", encoding="utf-8") as arquivo:
+        arquivo.write(json.dumps(invalida) + "\n")
+    with pytest.raises(LogInvalido) as captura:
+        registro.ler()
+    mensagem = str(captura.value)
+    assert f"{registro.caminho}, linha 2: evento fora do contrato" in mensagem
+    assert "dados.tokens_entrada" in mensagem and "dados.tokens_saida" in mensagem and "dados.duracao_ms" in mensagem
+    # Uma linha só, curta, sem o valor que estava no log e sem o endereço da documentação do pydantic.
+    assert mensagem.isprintable() and len(mensagem) < 600
+    assert "segredo-do-log" not in mensagem and "muitos" not in mensagem and "pydantic" not in mensagem
+
+
 def test_leitura_guarda_o_arquivo_e_a_linha_de_cada_evento(registro):
     registro.gravar(novo("janelas_classificadas", LOTE), novo("llm_chamada", CHAMADA, "inc-0001"))
     with open(registro.caminho, "a", encoding="utf-8") as arquivo:

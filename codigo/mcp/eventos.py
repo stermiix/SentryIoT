@@ -89,10 +89,25 @@ def _ler_linhas(arquivo, caminho):
         try:
             eventos.append(validar_evento(json.loads(linha)))
         except ValueError as erro:
-            # O detalhe do erro pode repetir um pedaço da linha: vai escapado, como tudo o que sai do log.
-            raise LogInvalido(visivel(f"{caminho}, linha {numero}: evento fora do contrato ({erro})")) from None
+            detalhe = _resumo_do_erro(erro)
+            raise LogInvalido(f"{caminho}, linha {numero}: evento fora do contrato ({detalhe})") from None
         eventos.linhas.append(numero)
     return eventos
+
+
+def _resumo_do_erro(erro, maximo=3):
+    """O que está errado na linha, em uma linha: os campos e o defeito de cada um, sem o valor lido.
+
+    A mensagem vai para o terminal de quem opera o sistema. O que estava no log, que é entrada,
+    não é repetido nela, e o que sobrar de fora sai escapado.
+    """
+    if not isinstance(erro, ValidationError):
+        return visivel(erro)[:300]
+    defeitos = erro.errors(include_url=False, include_input=False, include_context=False)
+    partes = [f"{'.'.join(str(parte) for parte in defeito['loc'])}: {defeito['type']}" for defeito in defeitos[:maximo]]
+    if len(defeitos) > maximo:
+        partes.append(f"e mais {len(defeitos) - maximo}")
+    return visivel("; ".join(partes))[:300]
 
 
 def ler(caminho):
