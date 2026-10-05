@@ -14,6 +14,7 @@ from codigo.classificador.avaliar import (
     matriz_de_confusao,
     medir,
     pesos,
+    tempo_por_janela,
     tempo_por_mil,
     teto,
 )
@@ -350,6 +351,31 @@ def test_tempo_por_mil_mede_um_lote_de_mil_janelas():
     assert chamadas == [72, 72]
 
 
+def test_tempo_por_janela_classifica_uma_janela_por_chamada():
+    modelo, X, _ = modelo_do_caso()
+    chamadas = []
+
+    def predicao(lote):
+        chamadas.append(lote.copy())
+        return prever(modelo, lote)
+
+    assert tempo_por_janela(predicao, X, repeticoes=7) > 0
+    # Uma linha por chamada, como na operação, e uma linha diferente a cada repetição.
+    assert [lote.shape for lote in chamadas] == [(1, 39)] * 7
+    assert all(np.array_equal(lote[0], X[i]) for i, lote in enumerate(chamadas))
+    # Com menos linhas do que repetições, volta à primeira.
+    chamadas.clear()
+    assert tempo_por_janela(predicao, X[:3], repeticoes=5) > 0
+    assert [lote[0].tolist() for lote in chamadas] == [X[i].tolist() for i in (0, 1, 2, 0, 1)]
+
+
+def test_tempo_por_janela_e_a_mediana_das_chamadas(monkeypatch):
+    relogio = iter([0.0, 0.001, 10.0, 10.003, 20.0, 20.5])
+    monkeypatch.setattr("codigo.classificador.avaliar.time.perf_counter", lambda: next(relogio))
+    # Chamadas de 1 ms, 3 ms e 500 ms: a mediana não segue a chamada lenta.
+    assert tempo_por_janela(lambda lote: None, np.zeros((3, 39), dtype=np.float32), repeticoes=3) == pytest.approx(3.0)
+
+
 def preparar_arquivos(tmp_path, nome_do_alvo="8", divisao="grupos"):
     """Amostra, manifesto e modelo de mentira, como os comandos do projeto os gravam."""
     quadro = quadro_sintetico(por_classe=40)
@@ -391,7 +417,9 @@ def test_main_avalia_na_parte_de_teste_da_divisao_registrada_no_modelo(tmp_path,
     assert "original" in resultado and "teto" in resultado["amostra"]
     assert resultado["modelo"]["bytes"] == (tmp_path / "rf.joblib").stat().st_size
     assert set(resultado["importancias"]) == set(FEATURES_39)
+    assert resultado["inferencia_ms_por_mil_janelas"] > 0 and resultado["inferencia_ms_por_janela_avulsa"] > 0
     saida = capsys.readouterr().out
+    assert "ms por 1.000 janelas em um lote" in saida and "ms por janela classificada sozinha" in saida
     assert "parte de teste da amostra" in saida and "Benign" in saida
     assert "Reponderada para a distribuição do conjunto completo" in saida
     # O teto impresso é o das linhas avaliadas, e não o do conjunto completo.

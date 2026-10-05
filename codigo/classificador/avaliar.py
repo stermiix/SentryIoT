@@ -4,6 +4,10 @@ Mede as predições contra o rótulo conhecido de cada linha: acurácia, macro-F
 precisão, recall e F1 por classe, matriz de confusão, taxa de falso positivo, importância das
 features, tempo de inferência e tamanho do modelo.
 
+Tempo de inferência. Sai de duas formas: por 1.000 janelas classificadas num lote só, e por
+janela classificada sozinha, que é o caso da operação, em que cada janela é classificada assim
+que o extrator a produz. As duas mudam de uma execução para outra na mesma máquina.
+
 Duas distribuições. A amostra de treino tem teto de linhas por classe, então a proporção entre
 as classes não é a do dataset. Cada medida sai de duas formas: `amostra`, na distribuição do
 conjunto avaliado, e `original`, reponderada para que cada um dos 34 rótulos pese o que pesa no
@@ -53,6 +57,7 @@ from codigo.classificador.preparar import (
 from codigo.classificador.treinar import carregar_modelo, prever
 
 LOTE = 1000  # janelas por lote na medida do tempo de inferência
+JANELAS_AVULSAS = 25  # janelas classificadas uma a uma na medida do tempo por janela
 
 
 def contar(rotulos, previsto, classes):
@@ -223,6 +228,20 @@ def tempo_por_mil(predicao, X, repeticoes=5):
     return 1000 * statistics.median(tempos) * LOTE / len(lote)
 
 
+def tempo_por_janela(predicao, X, repeticoes=JANELAS_AVULSAS):
+    """Milissegundos que `predicao` leva para classificar uma janela sozinha: a mediana das repetições.
+
+    Cada repetição classifica uma linha diferente de `X`, num lote de uma linha.
+    """
+    tempos = []
+    for i in range(repeticoes):
+        janela = X[i % len(X)][np.newaxis, :]
+        inicio = time.perf_counter()
+        predicao(janela)
+        tempos.append(time.perf_counter() - inicio)
+    return 1000 * statistics.median(tempos)
+
+
 def populacao_do_manifesto(caminho):
     """Linhas de cada rótulo no conjunto completo, como o manifesto da amostra registra."""
     manifesto = json.loads(Path(caminho).read_text(encoding="utf-8"))
@@ -318,6 +337,7 @@ def main(argv=None):
         }
         resultado["importancias"] = importancias(modelo, features)
         resultado["inferencia_ms_por_mil_janelas"] = tempo_por_mil(lambda lote: prever(modelo, lote), X)
+        resultado["inferencia_ms_por_janela_avulsa"] = tempo_por_janela(lambda lote: prever(modelo, lote), X)
         if argumentos.saida is not None:
             destino = Path(argumentos.saida)
             destino.parent.mkdir(parents=True, exist_ok=True)
@@ -333,8 +353,10 @@ def main(argv=None):
         f"{len(features)} features, {len(ALVOS[nome_do_alvo].classes)} classes"
     )
     print(_relatar(resultado, origem))
-    tempo = _decimal(resultado["inferencia_ms_por_mil_janelas"])
-    print(f"\ninferência: {tempo} ms por 1.000 janelas, com um núcleo")
+    print(
+        f"\ninferência, com um núcleo: {_decimal(resultado['inferencia_ms_por_mil_janelas'])} ms por 1.000 janelas "
+        f"em um lote e {_decimal(resultado['inferencia_ms_por_janela_avulsa'])} ms por janela classificada sozinha"
+    )
     if argumentos.saida is not None:
         print(f"avaliação completa em {argumentos.saida}", file=sys.stderr)
     return 0
