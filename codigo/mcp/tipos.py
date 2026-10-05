@@ -10,6 +10,7 @@ deste módulo e versionado, e um teste falha se os dois divergirem.
 Uso, a partir da raiz do repositório, para gerar o `contrato.json` de novo:
     python -m codigo.mcp.tipos
 """
+import ipaddress
 import json
 import sys
 from functools import reduce
@@ -18,12 +19,14 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, NamedTuple
 
 from pydantic import (
+    AfterValidator,
     AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
     RootModel,
     StringConstraints,
+    WithJsonSchema,
     create_model,
 )
 from pydantic.json_schema import GenerateJsonSchema, models_json_schema
@@ -38,6 +41,22 @@ VERSAO = "0.1.0"
 LIMITE_DE_JANELAS = 20
 ARQUIVO_DO_CONTRATO = Path(__file__).with_name("contrato.json")
 AGENTES = ("triagem", "decisao", "execucao")
+# Tamanhos máximos. O que um agente escreve chega a uma pessoa, na tela de aprovação, e ao log:
+# nenhum texto entra sem limite.
+TEXTO_CURTO = 200
+TEXTO_LONGO = 2_000
+MAXIMO_DE_PASSOS = 20
+MAIOR_NOME_DE_ACAO = 60
+MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO = 20
+# Caracteres que nenhum texto do contrato aceita: os de controle (C0, DEL e C1, que inclui U+0085),
+# os separadores de linha e de parágrafo do Unicode (U+2028 e U+2029) e os que invertem a direção
+# do texto (U+202A a U+202E e U+2066 a U+2069). Com eles, o que a pessoa lê no terminal pode não
+# ser o que está gravado: uma sequência de escape apaga e reescreve a tela.
+_ALEM_DO_ASCII = r"\x7f-\x9f\u2028-\u202e\u2066-\u2069"
+_UMA_LINHA = rf"^[^\x00-\x1f{_ALEM_DO_ASCII}]*$"
+# Texto em parágrafos: aceita a quebra de linha (U+000A) e mais nenhum caractere de controle.
+_PARAGRAFOS = rf"^[^\x00-\x09\x0b-\x1f{_ALEM_DO_ASCII}]*$"
+_NOME_DE_ACAO = rf"^[a-z][a-z0-9_]{{0,{MAIOR_NOME_DE_ACAO - 1}}}$"
 
 Categoria = Literal[CATEGORIAS]
 Agente = Literal[AGENTES]
@@ -53,7 +72,45 @@ MotivoDeRecusa = Literal[
     "acao_nao_aplicada",
     "tool_fora_da_linha",
 ]
-Texto = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+def _texto(maximo, padrao=_UMA_LINHA, minimo=1):
+    return Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=minimo, max_length=maximo, pattern=padrao)
+    ]
+
+
+def endereco_canonico(texto):
+    """Endereço IP na forma canônica. Levanta ValueError se o texto não é um endereço.
+
+    Zona de IPv6 (`fe80::1%eth0`) é recusada: o que vem depois de `%` é texto livre. Endereço IPv4
+    escrito como IPv6 (`::ffff:192.168.137.1`) vira o IPv4, para que as regras que comparam
+    endereços enxerguem o mesmo dispositivo.
+    """
+    if "%" in texto:
+        raise ValueError("endereço IP com zona não é aceito")
+    endereco = ipaddress.ip_address(texto)
+    if endereco.version == 6 and endereco.ipv4_mapped is not None:
+        endereco = endereco.ipv4_mapped
+    return str(endereco)
+
+
+# Texto curto, de uma linha: identificadores, alvos, nomes e títulos.
+Texto = _texto(TEXTO_CURTO)
+# Texto longo, de uma linha: justificativa, descrição, cada passo, efeito esperado e como desfazer.
+TextoLongo = _texto(TEXTO_LONGO)
+# Texto em parágrafos: a recomendação do agente de decisão e os trechos da base de conhecimento.
+Paragrafos = _texto(TEXTO_LONGO, _PARAGRAFOS)
+Consulta = _texto(TEXTO_LONGO, _PARAGRAFOS, minimo=0)
+NomeDeAcao = Annotated[str, StringConstraints(max_length=MAIOR_NOME_DE_ACAO, pattern=_NOME_DE_ACAO)]
+NomeDeFeature = Literal[COLUNAS]
+# O maior endereço escrito por extenso é um IPv6 com um IPv4 no fim, de 45 caracteres.
+EnderecoIP = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, max_length=45),
+    AfterValidator(endereco_canonico),
+    WithJsonSchema({"type": "string", "anyOf": [{"format": "ipv4"}, {"format": "ipv6"}]}),
+]
 Proporcao = Annotated[float, Field(ge=0, le=1)]
 Contagem = Annotated[int, Field(ge=0)]
 
@@ -68,12 +125,12 @@ class Modelo(BaseModel):
 
 
 class EnderecoContado(Modelo):
-    endereco: Texto = Field(description="Endereço IP")
+    endereco: EnderecoIP = Field(description="Endereço IP, sem zona")
     quadros: Contagem = Field(description="Quadros desse endereço no incidente")
 
 
 class FeaturePrincipal(Modelo):
-    nome: Texto = Field(description="Nome da feature, como nas 39 colunas do extrator")
+    nome: NomeDeFeature = Field(description="Nome da feature: uma das 39 colunas do extrator")
     valor: float = Field(description="Valor típico da feature nas janelas do incidente")
     referencia_benigno: float = Field(description="Valor típico da mesma feature no tráfego benigno")
 
@@ -114,8 +171,8 @@ class Janela(Modelo):
     instante: AwareDatetime
     categoria_do_modelo: Categoria
     confianca: Proporcao
-    origem: Texto = Field(description="Endereço de origem mais frequente na janela")
-    destino: Texto = Field(description="Endereço de destino mais frequente na janela")
+    origem: EnderecoIP = Field(description="Endereço de origem mais frequente na janela")
+    destino: EnderecoIP = Field(description="Endereço de destino mais frequente na janela")
     features: Features
 
 
@@ -132,22 +189,24 @@ class FatiaDeJanelas(Modelo):
 
 class ParametroDeAcao(Modelo):
     nome: Texto
-    descricao: Texto
+    descricao: TextoLongo
     obrigatorio: bool
 
 
 class AcaoDoCatalogo(Modelo):
     """Uma ação que o agente pode propor: da base ou promovida depois de aprovada e aplicada."""
 
-    nome: Texto
-    descricao: Texto
-    alvo: Texto = Field(description="O que o campo alvo da proposta deve trazer")
+    nome: NomeDeAcao
+    descricao: TextoLongo
+    alvo: TextoLongo = Field(description="O que o campo alvo da proposta deve trazer")
     parametros: list[ParametroDeAcao]
-    regra: Texto = Field(description="Nível de risco da ação e quando ela exige aprovação humana")
+    regra: TextoLongo = Field(description="Nível de risco da ação e quando ela exige aprovação humana")
     origem: Literal["base", "promovida"]
-    passos: list[Texto] = Field(description="Passos aplicados. Vazio nas ações da base")
-    efeito_esperado: Texto | None
-    como_desfazer: Texto
+    passos: list[TextoLongo] = Field(
+        max_length=MAXIMO_DE_PASSOS, description="Passos aplicados. Vazio nas ações da base"
+    )
+    efeito_esperado: TextoLongo | None
+    como_desfazer: TextoLongo
     fonte: Texto | None
 
 
@@ -156,8 +215,8 @@ class Trecho(Modelo):
 
     origem: Texto = Field(description="Arquivo da base local de onde o trecho saiu")
     titulo: Texto
-    texto: Texto
-    acao: Texto | None = Field(description="Ação do catálogo que aplica a medida, quando existe")
+    texto: Paragrafos
+    acao: NomeDeAcao | None = Field(description="Ação do catálogo que aplica a medida, quando existe")
 
 
 class Mitigacoes(Modelo):
@@ -167,7 +226,7 @@ class Mitigacoes(Modelo):
 
 
 class Solucoes(Modelo):
-    consulta: str
+    consulta: Consulta
     fonte: Literal["base_local"] = Field(description="A busca na internet fica desligada neste trabalho")
     trechos: list[Trecho] = Field(description="Trechos mais próximos da consulta, do melhor para o pior")
 
@@ -176,22 +235,27 @@ class Solucoes(Modelo):
 
 
 class ParametrosDeAcaoNova(Modelo):
-    """O que `parametros` precisa trazer quando a ação proposta não está no catálogo."""
+    """O que `parametros` precisa trazer quando a ação proposta não está no catálogo.
 
-    descricao: Texto
-    passos: list[Texto] = Field(min_length=1, description="Passos que seriam aplicados, em ordem")
-    efeito_esperado: Texto
-    como_desfazer: Texto
+    Cada texto tem uma linha só. É o que a pessoa lê, inteiro, antes de aprovar.
+    """
+
+    descricao: TextoLongo
+    passos: list[TextoLongo] = Field(
+        min_length=1, max_length=MAXIMO_DE_PASSOS, description="Passos que seriam aplicados, em ordem"
+    )
+    efeito_esperado: TextoLongo
+    como_desfazer: TextoLongo
     fonte: Texto | None = Field(None, description="De onde a solução veio, quando houver")
 
 
 class Proposta(Modelo):
     id: Texto = Field(description="Identificador da proposta, como prop-0001")
     incidente: Texto
-    acao: Texto
+    acao: NomeDeAcao
     alvo: Texto
     parametros: dict[str, Any]
-    justificativa: Texto
+    justificativa: TextoLongo
     nova: bool = Field(description="Verdadeiro quando a ação não está no catálogo")
     risco: Risco
     exige_aprovacao: bool
@@ -204,7 +268,7 @@ class Execucao(Modelo):
     id: Texto = Field(description="Identificador da execução, como exec-0001")
     proposta: Texto
     incidente: Texto
-    acao: Texto
+    acao: NomeDeAcao
     alvo: Texto
     parametros: dict[str, Any]
     estado: Literal["aplicada", "desfeita"]
@@ -216,7 +280,7 @@ class Efeito(Modelo):
     execucao: Texto
     incidente: Texto
     resultado: ResultadoDoEfeito
-    observacao: Texto
+    observacao: TextoLongo
 
 
 class Ambiente(Modelo):
@@ -248,21 +312,37 @@ class EntradaConsultarMitigacoes(Modelo):
 
 
 class EntradaPesquisarSolucoes(Modelo):
-    consulta: str = Field(description="Palavras que descrevem o problema ou a medida procurada")
+    consulta: str = Field(
+        description=f"Palavras que descrevem o problema ou a medida procurada, em até {TEXTO_LONGO} caracteres"
+    )
 
 
 class EntradaProporAcao(Modelo):
+    """Os limites de texto valem aqui, mas quem os confere é o servidor, para que a recusa fique no log."""
+
     id: str = Field(description="Identificador do incidente, como inc-0001")
-    acao: str = Field(description="Nome de uma ação do catálogo ou nome de uma ação nova, em letras minúsculas")
-    alvo: str = Field(description="Sobre o que a ação age. O formato depende da ação")
+    acao: str = Field(
+        description=(
+            "Nome de uma ação do catálogo ou nome de uma ação nova: letras minúsculas sem acento, números e "
+            f"sublinhado, até {MAIOR_NOME_DE_ACAO} caracteres"
+        )
+    )
+    alvo: str = Field(
+        description=f"Sobre o que a ação age, em até {TEXTO_CURTO} caracteres. O formato depende da ação"
+    )
     parametros: dict[str, Any] = Field(
         default_factory=dict,
         description=(
-            "Parâmetros da ação. Ação nova, fora do catálogo, traz aqui descricao, passos, "
-            "efeito_esperado, como_desfazer e, quando houver, fonte"
+            "Parâmetros da ação. Ação nova, fora do catálogo, traz aqui descricao, passos (até "
+            f"{MAXIMO_DE_PASSOS}), efeito_esperado, como_desfazer e, quando houver, fonte. Ação promovida ao "
+            "catálogo não aceita parâmetros"
         ),
     )
-    justificativa: str = Field(description="Por que a ação é indicada para este incidente")
+    justificativa: str = Field(
+        description=(
+            f"Por que a ação é indicada para este incidente. Texto de uma linha, com até {TEXTO_LONGO} caracteres"
+        )
+    )
 
 
 class EntradaVerificarEfeito(Modelo):
@@ -380,8 +460,10 @@ class ChamadaDeTool(Modelo):
 
 class Recomendacao(Modelo):
     agente: Agente
-    texto: Texto
-    propostas: list[Texto] = Field(description="Propostas de ação ligadas à recomendação")
+    texto: Paragrafos
+    propostas: list[Texto] = Field(
+        max_length=MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO, description="Propostas de ação ligadas à recomendação"
+    )
 
 
 class Decisao(Modelo):
@@ -389,7 +471,7 @@ class Decisao(Modelo):
 
     proposta: Texto
     canal: Literal["terminal", "interface"]
-    motivo: Texto | None
+    motivo: TextoLongo | None
 
 
 class Promocao(Modelo):
@@ -402,7 +484,7 @@ class Recusa(Modelo):
     tool: Texto
     argumentos: dict[str, Any]
     motivo: MotivoDeRecusa
-    mensagem: Texto
+    mensagem: TextoLongo
 
 
 # Tipos de evento e o que cada um traz em `dados`, na ordem da tabela da especificação.

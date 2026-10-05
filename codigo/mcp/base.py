@@ -30,9 +30,11 @@ import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from codigo.classificador.mapeamento import CATEGORIAS
 from codigo.mcp.acoes import BASE
-from codigo.mcp.tipos import Trecho
+from codigo.mcp.tipos import TEXTO_CURTO, TEXTO_LONGO, Trecho
 
 PASTA_PADRAO = Path(__file__).with_name("base_provisoria")
 LIMITE_DE_TRECHOS = 3
@@ -115,7 +117,17 @@ def _ler_documento(arquivo):
         texto = "\n\n".join(" ".join(linhas) for linhas in secao["paragrafos"] if linhas)
         if not secao["titulo"] or not texto:
             raise invalido(f"a seção {secao['titulo']!r} está sem título ou sem texto")
-        resultado.append(Secao(arquivo.name, documento, secao["titulo"], texto, categorias, secao["acao"]))
+        lida = Secao(arquivo.name, documento, secao["titulo"], texto, categorias, secao["acao"])
+        # Cada seção vira um trecho do contrato. Conferir aqui faz o erro aparecer na partida, e
+        # não na primeira consulta de um agente.
+        try:
+            lida.trecho()
+        except ValidationError:
+            raise invalido(
+                f"a seção {secao['titulo'][:60]!r} não cabe no contrato: o título tem até {TEXTO_CURTO} "
+                f"caracteres, o texto tem até {TEXTO_LONGO}, e nenhum dos dois aceita caractere de controle"
+            ) from None
+        resultado.append(lida)
     return resultado
 
 

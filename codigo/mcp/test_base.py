@@ -81,6 +81,19 @@ def test_documento_fora_do_formato_da_erro_com_o_nome_do_arquivo(tmp_path, conte
         carregar(tmp_path)
 
 
+@pytest.mark.parametrize("conteudo,trecho_do_erro", [
+    ("# Título\n\n## Seção\n\n" + "Texto comprido. " * 130 + "\n", "Seção"),
+    ("# Título\n\n## Seção\n\nTexto com sequência de terminal \x1b[2J no meio.\n", "Seção"),
+    ("# Título\n\n## " + "Título comprido " * 14 + "\n\nTexto.\n", "Título comprido"),
+], ids=["texto de mais de 2.000 caracteres", "caractere de controle", "título de mais de 200 caracteres"])
+def test_secao_fora_dos_limites_de_texto_do_contrato_da_erro_na_leitura(tmp_path, conteudo, trecho_do_erro):
+    # O erro aparece quando a base é lida, na partida, e não na primeira consulta de um agente.
+    (tmp_path / "ruim.md").write_text(conteudo, encoding="utf-8")
+    with pytest.raises(ValueError, match=rf"ruim\.md.*{trecho_do_erro}") as captura:
+        carregar(tmp_path)
+    assert len(str(captura.value)) < 400
+
+
 def test_pasta_que_nao_existe_da_erro(tmp_path):
     with pytest.raises(ValueError, match="pasta da base"):
         carregar(tmp_path / "nao_existe")

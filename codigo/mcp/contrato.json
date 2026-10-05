@@ -124,16 +124,21 @@
       "description": "Uma ação que o agente pode propor: da base ou promovida depois de aprovada e aplicada.",
       "properties": {
         "nome": {
-          "minLength": 1,
+          "maxLength": 60,
+          "pattern": "^[a-z][a-z0-9_]{0,59}$",
           "type": "string"
         },
         "descricao": {
+          "maxLength": 2000,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "alvo": {
           "description": "O que o campo alvo da proposta deve trazer",
+          "maxLength": 2000,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "parametros": {
@@ -144,7 +149,9 @@
         },
         "regra": {
           "description": "Nível de risco da ação e quando ela exige aprovação humana",
+          "maxLength": 2000,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "origem": {
@@ -157,15 +164,20 @@
         "passos": {
           "description": "Passos aplicados. Vazio nas ações da base",
           "items": {
+            "maxLength": 2000,
             "minLength": 1,
+            "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
             "type": "string"
           },
+          "maxItems": 20,
           "type": "array"
         },
         "efeito_esperado": {
           "anyOf": [
             {
+              "maxLength": 2000,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -174,13 +186,17 @@
           ]
         },
         "como_desfazer": {
+          "maxLength": 2000,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "fonte": {
           "anyOf": [
             {
+              "maxLength": 200,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -262,7 +278,9 @@
           "type": "string"
         },
         "modelo": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "tokens_entrada": {
@@ -309,7 +327,9 @@
         },
         "nome": {
           "description": "Nome da tool",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "argumentos": {
@@ -341,7 +361,9 @@
       "description": "Aprovação ou rejeição de uma proposta. Só uma pessoa decide, nunca um agente.",
       "properties": {
         "proposta": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "canal": {
@@ -354,7 +376,9 @@
         "motivo": {
           "anyOf": [
             {
+              "maxLength": 2000,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -375,11 +399,15 @@
       "additionalProperties": false,
       "properties": {
         "execucao": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "incidente": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "resultado": {
@@ -391,7 +419,9 @@
           "type": "string"
         },
         "observacao": {
+          "maxLength": 2000,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         }
       },
@@ -408,8 +438,15 @@
       "additionalProperties": false,
       "properties": {
         "endereco": {
-          "description": "Endereço IP",
-          "minLength": 1,
+          "anyOf": [
+            {
+              "format": "ipv4"
+            },
+            {
+              "format": "ipv6"
+            }
+          ],
+          "description": "Endereço IP, sem zona",
           "type": "string"
         },
         "quadros": {
@@ -521,7 +558,7 @@
       "additionalProperties": false,
       "properties": {
         "consulta": {
-          "description": "Palavras que descrevem o problema ou a medida procurada",
+          "description": "Palavras que descrevem o problema ou a medida procurada, em até 2000 caracteres",
           "type": "string"
         }
       },
@@ -533,26 +570,27 @@
     },
     "EntradaProporAcao": {
       "additionalProperties": false,
+      "description": "Os limites de texto valem aqui, mas quem os confere é o servidor, para que a recusa fique no log.",
       "properties": {
         "id": {
           "description": "Identificador do incidente, como inc-0001",
           "type": "string"
         },
         "acao": {
-          "description": "Nome de uma ação do catálogo ou nome de uma ação nova, em letras minúsculas",
+          "description": "Nome de uma ação do catálogo ou nome de uma ação nova: letras minúsculas sem acento, números e sublinhado, até 60 caracteres",
           "type": "string"
         },
         "alvo": {
-          "description": "Sobre o que a ação age. O formato depende da ação",
+          "description": "Sobre o que a ação age, em até 200 caracteres. O formato depende da ação",
           "type": "string"
         },
         "parametros": {
           "additionalProperties": true,
-          "description": "Parâmetros da ação. Ação nova, fora do catálogo, traz aqui descricao, passos, efeito_esperado, como_desfazer e, quando houver, fonte",
+          "description": "Parâmetros da ação. Ação nova, fora do catálogo, traz aqui descricao, passos (até 20), efeito_esperado, como_desfazer e, quando houver, fonte. Ação promovida ao catálogo não aceita parâmetros",
           "type": "object"
         },
         "justificativa": {
-          "description": "Por que a ação é indicada para este incidente",
+          "description": "Por que a ação é indicada para este incidente. Texto de uma linha, com até 2000 caracteres",
           "type": "string"
         }
       },
@@ -643,7 +681,9 @@
       "properties": {
         "id": {
           "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "instante": {
@@ -657,7 +697,9 @@
         "incidente": {
           "anyOf": [
             {
+              "maxLength": 200,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -685,7 +727,9 @@
       "properties": {
         "id": {
           "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "instante": {
@@ -702,7 +746,9 @@
         "incidente": {
           "anyOf": [
             {
+              "maxLength": 200,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -730,7 +776,9 @@
       "properties": {
         "id": {
           "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "instante": {
@@ -744,7 +792,9 @@
         "incidente": {
           "anyOf": [
             {
+              "maxLength": 200,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -772,7 +822,9 @@
       "properties": {
         "id": {
           "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "instante": {
@@ -789,7 +841,9 @@
         "incidente": {
           "anyOf": [
             {
+              "maxLength": 200,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -817,7 +871,9 @@
       "properties": {
         "id": {
           "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "instante": {
@@ -835,7 +891,9 @@
         "incidente": {
           "anyOf": [
             {
+              "maxLength": 200,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -863,7 +921,9 @@
       "properties": {
         "id": {
           "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "instante": {
@@ -877,7 +937,9 @@
         "incidente": {
           "anyOf": [
             {
+              "maxLength": 200,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -905,7 +967,9 @@
       "properties": {
         "id": {
           "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "instante": {
@@ -919,7 +983,9 @@
         "incidente": {
           "anyOf": [
             {
+              "maxLength": 200,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -947,7 +1013,9 @@
       "properties": {
         "id": {
           "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "instante": {
@@ -961,7 +1029,9 @@
         "incidente": {
           "anyOf": [
             {
+              "maxLength": 200,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -989,7 +1059,9 @@
       "properties": {
         "id": {
           "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "instante": {
@@ -1003,7 +1075,9 @@
         "incidente": {
           "anyOf": [
             {
+              "maxLength": 200,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -1031,7 +1105,9 @@
       "properties": {
         "id": {
           "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "instante": {
@@ -1045,7 +1121,9 @@
         "incidente": {
           "anyOf": [
             {
+              "maxLength": 200,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -1073,7 +1151,9 @@
       "properties": {
         "id": {
           "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "instante": {
@@ -1087,7 +1167,9 @@
         "incidente": {
           "anyOf": [
             {
+              "maxLength": 200,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -1116,23 +1198,32 @@
       "properties": {
         "id": {
           "description": "Identificador da execução, como exec-0001",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "proposta": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "incidente": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "acao": {
-          "minLength": 1,
+          "maxLength": 60,
+          "pattern": "^[a-z][a-z0-9_]{0,59}$",
           "type": "string"
         },
         "alvo": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "parametros": {
@@ -1180,7 +1271,9 @@
       "additionalProperties": false,
       "properties": {
         "incidente": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "total": {
@@ -1209,8 +1302,48 @@
       "additionalProperties": false,
       "properties": {
         "nome": {
-          "description": "Nome da feature, como nas 39 colunas do extrator",
-          "minLength": 1,
+          "description": "Nome da feature: uma das 39 colunas do extrator",
+          "enum": [
+            "Header_Length",
+            "Protocol Type",
+            "Time_To_Live",
+            "Rate",
+            "fin_flag_number",
+            "syn_flag_number",
+            "rst_flag_number",
+            "psh_flag_number",
+            "ack_flag_number",
+            "ece_flag_number",
+            "cwr_flag_number",
+            "ack_count",
+            "syn_count",
+            "fin_count",
+            "rst_count",
+            "HTTP",
+            "HTTPS",
+            "DNS",
+            "Telnet",
+            "SMTP",
+            "SSH",
+            "IRC",
+            "TCP",
+            "UDP",
+            "DHCP",
+            "ARP",
+            "ICMP",
+            "IGMP",
+            "IPv",
+            "LLC",
+            "Tot sum",
+            "Min",
+            "Max",
+            "AVG",
+            "Std",
+            "Tot size",
+            "IAT",
+            "Number",
+            "Variance"
+          ],
           "type": "string"
         },
         "valor": {
@@ -1674,7 +1807,9 @@
       "properties": {
         "id": {
           "description": "Identificador do incidente, como inc-0001",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "estado": {
@@ -1811,13 +1946,27 @@
           "type": "number"
         },
         "origem": {
+          "anyOf": [
+            {
+              "format": "ipv4"
+            },
+            {
+              "format": "ipv6"
+            }
+          ],
           "description": "Endereço de origem mais frequente na janela",
-          "minLength": 1,
           "type": "string"
         },
         "destino": {
+          "anyOf": [
+            {
+              "format": "ipv4"
+            },
+            {
+              "format": "ipv6"
+            }
+          ],
           "description": "Endereço de destino mais frequente na janela",
-          "minLength": 1,
           "type": "string"
         },
         "features": {
@@ -1914,11 +2063,15 @@
       "additionalProperties": false,
       "properties": {
         "nome": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "descricao": {
+          "maxLength": 2000,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "obrigatorio": {
@@ -1935,33 +2088,44 @@
     },
     "ParametrosDeAcaoNova": {
       "additionalProperties": false,
-      "description": "O que `parametros` precisa trazer quando a ação proposta não está no catálogo.",
+      "description": "O que `parametros` precisa trazer quando a ação proposta não está no catálogo.\n\nCada texto tem uma linha só. É o que a pessoa lê, inteiro, antes de aprovar.",
       "properties": {
         "descricao": {
+          "maxLength": 2000,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "passos": {
           "description": "Passos que seriam aplicados, em ordem",
           "items": {
+            "maxLength": 2000,
             "minLength": 1,
+            "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
             "type": "string"
           },
+          "maxItems": 20,
           "minItems": 1,
           "type": "array"
         },
         "efeito_esperado": {
+          "maxLength": 2000,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "como_desfazer": {
+          "maxLength": 2000,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "fonte": {
           "anyOf": [
             {
+              "maxLength": 200,
               "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
               "type": "string"
             },
             {
@@ -1985,7 +2149,9 @@
       "additionalProperties": false,
       "properties": {
         "proposta": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "acao": {
@@ -2004,19 +2170,26 @@
       "properties": {
         "id": {
           "description": "Identificador da proposta, como prop-0001",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "incidente": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "acao": {
-          "minLength": 1,
+          "maxLength": 60,
+          "pattern": "^[a-z][a-z0-9_]{0,59}$",
           "type": "string"
         },
         "alvo": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "parametros": {
@@ -2024,7 +2197,9 @@
           "type": "object"
         },
         "justificativa": {
+          "maxLength": 2000,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "nova": {
@@ -2079,15 +2254,20 @@
           "type": "string"
         },
         "texto": {
+          "maxLength": 2000,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x09\\x0b-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "propostas": {
           "description": "Propostas de ação ligadas à recomendação",
           "items": {
+            "maxLength": 200,
             "minLength": 1,
+            "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
             "type": "string"
           },
+          "maxItems": 20,
           "type": "array"
         }
       },
@@ -2118,7 +2298,9 @@
           ]
         },
         "tool": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "argumentos": {
@@ -2139,7 +2321,9 @@
           "type": "string"
         },
         "mensagem": {
+          "maxLength": 2000,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         }
       },
@@ -2157,6 +2341,9 @@
       "additionalProperties": false,
       "properties": {
         "consulta": {
+          "maxLength": 2000,
+          "minLength": 0,
+          "pattern": "^[^\\x00-\\x09\\x0b-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "fonte": {
@@ -2186,21 +2373,28 @@
       "properties": {
         "origem": {
           "description": "Arquivo da base local de onde o trecho saiu",
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "titulo": {
+          "maxLength": 200,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "texto": {
+          "maxLength": 2000,
           "minLength": 1,
+          "pattern": "^[^\\x00-\\x09\\x0b-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
         },
         "acao": {
           "anyOf": [
             {
-              "minLength": 1,
+              "maxLength": 60,
+              "pattern": "^[a-z][a-z0-9_]{0,59}$",
               "type": "string"
             },
             {
