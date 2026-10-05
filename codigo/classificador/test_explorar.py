@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -5,16 +6,19 @@ import pytest
 from codigo.captura.extrator import COLUNAS
 from codigo.classificador.amostrar import CABECALHO
 from codigo.classificador.explorar import (
+    CORTADOS_NA_ORIGEM,
     RELACOES,
+    _cerca_de,
     contar_por_ataque,
     explorar,
     main,
     montar_relatorio,
 )
-from codigo.classificador.mapeamento import ROTULOS
+from codigo.classificador.mapeamento import CATEGORIAS, ROTULOS
 
 DATASET = Path(__file__).resolve().parents[2] / "CICIoT2023"
 MERGED = DATASET / "MERGED_CSV"
+MANIFESTO = Path(__file__).resolve().parents[2] / "experimentos" / "resultados" / "manifesto_amostra.json"
 
 
 def _texto(valor):
@@ -271,29 +275,98 @@ LINHAS_EM_CONFLITO = [
 ]
 
 
-def test_erro_minimo_de_quem_so_ve_as_39_features(tmp_path):
+def erros(**por_categoria):
+    """Erros por categoria, com zero nas que não foram citadas."""
+    return dict.fromkeys(CATEGORIAS, 0) | por_categoria
+
+
+def test_erros_na_regra_de_maior_acerto_global(tmp_path):
     d = explorar_linhas(tmp_path, LINHAS_EM_CONFLITO, linhas_por_bloco=4).duplicatas
-    assert d.erro_minimo_por_categoria == {
-        "DDoS": 1, "DoS": 1, "Mirai": 0, "Recon": 0, "Spoofing": 0, "Web": 0, "BruteForce": 0, "Benign": 0,
-    }
+    assert d.erro_por_categoria == erros(DDoS=1, DoS=1)
     assert d.com_outra_categoria == 5
 
 
-def test_sem_conflito_o_erro_minimo_e_zero(tmp_path):
+def test_sem_conflito_nao_ha_erro_em_nenhuma_regra(tmp_path):
     d = explorar(caso(tmp_path)).duplicatas
-    assert set(d.erro_minimo_por_categoria.values()) == {0}
-    assert list(d.erro_minimo_por_categoria) == ["DDoS", "DoS", "Mirai", "Recon", "Spoofing", "Web", "BruteForce", "Benign"]
+    assert d.erro_por_categoria == erros()
+    assert list(d.erro_por_categoria) == ["DDoS", "DoS", "Mirai", "Recon", "Spoofing", "Web", "BruteForce", "Benign"]
+    assert d.erro_ao_favorecer == {nome: erros() for nome in CATEGORIAS}
 
 
-def test_relatorio_traz_o_erro_minimo_por_categoria(tmp_path):
+def test_erros_na_regra_que_favorece_uma_categoria(tmp_path):
+    d = explorar_linhas(tmp_path, LINHAS_EM_CONFLITO, linhas_por_bloco=4).duplicatas
+    assert list(d.erro_ao_favorecer) == list(CATEGORIAS)
+    # Respondendo DoS em toda combinação com linha de DoS, o empate passa a errar a linha de DDoS.
+    assert d.erro_ao_favorecer["DoS"] == erros(DDoS=2)
+    # Respondendo DDoS, erram as três linhas de DoS: as duas da maioria e a do empate.
+    assert d.erro_ao_favorecer["DDoS"] == erros(DoS=3)
+    # Categoria que não divide combinação com outra: nada muda em relação à regra de maior acerto.
+    assert d.erro_ao_favorecer["Benign"] == d.erro_por_categoria
+
+
+LINHAS_COM_TRES_CATEGORIAS = [
+    # Uma combinação com 3 linhas benignas, 1 de Recon e 1 de Spoofing.
+    *[linha("BENIGN", media=70.0)] * 3,
+    linha("RECON-PORTSCAN", media=70.0),
+    linha("DNS_SPOOFING", media=70.0),
+    # Outra só com Recon e Spoofing, em que Spoofing é a mais frequente.
+    linha("RECON-OSSCAN", media=71.0),
+    *[linha("MITM-ARPSPOOFING", media=71.0)] * 2,
+    linha("XSS"),
+]
+
+
+def test_favorecer_uma_categoria_erra_todas_as_outras_linhas_das_combinacoes_dela(tmp_path):
+    d = explorar_linhas(tmp_path, LINHAS_COM_TRES_CATEGORIAS, linhas_por_bloco=4).duplicatas
+    assert d.erro_por_categoria == erros(Recon=2, Spoofing=1)
+    assert d.erro_ao_favorecer["Recon"] == erros(Spoofing=3, Benign=3)
+    assert d.erro_ao_favorecer["Spoofing"] == erros(Recon=2, Benign=3)
+    assert d.erro_ao_favorecer["Benign"] == erros(Recon=2, Spoofing=1)
+    assert d.erro_ao_favorecer["Web"] == erros(Recon=2, Spoofing=1)
+
+
+def test_relatorio_traz_os_erros_por_categoria_na_regra_de_maior_acerto_global(tmp_path):
     relatorio = montar_relatorio(explorar_linhas(tmp_path, LINHAS_EM_CONFLITO))
+    assert "| Categoria | Linhas | Erros na regra de maior acerto global | Acerto nessa regra |" in relatorio
     assert "| DDoS | 4 | 1 | 75,00% |" in relatorio
     assert "| DoS | 3 | 1 | 66,67% |" in relatorio
     assert "| Benign | 2 | 0 | 100,00% |" in relatorio
     assert "| Total | 9 | 2 | 77,78% |" in relatorio
+    assert "Erro mínimo" not in relatorio and "Acerto máximo" not in relatorio and "erro mínimo" not in relatorio
+
+
+def test_relatorio_diz_que_os_valores_por_categoria_nao_sao_limites(tmp_path):
+    relatorio = montar_relatorio(explorar_linhas(tmp_path, LINHAS_EM_CONFLITO))
+    secao = relatorio.split("## 8. ")[1].split("## 9. ")[0]
+    assert "No empate vale a primeira categoria na ordem da tabela, e por isso DDoS tem preferência sobre DoS." in secao
+    assert "Só a linha Total é um limite superior" in secao
+    assert "Os valores por categoria não são limites" in secao
+    # A categoria de menor acerto na tabela é DoS. Favorecida, ela acerta tudo e DDoS perde o empate.
+    assert (
+        "Na regra que responde DoS em toda combinação que tenha alguma linha de DoS, o acerto de DoS é de "
+        "100,00%, o de DDoS é de 50,00% e o acerto global é de 77,78%."
+    ) in secao
+    outro = montar_relatorio(explorar_linhas(tmp_path, LINHAS_COM_TRES_CATEGORIAS))
+    assert (
+        "Na regra que responde Recon em toda combinação que tenha alguma linha de Recon, o acerto de Recon é de "
+        "100,00%, o de Benign é de 0,00% e o acerto global é de 33,33%."
+    ) in outro
+
+
+def test_relatorio_diz_que_o_limite_global_depende_do_conjunto_avaliado(tmp_path):
+    relatorio = montar_relatorio(explorar_linhas(tmp_path, LINHAS_EM_CONFLITO))
     resumo = relatorio.split("## Resumo\n")[1].split("## 1. ")[0]
     assert "o acerto em 8 categorias não passa de 77,78%" in resumo
-    assert "não passa de" not in montar_relatorio(explorar(caso(tmp_path)))
+    assert "avaliado no conjunto completo, na proporção natural das classes" in resumo
+    assert "não é uma propriedade das 39 features" in resumo
+    assert "um modelo avaliado numa amostra pode passar dele" in resumo
+    secao = relatorio.split("## 8. ")[1].split("## 9. ")[0]
+    assert "vale para a avaliação no conjunto completo, na proporção natural das classes" in secao
+    assert "coincidência exata" in secao
+    assert "Não é uma propriedade das 39 features em si" in secao
+    assert "Um modelo avaliado numa amostra pode passar de 77,78% de forma legítima" in secao
+    sem_conflito = montar_relatorio(explorar(caso(tmp_path)))
+    assert "não passa de" not in sem_conflito and "limite superior" not in sem_conflito
 
 
 def test_valores_negativos_sao_contados(tmp_path):
@@ -315,6 +388,17 @@ def test_linhas_com_o_mesmo_campo_vazio_contam_como_repetidas(tmp_path):
     vazia = linha("DDOS-ICMP_FLOOD", quadros=1, trocas={"Rate": "inf", "Std": None, "Variance": None})
     d = explorar_linhas(tmp_path, [vazia, vazia, linha("XSS")]).duplicatas
     assert (d.distintas, d.repetidas) == (2, 2)
+
+
+@pytest.mark.parametrize("coluna", COLUNAS)
+def test_linhas_que_diferem_em_uma_so_coluna_nao_sao_repetidas(tmp_path, coluna):
+    base = linha("XSS", desvio=3.0)
+    campos = base.split(",")
+    posicao = COLUNAS.index(coluna)
+    campos[posicao] = str(float(campos[posicao]) + 1)
+    d = explorar_linhas(tmp_path, [base, base, ",".join(campos)]).duplicatas
+    # As duas linhas iguais formam uma combinação, e a que muda só nessa coluna forma outra.
+    assert (d.distintas, d.repetidas, d.maior_grupo) == (2, 2, 2)
 
 
 def test_repeticao_e_encontrada_entre_arquivos_e_entre_blocos(tmp_path):
@@ -365,6 +449,30 @@ def test_arquivo_cortado_no_fim_e_registrado(tmp_path):
     assert e.linhas == 17 and e.arquivos[0]["final_incompleto"] is True
     relatorio = montar_relatorio(e)
     assert "termina no meio de uma linha" in relatorio and "| `Merged42.csv` | 17 |" in relatorio
+
+
+def test_corte_so_e_atribuido_a_origem_quando_o_arquivo_e_o_da_fonte_oficial(tmp_path, monkeypatch):
+    arquivo = escrever(tmp_path / "Merged42.csv", LINHAS_DO_CASO)
+    with open(arquivo, "a") as cortado:
+        cortado.write("20.0,6,64.0,960")
+    e = explorar([arquivo])
+    # O nome é o de um arquivo truncado na origem, mas o conteúdo é outro: a origem do corte fica em aberto.
+    relatorio = montar_relatorio(e)
+    assert "na origem ou na cópia local" in relatorio and "O corte está na origem" not in relatorio
+    assert "- 1 arquivo termina no meio de uma linha, sinal de arquivo truncado." in relatorio
+    monkeypatch.setitem(CORTADOS_NA_ORIGEM, "Merged42.csv", e.arquivos[0]["sha256"])
+    relatorio = montar_relatorio(e)
+    assert "O corte está na origem, e não na cópia local" in relatorio
+    assert "baixados de novo da fonte oficial em 04/10/2026" in relatorio and "idênticos byte a byte" in relatorio
+    assert "na origem ou na cópia local" not in relatorio
+    assert "- 1 arquivo termina no meio de uma linha, truncado já na fonte oficial." in relatorio
+
+
+def test_arquivos_cortados_na_origem_sao_os_registrados_no_manifesto_da_amostra():
+    entrada = json.loads(MANIFESTO.read_text(encoding="utf-8"))["entrada"]
+    assert len(CORTADOS_NA_ORIGEM) == 9
+    assert sorted(CORTADOS_NA_ORIGEM) == entrada["arquivos_com_final_incompleto"]
+    assert CORTADOS_NA_ORIGEM == {a["nome"]: a["sha256"] for a in entrada["arquivos"] if a["final_incompleto"]}
 
 
 def test_relatorio_traz_as_contagens_com_percentuais(tmp_path):
@@ -486,8 +594,75 @@ def test_relatorio_compara_com_os_csvs_por_ataque(tmp_path):
     assert "| `DDoS-ICMP_Flood` | 2 | 9 | 7 | 2 | 22,22% |" in relatorio
     assert "| `XSS` | 1 | 2 | 1 | 1 | 50,00% |" in relatorio
     assert "`XSS.pcap.csv`" in relatorio
-    assert "Nas 2 classes cujos CSVs por ataque estão inteiros, a diferença vai de 0,00% a 22,22%" in relatorio
+    assert "a diferença por classe vai de 0,00% a 22,22%" in relatorio
     assert "CSVs por ataque" not in montar_relatorio(e)
+
+
+def test_total_da_comparacao_deixa_de_fora_a_classe_com_csv_por_ataque_cortado(tmp_path):
+    raiz = pastas_por_ataque(tmp_path)
+    e = explorar([raiz / "MERGED_CSV" / "Merged01.csv"])
+    relatorio = montar_relatorio(e, por_ataque=contar_por_ataque(raiz))
+    # XSS tem um CSV por ataque cortado. O total soma DDoS-ICMP_Flood (9 e 7) e BenignTraffic (4 e 4).
+    assert "| Total das classes com CSVs por ataque inteiros | 3 | 13 | 11 | 2 | 15,38% |" in relatorio
+    assert "| Total | 4 | 15 | 12 | 3 | 20,00% |" not in relatorio
+    assert "A linha de total soma só as 2 classes cujos CSVs por ataque estão inteiros" in relatorio
+    assert "o `MERGED_CSV` tem 15,38% menos linhas que os CSVs por ataque" in relatorio
+    # 17 linhas no MERGED_CSV com perda de 2 em 13: faltam 17 × 2 / 11, cerca de 3 linhas.
+    assert "Aplicada a todas as classes, essa proporção corresponde a cerca de 3 linhas a menos no `MERGED_CSV`." in relatorio
+    assert (
+        "`XSS` fica fora do total porque 1 arquivo por ataque termina no meio de uma linha, e a linha "
+        "incompleta não foi contada: `XSS.pcap.csv`. Com a referência incompleta, a diferença dessa classe não "
+        "mede o que falta ao `MERGED_CSV`. Somadas todas as classes, a diferença seria de 3 linhas, ou 20,00%."
+    ) in relatorio
+
+
+def test_estimativa_das_linhas_que_faltam_ao_conjunto_todo(tmp_path):
+    e = explorar(caso(tmp_path))  # 17 linhas, 7 delas de DDoS-ICMP_Flood
+    por_ataque = {
+        "DDoS-ICMP_Flood": {"arquivos": 1, "linhas": 14, "incompletos": []},
+        "XSS": {"arquivos": 1, "linhas": 2, "incompletos": ["XSS.pcap.csv"]},
+    }
+    relatorio = montar_relatorio(e, por_ataque=por_ataque)
+    assert "| Total das classes com CSVs por ataque inteiros | 1 | 14 | 7 | 7 | 50,00% |" in relatorio
+    # Com metade das linhas perdida em todas as classes, o conjunto de 17 linhas teria 34: faltam 17.
+    assert "corresponde a cerca de 17 linhas a menos no `MERGED_CSV`" in relatorio
+
+
+def test_total_da_comparacao_soma_todas_as_classes_quando_nenhum_csv_por_ataque_esta_cortado(tmp_path):
+    raiz = pastas_por_ataque(tmp_path)
+    e = explorar([raiz / "MERGED_CSV" / "Merged01.csv"])
+    por_ataque = contar_por_ataque(raiz)
+    del por_ataque["XSS"]
+    relatorio = montar_relatorio(e, por_ataque=por_ataque)
+    assert "| Total | 3 | 13 | 11 | 2 | 15,38% |" in relatorio
+    assert "fora do total" not in relatorio and "Total das classes" not in relatorio
+    assert "Nas 2 classes, todas com os CSVs por ataque inteiros, o `MERGED_CSV` tem 15,38% menos linhas" in relatorio
+    # Sem classe de fora, o total já é a diferença do conjunto todo, e não há o que estimar.
+    assert "cerca de" not in relatorio
+
+
+def test_comparacao_sem_nenhuma_classe_inteira_nao_tem_total(tmp_path):
+    raiz = pastas_por_ataque(tmp_path)
+    e = explorar([raiz / "MERGED_CSV" / "Merged01.csv"])
+    por_ataque = {"XSS": contar_por_ataque(raiz)["XSS"]}
+    relatorio = montar_relatorio(e, por_ataque=por_ataque)
+    assert "| `XSS` | 1 | 2 | 1 | 1 | 50,00% |" in relatorio
+    assert "| Total" not in relatorio.split("## 10. ")[1]
+    assert "Nenhuma classe tem todos os CSVs por ataque inteiros, e por isso a tabela não tem linha de total." in relatorio
+    assert "1 arquivo por ataque termina no meio de uma linha, e a linha incompleta não foi contada: `XSS.pcap.csv`." in relatorio
+    assert "fora do total" not in relatorio
+
+
+@pytest.mark.parametrize("quantidade,texto", [
+    (2_003_163.4, "2,0 milhões de linhas"),
+    (1_449_999, "1,4 milhão de linhas"),
+    (999_500, "1,0 milhão de linhas"),
+    (310_400, "310 mil linhas"),
+    (3.09, "3 linhas"),
+    (1.2, "1 linha"),
+])
+def test_quantidade_aproximada_por_extenso(quantidade, texto):
+    assert _cerca_de(quantidade, "linha", "linhas") == texto
 
 
 def test_main_grava_o_relatorio(tmp_path, capsys):
@@ -514,6 +689,7 @@ def test_merged52_real():
     e = explorar([MERGED / "Merged52.csv"])
     assert e.linhas == sum(e.por_rotulo.values()) > 60_000
     assert e.arquivos[0]["final_incompleto"] is True
+    assert e.arquivos[0]["sha256"] == CORTADOS_NA_ORIGEM["Merged52.csv"]
     assert max(e.janela["DDoS-ICMP_Flood"]) == 100 and max(e.janela["BenignTraffic"]) == 10
     assert ("AVG", "Tot size") in e.identicas and ("IPv", "LLC") in e.identicas
     assert all(relacao.fora == 0 for relacao in e.relacoes.values())

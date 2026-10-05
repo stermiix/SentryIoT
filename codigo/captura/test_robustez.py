@@ -16,6 +16,7 @@ import pytest
 from codigo.captura.calibrar import ler_oficial
 from codigo.captura.extrator import (
     COLUNAS,
+    MAIOR_REGISTRO,
     Extrator,
     agregar,
     extrair,
@@ -288,12 +289,16 @@ def conferir_leitura(dados):
         return quadros, avisos, erro
     assert all(issubclass(aviso.category, UserWarning) for aviso in avisos), dados.hex()
     assert len(avisos) + (erro is not None) <= 1, dados.hex()
+    # O registro é consumido inteiro, e o quadro entregue é o começo dele, até o limite declarado.
+    ordem = ">" if dados[:1] == b"\xa1" else "<"
+    corte = min(limite or MAIOR_REGISTRO, MAIOR_REGISTRO)
     consumido = 24
     for ts, quadro in quadros:
         assert isinstance(ts, float) and math.isfinite(ts) and ts >= 0, dados.hex()
         assert isinstance(quadro, bytes), dados.hex()
-        assert limite == 0 or len(quadro) <= limite, dados.hex()
-        consumido += 16 + len(quadro)
+        capturado = struct.unpack(ordem + "I", dados[consumido + 8 : consumido + 12])[0]
+        assert quadro == dados[consumido + 16 : consumido + 16 + capturado][:corte], dados.hex()
+        consumido += 16 + capturado
     # Com aviso, sobrou um registro pela metade. No fim limpo, nada sobrou. Com erro, a leitura
     # parou depois do cabeçalho de um registro.
     if avisos:

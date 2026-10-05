@@ -95,6 +95,51 @@ def test_sao_8_categorias_com_as_quantidades_do_artigo():
     }
 
 
+# Cópia literal do `dict_7classes` do notebook dos autores (`example.ipynb`), na ordem em que ele
+# está lá. Com ela o agrupamento é conferido também onde o dataset não está, como no CI.
+CATEGORIA_NO_NOTEBOOK = {
+    "DDoS-RSTFINFlood": "DDoS",
+    "DDoS-PSHACK_Flood": "DDoS",
+    "DDoS-SYN_Flood": "DDoS",
+    "DDoS-UDP_Flood": "DDoS",
+    "DDoS-TCP_Flood": "DDoS",
+    "DDoS-ICMP_Flood": "DDoS",
+    "DDoS-SynonymousIP_Flood": "DDoS",
+    "DDoS-ACK_Fragmentation": "DDoS",
+    "DDoS-UDP_Fragmentation": "DDoS",
+    "DDoS-ICMP_Fragmentation": "DDoS",
+    "DDoS-SlowLoris": "DDoS",
+    "DDoS-HTTP_Flood": "DDoS",
+    "DoS-UDP_Flood": "DoS",
+    "DoS-SYN_Flood": "DoS",
+    "DoS-TCP_Flood": "DoS",
+    "DoS-HTTP_Flood": "DoS",
+    "Mirai-greeth_flood": "Mirai",
+    "Mirai-greip_flood": "Mirai",
+    "Mirai-udpplain": "Mirai",
+    "Recon-PingSweep": "Recon",
+    "Recon-OSScan": "Recon",
+    "Recon-PortScan": "Recon",
+    "VulnerabilityScan": "Recon",
+    "Recon-HostDiscovery": "Recon",
+    "DNS_Spoofing": "Spoofing",
+    "MITM-ArpSpoofing": "Spoofing",
+    "BenignTraffic": "Benign",
+    "BrowserHijacking": "Web",
+    "Backdoor_Malware": "Web",
+    "XSS": "Web",
+    "Uploading_Attack": "Web",
+    "SqlInjection": "Web",
+    "CommandInjection": "Web",
+    "DictionaryBruteForce": "BruteForce",
+}
+
+
+def test_cada_uma_das_34_classes_esta_na_categoria_dos_autores():
+    assert len(CATEGORIA_NO_NOTEBOOK) == 34
+    assert CATEGORIA_DO_ROTULO == CATEGORIA_NO_NOTEBOOK
+
+
 @pytest.mark.parametrize("rotulo,esperada", [
     ("DDOS-ICMP_FLOOD", "DDoS"),
     ("DDoS-SlowLoris", "DDoS"),
@@ -144,6 +189,7 @@ def _dicionario_do_notebook(nome):
 def test_agrupamento_igual_ao_do_notebook_dos_autores():
     assert CATEGORIA_DO_ROTULO == _dicionario_do_notebook("dict_7classes")
     assert BINARIO_DO_ROTULO == _dicionario_do_notebook("dict_2classes")
+    assert CATEGORIA_NO_NOTEBOOK == _dicionario_do_notebook("dict_7classes")
 
 
 @pytest.mark.skipif(not MERGED01.exists(), reason="dataset ausente")
