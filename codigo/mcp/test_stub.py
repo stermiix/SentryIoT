@@ -265,6 +265,67 @@ def test_acao_nova_sem_passos_ou_sem_como_desfazer_e_recusada(stub, faltando):
     assert "acao_proposta" not in tipos(stub)
 
 
+# --- risco: o alvo, o estado do incidente e a quantidade de medidas --------------------------
+
+
+@pytest.mark.parametrize("alvo", ["192.168.137.1", "192.168.137.20", "8.8.8.8", "::ffff:192.168.137.1"])
+def test_bloqueio_curto_de_alvo_fora_do_incidente_exige_aprovacao(stub, alvo):
+    # inc-0004 é o falso positivo: a origem é a câmera e o destino é o servidor de vídeo.
+    proposta = chamar(stub, "propor_acao", id="inc-0004", alvo=alvo, **BLOQUEIO)
+    assert (proposta.risco, proposta.exige_aprovacao, proposta.estado) == ("alto", True, "aguardando_aprovacao")
+    recusado(stub, "proposta_nao_liberada", "executar_acao", id_proposta=proposta.id)
+    assert chamar(stub, "consultar_estado").bloqueios == []
+
+
+def test_acao_sobre_o_gateway_exige_aprovacao_mesmo_quando_ele_e_destino_do_incidente(stub):
+    # Na varredura, o gateway é um dos quatro destinos.
+    assert "192.168.137.1" in [item.endereco for item in POR_NOME["varredura"].incidente.destinos]
+    limite = BLOQUEIO | {"acao": "limitar_taxa"}
+    assert chamar(stub, "propor_acao", id="inc-0003", alvo="192.168.137.1", **limite).exige_aprovacao
+    assert not chamar(stub, "propor_acao", id="inc-0003", alvo="192.168.137.20", **limite).exige_aprovacao
+
+
+@pytest.mark.parametrize("alvo", ["127.0.0.1", "0.0.0.0", "255.255.255.255", "192.168.137.255", "224.0.0.1", "::1", "fe80::1"])
+def test_endereco_especial_e_recusado_e_registrado(stub, alvo):
+    mensagem = recusado(stub, "alvo_nao_permitido", "propor_acao", id="inc-0001", alvo=alvo, **BLOQUEIO)
+    assert alvo in mensagem
+    assert "acao_proposta" not in tipos(stub)
+
+
+def test_limitar_taxa_longa_exige_aprovacao(stub):
+    longa = BLOQUEIO | {"acao": "limitar_taxa", "parametros": {"duracao": 61}}
+    assert chamar(stub, "propor_acao", id="inc-0001", alvo="192.168.137.20", **longa).exige_aprovacao
+    recusado(
+        stub, "argumentos_invalidos", "propor_acao", id="inc-0001", alvo="192.168.137.20",
+        **longa | {"parametros": {"duracao": 10**12}},
+    )
+
+
+def test_a_sexta_medida_de_risco_baixo_no_incidente_exige_aprovacao(stub):
+    flood = POR_NOME["flood"].incidente
+    assert len(flood.origens) == 5
+    for origem in flood.origens:
+        aplicar(stub, "inc-0001", origem.endereco, **BLOQUEIO)
+    assert "acao_aprovada" not in tipos(stub)
+    sexta = chamar(stub, "propor_acao", id="inc-0001", alvo="192.168.137.20", **BLOQUEIO | {"acao": "limitar_taxa"})
+    assert (sexta.risco, sexta.estado) == ("alto", "aguardando_aprovacao")
+    recusado(stub, "proposta_nao_liberada", "executar_acao", id_proposta=sexta.id)
+    assert len(chamar(stub, "consultar_estado").bloqueios) == 5
+    # O limite é de cada incidente: o de força bruta segue com a sua conta.
+    assert not chamar(stub, "propor_acao", id="inc-0002", alvo="198.51.100.23", **BLOQUEIO).exige_aprovacao
+
+
+def test_incidente_encerrado_nao_recebe_proposta(stub):
+    execucao = aplicar(stub, "inc-0002", "198.51.100.23", **BLOQUEIO)
+    assert chamar(stub, "verificar_efeito", id_execucao=execucao.id).resultado == "cessou"
+    assert chamar(stub, "obter_incidente", id="inc-0002").estado == "encerrado"
+    for acao in (BLOQUEIO, ISOLAMENTO, SYN_COOKIES):
+        mensagem = recusado(stub, "incidente_encerrado", "propor_acao", id="inc-0002", alvo="198.51.100.23", **acao)
+        assert "inc-0002" in mensagem
+    # O que já estava aplicado continua podendo ser desfeito.
+    assert chamar(stub, "desfazer_acao", id_execucao=execucao.id).estado == "desfeita"
+
+
 # --- efeito das ações, pelo roteiro do cenário -----------------------------------------------
 
 

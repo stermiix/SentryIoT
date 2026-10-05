@@ -66,6 +66,8 @@ MotivoDeRecusa = Literal[
     "identificador_desconhecido",
     "argumentos_invalidos",
     "alvo_malformado",
+    "alvo_nao_permitido",
+    "incidente_encerrado",
     "acao_nova_incompleta",
     "proposta_nao_liberada",
     "proposta_ja_executada",

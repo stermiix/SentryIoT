@@ -11,6 +11,7 @@ das aprovações e das medidas ativas é sempre reconstruído a partir dos event
 e as funções deste módulo não gravam nada. Elas recebem o estado e devolvem o resultado e os
 rascunhos dos eventos, que quem chamou grava com `eventos.Registro`.
 """
+import ipaddress
 import re
 import tomllib
 from dataclasses import dataclass, field
@@ -154,17 +155,41 @@ BASE = {
         como_desfazer="Restabelecer a credencial com desfazer_acao.",
     ),
 }
+# Piso do código: nenhum arquivo de política baixa o risco destas ações. Ação nova, fora da base,
+# também é sempre de risco alto, mesmo depois de promovida ao catálogo.
+_SEMPRE_DE_RISCO_ALTO = ("isolar_dispositivo", "revogar_credencial")
+# Nomes das seções e das chaves de `politica.toml`.
 _PRAZO = "prazo_maximo_de_risco_baixo"
+_LIMITES = "limites"
+_MEDIDAS = "medidas_de_risco_baixo_por_incidente"
+_REDE = "rede"
+_PROTEGIDOS = "enderecos_protegidos"
+_REDES_LOCAIS = "redes_locais"
 
 
 # --- política de risco -----------------------------------------------------------------------
 
 
-def carregar_politica(caminho=POLITICA_PADRAO):
-    """Lê o arquivo de política e devolve, para cada ação de base, o risco e o prazo máximo.
+@dataclass(frozen=True)
+class Politica:
+    """A política de risco, como sai de `politica.toml`."""
 
-    Arquivo com ação a mais, ação a menos ou valor fora do esperado levanta ValueError: uma
-    política lida pela metade liberaria ou travaria ações sem ninguém perceber.
+    # Para cada ação de base, o risco e o prazo máximo, em minutos, para ela contar como risco baixo.
+    acoes: dict
+    # Máximo de medidas de risco baixo ativas ao mesmo tempo em um incidente.
+    medidas_de_risco_baixo_por_incidente: int
+    # Endereços em que qualquer ação é de risco alto, na forma canônica.
+    enderecos_protegidos: frozenset
+    # Redes locais: o endereço de rede e o de broadcast de cada uma não são aceitos como alvo.
+    redes_locais: tuple
+
+
+def carregar_politica(caminho=POLITICA_PADRAO):
+    """Lê o arquivo de política e devolve a política de risco.
+
+    Arquivo com seção a mais, seção a menos ou valor fora do esperado levanta ValueError: uma
+    política lida pela metade liberaria ou travaria ações sem ninguém perceber. O arquivo também
+    não baixa o piso do código: as ações de `_SEMPRE_DE_RISCO_ALTO` só aceitam risco alto.
     """
     try:
         with open(caminho, "rb") as arquivo:
@@ -175,54 +200,163 @@ def carregar_politica(caminho=POLITICA_PADRAO):
     def invalida(detalhe):
         return ValueError(f"política inválida em {caminho}: {detalhe}")
 
-    faltando = [nome for nome in BASE if nome not in lido]
-    sobrando = [nome for nome in lido if nome not in BASE]
-    if faltando:
-        raise invalida(f"falta a ação {', '.join(faltando)}")
-    if sobrando:
-        raise invalida(f"ação fora do catálogo de base: {', '.join(sobrando)}")
-    politica = {}
-    for nome, definicao in BASE.items():
-        regra = lido[nome]
-        desconhecidas = [chave for chave in regra if chave not in ("risco", _PRAZO)]
+    def secao(nome, chaves):
+        """A seção do arquivo, conferida: é uma tabela e só tem as chaves esperadas."""
+        valores = lido[nome]
+        if not isinstance(valores, dict):
+            raise invalida(f"{nome} precisa ser uma seção, como [{nome}]")
+        desconhecidas = [chave for chave in valores if chave not in chaves]
         if desconhecidas:
             raise invalida(f"chave desconhecida em {nome}: {', '.join(desconhecidas)}")
+        return valores
+
+    def lista_de_textos(valores, chave):
+        lista = valores.get(chave)
+        if not isinstance(lista, list) or not all(isinstance(item, str) for item in lista):
+            raise invalida(f"{chave} precisa ser uma lista de textos, que pode ser vazia")
+        return lista
+
+    faltando = [nome for nome in (*BASE, _LIMITES, _REDE) if nome not in lido]
+    sobrando = [nome for nome in lido if nome not in (*BASE, _LIMITES, _REDE)]
+    if faltando:
+        raise invalida(
+            "falta a " + ", ".join(f"{'ação' if nome in BASE else 'seção'} {nome}" for nome in faltando)
+        )
+    if sobrando:
+        raise invalida(f"seção desconhecida ou ação fora do catálogo de base: {', '.join(sobrando)}")
+
+    regras = {}
+    for nome, definicao in BASE.items():
+        regra = secao(nome, ("risco", _PRAZO))
         if regra.get("risco") not in RISCOS:
             raise invalida(f"o risco de {nome} precisa ser baixo ou alto, e veio {regra.get('risco')!r}")
+        if nome in _SEMPRE_DE_RISCO_ALTO and regra["risco"] != "alto":
+            raise invalida(f"{nome} é sempre de risco alto: esse piso está no código, e a política não o baixa")
         prazo = regra.get(_PRAZO)
         if prazo is not None:
             if definicao.duracao is None:
                 raise invalida(f"{nome} não aceita prazo, então não pode ter {_PRAZO}")
-            if type(prazo) is not int or prazo < 1:
-                raise invalida(f"{_PRAZO} de {nome} precisa ser um número inteiro de minutos, a partir de 1")
-        politica[nome] = {"risco": regra["risco"], _PRAZO: prazo}
-    return politica
+            if type(prazo) is not int or not 1 <= prazo <= MAIOR_DURACAO:
+                raise invalida(
+                    f"{_PRAZO} de {nome} precisa ser um número inteiro de minutos, de 1 a {MAIOR_DURACAO}"
+                )
+        elif regra["risco"] == "baixo":
+            # Sem prazo máximo, a medida de risco baixo não teria teto de duração.
+            raise invalida(f"{nome} é de risco baixo e precisa de {_PRAZO}, em minutos")
+        regras[nome] = {"risco": regra["risco"], _PRAZO: prazo}
+
+    limites = secao(_LIMITES, (_MEDIDAS,))
+    medidas = limites.get(_MEDIDAS)
+    if type(medidas) is not int or medidas < 0:
+        raise invalida(f"{_MEDIDAS} precisa ser um número inteiro, a partir de 0")
+
+    rede = secao(_REDE, (_PROTEGIDOS, _REDES_LOCAIS))
+    protegidos, redes = [], []
+    for texto in lista_de_textos(rede, _PROTEGIDOS):
+        try:
+            protegidos.append(endereco_canonico(texto.strip()))
+        except ValueError:
+            raise invalida(f"{_PROTEGIDOS} traz {texto!r}, que não é um endereço IP") from None
+    for texto in lista_de_textos(rede, _REDES_LOCAIS):
+        try:
+            redes.append(ipaddress.ip_network(texto.strip()))
+        except ValueError:
+            raise invalida(
+                f"{_REDES_LOCAIS} traz {texto!r}, que não é uma rede no formato endereço/prefixo, como 192.168.137.0/24"
+            ) from None
+    return Politica(
+        acoes=regras,
+        medidas_de_risco_baixo_por_incidente=medidas,
+        enderecos_protegidos=frozenset(protegidos),
+        redes_locais=tuple(redes),
+    )
 
 
-def _risco(politica, acao, parametros):
-    """Risco de uma ação de base com os parâmetros dados. Fora da base, o risco é sempre alto."""
-    if acao not in BASE:
+def _risco(estado, politica, incidente, acao, alvo, parametros):
+    """Risco de aplicar agora a ação no incidente. É baixo só quando todas as condições valem.
+
+    O nome da ação e a duração não bastam: bloquear por 10 minutos o gateway, ou um endereço que
+    não tem relação com o incidente, não é uma medida de risco baixo.
+    """
+    # Piso do código, que nenhuma política baixa.
+    if acao not in BASE or acao in _SEMPRE_DE_RISCO_ALTO:
         return "alto"
-    regra = politica[acao]
-    if regra["risco"] == "alto":
-        return "alto"
-    prazo = regra[_PRAZO]
-    if prazo is None:
-        return "baixo"
+    regra = politica.acoes[acao]
     duracao = parametros.get("duracao")
-    return "baixo" if duracao is not None and duracao <= prazo else "alto"
+    condicoes = (
+        regra["risco"] == "baixo",
+        regra[_PRAZO] is not None and type(duracao) is int and duracao <= regra[_PRAZO],
+        alvo in _enderecos_do_incidente(estado, incidente),
+        alvo not in politica.enderecos_protegidos,
+        _medidas_de_risco_baixo(estado, incidente) < politica.medidas_de_risco_baixo_por_incidente,
+    )
+    return "baixo" if all(condicoes) else "alto"
+
+
+def _enderecos_do_incidente(estado, incidente):
+    """Origens e destinos do incidente, na última versão dele. Incidente encerrado não tem alvo."""
+    ocorrido = estado.incidentes.get(incidente)
+    if ocorrido is None or ocorrido.estado != "aberto":
+        return frozenset()
+    return frozenset(item.endereco for item in (*ocorrido.origens, *ocorrido.destinos))
+
+
+def _medidas_de_risco_baixo(estado, incidente):
+    """Quantas medidas aplicadas sem aprovação humana estão ativas no incidente."""
+    return sum(
+        1 for execucao in estado.execucoes.values()
+        if execucao.incidente == incidente and execucao.estado == "aplicada"
+        and not estado.propostas[execucao.proposta].exige_aprovacao
+    )
 
 
 def _regra(politica, acao):
-    regra = politica[acao]
-    if regra["risco"] == "alto":
+    regra = politica.acoes[acao]
+    if acao in _SEMPRE_DE_RISCO_ALTO or regra["risco"] == "alto":
         return _REGRA_DE_RISCO_ALTO
-    if regra[_PRAZO] is None:
-        return "Risco baixo: o agente de execução aplica sem aprovação."
+    sem_prazo = "sem duracao, " if BASE[acao].duracao == "opcional" else ""
     return (
-        f"Risco baixo com duracao de até {regra[_PRAZO]} minutos: o agente de execução aplica sem "
-        "aprovação. Sem duracao ou com duracao maior, risco alto: só com aprovação humana."
+        f"Risco baixo quando o alvo é origem ou destino do incidente, a duracao é de até {regra[_PRAZO]} "
+        f"minutos e o incidente tem menos de {politica.medidas_de_risco_baixo_por_incidente} medidas de risco "
+        f"baixo ativas: o agente de execução aplica sem aprovação. Fora disso ({sem_prazo}duracao maior, alvo "
+        "que não consta do incidente, endereço protegido pela política ou limite de medidas atingido), risco "
+        "alto: só com aprovação humana."
     )
+
+
+def _motivo_de_endereco_recusado(politica, endereco):
+    """Por que o endereço não pode ser alvo de ação nenhuma, ou None se ele pode.
+
+    São os endereços que não designam um dispositivo da rede: agir sobre eles atinge a própria
+    máquina ou todos os dispositivos de uma vez.
+    """
+    ip = ipaddress.ip_address(endereco)
+    if ip.is_loopback:
+        return "é um endereço de loopback, que designa a própria máquina"
+    if ip.is_unspecified:
+        return "é o endereço não especificado"
+    if ip.is_multicast:
+        return "é um endereço de multicast"
+    if ip.is_link_local:
+        return "é um endereço de link-local"
+    if endereco == "255.255.255.255":
+        return "é o endereço de broadcast"
+    for rede in politica.redes_locais:
+        # Só rede IPv4 com mais de dois endereços tem endereço de rede e de broadcast.
+        if rede.version == 4 and rede.prefixlen < 31 and ip in (rede.network_address, rede.broadcast_address):
+            return f"é o endereço de rede ou de broadcast de {rede}"
+    return None
+
+
+def _conferir_alvo_permitido(politica, acao, alvo):
+    """Recusa o alvo de uma ação de base quando o endereço dele é um dos endereços especiais."""
+    endereco = alvo.rpartition("@")[2]
+    motivo = _motivo_de_endereco_recusado(politica, endereco)
+    if motivo is not None:
+        raise PedidoRecusado(
+            "alvo_nao_permitido",
+            f"O alvo de {acao} não pode ser {endereco}: {motivo}. O alvo é o endereço de um dispositivo.",
+        )
 
 
 # --- estado reconstruído do log --------------------------------------------------------------
@@ -324,10 +458,17 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
     Devolve a proposta, com o nível de risco e se ela exige aprovação, e o rascunho do evento
     `acao_proposta`. Não aplica nada: proposta de risco baixo já nasce liberada para o agente
     de execução, e a de risco alto fica aguardando a decisão de uma pessoa.
+
+    Alvo que não consta do incidente, endereço protegido e limite de medidas atingido não são
+    motivo de recusa: a proposta é registrada como de risco alto, e quem decide é a pessoa.
     """
     if not isinstance(incidente, str) or incidente not in estado.incidentes:
         raise PedidoRecusado(
             "identificador_desconhecido", f"Não existe incidente com o identificador {resumir(incidente)}."
+        )
+    if estado.incidentes[incidente].estado != "aberto":
+        raise PedidoRecusado(
+            "incidente_encerrado", f"O incidente {incidente} está encerrado e não recebe novas propostas."
         )
     justificativa = _justificativa(justificativa)
     if not isinstance(parametros, dict):
@@ -337,6 +478,7 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
 
     if acao in BASE:
         alvo = _alvo_de_base(acao, alvo)
+        _conferir_alvo_permitido(politica, acao, alvo)
         parametros = _parametros_validos(acao, parametros)
     elif acao in estado.promovidas:
         # Os passos e a forma de desfazer são os do catálogo: a pessoa aprova o que foi promovido,
@@ -368,7 +510,7 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
         alvo = _alvo_livre(acao, alvo)
         parametros = _parametros_de_acao_nova(acao, parametros)
 
-    risco = _risco(politica, acao, parametros)
+    risco = _risco(estado, politica, incidente, acao, alvo, parametros)
     proposta = Proposta(
         id=f"prop-{len(estado.propostas) + 1:04d}",
         incidente=incidente,

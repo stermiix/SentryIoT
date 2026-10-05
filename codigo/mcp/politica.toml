@@ -3,17 +3,26 @@
 # Ação de risco baixo é aplicada pelo agente de execução sem aprovação, e fica registrada.
 # Ação de risco alto só é aplicada depois que uma pessoa aprova.
 #
-# A equipe ajusta os valores abaixo sem mexer no código. Uma regra não está neste arquivo,
-# porque não pode ser afrouxada: ação nova, fora do catálogo de base, é sempre de risco alto,
-# mesmo depois de promovida ao catálogo.
+# Uma ação só é de risco baixo quando todas as condições abaixo valem ao mesmo tempo:
+#   - a ação está marcada aqui como de risco baixo e a duração pedida cabe no prazo máximo;
+#   - o alvo é uma origem ou um destino do incidente, e o incidente está aberto;
+#   - o alvo não é um endereço protegido;
+#   - o incidente ainda não atingiu o limite de medidas de risco baixo ativas.
+# Fora disso a proposta não é recusada: vira de risco alto e espera a aprovação.
+#
+# A equipe ajusta os valores sem mexer no código. Três regras não estão neste arquivo, porque
+# ficam no código e não podem ser afrouxadas daqui: isolar_dispositivo, revogar_credencial e toda
+# ação nova, fora do catálogo de base, são sempre de risco alto. Quem trocar o risco das duas
+# primeiras para "baixo" recebe erro na leitura do arquivo.
 
 [limitar_taxa]
 risco = "baixo"
+# Prazo máximo, em minutos, para a medida contar como risco baixo. Acima dele, risco alto.
+prazo_maximo_de_risco_baixo = 60
 
 [bloquear_ip]
 risco = "baixo"
-# Prazo máximo, em minutos, para o bloqueio contar como risco baixo. Bloqueio sem prazo ou com
-# prazo maior é de risco alto.
+# Bloqueio sem prazo ou com prazo maior que este, em minutos, é de risco alto.
 prazo_maximo_de_risco_baixo = 15
 
 [isolar_dispositivo]
@@ -21,3 +30,17 @@ risco = "alto"
 
 [revogar_credencial]
 risco = "alto"
+
+[limites]
+# Máximo de medidas de risco baixo ativas ao mesmo tempo em um incidente. A seguinte vira de
+# risco alto. Medida aprovada por uma pessoa e medida já desfeita não entram na conta.
+medidas_de_risco_baixo_por_incidente = 5
+
+[rede]
+# Endereços em que qualquer ação é de risco alto, mesmo que apareçam no incidente. Os valores são
+# de exemplo: o gateway e a máquina que faz a captura na rede dos cenários do stub. Troque pelos
+# da rede real.
+enderecos_protegidos = ["192.168.137.1", "192.168.137.2"]
+# Redes locais. O endereço de rede e o de broadcast de cada uma são recusados como alvo, junto
+# com loopback, endereço não especificado, multicast e link-local, que o código já reconhece.
+redes_locais = ["192.168.137.0/24"]

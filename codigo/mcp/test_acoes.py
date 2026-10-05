@@ -1,3 +1,5 @@
+import ipaddress
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -5,6 +7,7 @@ import pytest
 from codigo.mcp.acoes import (
     POLITICA_PADRAO,
     PedidoRecusado,
+    Politica,
     ambiente,
     carregar_politica,
     catalogo,
@@ -28,15 +31,22 @@ ACAO_NOVA = {
     "fonte": "Base local, flood.md",
 }
 JUSTIFICATIVA = "Origem com mais quadros no incidente."
+# O incidente da especificação com mais origens, para os testes que aplicam várias medidas, e com
+# o gateway entre os destinos.
+ORIGENS = [f"203.0.113.{numero}" for numero in range(7, 15)]
+INCIDENTE_COM_VARIAS_ORIGENS = INCIDENTE_DA_ESPECIFICACAO | {
+    "origens": [{"endereco": endereco, "quadros": 9120 - posicao} for posicao, endereco in enumerate(ORIGENS)],
+    "destinos": [{"endereco": "192.168.137.20", "quadros": 41200}, {"endereco": "192.168.137.1", "quadros": 300}],
+}
 
 
 class Mundo:
     """Um log na memória: guarda os eventos e reconstrói o estado a cada passo."""
 
-    def __init__(self, politica=None):
+    def __init__(self, politica=None, incidente=INCIDENTE_DA_ESPECIFICACAO):
         self.politica = politica or carregar_politica()
         self.eventos = []
-        self.aplicar([novo("incidente_aberto", INCIDENTE_DA_ESPECIFICACAO, "inc-0001")])
+        self.aplicar([novo("incidente_aberto", incidente, "inc-0001")])
 
     @property
     def estado(self):
@@ -93,12 +103,14 @@ def recusado(motivo, funcao, *argumentos, **opcoes):
 
 
 def gravar_politica(tmp_path, trocas=None):
-    """Grava um arquivo de política igual ao padrão, com as linhas de algumas ações trocadas."""
+    """Grava um arquivo de política igual ao padrão, com as linhas de algumas seções trocadas."""
     regras = {
-        "limitar_taxa": ['risco = "baixo"'],
+        "limitar_taxa": ['risco = "baixo"', "prazo_maximo_de_risco_baixo = 60"],
         "bloquear_ip": ['risco = "baixo"', "prazo_maximo_de_risco_baixo = 15"],
         "isolar_dispositivo": ['risco = "alto"'],
         "revogar_credencial": ['risco = "alto"'],
+        "limites": ["medidas_de_risco_baixo_por_incidente = 5"],
+        "rede": ['enderecos_protegidos = ["192.168.137.1", "192.168.137.2"]', 'redes_locais = ["192.168.137.0/24"]'],
     } | (trocas or {})
     secoes = [f"[{nome}]\n" + "\n".join(linhas) for nome, linhas in regras.items() if linhas is not None]
     caminho = tmp_path / "politica.toml"
@@ -111,17 +123,26 @@ def gravar_politica(tmp_path, trocas=None):
 
 def test_politica_padrao_e_a_tabela_da_especificacao():
     assert POLITICA_PADRAO.name == "politica.toml"
-    assert carregar_politica() == {
-        "limitar_taxa": {"risco": "baixo", "prazo_maximo_de_risco_baixo": None},
-        "bloquear_ip": {"risco": "baixo", "prazo_maximo_de_risco_baixo": 15},
-        "isolar_dispositivo": {"risco": "alto", "prazo_maximo_de_risco_baixo": None},
-        "revogar_credencial": {"risco": "alto", "prazo_maximo_de_risco_baixo": None},
-    }
+    assert carregar_politica() == Politica(
+        acoes={
+            "limitar_taxa": {"risco": "baixo", "prazo_maximo_de_risco_baixo": 60},
+            "bloquear_ip": {"risco": "baixo", "prazo_maximo_de_risco_baixo": 15},
+            "isolar_dispositivo": {"risco": "alto", "prazo_maximo_de_risco_baixo": None},
+            "revogar_credencial": {"risco": "alto", "prazo_maximo_de_risco_baixo": None},
+        },
+        medidas_de_risco_baixo_por_incidente=5,
+        # O gateway e a máquina de captura, com valores de exemplo.
+        enderecos_protegidos=frozenset({"192.168.137.1", "192.168.137.2"}),
+        redes_locais=(ipaddress.ip_network("192.168.137.0/24"),),
+    )
 
 
 @pytest.mark.parametrize("acao,alvo,parametros,risco", [
     ("limitar_taxa", "192.168.137.20", {"duracao": 5}, "baixo"),
-    ("limitar_taxa", "192.168.137.20", {"duracao": 600}, "baixo"),
+    ("limitar_taxa", "192.168.137.20", {"duracao": 60}, "baixo"),
+    ("limitar_taxa", "192.168.137.20", {"duracao": 61}, "alto"),
+    ("limitar_taxa", "192.168.137.20", {"duracao": 600}, "alto"),
+    ("limitar_taxa", "203.0.113.7", {"duracao": 5}, "baixo"),
     ("bloquear_ip", "203.0.113.7", {"duracao": 1}, "baixo"),
     ("bloquear_ip", "203.0.113.7", {"duracao": 15}, "baixo"),
     ("bloquear_ip", "203.0.113.7", {"duracao": 16}, "alto"),
@@ -145,11 +166,20 @@ def test_a_equipe_ajusta_os_limites_no_arquivo_de_politica(tmp_path):
     caminho = gravar_politica(tmp_path, {
         "limitar_taxa": ['risco = "alto"'],
         "bloquear_ip": ['risco = "baixo"', "prazo_maximo_de_risco_baixo = 60"],
+        "limites": ["medidas_de_risco_baixo_por_incidente = 1"],
+        "rede": ['enderecos_protegidos = ["192.168.137.20", "2001:DB8::1"]', "redes_locais = []"],
     })
-    mundo = Mundo(carregar_politica(caminho))
+    politica = carregar_politica(caminho)
+    assert politica.enderecos_protegidos == frozenset({"192.168.137.20", "2001:db8::1"})
+    assert (politica.medidas_de_risco_baixo_por_incidente, politica.redes_locais) == (1, ())
+    mundo = Mundo(politica)
     assert mundo.propor("bloquear_ip", parametros={"duracao": 45}).risco == "baixo"
     assert mundo.propor("bloquear_ip", parametros={"duracao": 61}).risco == "alto"
-    assert mundo.propor("limitar_taxa", "192.168.137.20", {"duracao": 5}).risco == "alto"
+    assert mundo.propor("limitar_taxa", "203.0.113.7", {"duracao": 5}).risco == "alto"
+    # O destino do incidente passou a ser endereço protegido, e o limite de medidas caiu para 1.
+    assert mundo.propor("bloquear_ip", "192.168.137.20", {"duracao": 10}).risco == "alto"
+    mundo.executar("prop-0001")
+    assert mundo.propor("bloquear_ip", parametros={"duracao": 10}).risco == "alto"
 
 
 @pytest.mark.parametrize("trocas,trecho_do_erro", [
@@ -157,11 +187,35 @@ def test_a_equipe_ajusta_os_limites_no_arquivo_de_politica(tmp_path):
     ({"desligar_rede": ['risco = "alto"']}, "desligar_rede"),
     ({"limitar_taxa": ['risco = "medio"']}, "medio"),
     ({"limitar_taxa": []}, "risco de limitar_taxa"),
-    ({"limitar_taxa": ['risco = "baixo"', "teto = 3"]}, "teto"),
+    ({"limitar_taxa": ['risco = "baixo"', "prazo_maximo_de_risco_baixo = 60", "teto = 3"]}, "teto"),
     ({"bloquear_ip": ['risco = "baixo"', "prazo_maximo_de_risco_baixo = 0"]}, "prazo_maximo_de_risco_baixo"),
     ({"bloquear_ip": ['risco = "baixo"', 'prazo_maximo_de_risco_baixo = "15"']}, "prazo_maximo_de_risco_baixo"),
     ({"bloquear_ip": ['risco = "baixo"', "prazo_maximo_de_risco_baixo = 7.5"]}, "prazo_maximo_de_risco_baixo"),
+    ({"bloquear_ip": ['risco = "baixo"', "prazo_maximo_de_risco_baixo = true"]}, "prazo_maximo_de_risco_baixo"),
     ({"isolar_dispositivo": ['risco = "alto"', "prazo_maximo_de_risco_baixo = 5"]}, "isolar_dispositivo não aceita"),
+    # Ação de risco baixo sem prazo máximo ficaria sem teto de duração.
+    ({"limitar_taxa": ['risco = "baixo"']}, "limitar_taxa.*prazo_maximo_de_risco_baixo"),
+    ({"bloquear_ip": ['risco = "baixo"']}, "bloquear_ip.*prazo_maximo_de_risco_baixo"),
+    # Prazo que nenhuma proposta alcança: a duração aceita vai até um ano.
+    ({"bloquear_ip": ['risco = "baixo"', "prazo_maximo_de_risco_baixo = 999999999999"]}, "prazo_maximo_de_risco_baixo"),
+    # O piso do código: o arquivo não baixa o risco destas ações.
+    ({"isolar_dispositivo": ['risco = "baixo"']}, "isolar_dispositivo é sempre de risco alto"),
+    ({"revogar_credencial": ['risco = "baixo"']}, "revogar_credencial é sempre de risco alto"),
+    ({"limites": None}, "falta a seção limites"),
+    ({"rede": None}, "falta a seção rede"),
+    ({"limites": []}, "medidas_de_risco_baixo_por_incidente"),
+    ({"limites": ["medidas_de_risco_baixo_por_incidente = -1"]}, "medidas_de_risco_baixo_por_incidente"),
+    ({"limites": ['medidas_de_risco_baixo_por_incidente = "5"']}, "medidas_de_risco_baixo_por_incidente"),
+    ({"limites": ["medidas_de_risco_baixo_por_incidente = 5", "outro = 1"]}, "outro"),
+    ({"rede": ["redes_locais = []"]}, "enderecos_protegidos"),
+    ({"rede": ["enderecos_protegidos = []"]}, "redes_locais"),
+    ({"rede": ['enderecos_protegidos = "192.168.137.1"', "redes_locais = []"]}, "enderecos_protegidos"),
+    ({"rede": ['enderecos_protegidos = ["gateway"]', "redes_locais = []"]}, "gateway"),
+    ({"rede": ['enderecos_protegidos = ["fe80::1%eth0"]', "redes_locais = []"]}, "enderecos_protegidos"),
+    ({"rede": ["enderecos_protegidos = [1]", "redes_locais = []"]}, "enderecos_protegidos"),
+    ({"rede": ["enderecos_protegidos = []", 'redes_locais = ["192.168.137.7/24"]']}, "192.168.137.7/24"),
+    ({"rede": ["enderecos_protegidos = []", 'redes_locais = ["rede de casa"]']}, "rede de casa"),
+    ({"rede": ["enderecos_protegidos = []", "redes_locais = []", "dns = []"]}, "dns"),
 ])
 def test_arquivo_de_politica_invalido_da_erro_claro(tmp_path, trocas, trecho_do_erro):
     with pytest.raises(ValueError, match=trecho_do_erro):
@@ -183,7 +237,11 @@ def test_catalogo_de_base_tem_as_quatro_acoes_com_a_regra_de_risco(mundo):
     assert list(acoes) == ["limitar_taxa", "bloquear_ip", "isolar_dispositivo", "revogar_credencial"]
     assert all(acao.origem == "base" and acao.como_desfazer for acao in acoes.values())
     assert "15 minutos" in acoes["bloquear_ip"].regra
-    assert "baixo" in acoes["limitar_taxa"].regra
+    assert "baixo" in acoes["limitar_taxa"].regra and "60 minutos" in acoes["limitar_taxa"].regra
+    # A regra que o agente lê diz as condições do risco baixo: alvo do incidente e limite de medidas.
+    for nome in ("bloquear_ip", "limitar_taxa"):
+        assert "origem ou destino do incidente" in acoes[nome].regra
+        assert "5 medidas" in acoes[nome].regra
     assert "aprovação humana" in acoes["isolar_dispositivo"].regra
     assert [(p.nome, p.obrigatorio) for p in acoes["limitar_taxa"].parametros] == [("duracao", True)]
     assert [(p.nome, p.obrigatorio) for p in acoes["bloquear_ip"].parametros] == [("duracao", False)]
@@ -191,9 +249,10 @@ def test_catalogo_de_base_tem_as_quatro_acoes_com_a_regra_de_risco(mundo):
 
 
 def test_regra_do_catalogo_acompanha_o_arquivo_de_politica(tmp_path, mundo):
-    politica = mundo.politica | {"bloquear_ip": {"risco": "baixo", "prazo_maximo_de_risco_baixo": 40}}
+    regras = mundo.politica.acoes | {"bloquear_ip": {"risco": "baixo", "prazo_maximo_de_risco_baixo": 40}}
+    politica = replace(mundo.politica, acoes=regras, medidas_de_risco_baixo_por_incidente=3)
     regra = {acao.nome: acao.regra for acao in catalogo(mundo.estado, politica)}["bloquear_ip"]
-    assert "40 minutos" in regra
+    assert "40 minutos" in regra and "3 medidas" in regra
 
 
 # --- ciclo de uma ação -----------------------------------------------------------------------
@@ -668,3 +727,127 @@ def test_acao_promovida_so_e_proposta_com_parametros_vazios(mundo):
 
     de_novo = mundo.propor("ativar_syn_cookies", "192.168.137.31")
     assert de_novo.parametros == ACAO_NOVA
+
+
+# --- risco: alvo do incidente, endereços protegidos e especiais, limite de medidas -----------
+
+
+@pytest.mark.parametrize("alvo", [
+    "8.8.8.8", "10.0.0.1", "192.168.137.99", "203.0.113.8", "2001:db8::7", "::192.168.137.20", "192.168.137.31",
+])
+def test_alvo_fora_do_incidente_nao_e_recusado_mas_e_de_risco_alto(mundo, alvo):
+    for acao in ("bloquear_ip", "limitar_taxa"):
+        proposta = mundo.propor(acao, alvo, {"duracao": 5})
+        assert (proposta.risco, proposta.exige_aprovacao, proposta.estado) == ("alto", True, "aguardando_aprovacao")
+        recusado("proposta_nao_liberada", mundo.executar, proposta.id)
+
+
+def test_origem_e_destino_do_incidente_sao_alvos_de_risco_baixo():
+    mundo = Mundo(incidente=INCIDENTE_COM_VARIAS_ORIGENS)
+    for alvo in (ORIGENS[0], ORIGENS[-1], "192.168.137.20", "::ffff:192.168.137.20"):
+        assert mundo.propor("bloquear_ip", alvo, {"duracao": 10}).risco == "baixo"
+        assert mundo.propor("limitar_taxa", alvo, {"duracao": 10}).risco == "baixo"
+
+
+def test_alvo_do_incidente_acompanha_a_ultima_versao_do_incidente(mundo):
+    assert mundo.propor("bloquear_ip", "203.0.113.99", {"duracao": 10}).risco == "alto"
+    atualizado = INCIDENTE_DA_ESPECIFICACAO | {
+        "origens": [{"endereco": "203.0.113.7", "quadros": 9120}, {"endereco": "203.0.113.99", "quadros": 800}],
+    }
+    mundo.aplicar([novo("incidente_atualizado", atualizado, "inc-0001")])
+    assert mundo.propor("bloquear_ip", "203.0.113.99", {"duracao": 10}).risco == "baixo"
+
+
+def test_qualquer_acao_sobre_endereco_protegido_e_de_risco_alto():
+    # O gateway é destino do incidente, e mesmo assim agir sobre ele pede aprovação.
+    mundo = Mundo(incidente=INCIDENTE_COM_VARIAS_ORIGENS)
+    for acao, parametros in (("bloquear_ip", {"duracao": 1}), ("limitar_taxa", {"duracao": 1}), ("isolar_dispositivo", {})):
+        for alvo in ("192.168.137.1", "::ffff:192.168.137.1"):
+            proposta = mundo.propor(acao, alvo, parametros)
+            assert (proposta.alvo, proposta.risco, proposta.estado) == ("192.168.137.1", "alto", "aguardando_aprovacao")
+    # A máquina de captura não é do incidente: também é de risco alto.
+    assert mundo.propor("bloquear_ip", "192.168.137.2", {"duracao": 1}).risco == "alto"
+
+
+@pytest.mark.parametrize("alvo", [
+    "127.0.0.1", "127.8.8.8", "0.0.0.0", "255.255.255.255", "192.168.137.255", "192.168.137.0", "224.0.0.1",
+    "239.255.255.250", "169.254.1.1", "::", "::1", "ff02::1", "fe80::1", "::ffff:127.0.0.1", "::ffff:0.0.0.0",
+    "::ffff:192.168.137.255",
+])
+def test_endereco_especial_e_recusado_como_alvo(mundo, alvo):
+    # Loopback, não especificado, broadcast, multicast e link-local: nenhum é um dispositivo da rede.
+    for acao, parametros in (("bloquear_ip", {"duracao": 5}), ("limitar_taxa", {"duracao": 5}), ("isolar_dispositivo", {})):
+        mensagem = recusado("alvo_nao_permitido", mundo.propor, acao, alvo, parametros)
+        assert acao in mensagem
+    recusado("alvo_nao_permitido", mundo.propor, "revogar_credencial", f"admin@{alvo}")
+    assert mundo.estado.propostas == {}
+
+
+def test_broadcast_de_rede_que_nao_e_local_nao_e_reconhecido(mundo):
+    # Só as redes locais da política têm o endereço de rede e o de broadcast conhecidos.
+    assert mundo.propor("bloquear_ip", "203.0.113.255", {"duracao": 5}).risco == "alto"
+
+
+def test_limitar_taxa_e_de_risco_baixo_ate_60_minutos(mundo):
+    assert mundo.propor("limitar_taxa", "192.168.137.20", {"duracao": 60}).estado == "liberada"
+    longa = mundo.propor("limitar_taxa", "192.168.137.20", {"duracao": 61})
+    assert (longa.risco, longa.estado) == ("alto", "aguardando_aprovacao")
+    assert mundo.propor("limitar_taxa", "192.168.137.20", {"duracao": 525_600}).risco == "alto"
+
+
+def test_sao_no_maximo_5_medidas_de_risco_baixo_ativas_por_incidente():
+    mundo = Mundo(incidente=INCIDENTE_COM_VARIAS_ORIGENS)
+    execucoes = []
+    for origem in ORIGENS[:5]:
+        proposta = mundo.propor("bloquear_ip", origem, {"duracao": 10})
+        assert proposta.risco == "baixo"
+        execucoes.append(mundo.executar(proposta.id))
+
+    # A sexta não é recusada: vira de risco alto e espera a pessoa.
+    sexta = mundo.propor("bloquear_ip", ORIGENS[5], {"duracao": 10})
+    assert (sexta.risco, sexta.exige_aprovacao, sexta.estado) == ("alto", True, "aguardando_aprovacao")
+    assert mundo.propor("limitar_taxa", "192.168.137.20", {"duracao": 5}).risco == "alto"
+    recusado("proposta_nao_liberada", mundo.executar, sexta.id)
+
+    # Medida aprovada pela pessoa não conta para o limite, e medida desfeita libera a vaga.
+    mundo.decidir(sexta.id)
+    mundo.executar(sexta.id)
+    assert mundo.propor("bloquear_ip", ORIGENS[6], {"duracao": 10}).risco == "alto"
+    mundo.desfazer(execucoes[0].id)
+    assert mundo.propor("bloquear_ip", ORIGENS[6], {"duracao": 10}).risco == "baixo"
+
+
+def test_o_limite_de_medidas_e_por_incidente():
+    mundo = Mundo(incidente=INCIDENTE_COM_VARIAS_ORIGENS)
+    mundo.aplicar([novo("incidente_aberto", INCIDENTE_DA_ESPECIFICACAO | {"id": "inc-0002"}, "inc-0002")])
+    for origem in ORIGENS[:5]:
+        mundo.executar(mundo.propor("bloquear_ip", origem, {"duracao": 10}).id)
+    assert mundo.propor("bloquear_ip", ORIGENS[5], {"duracao": 10}).risco == "alto"
+    assert mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10}, incidente="inc-0002").risco == "baixo"
+
+
+def test_proposta_para_incidente_encerrado_e_recusada(mundo):
+    mundo.aplicar([
+        novo("incidente_encerrado", INCIDENTE_DA_ESPECIFICACAO | {"estado": "encerrado"}, "inc-0001"),
+    ])
+    for acao, alvo, parametros in (
+        ("bloquear_ip", "203.0.113.7", {"duracao": 10}),
+        ("isolar_dispositivo", "192.168.137.20", {}),
+        ("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA),
+    ):
+        mensagem = recusado("incidente_encerrado", mundo.propor, acao, alvo, parametros)
+        assert "inc-0001" in mensagem and "encerrado" in mensagem
+    assert mundo.estado.propostas == {}
+
+
+def test_piso_do_codigo_nao_depende_da_politica(mundo):
+    # Uma política montada por código, sem passar pela leitura do arquivo, também não baixa o piso.
+    frouxa = replace(mundo.politica, acoes={
+        nome: {"risco": "baixo", "prazo_maximo_de_risco_baixo": None} for nome in mundo.politica.acoes
+    })
+    mundo = Mundo(frouxa)
+    assert mundo.propor("isolar_dispositivo", "192.168.137.20").risco == "alto"
+    assert mundo.propor("revogar_credencial", "admin@192.168.137.20").risco == "alto"
+    assert mundo.propor("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA).risco == "alto"
+    for numero in (1, 2, 3):
+        recusado("proposta_nao_liberada", mundo.executar, f"prop-000{numero}")
