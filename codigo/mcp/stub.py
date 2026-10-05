@@ -16,23 +16,27 @@ Uso, a partir da raiz do repositório (transporte stdio):
 """
 import argparse
 import inspect
+import math
 import sys
 from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import CallToolResult, TextContent
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from codigo.mcp import acoes
-from codigo.mcp.acoes import PedidoRecusado, carregar_politica, reconstruir
+from codigo.mcp.acoes import PedidoRecusado, carregar_politica, reconstruir, resumir
 from codigo.mcp.base import carregar, mitigacoes, pesquisar
 from codigo.mcp.cenarios import CENARIOS, efeito, evoluir, janelas
-from codigo.mcp.eventos import CAMINHO_PADRAO, Registro, novo
+from codigo.mcp.eventos import CAMINHO_PADRAO, LogInvalido, Registro, novo
 from codigo.mcp.tipos import (
     AGENTES,
     LIMITE_DE_JANELAS,
+    TEXTO_CURTO,
+    TEXTO_LONGO,
     TOOLS,
     ChamadaDeTool,
+    Consulta,
     Efeito,
     FatiaDeJanelas,
     Mitigacoes,
@@ -47,7 +51,58 @@ INSTRUCOES = (
     "bruta), inc-0003 (varredura de portas) e inc-0004. Ação de risco alto e ação nova, fora do catálogo, "
     "só são executadas depois que uma pessoa aprova."
 )
+_LOG_INVALIDO = (
+    "O log de eventos do servidor está inconsistente, e nenhuma tool é atendida até que ele seja corrigido. "
+    "O detalhe está na saída de erro do servidor."
+)
 _TOOLS = {tool.nome: tool for tool in TOOLS}
+_CONSULTA = TypeAdapter(Consulta)
+# Até onde uma lista, um objeto ou uma estrutura aninhada de um argumento vai para o log.
+_MAIS_ITENS = 20
+_MAIS_NIVEIS = 4
+
+
+def _milhar(numero):
+    return f"{numero:,}".replace(",", ".")
+
+
+def _para_o_log(valor, nivel=0):
+    """O argumento como é gravado no log: igual ao recebido quando cabe no contrato, cortado quando não.
+
+    O que um agente manda vai para o log em `tool_chamada` e em `recusa`. Sem este corte, um
+    texto de megabytes recusado ficaria inteiro no arquivo, e um valor que o leitor do log não
+    aceita (um inteiro de milhares de dígitos, um número não finito) deixaria o log ilegível.
+    """
+    if valor is None or isinstance(valor, bool):
+        return valor
+    if isinstance(valor, int):
+        # O Python não converte em texto um inteiro de mais de 4.300 dígitos: conta-se em bits.
+        return valor if valor.bit_length() <= 64 else f"[inteiro de {_milhar(valor.bit_length())} bits]"
+    if isinstance(valor, float):
+        return valor if math.isfinite(valor) else f"[{valor}]"
+    if isinstance(valor, str):
+        # Par substituto solto não é texto válido e não pode ser gravado em UTF-8.
+        texto = valor.encode("utf-8", "backslashreplace").decode("utf-8")
+        if len(texto) <= TEXTO_LONGO:
+            return texto
+        return f"{texto[:TEXTO_CURTO]} [cortado: {_milhar(len(texto))} caracteres]"
+    if isinstance(valor, dict | list | tuple):
+        if nivel >= _MAIS_NIVEIS:
+            return "[estrutura cortada]"
+        if isinstance(valor, dict):
+            resumo = {
+                str(_para_o_log(chave if isinstance(chave, str) else repr(chave)))[:TEXTO_CURTO]:
+                _para_o_log(item, nivel + 1)
+                for chave, item in list(valor.items())[:_MAIS_ITENS]
+            }
+            if len(valor) > _MAIS_ITENS:
+                resumo["[cortado]"] = f"{_milhar(len(valor))} chaves"
+            return resumo
+        resumo = [_para_o_log(item, nivel + 1) for item in valor[:_MAIS_ITENS]]
+        if len(valor) > _MAIS_ITENS:
+            resumo.append(f"[cortado: {_milhar(len(valor))} itens]")
+        return resumo
+    return f"[valor do tipo {type(valor).__name__}]"
 _OBSERVACOES = {
     "cessou": "O tráfego do incidente cessou depois da ação.",
     "diminuiu": "O tráfego do incidente diminuiu depois da ação, mas não cessou.",
@@ -114,6 +169,8 @@ class Stub:
         if nome not in _TOOLS:
             raise ValueError(f"tool desconhecida: {nome}")
         inicio = self.registro.relogio()
+        # Para o log vai o resumo dos argumentos: igual a eles, a não ser quando são grandes demais.
+        para_o_log = _para_o_log(argumentos)
 
         def decidir(eventos):
             estado = reconstruir(eventos)
@@ -122,13 +179,13 @@ class Stub:
                 resultado, rascunhos = self._atender(nome, estado, argumentos, inicio)
             except PedidoRecusado as recusa:
                 dados = Recusa(
-                    agente=self.agente, tool=nome, argumentos=argumentos, motivo=recusa.motivo,
+                    agente=self.agente, tool=nome, argumentos=para_o_log, motivo=recusa.motivo,
                     mensagem=recusa.mensagem,
                 )
                 return recusa, [novo("recusa", dados, incidente)]
             duracao = (self.registro.relogio() - inicio).total_seconds() * 1000
             chamada = ChamadaDeTool(
-                agente=self.agente, nome=nome, argumentos=argumentos, resultado=_RESUMOS[nome](resultado),
+                agente=self.agente, nome=nome, argumentos=para_o_log, resultado=_RESUMOS[nome](resultado),
                 duracao_ms=round(duracao, 3),
             )
             return resultado, [novo("tool_chamada", chamada, incidente), *rascunhos]
@@ -148,10 +205,13 @@ class Stub:
         try:
             entrada = _TOOLS[nome].entrada.model_validate(argumentos)
         except ValidationError as erro:
-            campos = sorted({".".join(str(parte) for parte in defeito["loc"]) for defeito in erro.errors()})
+            # O nome de um argumento a mais vem de quem chamou: entra na mensagem escapado e cortado.
+            declarados = _TOOLS[nome].entrada.model_fields
+            campos = sorted({str(defeito["loc"][0]) if defeito["loc"] else nome for defeito in erro.errors()})
+            mostrados = [campo if campo in declarados else resumir(campo, 30) for campo in campos[:_MAIS_ITENS]]
             raise PedidoRecusado(
                 "argumentos_invalidos",
-                f"Argumentos fora do contrato de {nome}. Confira: {', '.join(campos)}.",
+                f"Argumentos fora do contrato de {nome}. Confira: {', '.join(mostrados)}.",
             ) from None
         return getattr(self, f"_{nome}")(estado, inicio, **dict(entrada))
 
@@ -172,7 +232,7 @@ class Stub:
     def _incidente(self, estado, identificador):
         if identificador not in estado.incidentes or identificador not in self._cenarios:
             raise PedidoRecusado(
-                "identificador_desconhecido", f"Não existe incidente com o identificador {identificador!r}."
+                "identificador_desconhecido", f"Não existe incidente com o identificador {resumir(identificador)}."
             )
         return estado.incidentes[identificador]
 
@@ -194,6 +254,13 @@ class Stub:
         ), []
 
     def _pesquisar_solucoes(self, _estado, _inicio, consulta):
+        try:
+            consulta = _CONSULTA.validate_python(consulta)
+        except ValidationError:
+            raise PedidoRecusado(
+                "argumentos_invalidos",
+                f"A consulta precisa ser um texto de até {_milhar(TEXTO_LONGO)} caracteres, sem caractere de controle.",
+            ) from None
         return Solucoes(consulta=consulta, fonte="base_local", trechos=pesquisar(self._secoes, consulta)), []
 
     def _propor_acao(self, estado, _inicio, id, acao, alvo, parametros, justificativa):
@@ -213,7 +280,7 @@ class Stub:
         execucao = estado.execucoes.get(id_execucao)
         if execucao is None:
             raise PedidoRecusado(
-                "identificador_desconhecido", f"Não existe execução com o identificador {id_execucao!r}."
+                "identificador_desconhecido", f"Não existe execução com o identificador {resumir(id_execucao)}."
             )
         if execucao.estado == "desfeita":
             raise PedidoRecusado(
@@ -250,6 +317,11 @@ def _funcao_da_tool(stub, tool):
         except PedidoRecusado as recusa:
             # Erro de tool: o cliente recebe a mensagem como ela foi escrita, e o servidor segue no ar.
             return CallToolResult(content=[TextContent(type="text", text=recusa.mensagem)], is_error=True)
+        except LogInvalido as erro:
+            # O agente fica sabendo que o servidor não pode atender. O arquivo, a linha e o trecho
+            # do log ficam na saída de erro, para quem opera o servidor.
+            print(f"erro: {erro}", file=sys.stderr)
+            return CallToolResult(content=[TextContent(type="text", text=_LOG_INVALIDO)], is_error=True)
 
     funcao.__name__ = tool.nome
     funcao.__signature__ = inspect.Signature(

@@ -574,6 +574,107 @@ def test_tool_sem_identificador_fica_no_incidente_que_a_sessao_esta_tratando(stu
     ]
 
 
+# --- o que vem de fora não vai inteiro para o log nem volta na mensagem ----------------------
+
+
+def recusa_resumida(stub, motivo, nome, **argumentos):
+    """Chama a tool esperando a recusa de um pedido grande demais e devolve a mensagem e o que foi para o log."""
+    antes = stub.registro.caminho.stat().st_size
+    with pytest.raises(PedidoRecusado) as captura:
+        stub.chamar(nome, **argumentos)
+    assert captura.value.motivo == motivo
+    assert len(captura.value.mensagem) < 700 and captura.value.mensagem.isprintable()
+    recusa = stub.registro.ler()[-1]
+    assert (recusa.tipo, recusa.dados.motivo, recusa.dados.mensagem) == ("recusa", motivo, captura.value.mensagem)
+    # A linha da recusa é pequena, qualquer que seja o tamanho do que foi pedido.
+    assert stub.registro.caminho.stat().st_size - antes < 20_000
+    return captura.value.mensagem, recusa.dados.argumentos
+
+
+def test_texto_enorme_e_recusado_fica_resumido_no_log_e_nao_volta_na_mensagem(stub):
+    enorme = "A" * 1_000_000
+    proposta = {"id": "inc-0001", "acao": "bloquear_ip", "alvo": "203.0.113.7", "parametros": {"duracao": 10},
+                "justificativa": "Origem do tráfego."}
+    for campo, motivo in (
+        ("justificativa", "argumentos_invalidos"), ("alvo", "alvo_malformado"), ("acao", "argumentos_invalidos"),
+        ("id", "identificador_desconhecido"),
+    ):
+        mensagem, gravado = recusa_resumida(stub, motivo, "propor_acao", **proposta | {campo: enorme})
+        assert "A" * 100 not in mensagem
+        assert gravado[campo].startswith("A" * 200) and "1.000.000 caracteres" in gravado[campo]
+        assert len(gravado[campo]) < 300
+        assert {nome: valor for nome, valor in gravado.items() if nome != campo} == {
+            nome: valor for nome, valor in proposta.items() if nome != campo
+        }
+    for nome, argumentos in (
+        ("obter_incidente", {"id": enorme}), ("executar_acao", {"id_proposta": enorme}),
+        ("desfazer_acao", {"id_execucao": enorme}), ("verificar_efeito", {"id_execucao": enorme}),
+    ):
+        _, gravado = recusa_resumida(stub, "identificador_desconhecido", nome, **argumentos)
+        assert len(str(gravado)) < 400
+    assert "acao_proposta" not in tipos(stub)
+
+
+def test_acao_nova_enorme_e_recusada_e_fica_resumida_no_log(stub):
+    muitos_passos = ACAO_NOVA | {"passos": ["Passo."] * 200_000}
+    _, gravado = recusa_resumida(
+        stub, "acao_nova_incompleta", "propor_acao", id="inc-0001", acao="acao_enorme", alvo="192.168.137.20",
+        parametros=muitos_passos, justificativa="j",
+    )
+    assert len(gravado["parametros"]["passos"]) == 21 and "200.000 itens" in gravado["parametros"]["passos"][-1]
+    muitas_chaves = {f"chave_{numero}": numero for numero in range(5_000)}
+    _, gravado = recusa_resumida(
+        stub, "argumentos_invalidos", "propor_acao", id="inc-0001", acao="bloquear_ip", alvo="203.0.113.7",
+        parametros=muitas_chaves, justificativa="j",
+    )
+    assert len(gravado["parametros"]) == 21
+
+
+def aninhado(niveis):
+    valor = atual = {}
+    for _ in range(niveis):
+        atual["a"] = {}
+        atual = atual["a"]
+    return valor
+
+
+@pytest.mark.parametrize("valor", [10**5000, -(10**5000), float("nan"), float("inf"), "\ud800", aninhado(150), aninhado(3000)],
+                         ids=["inteiro de 5000 dígitos", "negativo de 5000 dígitos", "nan", "inf", "surrogate solto", "150 níveis", "3000 níveis"])
+def test_valor_que_o_log_nao_leria_de_volta_nao_envenena_o_log(stub, valor):
+    # Antes, a recusa era gravada com o valor como veio, e toda chamada seguinte falhava ao ler o log.
+    bloqueio = {"id": "inc-0001", "acao": "bloquear_ip", "alvo": "203.0.113.7", "justificativa": "j"}
+    recusa_resumida(stub, "argumentos_invalidos", "propor_acao", **bloqueio, parametros={"x": valor})
+    recusa_resumida(stub, "argumentos_invalidos", "propor_acao", **bloqueio, parametros={"duracao": valor})
+    recusa_resumida(
+        stub, "argumentos_invalidos", "propor_acao", **bloqueio | {"acao": "limitar_taxa"}, parametros={"duracao": valor},
+    )
+    assert chamar(stub, "obter_incidente", id="inc-0001").id == "inc-0001"
+    assert tipos(stub)[-4:] == ["recusa", "recusa", "recusa", "tool_chamada"]
+
+
+def test_limite_de_janelas_absurdo_e_atendido_e_nao_envenena_o_log(stub):
+    assert len(stub.chamar("obter_janelas", id="inc-0001", limite=10**5000).janelas) == 20
+    gravado = stub.registro.ler()[-1].dados.argumentos
+    assert gravado["id"] == "inc-0001" and "bits" in gravado["limite"]
+    assert chamar(stub, "obter_janelas", id="inc-0001", limite=2).total == 10_734
+
+
+def test_consulta_da_pesquisa_tem_tamanho_maximo_e_nao_aceita_controle(stub):
+    assert chamar(stub, "pesquisar_solucoes", consulta="syn flood\ncom muitas origens").trechos
+    assert chamar(stub, "pesquisar_solucoes", consulta="x" * 2_000).trechos == []
+    for consulta in ("x" * 2_001, "a" * 20_000_000, "syn\x1b[2J", "syn\x00", "syn\u2028flood"):
+        mensagem, _ = recusa_resumida(stub, "argumentos_invalidos", "pesquisar_solucoes", consulta=consulta)
+        assert "consulta" in mensagem
+
+
+def test_nome_de_argumento_que_veio_de_fora_entra_escapado_na_mensagem(stub):
+    mensagem, gravado = recusa_resumida(
+        stub, "argumentos_invalidos", "obter_incidente", **{"id": "inc-0001", "x\x1b[2J\n" + "B" * 5_000: 1},
+    )
+    assert "\\x1b" in mensagem and "B" * 100 not in mensagem
+    assert len(gravado) == 2
+
+
 # --- o log é entrada: linha escrita por fora não libera nada ---------------------------------
 
 
@@ -652,6 +753,22 @@ def test_evento_que_cita_proposta_inexistente_e_erro_com_a_linha_e_nao_keyerror(
     assert main(["--log", str(stub.registro.caminho)]) == 1
     erro = capsys.readouterr().err
     assert erro.startswith("erro: ") and "linha 9" in erro and "Traceback" not in erro
+
+
+def test_log_invalido_vira_erro_de_tool_sem_expor_o_conteudo_do_log(stub, capsys):
+    servidor = criar_servidor(stub)
+    acrescentar(stub, "llm_chamada", {
+        "agente": "triagem", "modelo": "segredo-do-log", "tokens_entrada": -5, "tokens_saida": 1, "duracao_ms": 1,
+    })
+    resposta = chamar_pelo_servidor(servidor, "obter_incidente", {"id": "inc-0001"})
+    assert resposta.is_error is True and resposta.structured_content is None
+    mensagem = resposta.content[0].text
+    # O agente fica sabendo que o servidor não pode atender, e mais nada.
+    assert "log de eventos" in mensagem
+    assert "segredo-do-log" not in mensagem and str(stub.registro.caminho) not in mensagem
+    # Quem opera o servidor encontra o arquivo e a linha na saída de erro.
+    erro = capsys.readouterr().err
+    assert "linha 9" in erro and str(stub.registro.caminho) in erro and "Traceback" not in erro
 
 
 # --- uma linha de tools por agente -----------------------------------------------------------
