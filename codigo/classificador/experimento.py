@@ -50,6 +50,7 @@ from codigo.classificador.avaliar import (
     populacao_do_manifesto,
     tempo_por_janela,
     tempo_por_mil,
+    teto,
 )
 from codigo.classificador.mapeamento import CATEGORIA_DO_ROTULO, ROTULOS
 from codigo.classificador.preparar import (
@@ -148,6 +149,17 @@ def rodar(quadro, populacao, execucoes=(*GRADE, *REFERENCIAS), semente=SEMENTE, 
             "linhas_com_vazio_ou_infinito": int((~np.isfinite(quadro[list(CONJUNTOS_DE_FEATURES["39"])])).any(axis=1).sum()),
             "vetores_distintos": {nome: int(g.max()) + 1 for nome, g in grupos.items()},
             "linhas_repetidas": {nome: _repetidas(g) for nome, g in grupos.items()},
+            # O teto de todas as linhas da amostra, para comparar com o das linhas de teste de cada execução.
+            "teto": {
+                nome: {
+                    nome_do_alvo: {
+                        "amostra": teto(g, rotulos, nome_do_alvo)["acuracia"],
+                        "original": teto(g, rotulos, nome_do_alvo, populacao)["acuracia"],
+                    }
+                    for nome_do_alvo in ALVOS
+                }
+                for nome, g in grupos.items()
+            },
         },
         "divisoes": {
             nome: {
@@ -432,9 +444,10 @@ def _como_ler(m):
 
 def _limite_da_reponderada(m):
     """O parágrafo que diz qual é o limite da acurácia reponderada."""
-    medido = next(
+    amostra = m["amostra"]
+    de_teste = next(
         (
-            f" Nas linhas de teste de `{e['nome']}`, o teto reponderado é {_pct(e['original']['teto'])}."
+            f"{_pct(e['original']['teto'])} nas {_milhar(e['linhas_de_teste'])} linhas de teste de `{e['nome']}` e "
             for e in m["execucoes"] if (e["features"], e["divisao"], e["alvo"]) == ("39", "estratificada", "8")
         ),
         "",
@@ -443,8 +456,10 @@ def _limite_da_reponderada(m):
         "**Limite da acurácia reponderada.** No sorteio estratificado, a acurácia reponderada estima a acurácia do "
         "modelo no conjunto completo. O limite esperado dela é o teto do conjunto completo, e não o das linhas de "
         f"teste: em 8 categorias, {_pct(TETO_DE_8_CATEGORIAS_NO_CONJUNTO)} com as 39 features "
-        f"({FONTE_DO_CONJUNTO_COMPLETO}). O teto das linhas de teste fica acima desse valor mesmo quando é "
-        f"reponderado, porque o teste tem muito menos linhas que o conjunto completo.{medido} Por isso as tabelas "
+        f"({FONTE_DO_CONJUNTO_COMPLETO}). O teto reponderado de uma parte da amostra fica acima desse valor, porque "
+        f"o teto cai quando o conjunto cresce: em 8 categorias e com as 39 features, ele é {de_teste}"
+        f"{_pct(amostra['teto']['39']['8']['original'])} nas {_milhar(amostra['linhas'])} linhas da amostra "
+        f"inteira, e o conjunto completo tem {_milhar(sum(m['populacao'].values()))} linhas. Por isso as tabelas "
         "trazem o teto das linhas de teste sem reponderar, e o reponderado fica só no manifesto. A exploração não "
         "mediu o teto do conjunto completo em 7 categorias, em 34 classes nem no cenário de ataque ou benigno."
     )

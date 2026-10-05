@@ -175,6 +175,24 @@ def test_manifesto_registra_as_duas_divisoes(experimento):
     assert divisoes["estratificada"]["teste_com_vetor_no_treino"]["39"] > 0
 
 
+def test_manifesto_registra_o_teto_da_amostra_inteira(experimento):
+    pasta, quadro = experimento
+    manifesto = ler_manifesto(pasta / "resultados")
+    rotulos = quadro["Label"].to_numpy()
+    assert set(manifesto["amostra"]["teto"]) == {"39", "33"}
+    for features, por_alvo in manifesto["amostra"]["teto"].items():
+        grupos = agrupar(matriz(quadro, CONJUNTOS_DE_FEATURES[features]))
+        assert set(por_alvo) == set(ALVOS)
+        for nome_do_alvo, medidas in por_alvo.items():
+            for distribuicao, populacao in (("amostra", None), ("original", manifesto["populacao"])):
+                esperado = teto(grupos, rotulos, nome_do_alvo, populacao)["acuracia"]
+                assert medidas[distribuicao] == pytest.approx(esperado), (features, nome_do_alvo, distribuicao)
+    # Com mais linhas há mais vetores repetidos com classes diferentes: o teto da amostra inteira
+    # não passa do teto das linhas de teste de uma execução.
+    principal = manifesto["execucoes"][0]
+    assert manifesto["amostra"]["teto"]["39"]["8"]["amostra"] <= principal["amostra"]["teto"]
+
+
 def test_cada_execucao_traz_as_medidas_nas_duas_distribuicoes_e_o_custo(experimento):
     pasta, _ = experimento
     for execucao in ler_manifesto(pasta / "resultados")["execucoes"]:
@@ -432,6 +450,14 @@ def test_relatorio_da_o_teto_do_conjunto_completo_como_limite_da_acuracia_repond
     assert "No sorteio estratificado, a acurácia reponderada estima a acurácia do modelo no conjunto completo" in trecho
     assert "em 8 categorias, 92,87% com as 39 features (`exploracao.md`, seção 8)" in trecho
     assert "não mediu o teto do conjunto completo em 7 categorias" in trecho
+    # O teto cai com o tamanho do conjunto: linhas de teste, amostra inteira e conjunto completo.
+    manifesto = ler_manifesto(pasta / "resultados")
+    principal = manifesto["execucoes"][0]
+    da_amostra = manifesto["amostra"]["teto"]["39"]["8"]["original"]
+    assert (
+        f"ele é {100 * principal['original']['teto']:.2f}% nas 72 linhas de teste de `f39_estratificada_c8` e "
+        f"{100 * da_amostra:.2f}% nas 360 linhas da amostra inteira"
+    ).replace(".", ",") in trecho
     # Na comparação entre 8 e 7 categorias, a diferença do conjunto completo é dita maior, sem número inventado.
     ddos_e_dos = relatorio.split("### DDoS e DoS")[1]
     assert "No conjunto completo a diferença entre o teto de 8 e o de 7 categorias é bem maior do que a medida aqui" in ddos_e_dos
