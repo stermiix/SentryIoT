@@ -86,11 +86,12 @@
       "categoria": "Benign",
       "arquivos": [
         "BenignTraffic.pcap",
-        "BenignTraffic1.pcap"
+        "BenignTraffic1.pcap",
+        "BenignTraffic2.pcap"
       ],
       "linhas": {
-        "10": 657767,
-        "100": 65777
+        "10": 968086,
+        "100": 96809
       }
     },
     {
@@ -116,6 +117,17 @@
       }
     },
     {
+      "rotulo": "DDoS-ACK_Fragmentation",
+      "categoria": "DDoS",
+      "arquivos": [
+        "DDoS-ACK_Fragmentation.pcap"
+      ],
+      "linhas": {
+        "10": 243900,
+        "100": 24457
+      }
+    },
+    {
       "rotulo": "DDoS-HTTP_Flood",
       "categoria": "DDoS",
       "arquivos": [
@@ -138,14 +150,70 @@
       }
     },
     {
+      "rotulo": "DDoS-ICMP_Fragmentation",
+      "categoria": "DDoS",
+      "arquivos": [
+        "DDoS-ICMP_Fragmentation.pcap"
+      ],
+      "linhas": {
+        "10": 203141,
+        "100": 20479
+      }
+    },
+    {
+      "rotulo": "DDoS-PSHACK_Flood",
+      "categoria": "DDoS",
+      "arquivos": [
+        "DDoS-PSHACK_Flood.pcap"
+      ],
+      "linhas": {
+        "10": 2675472,
+        "100": 267618
+      }
+    },
+    {
+      "rotulo": "DDoS-RSTFINFlood",
+      "categoria": "DDoS",
+      "arquivos": [
+        "DDoS-RSTFINFlood.pcap"
+      ],
+      "linhas": {
+        "10": 2666660,
+        "100": 266742
+      }
+    },
+    {
       "rotulo": "DDoS-SYN_Flood",
       "categoria": "DDoS",
       "arquivos": [
-        "DDoS-SYN_Flood.pcap"
+        "DDoS-SYN_Flood.pcap",
+        "DDoS-SYN_Flood1.pcap"
       ],
       "linhas": {
-        "10": 2656622,
-        "100": 265702
+        "10": 5326163,
+        "100": 532731
+      }
+    },
+    {
+      "rotulo": "DDoS-SlowLoris",
+      "categoria": "DDoS",
+      "arquivos": [
+        "DDoS-SlowLoris.pcap"
+      ],
+      "linhas": {
+        "10": 179601,
+        "100": 21710
+      }
+    },
+    {
+      "rotulo": "DDoS-SynonymousIP_Flood",
+      "categoria": "DDoS",
+      "arquivos": [
+        "DDoS-SynonymousIP_Flood.pcap"
+      ],
+      "linhas": {
+        "10": 2684667,
+        "100": 268499
       }
     },
     {
@@ -168,6 +236,17 @@
       "linhas": {
         "10": 2661376,
         "100": 266297
+      }
+    },
+    {
+      "rotulo": "DDoS-UDP_Fragmentation",
+      "categoria": "DDoS",
+      "arquivos": [
+        "DDoS-UDP_Fragmentation.pcap"
+      ],
+      "linhas": {
+        "10": 221697,
+        "100": 22394
       }
     },
     {
@@ -207,11 +286,12 @@
       "rotulo": "DoS-SYN_Flood",
       "categoria": "DoS",
       "arquivos": [
-        "DoS-SYN_Flood.pcap"
+        "DoS-SYN_Flood.pcap",
+        "DoS-SYN_Flood1.pcap"
       ],
       "linhas": {
-        "10": 2624053,
-        "100": 262576
+        "10": 5261433,
+        "100": 526530
       }
     },
     {
@@ -248,6 +328,17 @@
       }
     },
     {
+      "rotulo": "Mirai-greeth_flood",
+      "categoria": "Mirai",
+      "arquivos": [
+        "Mirai-greeth_flood.pcap"
+      ],
+      "linhas": {
+        "10": 329157,
+        "100": 33008
+      }
+    },
+    {
       "rotulo": "Mirai-greip_flood",
       "categoria": "Mirai",
       "arquivos": [
@@ -256,6 +347,17 @@
       "linhas": {
         "10": 119531,
         "100": 11955
+      }
+    },
+    {
+      "rotulo": "Mirai-udpplain",
+      "categoria": "Mirai",
+      "arquivos": [
+        "Mirai-udpplain.pcap"
+      ],
+      "linhas": {
+        "10": 362081,
+        "100": 36373
       }
     },
     {
@@ -433,6 +535,34 @@
       }
     },
     {
+      "arquivo": "BenignTraffic2.pcap",
+      "rotulo": "BenignTraffic",
+      "categoria": "Benign",
+      "benigno": true,
+      "bytes": 2048001991,
+      "modificado_ns": 1791673591892298932,
+      "sha256": "ddafc1c1d3432bdde55340423196ceee79bba47b48b14179ae48d561cca341b8",
+      "pacotes": 3138002,
+      "segundos": 31.117054916998313,
+      "avisos": [],
+      "janelas": {
+        "10": {
+          "extraidas": 310319,
+          "mantidas": 310319,
+          "descartadas": 0,
+          "com_atacante": 17124,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 31032,
+          "mantidas": 31032,
+          "descartadas": 0,
+          "com_atacante": 8648,
+          "incompletas": 1
+        }
+      }
+    },
+    {
       "arquivo": "BrowserHijacking.pcap",
       "rotulo": "BrowserHijacking",
       "categoria": "Web",
@@ -484,6 +614,34 @@
           "mantidas": 377,
           "descartadas": 164,
           "com_atacante": 377,
+          "incompletas": 1
+        }
+      }
+    },
+    {
+      "arquivo": "DDoS-ACK_Fragmentation.pcap",
+      "rotulo": "DDoS-ACK_Fragmentation",
+      "categoria": "DDoS",
+      "benigno": false,
+      "bytes": 2048001110,
+      "modificado_ns": 1791669507298902736,
+      "sha256": "004fc3523ca44423199a2deff0b83279f23c290d4efc9e60de1c935f23f96f69",
+      "pacotes": 2503835,
+      "segundos": 22.803293708999263,
+      "avisos": [],
+      "janelas": {
+        "10": {
+          "extraidas": 249836,
+          "mantidas": 243900,
+          "descartadas": 5936,
+          "com_atacante": 243900,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 24984,
+          "mantidas": 24457,
+          "descartadas": 527,
+          "com_atacante": 24457,
           "incompletas": 1
         }
       }
@@ -545,6 +703,90 @@
       }
     },
     {
+      "arquivo": "DDoS-ICMP_Fragmentation.pcap",
+      "rotulo": "DDoS-ICMP_Fragmentation",
+      "categoria": "DDoS",
+      "benigno": false,
+      "bytes": 2048001116,
+      "modificado_ns": 1791672270734331047,
+      "sha256": "2c7b656619d03091bfb708e8a6408cbf0b98c4b32c9550e92f00547428f40540",
+      "pacotes": 2064692,
+      "segundos": 17.905584583000746,
+      "avisos": [],
+      "janelas": {
+        "10": {
+          "extraidas": 205967,
+          "mantidas": 203141,
+          "descartadas": 2826,
+          "com_atacante": 203141,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 20597,
+          "mantidas": 20479,
+          "descartadas": 118,
+          "com_atacante": 20479,
+          "incompletas": 1
+        }
+      }
+    },
+    {
+      "arquivo": "DDoS-PSHACK_Flood.pcap",
+      "rotulo": "DDoS-PSHACK_Flood",
+      "categoria": "DDoS",
+      "benigno": false,
+      "bytes": 2048000022,
+      "modificado_ns": 1791672622771258649,
+      "sha256": "ad455d997fb960ef54d78ec8d33e684fc8a69a56cf1b557742c37a5ff135b8a0",
+      "pacotes": 26774357,
+      "segundos": 240.75854679199983,
+      "avisos": [],
+      "janelas": {
+        "10": {
+          "extraidas": 2677112,
+          "mantidas": 2675472,
+          "descartadas": 1640,
+          "com_atacante": 2675472,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 267712,
+          "mantidas": 267618,
+          "descartadas": 94,
+          "com_atacante": 267618,
+          "incompletas": 1
+        }
+      }
+    },
+    {
+      "arquivo": "DDoS-RSTFINFlood.pcap",
+      "rotulo": "DDoS-RSTFINFlood",
+      "categoria": "DDoS",
+      "benigno": false,
+      "bytes": 2048000045,
+      "modificado_ns": 1791672422889213431,
+      "sha256": "35d4088099d0b74de066ae2ca8cae905c2c82c5de3d5b696f88016c64ec7c46e",
+      "pacotes": 26686473,
+      "segundos": 239.9209861670024,
+      "avisos": [],
+      "janelas": {
+        "10": {
+          "extraidas": 2668315,
+          "mantidas": 2666660,
+          "descartadas": 1655,
+          "com_atacante": 2666660,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 266832,
+          "mantidas": 266742,
+          "descartadas": 90,
+          "com_atacante": 266742,
+          "incompletas": 1
+        }
+      }
+    },
+    {
       "arquivo": "DDoS-SYN_Flood.pcap",
       "rotulo": "DDoS-SYN_Flood",
       "categoria": "DDoS",
@@ -568,6 +810,90 @@
           "mantidas": 265702,
           "descartadas": 223,
           "com_atacante": 265702,
+          "incompletas": 1
+        }
+      }
+    },
+    {
+      "arquivo": "DDoS-SYN_Flood1.pcap",
+      "rotulo": "DDoS-SYN_Flood",
+      "categoria": "DDoS",
+      "benigno": false,
+      "bytes": 2048000055,
+      "modificado_ns": 1791673277511898096,
+      "sha256": "ff5c25cd6d5eb7fd15b599a93e5e53b3c74bc2d528b8f0429c95ab2114ef6fc5",
+      "pacotes": 26715334,
+      "segundos": 240.41199329200026,
+      "avisos": [],
+      "janelas": {
+        "10": {
+          "extraidas": 2670961,
+          "mantidas": 2669541,
+          "descartadas": 1420,
+          "com_atacante": 2669541,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 267097,
+          "mantidas": 267029,
+          "descartadas": 68,
+          "com_atacante": 267029,
+          "incompletas": 1
+        }
+      }
+    },
+    {
+      "arquivo": "DDoS-SlowLoris.pcap",
+      "rotulo": "DDoS-SlowLoris",
+      "categoria": "DDoS",
+      "benigno": false,
+      "bytes": 675607734,
+      "modificado_ns": 1791671866361310156,
+      "sha256": "9dc14b610031d43366c302d4bc68e173a2d02bedd9470997cd9be6aa26d2eaea",
+      "pacotes": 2351454,
+      "segundos": 22.19485062500098,
+      "avisos": [],
+      "janelas": {
+        "10": {
+          "extraidas": 233903,
+          "mantidas": 179601,
+          "descartadas": 54302,
+          "com_atacante": 179601,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 23391,
+          "mantidas": 21710,
+          "descartadas": 1681,
+          "com_atacante": 21710,
+          "incompletas": 1
+        }
+      }
+    },
+    {
+      "arquivo": "DDoS-SynonymousIP_Flood.pcap",
+      "rotulo": "DDoS-SynonymousIP_Flood",
+      "categoria": "DDoS",
+      "benigno": false,
+      "bytes": 2048000024,
+      "modificado_ns": 1791672816563778463,
+      "sha256": "d2ef859ee93d34edce1d4bfc1de4ea234cf960a3bfd3cf374845a5ddb1d2767a",
+      "pacotes": 26855630,
+      "segundos": 241.6506777499999,
+      "avisos": [],
+      "janelas": {
+        "10": {
+          "extraidas": 2685243,
+          "mantidas": 2684667,
+          "descartadas": 576,
+          "com_atacante": 2684667,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 268525,
+          "mantidas": 268499,
+          "descartadas": 26,
+          "com_atacante": 268499,
           "incompletas": 1
         }
       }
@@ -624,6 +950,34 @@
           "mantidas": 266297,
           "descartadas": 206,
           "com_atacante": 266297,
+          "incompletas": 1
+        }
+      }
+    },
+    {
+      "arquivo": "DDoS-UDP_Fragmentation.pcap",
+      "rotulo": "DDoS-UDP_Fragmentation",
+      "categoria": "DDoS",
+      "benigno": false,
+      "bytes": 2048000788,
+      "modificado_ns": 1791672085596585481,
+      "sha256": "dfa0770d74d06ce8ae2c57479877e11d41e5f0f616d4cbd30bc5e51364225cee",
+      "pacotes": 2248843,
+      "segundos": 19.196408416999475,
+      "avisos": [],
+      "janelas": {
+        "10": {
+          "extraidas": 224381,
+          "mantidas": 221697,
+          "descartadas": 2684,
+          "com_atacante": 221697,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 22439,
+          "mantidas": 22394,
+          "descartadas": 45,
+          "com_atacante": 22394,
           "incompletas": 1
         }
       }
@@ -741,6 +1095,34 @@
       }
     },
     {
+      "arquivo": "DoS-SYN_Flood1.pcap",
+      "rotulo": "DoS-SYN_Flood",
+      "categoria": "DoS",
+      "benigno": false,
+      "bytes": 2048000065,
+      "modificado_ns": 1791673451656797160,
+      "sha256": "d35fd7510fb9985e478f91010249e45caa453e6e15b88b093c811d104e5c2dfd",
+      "pacotes": 26405653,
+      "segundos": 237.11847391700212,
+      "avisos": [],
+      "janelas": {
+        "10": {
+          "extraidas": 2640253,
+          "mantidas": 2637380,
+          "descartadas": 2873,
+          "com_atacante": 2637380,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 264026,
+          "mantidas": 263954,
+          "descartadas": 72,
+          "com_atacante": 263954,
+          "incompletas": 1
+        }
+      }
+    },
+    {
       "arquivo": "DoS-TCP_Flood.pcap",
       "rotulo": "DoS-TCP_Flood",
       "categoria": "DoS",
@@ -825,6 +1207,34 @@
       }
     },
     {
+      "arquivo": "Mirai-greeth_flood.pcap",
+      "rotulo": "Mirai-greeth_flood",
+      "categoria": "Mirai",
+      "benigno": false,
+      "bytes": 2048000288,
+      "modificado_ns": 1791672950588650606,
+      "sha256": "87f8de16e575f23fca6c159a94360c6dd2970c4d9a1711d46c9468f1cf724c0e",
+      "pacotes": 3352569,
+      "segundos": 40.99036675000025,
+      "avisos": [],
+      "janelas": {
+        "10": {
+          "extraidas": 335007,
+          "mantidas": 329157,
+          "descartadas": 5850,
+          "com_atacante": 329157,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 33501,
+          "mantidas": 33008,
+          "descartadas": 493,
+          "com_atacante": 33008,
+          "incompletas": 1
+        }
+      }
+    },
+    {
       "arquivo": "Mirai-greip_flood21.pcap",
       "rotulo": "Mirai-greip_flood",
       "categoria": "Mirai",
@@ -848,6 +1258,34 @@
           "mantidas": 11955,
           "descartadas": 0,
           "com_atacante": 11955,
+          "incompletas": 1
+        }
+      }
+    },
+    {
+      "arquivo": "Mirai-udpplain.pcap",
+      "rotulo": "Mirai-udpplain",
+      "categoria": "Mirai",
+      "benigno": false,
+      "bytes": 2048000451,
+      "modificado_ns": 1791673090497666267,
+      "sha256": "845a8c833c5841203b75d776a353526f55a7fbcd9ca3079b53848e85a62ed3a7",
+      "pacotes": 3642269,
+      "segundos": 30.528495374997874,
+      "avisos": [],
+      "janelas": {
+        "10": {
+          "extraidas": 363888,
+          "mantidas": 362081,
+          "descartadas": 1807,
+          "com_atacante": 362081,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 36389,
+          "mantidas": 36373,
+          "descartadas": 16,
+          "com_atacante": 36373,
           "incompletas": 1
         }
       }
