@@ -381,8 +381,8 @@ def _cabecalho(m):
         "rótulo oficial é dado ao arquivo inteiro, mesmo nas janelas sem nenhum quadro do atacante",
         "(`janelas_sem_atacante.md`). Por isso os dados de treino foram gerados de novo a partir dos pcaps, com o",
         "nosso extrator, em janela única e com o rótulo decidido janela a janela (decisão de 10/10/2026 no",
-        "`ROADMAP.md`). Este relatório traz o Random Forest de 7 categorias treinado nesses dados, uma vez com",
-        "janela de " + _enumerar(_janelas(m)) + " quadros, e as medidas de cada um na parte de teste.",
+        "`ROADMAP.md`). Este relatório traz o Random Forest de 7 categorias treinado nesses dados, um modelo por",
+        "janela, de " + _enumerar(_janelas(m)) + " quadros, e as medidas de cada um na parte de teste.",
     ]
 
 
@@ -592,6 +592,20 @@ def _ips(m):
         ]
     if all(not j["ips_de_origem"] for j in m["janelas"]):
         secao += ["", "Nenhuma classe de DDoS ou DoS tem pcap ainda."]
+        return secao
+    secao += [""]
+    for j in m["janelas"]:
+        ddos = [r["mediana"] for r in j["ips_de_origem"] if r["categoria"] == "DDoS"]
+        dos = [r["mediana"] for r in j["ips_de_origem"] if r["categoria"] == "DoS"]
+        if not ddos or not dos:
+            continue
+        separa = min(ddos) > max(dos)
+        secao.append(
+            f"Com janela de {j['janela']}, a mediana de IPs de origem por janela vai de {_decimal(min(ddos))} a "
+            f"{_decimal(max(ddos))} nas classes de DDoS e de {_decimal(min(dos))} a {_decimal(max(dos))} nas de DoS: "
+            + ("as faixas não se cruzam." if separa else "as faixas se cruzam, e a contagem de uma janela isolada não "
+               "separa as duas categorias. A separação precisa olhar as janelas do incidente em conjunto.")
+        )
     return secao
 
 
