@@ -700,6 +700,119 @@
       }
     },
     {
+      "arquivo": "DDoS-ICMP_Flood.pcap",
+      "rotulo": "DDoS-ICMP_Flood",
+      "categoria": "DDoS",
+      "benigno": false,
+      "bytes": 2048000069,
+      "modificado_ns": 1791664507381421740,
+      "sha256": "0455a66ec4296eaafe6c344352b3c047e8863f9e6e07dd84848854380974155f",
+      "pacotes": 26793240,
+      "segundos": 198.00268058300207,
+      "avisos": [],
+      "macs": {
+        "dc:a6:32:c9:e4:90": {
+          "origem": 1746833,
+          "destino": 426,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e4:ab": {
+          "origem": 3052697,
+          "destino": 404,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e4:d5": {
+          "origem": 4191590,
+          "destino": 513,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e5:a4": {
+          "origem": 4495002,
+          "destino": 1381,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e5:ef": {
+          "origem": 4196879,
+          "destino": 705,
+          "na_lista": true
+        },
+        "dc:a6:32:dc:27:d5": {
+          "origem": 4753338,
+          "destino": 1244,
+          "na_lista": true
+        },
+        "e4:5f:01:55:90:c4": {
+          "origem": 4244031,
+          "destino": 1115,
+          "na_lista": true
+        },
+        "1c:fe:2b:98:16:dd": {
+          "origem": 2280,
+          "destino": 15787965,
+          "na_lista": false
+        },
+        "1c:12:b0:9b:0c:ec": {
+          "origem": 9004,
+          "destino": 10893507,
+          "na_lista": false
+        },
+        "3c:18:a0:41:c3:a0": {
+          "origem": 43094,
+          "destino": 36447,
+          "na_lista": false
+        },
+        "ac:17:02:05:34:27": {
+          "origem": 11326,
+          "destino": 11248,
+          "na_lista": false
+        },
+        "ff:ff:ff:ff:ff:ff": {
+          "origem": 0,
+          "destino": 22299,
+          "na_lista": false
+        },
+        "a0:d0:dc:c4:08:ff": {
+          "origem": 4394,
+          "destino": 1993,
+          "na_lista": false
+        },
+        "b0:f1:ec:d3:e7:98": {
+          "origem": 3644,
+          "destino": 2363,
+          "na_lista": false
+        },
+        "2c:71:ff:05:f1:15": {
+          "origem": 2629,
+          "destino": 2374,
+          "na_lista": false
+        },
+        "44:bb:3b:00:39:07": {
+          "origem": 2254,
+          "destino": 1870,
+          "na_lista": false
+        },
+        "ee:06:3b:b8:d1:df": {
+          "origem": 1732,
+          "destino": 1936,
+          "na_lista": false
+        }
+      },
+      "janelas": {
+        "10": {
+          "extraidas": 2679086,
+          "com_atacante": 2677303,
+          "sem_atacante": 1783,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 267909,
+          "com_atacante": 267863,
+          "sem_atacante": 46,
+          "incompletas": 1
+        }
+      }
+    },
+    {
       "arquivo": "DDoS-SYN_Flood.pcap",
       "rotulo": "DDoS-SYN_Flood",
       "categoria": "DDoS",
@@ -808,6 +921,232 @@
           "extraidas": 265925,
           "com_atacante": 265702,
           "sem_atacante": 223,
+          "incompletas": 1
+        }
+      }
+    },
+    {
+      "arquivo": "DDoS-TCP_Flood.pcap",
+      "rotulo": "DDoS-TCP_Flood",
+      "categoria": "DDoS",
+      "benigno": false,
+      "bytes": 2048000035,
+      "modificado_ns": 1791664662067172082,
+      "sha256": "39d7597311b1eacad9c46c0779f0493d9ee51b2e4b344ae6dd47221e5ad04cec",
+      "pacotes": 26570958,
+      "segundos": 215.74686279199886,
+      "avisos": [],
+      "macs": {
+        "dc:a6:32:c9:e4:90": {
+          "origem": 3330284,
+          "destino": 29,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e4:ab": {
+          "origem": 3433848,
+          "destino": 31,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e4:d5": {
+          "origem": 4191762,
+          "destino": 30,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e5:a4": {
+          "origem": 2521572,
+          "destino": 32,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e5:ef": {
+          "origem": 3678970,
+          "destino": 29,
+          "na_lista": true
+        },
+        "dc:a6:32:dc:27:d5": {
+          "origem": 6170232,
+          "destino": 709,
+          "na_lista": true
+        },
+        "e4:5f:01:55:90:c4": {
+          "origem": 3085641,
+          "destino": 30,
+          "na_lista": true
+        },
+        "1c:fe:2b:98:16:dd": {
+          "origem": 3833,
+          "destino": 14702613,
+          "na_lista": false
+        },
+        "1c:12:b0:9b:0c:ec": {
+          "origem": 2569,
+          "destino": 7428510,
+          "na_lista": false
+        },
+        "a0:d0:dc:c4:08:ff": {
+          "origem": 6130,
+          "destino": 4289589,
+          "na_lista": false
+        },
+        "3c:18:a0:41:c3:a0": {
+          "origem": 64476,
+          "destino": 62746,
+          "na_lista": false
+        },
+        "ac:17:02:05:34:27": {
+          "origem": 15501,
+          "destino": 15382,
+          "na_lista": false
+        },
+        "ff:ff:ff:ff:ff:ff": {
+          "origem": 0,
+          "destino": 20497,
+          "na_lista": false
+        },
+        "7c:78:b2:86:0d:81": {
+          "origem": 6889,
+          "destino": 6126,
+          "na_lista": false
+        },
+        "2c:71:ff:05:f1:15": {
+          "origem": 6289,
+          "destino": 5052,
+          "na_lista": false
+        },
+        "40:5d:82:35:14:c8": {
+          "origem": 3543,
+          "destino": 3156,
+          "na_lista": false
+        },
+        "b0:f1:ec:d3:e7:98": {
+          "origem": 3287,
+          "destino": 1668,
+          "na_lista": false
+        }
+      },
+      "janelas": {
+        "10": {
+          "extraidas": 2656703,
+          "com_atacante": 2650042,
+          "sem_atacante": 6661,
+          "incompletas": 0
+        },
+        "100": {
+          "extraidas": 265671,
+          "com_atacante": 265218,
+          "sem_atacante": 453,
+          "incompletas": 1
+        }
+      }
+    },
+    {
+      "arquivo": "DDoS-UDP_Flood.pcap",
+      "rotulo": "DDoS-UDP_Flood",
+      "categoria": "DDoS",
+      "benigno": false,
+      "bytes": 2048000061,
+      "modificado_ns": 1791663968504228589,
+      "sha256": "541250a7494dca056bdf584e8c6705a346c85c8561319d251e3afc167c6c00c4",
+      "pacotes": 26653551,
+      "segundos": 182.50998691600034,
+      "avisos": [],
+      "macs": {
+        "dc:a6:32:c9:e4:90": {
+          "origem": 3576741,
+          "destino": 831,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e4:ab": {
+          "origem": 4077920,
+          "destino": 927,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e4:d5": {
+          "origem": 3817861,
+          "destino": 741,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e5:a4": {
+          "origem": 3602215,
+          "destino": 1060,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e5:ef": {
+          "origem": 3408629,
+          "destino": 781,
+          "na_lista": true
+        },
+        "dc:a6:32:dc:27:d5": {
+          "origem": 3920113,
+          "destino": 1640,
+          "na_lista": true
+        },
+        "e4:5f:01:55:90:c4": {
+          "origem": 4099560,
+          "destino": 845,
+          "na_lista": true
+        },
+        "1c:fe:2b:98:16:dd": {
+          "origem": 7075,
+          "destino": 13541168,
+          "na_lista": false
+        },
+        "1c:12:b0:9b:0c:ec": {
+          "origem": 3873,
+          "destino": 9105800,
+          "na_lista": false
+        },
+        "a0:d0:dc:c4:08:ff": {
+          "origem": 5926,
+          "destino": 3859789,
+          "na_lista": false
+        },
+        "3c:18:a0:41:c3:a0": {
+          "origem": 59782,
+          "destino": 54313,
+          "na_lista": false
+        },
+        "ac:17:02:05:34:27": {
+          "origem": 15396,
+          "destino": 15193,
+          "na_lista": false
+        },
+        "ff:ff:ff:ff:ff:ff": {
+          "origem": 0,
+          "destino": 22187,
+          "na_lista": false
+        },
+        "ee:06:3b:b8:d1:df": {
+          "origem": 4630,
+          "destino": 5556,
+          "na_lista": false
+        },
+        "ac:f1:08:4e:00:82": {
+          "origem": 4182,
+          "destino": 2862,
+          "na_lista": false
+        },
+        "b0:f1:ec:d3:e7:98": {
+          "origem": 3437,
+          "destino": 1991,
+          "na_lista": false
+        },
+        "40:5d:82:35:14:c8": {
+          "origem": 2680,
+          "destino": 2333,
+          "na_lista": false
+        }
+      },
+      "janelas": {
+        "10": {
+          "extraidas": 2665025,
+          "com_atacante": 2661376,
+          "sem_atacante": 3649,
+          "incompletas": 0
+        },
+        "100": {
+          "extraidas": 266503,
+          "com_atacante": 266297,
+          "sem_atacante": 206,
           "incompletas": 1
         }
       }
@@ -1260,6 +1599,232 @@
           "extraidas": 262586,
           "com_atacante": 262576,
           "sem_atacante": 10,
+          "incompletas": 1
+        }
+      }
+    },
+    {
+      "arquivo": "DoS-TCP_Flood.pcap",
+      "rotulo": "DoS-TCP_Flood",
+      "categoria": "DoS",
+      "benigno": false,
+      "bytes": 2048000008,
+      "modificado_ns": 1791664896615796818,
+      "sha256": "255b6f1cfabdb8c6a645ce40ab089d75df7b5eade61c29c5648ffc7281de3653",
+      "pacotes": 26005549,
+      "segundos": 227.70675770899834,
+      "avisos": [],
+      "macs": {
+        "dc:a6:32:c9:e4:90": {
+          "origem": 1,
+          "destino": 0,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e4:ab": {
+          "origem": 6,
+          "destino": 0,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e4:d5": {
+          "origem": 4,
+          "destino": 0,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e5:a4": {
+          "origem": 0,
+          "destino": 0,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e5:ef": {
+          "origem": 5,
+          "destino": 0,
+          "na_lista": true
+        },
+        "dc:a6:32:dc:27:d5": {
+          "origem": 24654607,
+          "destino": 1176880,
+          "na_lista": true
+        },
+        "e4:5f:01:55:90:c4": {
+          "origem": 2,
+          "destino": 0,
+          "na_lista": true
+        },
+        "cc:f4:11:9c:d0:00": {
+          "origem": 7998,
+          "destino": 18879944,
+          "na_lista": false
+        },
+        "1c:12:b0:9b:0c:ec": {
+          "origem": 1179580,
+          "destino": 5806348,
+          "na_lista": false
+        },
+        "3c:18:a0:41:c3:a0": {
+          "origem": 89752,
+          "destino": 46542,
+          "na_lista": false
+        },
+        "7e:cf:20:e9:21:00": {
+          "origem": 6558,
+          "destino": 14927,
+          "na_lista": false
+        },
+        "1c:fe:2b:98:16:dd": {
+          "origem": 9173,
+          "destino": 5325,
+          "na_lista": false
+        },
+        "08:7c:39:ce:6e:2a": {
+          "origem": 4114,
+          "destino": 7489,
+          "na_lista": false
+        },
+        "44:bb:3b:00:39:07": {
+          "origem": 4064,
+          "destino": 5400,
+          "na_lista": false
+        },
+        "ff:ff:ff:ff:ff:ff": {
+          "origem": 0,
+          "destino": 8329,
+          "na_lista": false
+        },
+        "a0:d0:dc:c4:08:ff": {
+          "origem": 2871,
+          "destino": 4539,
+          "na_lista": false
+        },
+        "70:ee:50:68:0e:32": {
+          "origem": 2814,
+          "destino": 3805,
+          "na_lista": false
+        }
+      },
+      "janelas": {
+        "10": {
+          "extraidas": 2600275,
+          "com_atacante": 2597426,
+          "sem_atacante": 2849,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 260028,
+          "com_atacante": 259976,
+          "sem_atacante": 52,
+          "incompletas": 1
+        }
+      }
+    },
+    {
+      "arquivo": "DoS-UDP_Flood.pcap",
+      "rotulo": "DoS-UDP_Flood",
+      "categoria": "DoS",
+      "benigno": false,
+      "bytes": 2048000059,
+      "modificado_ns": 1791664245720384626,
+      "sha256": "346e9afbba2ed957598b6ae46e98eed62c56120800e67bf05d177117a5dfc74b",
+      "pacotes": 16676370,
+      "segundos": 114.79245312499916,
+      "avisos": [],
+      "macs": {
+        "dc:a6:32:c9:e4:90": {
+          "origem": 5,
+          "destino": 0,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e4:ab": {
+          "origem": 2,
+          "destino": 0,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e4:d5": {
+          "origem": 4,
+          "destino": 0,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e5:a4": {
+          "origem": 3,
+          "destino": 0,
+          "na_lista": true
+        },
+        "dc:a6:32:c9:e5:ef": {
+          "origem": 2,
+          "destino": 0,
+          "na_lista": true
+        },
+        "dc:a6:32:dc:27:d5": {
+          "origem": 16515059,
+          "destino": 2179,
+          "na_lista": true
+        },
+        "e4:5f:01:55:90:c4": {
+          "origem": 3,
+          "destino": 0,
+          "na_lista": true
+        },
+        "9c:8e:cd:1d:ab:9f": {
+          "origem": 2511,
+          "destino": 7606406,
+          "na_lista": false
+        },
+        "1c:12:b0:9b:0c:ec": {
+          "origem": 7253,
+          "destino": 6100170,
+          "na_lista": false
+        },
+        "cc:f4:11:9c:d0:00": {
+          "origem": 6656,
+          "destino": 2826266,
+          "na_lista": false
+        },
+        "3c:18:a0:41:c3:a0": {
+          "origem": 66571,
+          "destino": 61313,
+          "na_lista": false
+        },
+        "ac:17:02:05:34:27": {
+          "origem": 13723,
+          "destino": 13475,
+          "na_lista": false
+        },
+        "ff:ff:ff:ff:ff:ff": {
+          "origem": 0,
+          "destino": 13375,
+          "na_lista": false
+        },
+        "a0:d0:dc:c4:08:ff": {
+          "origem": 7103,
+          "destino": 5522,
+          "na_lista": false
+        },
+        "ee:06:3b:b8:d1:df": {
+          "origem": 4827,
+          "destino": 4378,
+          "na_lista": false
+        },
+        "2c:71:ff:05:f1:15": {
+          "origem": 3263,
+          "destino": 3680,
+          "na_lista": false
+        },
+        "1c:fe:2b:98:16:dd": {
+          "origem": 2674,
+          "destino": 3077,
+          "na_lista": false
+        }
+      },
+      "janelas": {
+        "10": {
+          "extraidas": 1667378,
+          "com_atacante": 1664550,
+          "sem_atacante": 2828,
+          "incompletas": 1
+        },
+        "100": {
+          "extraidas": 166738,
+          "com_atacante": 166653,
+          "sem_atacante": 85,
           "incompletas": 1
         }
       }

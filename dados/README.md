@@ -261,7 +261,7 @@ Duas outras diferenças entre o artigo do dataset e os arquivos publicados, para
 tamanho da janela em vez do comportamento do tráfego: extraído com a outra janela, um flood vira
 Recon e uma varredura de portas vira flood, e tirar as seis colunas ligadas à janela não resolve
 (`experimentos/resultados/teste_da_janela.md`). E o rótulo oficial é dado ao arquivo inteiro: nos
-pcaps de varredura, força bruta, Web e spoofing, entre 58% e 87% das janelas de 10 quadros não
+pcaps de varredura, força bruta, Web e spoofing, entre 33% e 87% das janelas de 10 quadros não
 têm nenhum quadro do atacante (`experimentos/resultados/janelas_sem_atacante.md`). Por isso os
 dados de treino são gerados de novo, a partir dos pcaps, com o nosso extrator (decisão de
 10/10/2026 no `ROADMAP.md`).

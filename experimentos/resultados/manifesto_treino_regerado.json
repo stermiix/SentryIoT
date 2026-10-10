@@ -1,0 +1,3506 @@
+{
+  "descricao": "Random Forest de 7 categorias treinado nos dados regerados dos pcaps do CICIoT2023, com janela de 10 e 100 quadros, divisão por tempo e teto de linhas por rótulo",
+  "gerado_por": "python -m codigo.classificador.treinar_regerado",
+  "gerado_em": "2026-10-10",
+  "semente": 42,
+  "arvores": 100,
+  "nucleos": 4,
+  "teto": 50000,
+  "alvo": "7",
+  "features": 39,
+  "divisao": "tempo",
+  "fracao_de_teste": 0.3,
+  "parametros": {
+    "modelo": "sklearn.ensemble.RandomForestClassifier",
+    "demais_parametros": "padrão do scikit-learn",
+    "escalonamento": "nenhum",
+    "predicao": "votos somados em ordem fixa, com um núcleo"
+  },
+  "versoes": {
+    "python": "3.11.2",
+    "numpy": "2.4.6",
+    "pandas": "3.0.6",
+    "scikit-learn": "1.9.1"
+  },
+  "regeracao": {
+    "manifesto": "experimentos/resultados/manifesto_regeracao.json",
+    "gerado_em": "2026-10-10",
+    "dataset": "CICIoT2023",
+    "destino": "dados/processed/regerado",
+    "regra": "pcap benigno: toda janela é BenignTraffic; pcap de ataque: a janela recebe o rótulo do arquivo se tem quadro com MAC de atacante na origem ou no destino, senão é descartada",
+    "pcaps": [
+      {
+        "arquivo": "Backdoor_Malware.pcap",
+        "rotulo": "Backdoor_Malware",
+        "categoria": "Web",
+        "benigno": false,
+        "bytes": 10544806,
+        "modificado_ns": 1791662900496559627,
+        "sha256": "7b0a7cb3a9c569939526e3bc97e29ddfd1599e2c7af099b0e04d50ca8a4e3bd8",
+        "pacotes": 33414,
+        "segundos": 0.2914286250015721,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 3218,
+            "mantidas": 912,
+            "descartadas": 2306,
+            "com_atacante": 912,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 322,
+            "mantidas": 253,
+            "descartadas": 69,
+            "com_atacante": 253,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "BenignTraffic.pcap",
+        "rotulo": "BenignTraffic",
+        "categoria": "Benign",
+        "benigno": true,
+        "bytes": 2048000100,
+        "modificado_ns": 1791661619534460782,
+        "sha256": "549a89337f529412f2507f862d06394c95e5966b9c01aaa980511590657d1dc8",
+        "pacotes": 3664164,
+        "segundos": 35.87934562499868,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 362278,
+            "mantidas": 362278,
+            "descartadas": 0,
+            "com_atacante": 20326,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 36228,
+            "mantidas": 36228,
+            "descartadas": 0,
+            "com_atacante": 9788,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "BenignTraffic1.pcap",
+        "rotulo": "BenignTraffic",
+        "categoria": "Benign",
+        "benigno": true,
+        "bytes": 2048002499,
+        "modificado_ns": 1791661797921864300,
+        "sha256": "7af057c6681e076151cc28e123a44ea6ff0e3b174d39d456ba7ccf1ac22d24c0",
+        "pacotes": 2988642,
+        "segundos": 29.511071457996877,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 295489,
+            "mantidas": 295489,
+            "descartadas": 0,
+            "com_atacante": 15989,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 29549,
+            "mantidas": 29549,
+            "descartadas": 0,
+            "com_atacante": 7835,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "BrowserHijacking.pcap",
+        "rotulo": "BrowserHijacking",
+        "categoria": "Web",
+        "benigno": false,
+        "bytes": 35038616,
+        "modificado_ns": 1791663140049626747,
+        "sha256": "aeac45ba4fdb14575af2e8193d3ef99783e15760eea76696a9155655f5c99138",
+        "pacotes": 59821,
+        "segundos": 0.544178791999002,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 5858,
+            "mantidas": 2476,
+            "descartadas": 3382,
+            "com_atacante": 2476,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 586,
+            "mantidas": 459,
+            "descartadas": 127,
+            "com_atacante": 459,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "CommandInjection.pcap",
+        "rotulo": "CommandInjection",
+        "categoria": "Web",
+        "benigno": false,
+        "bytes": 28585606,
+        "modificado_ns": 1791662879753936338,
+        "sha256": "151c761536d530d8432589e35ed09f2162e51c78a28995fc2a7dbeae32082b13",
+        "pacotes": 55741,
+        "segundos": 0.48807795800166787,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 5409,
+            "mantidas": 1202,
+            "descartadas": 4207,
+            "com_atacante": 1202,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 541,
+            "mantidas": 377,
+            "descartadas": 164,
+            "com_atacante": 377,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "DDoS-HTTP_Flood-.pcap",
+        "rotulo": "DDoS-HTTP_Flood",
+        "categoria": "DDoS",
+        "benigno": false,
+        "bytes": 610856427,
+        "modificado_ns": 1791152251602446172,
+        "sha256": "299c6f2180b3cf94ebb14e3e5aa5afe16ff51eac232f7f2c61a4384443eb7387",
+        "pacotes": 2881005,
+        "segundos": 27.410435875000985,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 287559,
+            "mantidas": 280956,
+            "descartadas": 6603,
+            "com_atacante": 280956,
+            "incompletas": 0
+          },
+          "100": {
+            "extraidas": 28756,
+            "mantidas": 28570,
+            "descartadas": 186,
+            "com_atacante": 28570,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "DDoS-ICMP_Flood.pcap",
+        "rotulo": "DDoS-ICMP_Flood",
+        "categoria": "DDoS",
+        "benigno": false,
+        "bytes": 2048000069,
+        "modificado_ns": 1791664507381421740,
+        "sha256": "0455a66ec4296eaafe6c344352b3c047e8863f9e6e07dd84848854380974155f",
+        "pacotes": 26793240,
+        "segundos": 219.60017962499842,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 2679086,
+            "mantidas": 2677303,
+            "descartadas": 1783,
+            "com_atacante": 2677303,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 267909,
+            "mantidas": 267863,
+            "descartadas": 46,
+            "com_atacante": 267863,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "DDoS-SYN_Flood.pcap",
+        "rotulo": "DDoS-SYN_Flood",
+        "categoria": "DDoS",
+        "benigno": false,
+        "bytes": 2048000063,
+        "modificado_ns": 1791663765790247990,
+        "sha256": "5e8124a87e12483af05cb5b4f36dc095c2a979b08f2ee4e18918c26ad3b041b8",
+        "pacotes": 26597011,
+        "segundos": 235.87291920799908,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 2659244,
+            "mantidas": 2656622,
+            "descartadas": 2622,
+            "com_atacante": 2656622,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 265925,
+            "mantidas": 265702,
+            "descartadas": 223,
+            "com_atacante": 265702,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "DDoS-TCP_Flood.pcap",
+        "rotulo": "DDoS-TCP_Flood",
+        "categoria": "DDoS",
+        "benigno": false,
+        "bytes": 2048000035,
+        "modificado_ns": 1791664662067172082,
+        "sha256": "39d7597311b1eacad9c46c0779f0493d9ee51b2e4b344ae6dd47221e5ad04cec",
+        "pacotes": 26570958,
+        "segundos": 237.8335117079987,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 2656703,
+            "mantidas": 2650042,
+            "descartadas": 6661,
+            "com_atacante": 2650042,
+            "incompletas": 0
+          },
+          "100": {
+            "extraidas": 265671,
+            "mantidas": 265218,
+            "descartadas": 453,
+            "com_atacante": 265218,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "DDoS-UDP_Flood.pcap",
+        "rotulo": "DDoS-UDP_Flood",
+        "categoria": "DDoS",
+        "benigno": false,
+        "bytes": 2048000061,
+        "modificado_ns": 1791663968504228589,
+        "sha256": "541250a7494dca056bdf584e8c6705a346c85c8561319d251e3afc167c6c00c4",
+        "pacotes": 26653551,
+        "segundos": 202.97444258299947,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 2665025,
+            "mantidas": 2661376,
+            "descartadas": 3649,
+            "com_atacante": 2661376,
+            "incompletas": 0
+          },
+          "100": {
+            "extraidas": 266503,
+            "mantidas": 266297,
+            "descartadas": 206,
+            "com_atacante": 266297,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "DNS_Spoofing.pcap",
+        "rotulo": "DNS_Spoofing",
+        "categoria": "Spoofing",
+        "benigno": false,
+        "bytes": 971824063,
+        "modificado_ns": 1791662794934324478,
+        "sha256": "edf47246de6b7e43bd27252ddf6716957952a736fafaa1b0060ca62f78d8c323",
+        "pacotes": 1812557,
+        "segundos": 15.699257207998016,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 178872,
+            "mantidas": 47876,
+            "descartadas": 130996,
+            "com_atacante": 47876,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 17888,
+            "mantidas": 10586,
+            "descartadas": 7302,
+            "com_atacante": 10586,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "DictionaryBruteForce.pcap",
+        "rotulo": "DictionaryBruteForce",
+        "categoria": "BruteForce",
+        "benigno": false,
+        "bytes": 39130622,
+        "modificado_ns": 1788466663424981236,
+        "sha256": "09ad3cfabd139b950da3078fec0f0fd196fe36cd82237d898035437f4c69161b",
+        "pacotes": 133138,
+        "segundos": 1.1749074590006785,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 13064,
+            "mantidas": 5549,
+            "descartadas": 7515,
+            "com_atacante": 5549,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 1307,
+            "mantidas": 1042,
+            "descartadas": 265,
+            "com_atacante": 1042,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "DoS-HTTP_Flood1.pcap",
+        "rotulo": "DoS-HTTP_Flood",
+        "categoria": "DoS",
+        "benigno": false,
+        "bytes": 1491704312,
+        "modificado_ns": 1791153068041316605,
+        "sha256": "2b7df8fce78461e435952e39cb2e33c445b137fa08ee7429d97fde6d93032d40",
+        "pacotes": 3114983,
+        "segundos": 30.399018374999287,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 310988,
+            "mantidas": 298903,
+            "descartadas": 12085,
+            "com_atacante": 298903,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 31099,
+            "mantidas": 30881,
+            "descartadas": 218,
+            "com_atacante": 30881,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "DoS-SYN_Flood.pcap",
+        "rotulo": "DoS-SYN_Flood",
+        "categoria": "DoS",
+        "benigno": false,
+        "bytes": 2048000026,
+        "modificado_ns": 1791663625557404984,
+        "sha256": "3f45569b3438b1ee5fa9105922a423789e4de176a66d550082f5f082f6546ebd",
+        "pacotes": 26261611,
+        "segundos": 235.4278662079996,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 2625859,
+            "mantidas": 2624053,
+            "descartadas": 1806,
+            "com_atacante": 2624053,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 262586,
+            "mantidas": 262576,
+            "descartadas": 10,
+            "com_atacante": 262576,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "DoS-TCP_Flood.pcap",
+        "rotulo": "DoS-TCP_Flood",
+        "categoria": "DoS",
+        "benigno": false,
+        "bytes": 2048000008,
+        "modificado_ns": 1791664896615796818,
+        "sha256": "255b6f1cfabdb8c6a645ce40ab089d75df7b5eade61c29c5648ffc7281de3653",
+        "pacotes": 26005549,
+        "segundos": 237.58750954100105,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 2600275,
+            "mantidas": 2597426,
+            "descartadas": 2849,
+            "com_atacante": 2597426,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 260028,
+            "mantidas": 259976,
+            "descartadas": 52,
+            "com_atacante": 259976,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "DoS-UDP_Flood.pcap",
+        "rotulo": "DoS-UDP_Flood",
+        "categoria": "DoS",
+        "benigno": false,
+        "bytes": 2048000059,
+        "modificado_ns": 1791664245720384626,
+        "sha256": "346e9afbba2ed957598b6ae46e98eed62c56120800e67bf05d177117a5dfc74b",
+        "pacotes": 16676370,
+        "segundos": 128.65093187499951,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 1667378,
+            "mantidas": 1664550,
+            "descartadas": 2828,
+            "com_atacante": 1664550,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 166738,
+            "mantidas": 166653,
+            "descartadas": 85,
+            "com_atacante": 166653,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "MITM-ArpSpoofing.pcap",
+        "rotulo": "MITM-ArpSpoofing",
+        "categoria": "Spoofing",
+        "benigno": false,
+        "bytes": 2046238529,
+        "modificado_ns": 1791662501156949644,
+        "sha256": "da097ba27f5690cf4fe47b916c825735af8a829074a71202624740bf4b7cc196",
+        "pacotes": 2491622,
+        "segundos": 21.689092000000528,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 247646,
+            "mantidas": 31228,
+            "descartadas": 216418,
+            "com_atacante": 31228,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 24765,
+            "mantidas": 8194,
+            "descartadas": 16571,
+            "com_atacante": 8194,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "Mirai-greip_flood21.pcap",
+        "rotulo": "Mirai-greip_flood",
+        "categoria": "Mirai",
+        "benigno": false,
+        "bytes": 704513741,
+        "modificado_ns": 1791153460148870636,
+        "sha256": "5a77e5c663c31759d7834047bd85197dfd51f2cb7dcc22bfe0a8d1dbf1973742",
+        "pacotes": 1196296,
+        "segundos": 12.823484541000653,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 119545,
+            "mantidas": 119531,
+            "descartadas": 14,
+            "com_atacante": 119531,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 11955,
+            "mantidas": 11955,
+            "descartadas": 0,
+            "com_atacante": 11955,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "Recon-HostDiscovery.pcap",
+        "rotulo": "Recon-HostDiscovery",
+        "categoria": "Recon",
+        "benigno": false,
+        "bytes": 227658836,
+        "modificado_ns": 1791663367327877790,
+        "sha256": "34035ba8a3e6d9db4e2d03e8f78c350980e1cedaa8c1e30a9d7abb080c93e9d3",
+        "pacotes": 1371112,
+        "segundos": 12.235071582999808,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 134369,
+            "mantidas": 90530,
+            "descartadas": 43839,
+            "com_atacante": 90530,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 13437,
+            "mantidas": 12996,
+            "descartadas": 441,
+            "com_atacante": 12996,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "Recon-OSScan.pcap",
+        "rotulo": "Recon-OSScan",
+        "categoria": "Recon",
+        "benigno": false,
+        "bytes": 323891580,
+        "modificado_ns": 1791663313578438986,
+        "sha256": "8e99115ca67ea6c34fd68bd713c5ba5ae671a0a90a327568f732279494f804f0",
+        "pacotes": 992241,
+        "segundos": 8.599303916998906,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 98243,
+            "mantidas": 29750,
+            "descartadas": 68493,
+            "com_atacante": 29750,
+            "incompletas": 0
+          },
+          "100": {
+            "extraidas": 9825,
+            "mantidas": 4087,
+            "descartadas": 5738,
+            "com_atacante": 4087,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "Recon-PingSweep.pcap",
+        "rotulo": "Recon-PingSweep",
+        "categoria": "Recon",
+        "benigno": false,
+        "bytes": 7853566,
+        "modificado_ns": 1791663396457521780,
+        "sha256": "1aaf410fcc6dbfefa48b680b401344f0fa7b6e04c2acc9af427b5b7728b0ee89",
+        "pacotes": 22943,
+        "segundos": 0.19816554199860548,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 2262,
+            "mantidas": 540,
+            "descartadas": 1722,
+            "com_atacante": 540,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 227,
+            "mantidas": 114,
+            "descartadas": 113,
+            "com_atacante": 114,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "Recon-PortScan.pcap",
+        "rotulo": "Recon-PortScan",
+        "categoria": "Recon",
+        "benigno": false,
+        "bytes": 200950957,
+        "modificado_ns": 1788466641194790244,
+        "sha256": "e13368bdc571a6ec53f8dd9e5491137dd0656c9d997bd62b323e957722bd4fc1",
+        "pacotes": 831856,
+        "segundos": 7.15908995800055,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 82278,
+            "mantidas": 30872,
+            "descartadas": 51406,
+            "com_atacante": 30872,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 8228,
+            "mantidas": 3783,
+            "descartadas": 4445,
+            "com_atacante": 3783,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "SqlInjection.pcap",
+        "rotulo": "SqlInjection",
+        "categoria": "Web",
+        "benigno": false,
+        "bytes": 9823016,
+        "modificado_ns": 1791662840295584862,
+        "sha256": "712750bd64f8250861bd8a76bd1c33a44a4fe8d3dc2f34e2043c208edc19bde7",
+        "pacotes": 53462,
+        "segundos": 0.45450383400020655,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 5245,
+            "mantidas": 1035,
+            "descartadas": 4210,
+            "com_atacante": 1035,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 525,
+            "mantidas": 325,
+            "descartadas": 200,
+            "com_atacante": 325,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "Uploading_Attack.pcap",
+        "rotulo": "Uploading_Attack",
+        "categoria": "Web",
+        "benigno": false,
+        "bytes": 3326177,
+        "modificado_ns": 1791662918183670845,
+        "sha256": "13eb2c9478cb3d54921766436808cc89623f25179565241ece3c20a95ca71ee8",
+        "pacotes": 12939,
+        "segundos": 0.11439570799848298,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 1252,
+            "mantidas": 357,
+            "descartadas": 895,
+            "com_atacante": 357,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 126,
+            "mantidas": 106,
+            "descartadas": 20,
+            "com_atacante": 106,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "VulnerabilityScan.pcap",
+        "rotulo": "VulnerabilityScan",
+        "categoria": "Recon",
+        "benigno": false,
+        "bytes": 1026603272,
+        "modificado_ns": 1791663043919102155,
+        "sha256": "92321b9a016264f09a1f0bc487a91c88364dc41f2e67e73b10883c3fa3128439",
+        "pacotes": 3802533,
+        "segundos": 33.450442833000125,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 373312,
+            "mantidas": 88114,
+            "descartadas": 285198,
+            "com_atacante": 88114,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 37332,
+            "mantidas": 18836,
+            "descartadas": 18496,
+            "com_atacante": 18836,
+            "incompletas": 1
+          }
+        }
+      },
+      {
+        "arquivo": "XSS.pcap",
+        "rotulo": "XSS",
+        "categoria": "Web",
+        "benigno": false,
+        "bytes": 12571710,
+        "modificado_ns": 1791663111286688481,
+        "sha256": "62a9d0ca316f3e5eb9c910fc8c21dc169ef76033bafa22d17f85f53e64809bf0",
+        "pacotes": 40183,
+        "segundos": 0.3489387089975935,
+        "avisos": [],
+        "janelas": {
+          "10": {
+            "extraidas": 3845,
+            "mantidas": 976,
+            "descartadas": 2869,
+            "com_atacante": 976,
+            "incompletas": 1
+          },
+          "100": {
+            "extraidas": 385,
+            "mantidas": 313,
+            "descartadas": 72,
+            "com_atacante": 313,
+            "incompletas": 1
+          }
+        }
+      }
+    ],
+    "rotulos": [
+      {
+        "rotulo": "Backdoor_Malware",
+        "categoria": "Web",
+        "arquivos": [
+          "Backdoor_Malware.pcap"
+        ],
+        "linhas": {
+          "10": 912,
+          "100": 253
+        }
+      },
+      {
+        "rotulo": "BenignTraffic",
+        "categoria": "Benign",
+        "arquivos": [
+          "BenignTraffic.pcap",
+          "BenignTraffic1.pcap"
+        ],
+        "linhas": {
+          "10": 657767,
+          "100": 65777
+        }
+      },
+      {
+        "rotulo": "BrowserHijacking",
+        "categoria": "Web",
+        "arquivos": [
+          "BrowserHijacking.pcap"
+        ],
+        "linhas": {
+          "10": 2476,
+          "100": 459
+        }
+      },
+      {
+        "rotulo": "CommandInjection",
+        "categoria": "Web",
+        "arquivos": [
+          "CommandInjection.pcap"
+        ],
+        "linhas": {
+          "10": 1202,
+          "100": 377
+        }
+      },
+      {
+        "rotulo": "DDoS-HTTP_Flood",
+        "categoria": "DDoS",
+        "arquivos": [
+          "DDoS-HTTP_Flood-.pcap"
+        ],
+        "linhas": {
+          "10": 280956,
+          "100": 28570
+        }
+      },
+      {
+        "rotulo": "DDoS-ICMP_Flood",
+        "categoria": "DDoS",
+        "arquivos": [
+          "DDoS-ICMP_Flood.pcap"
+        ],
+        "linhas": {
+          "10": 2677303,
+          "100": 267863
+        }
+      },
+      {
+        "rotulo": "DDoS-SYN_Flood",
+        "categoria": "DDoS",
+        "arquivos": [
+          "DDoS-SYN_Flood.pcap"
+        ],
+        "linhas": {
+          "10": 2656622,
+          "100": 265702
+        }
+      },
+      {
+        "rotulo": "DDoS-TCP_Flood",
+        "categoria": "DDoS",
+        "arquivos": [
+          "DDoS-TCP_Flood.pcap"
+        ],
+        "linhas": {
+          "10": 2650042,
+          "100": 265218
+        }
+      },
+      {
+        "rotulo": "DDoS-UDP_Flood",
+        "categoria": "DDoS",
+        "arquivos": [
+          "DDoS-UDP_Flood.pcap"
+        ],
+        "linhas": {
+          "10": 2661376,
+          "100": 266297
+        }
+      },
+      {
+        "rotulo": "DNS_Spoofing",
+        "categoria": "Spoofing",
+        "arquivos": [
+          "DNS_Spoofing.pcap"
+        ],
+        "linhas": {
+          "10": 47876,
+          "100": 10586
+        }
+      },
+      {
+        "rotulo": "DictionaryBruteForce",
+        "categoria": "BruteForce",
+        "arquivos": [
+          "DictionaryBruteForce.pcap"
+        ],
+        "linhas": {
+          "10": 5549,
+          "100": 1042
+        }
+      },
+      {
+        "rotulo": "DoS-HTTP_Flood",
+        "categoria": "DoS",
+        "arquivos": [
+          "DoS-HTTP_Flood1.pcap"
+        ],
+        "linhas": {
+          "10": 298903,
+          "100": 30881
+        }
+      },
+      {
+        "rotulo": "DoS-SYN_Flood",
+        "categoria": "DoS",
+        "arquivos": [
+          "DoS-SYN_Flood.pcap"
+        ],
+        "linhas": {
+          "10": 2624053,
+          "100": 262576
+        }
+      },
+      {
+        "rotulo": "DoS-TCP_Flood",
+        "categoria": "DoS",
+        "arquivos": [
+          "DoS-TCP_Flood.pcap"
+        ],
+        "linhas": {
+          "10": 2597426,
+          "100": 259976
+        }
+      },
+      {
+        "rotulo": "DoS-UDP_Flood",
+        "categoria": "DoS",
+        "arquivos": [
+          "DoS-UDP_Flood.pcap"
+        ],
+        "linhas": {
+          "10": 1664550,
+          "100": 166653
+        }
+      },
+      {
+        "rotulo": "MITM-ArpSpoofing",
+        "categoria": "Spoofing",
+        "arquivos": [
+          "MITM-ArpSpoofing.pcap"
+        ],
+        "linhas": {
+          "10": 31228,
+          "100": 8194
+        }
+      },
+      {
+        "rotulo": "Mirai-greip_flood",
+        "categoria": "Mirai",
+        "arquivos": [
+          "Mirai-greip_flood21.pcap"
+        ],
+        "linhas": {
+          "10": 119531,
+          "100": 11955
+        }
+      },
+      {
+        "rotulo": "Recon-HostDiscovery",
+        "categoria": "Recon",
+        "arquivos": [
+          "Recon-HostDiscovery.pcap"
+        ],
+        "linhas": {
+          "10": 90530,
+          "100": 12996
+        }
+      },
+      {
+        "rotulo": "Recon-OSScan",
+        "categoria": "Recon",
+        "arquivos": [
+          "Recon-OSScan.pcap"
+        ],
+        "linhas": {
+          "10": 29750,
+          "100": 4087
+        }
+      },
+      {
+        "rotulo": "Recon-PingSweep",
+        "categoria": "Recon",
+        "arquivos": [
+          "Recon-PingSweep.pcap"
+        ],
+        "linhas": {
+          "10": 540,
+          "100": 114
+        }
+      },
+      {
+        "rotulo": "Recon-PortScan",
+        "categoria": "Recon",
+        "arquivos": [
+          "Recon-PortScan.pcap"
+        ],
+        "linhas": {
+          "10": 30872,
+          "100": 3783
+        }
+      },
+      {
+        "rotulo": "SqlInjection",
+        "categoria": "Web",
+        "arquivos": [
+          "SqlInjection.pcap"
+        ],
+        "linhas": {
+          "10": 1035,
+          "100": 325
+        }
+      },
+      {
+        "rotulo": "Uploading_Attack",
+        "categoria": "Web",
+        "arquivos": [
+          "Uploading_Attack.pcap"
+        ],
+        "linhas": {
+          "10": 357,
+          "100": 106
+        }
+      },
+      {
+        "rotulo": "VulnerabilityScan",
+        "categoria": "Recon",
+        "arquivos": [
+          "VulnerabilityScan.pcap"
+        ],
+        "linhas": {
+          "10": 88114,
+          "100": 18836
+        }
+      },
+      {
+        "rotulo": "XSS",
+        "categoria": "Web",
+        "arquivos": [
+          "XSS.pcap"
+        ],
+        "linhas": {
+          "10": 976,
+          "100": 313
+        }
+      }
+    ]
+  },
+  "classes": [
+    "DDoS+DoS",
+    "Mirai",
+    "Recon",
+    "Spoofing",
+    "Web",
+    "BruteForce",
+    "Benign"
+  ],
+  "categorias_sem_pcap": [],
+  "rotulos_sem_pcap": 9,
+  "janelas": [
+    {
+      "janela": 10,
+      "linhas": {
+        "regeradas": 19219946,
+        "amostra": 802773,
+        "treino": 563988,
+        "teste": 238785
+      },
+      "por_rotulo": [
+        {
+          "rotulo": "DDoS-UDP_Flood",
+          "categoria": "DDoS",
+          "arquivos": [
+            "DDoS-UDP_Flood.pcap"
+          ],
+          "regeradas": 2661376,
+          "amostra": 50000,
+          "treino": 34722,
+          "teste": 15278,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DDoS-ICMP_Flood",
+          "categoria": "DDoS",
+          "arquivos": [
+            "DDoS-ICMP_Flood.pcap"
+          ],
+          "regeradas": 2677303,
+          "amostra": 50000,
+          "treino": 34950,
+          "teste": 15050,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DDoS-HTTP_Flood",
+          "categoria": "DDoS",
+          "arquivos": [
+            "DDoS-HTTP_Flood-.pcap"
+          ],
+          "regeradas": 280956,
+          "amostra": 50000,
+          "treino": 34728,
+          "teste": 15272,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DDoS-TCP_Flood",
+          "categoria": "DDoS",
+          "arquivos": [
+            "DDoS-TCP_Flood.pcap"
+          ],
+          "regeradas": 2650042,
+          "amostra": 50000,
+          "treino": 34949,
+          "teste": 15051,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DDoS-SYN_Flood",
+          "categoria": "DDoS",
+          "arquivos": [
+            "DDoS-SYN_Flood.pcap"
+          ],
+          "regeradas": 2656622,
+          "amostra": 50000,
+          "treino": 34989,
+          "teste": 15011,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DoS-TCP_Flood",
+          "categoria": "DoS",
+          "arquivos": [
+            "DoS-TCP_Flood.pcap"
+          ],
+          "regeradas": 2597426,
+          "amostra": 50000,
+          "treino": 35043,
+          "teste": 14957,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DoS-HTTP_Flood",
+          "categoria": "DoS",
+          "arquivos": [
+            "DoS-HTTP_Flood1.pcap"
+          ],
+          "regeradas": 298903,
+          "amostra": 50000,
+          "treino": 36093,
+          "teste": 13907,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DoS-SYN_Flood",
+          "categoria": "DoS",
+          "arquivos": [
+            "DoS-SYN_Flood.pcap"
+          ],
+          "regeradas": 2624053,
+          "amostra": 50000,
+          "treino": 35117,
+          "teste": 14883,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DoS-UDP_Flood",
+          "categoria": "DoS",
+          "arquivos": [
+            "DoS-UDP_Flood.pcap"
+          ],
+          "regeradas": 1664550,
+          "amostra": 50000,
+          "treino": 35128,
+          "teste": 14872,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Mirai-greip_flood",
+          "categoria": "Mirai",
+          "arquivos": [
+            "Mirai-greip_flood21.pcap"
+          ],
+          "regeradas": 119531,
+          "amostra": 50000,
+          "treino": 35134,
+          "teste": 14866,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Recon-PingSweep",
+          "categoria": "Recon",
+          "arquivos": [
+            "Recon-PingSweep.pcap"
+          ],
+          "regeradas": 540,
+          "amostra": 540,
+          "treino": 510,
+          "teste": 30,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Recon-OSScan",
+          "categoria": "Recon",
+          "arquivos": [
+            "Recon-OSScan.pcap"
+          ],
+          "regeradas": 29750,
+          "amostra": 29750,
+          "treino": 20666,
+          "teste": 9084,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "VulnerabilityScan",
+          "categoria": "Recon",
+          "arquivos": [
+            "VulnerabilityScan.pcap"
+          ],
+          "regeradas": 88114,
+          "amostra": 50000,
+          "treino": 44558,
+          "teste": 5442,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Recon-PortScan",
+          "categoria": "Recon",
+          "arquivos": [
+            "Recon-PortScan.pcap"
+          ],
+          "regeradas": 30872,
+          "amostra": 30872,
+          "treino": 24275,
+          "teste": 6597,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Recon-HostDiscovery",
+          "categoria": "Recon",
+          "arquivos": [
+            "Recon-HostDiscovery.pcap"
+          ],
+          "regeradas": 90530,
+          "amostra": 50000,
+          "treino": 38284,
+          "teste": 11716,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "MITM-ArpSpoofing",
+          "categoria": "Spoofing",
+          "arquivos": [
+            "MITM-ArpSpoofing.pcap"
+          ],
+          "regeradas": 31228,
+          "amostra": 31228,
+          "treino": 13018,
+          "teste": 18210,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DNS_Spoofing",
+          "categoria": "Spoofing",
+          "arquivos": [
+            "DNS_Spoofing.pcap"
+          ],
+          "regeradas": 47876,
+          "amostra": 47876,
+          "treino": 34822,
+          "teste": 13054,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "SqlInjection",
+          "categoria": "Web",
+          "arquivos": [
+            "SqlInjection.pcap"
+          ],
+          "regeradas": 1035,
+          "amostra": 1035,
+          "treino": 665,
+          "teste": 370,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "CommandInjection",
+          "categoria": "Web",
+          "arquivos": [
+            "CommandInjection.pcap"
+          ],
+          "regeradas": 1202,
+          "amostra": 1202,
+          "treino": 1028,
+          "teste": 174,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Backdoor_Malware",
+          "categoria": "Web",
+          "arquivos": [
+            "Backdoor_Malware.pcap"
+          ],
+          "regeradas": 912,
+          "amostra": 912,
+          "treino": 640,
+          "teste": 272,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Uploading_Attack",
+          "categoria": "Web",
+          "arquivos": [
+            "Uploading_Attack.pcap"
+          ],
+          "regeradas": 357,
+          "amostra": 357,
+          "treino": 244,
+          "teste": 113,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "XSS",
+          "categoria": "Web",
+          "arquivos": [
+            "XSS.pcap"
+          ],
+          "regeradas": 976,
+          "amostra": 976,
+          "treino": 639,
+          "teste": 337,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "BrowserHijacking",
+          "categoria": "Web",
+          "arquivos": [
+            "BrowserHijacking.pcap"
+          ],
+          "regeradas": 2476,
+          "amostra": 2476,
+          "treino": 2195,
+          "teste": 281,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DictionaryBruteForce",
+          "categoria": "BruteForce",
+          "arquivos": [
+            "DictionaryBruteForce.pcap"
+          ],
+          "regeradas": 5549,
+          "amostra": 5549,
+          "treino": 4080,
+          "teste": 1469,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "BenignTraffic",
+          "categoria": "Benign",
+          "arquivos": [
+            "BenignTraffic.pcap",
+            "BenignTraffic1.pcap"
+          ],
+          "regeradas": 657767,
+          "amostra": 50000,
+          "treino": 27511,
+          "teste": 22489,
+          "linhas_no_arquivo_de_teste": 22489
+        }
+      ],
+      "arquivos_de_teste": [
+        "BenignTraffic1.pcap"
+      ],
+      "divisao": {
+        "treino_sha256": "bd0513193bae6f1f5ebe1df086efb6ffc3dad766e56701c3b63f30b84c068ce8",
+        "teste_sha256": "c3332ae20e6c393ab771e2ecb80ad8e74ac215388207c516a64d470fe85ee7fc"
+      },
+      "treino_segundos": 12.419871916001284,
+      "avaliacao": {
+        "linhas": 238785,
+        "matriz_por_rotulo": {
+          "classes": [
+            "DDoS+DoS",
+            "Mirai",
+            "Recon",
+            "Spoofing",
+            "Web",
+            "BruteForce",
+            "Benign"
+          ],
+          "rotulos": [
+            "DDoS-UDP_Flood",
+            "DDoS-ICMP_Flood",
+            "DDoS-HTTP_Flood",
+            "DDoS-TCP_Flood",
+            "DDoS-SYN_Flood",
+            "DoS-TCP_Flood",
+            "DoS-HTTP_Flood",
+            "DoS-SYN_Flood",
+            "DoS-UDP_Flood",
+            "Mirai-greip_flood",
+            "Recon-PingSweep",
+            "Recon-OSScan",
+            "VulnerabilityScan",
+            "Recon-PortScan",
+            "Recon-HostDiscovery",
+            "MITM-ArpSpoofing",
+            "DNS_Spoofing",
+            "SqlInjection",
+            "CommandInjection",
+            "Backdoor_Malware",
+            "Uploading_Attack",
+            "XSS",
+            "BrowserHijacking",
+            "DictionaryBruteForce",
+            "BenignTraffic"
+          ],
+          "contagem": [
+            [
+              15269,
+              0,
+              2,
+              4,
+              0,
+              0,
+              3
+            ],
+            [
+              15042,
+              0,
+              6,
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              15049,
+              0,
+              165,
+              7,
+              12,
+              0,
+              39
+            ],
+            [
+              15035,
+              0,
+              12,
+              1,
+              0,
+              0,
+              3
+            ],
+            [
+              14960,
+              0,
+              51,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              14941,
+              0,
+              7,
+              4,
+              0,
+              0,
+              5
+            ],
+            [
+              11623,
+              0,
+              1138,
+              251,
+              235,
+              1,
+              659
+            ],
+            [
+              14835,
+              0,
+              48,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              14796,
+              0,
+              9,
+              52,
+              0,
+              0,
+              15
+            ],
+            [
+              0,
+              14861,
+              0,
+              5,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              14,
+              3,
+              0,
+              0,
+              13
+            ],
+            [
+              722,
+              0,
+              7891,
+              102,
+              19,
+              12,
+              338
+            ],
+            [
+              11,
+              0,
+              3788,
+              434,
+              192,
+              53,
+              964
+            ],
+            [
+              576,
+              0,
+              5936,
+              10,
+              0,
+              3,
+              72
+            ],
+            [
+              17,
+              0,
+              11488,
+              104,
+              11,
+              0,
+              96
+            ],
+            [
+              44,
+              0,
+              759,
+              16741,
+              173,
+              1,
+              492
+            ],
+            [
+              164,
+              0,
+              594,
+              11715,
+              93,
+              1,
+              487
+            ],
+            [
+              90,
+              0,
+              144,
+              13,
+              72,
+              3,
+              48
+            ],
+            [
+              62,
+              0,
+              48,
+              19,
+              31,
+              0,
+              14
+            ],
+            [
+              9,
+              0,
+              122,
+              31,
+              83,
+              0,
+              27
+            ],
+            [
+              7,
+              0,
+              45,
+              13,
+              34,
+              0,
+              14
+            ],
+            [
+              12,
+              0,
+              130,
+              60,
+              106,
+              0,
+              29
+            ],
+            [
+              0,
+              0,
+              53,
+              49,
+              118,
+              0,
+              61
+            ],
+            [
+              130,
+              0,
+              612,
+              73,
+              94,
+              493,
+              67
+            ],
+            [
+              158,
+              0,
+              1436,
+              1231,
+              78,
+              104,
+              19482
+            ]
+          ]
+        },
+        "amostra": {
+          "acuracia": 0.9397700860606822,
+          "macro_f1": 0.7695469064327612,
+          "f1_ponderado": 0.9390901771123437,
+          "falso_positivo_benigno": 0.13370981368669127,
+          "por_classe": {
+            "DDoS+DoS": {
+              "precisao": 0.9850095842817779,
+              "recall": 0.9796620519656541,
+              "f1": 0.9823285405457878,
+              "suporte": 134281,
+              "taxa_falso_positivo": 0.019157161448365614,
+              "recall_na_regra_do_teto": 0.9991957164453645
+            },
+            "Mirai": {
+              "precisao": 1.0,
+              "recall": 0.9996636620476255,
+              "f1": 0.9998318027382513,
+              "suporte": 14866,
+              "taxa_falso_positivo": 0.0,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "Recon": {
+              "precisao": 0.8440199431851122,
+              "recall": 0.8858498889531169,
+              "f1": 0.8644291715528375,
+              "suporte": 32869,
+              "taxa_falso_positivo": 0.026132014996406303,
+              "recall_na_regra_do_teto": 0.9900514162280568
+            },
+            "Spoofing": {
+              "precisao": 0.920221194580086,
+              "recall": 0.9101842374616171,
+              "f1": 0.9151751973885217,
+              "suporte": 31264,
+              "taxa_falso_positivo": 0.01188795350831964,
+              "recall_na_regra_do_teto": 0.9998400716479018
+            },
+            "Web": {
+              "precisao": 0.3286454478164323,
+              "recall": 0.2870071105365223,
+              "f1": 0.3064182194616977,
+              "suporte": 1547,
+              "taxa_falso_positivo": 0.0038231649229887284,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "BruteForce": {
+              "precisao": 0.7347242921013413,
+              "recall": 0.3356024506466984,
+              "f1": 0.46074766355140184,
+              "suporte": 1469,
+              "taxa_falso_positivo": 0.0007500547792816329,
+              "recall_na_regra_do_teto": 0.9993192648059904
+            },
+            "Benign": {
+              "precisao": 0.8496663613764228,
+              "recall": 0.8662901863133087,
+              "f1": 0.8578977497908318,
+              "suporte": 22489,
+              "taxa_falso_positivo": 0.015936494433554018,
+              "recall_na_regra_do_teto": 0.9993774734314553
+            }
+          },
+          "teto": 0.9980945201750528
+        }
+      },
+      "importancias": {
+        "Time_To_Live": 0.10579308828092147,
+        "IAT": 0.0847864252275621,
+        "Rate": 0.0802156995033568,
+        "Max": 0.07971246210589765,
+        "Min": 0.0703322066326922,
+        "Header_Length": 0.06555560947234172,
+        "HTTP": 0.060704871305314295,
+        "Tot sum": 0.044120766614888327,
+        "ack_count": 0.04374492202344191,
+        "HTTPS": 0.04126011511448805,
+        "AVG": 0.03908530559832973,
+        "Tot size": 0.03814552563156506,
+        "Protocol Type": 0.03672613242448887,
+        "ack_flag_number": 0.02935724300267904,
+        "Std": 0.0255978306351054,
+        "Variance": 0.021933812254449608,
+        "rst_flag_number": 0.020816656660896746,
+        "syn_count": 0.01783369017688901,
+        "syn_flag_number": 0.015994696256933828,
+        "TCP": 0.014759496498115376,
+        "UDP": 0.014640880156526063,
+        "rst_count": 0.014140234634185886,
+        "SSH": 0.009936417466969275,
+        "psh_flag_number": 0.007142466081625215,
+        "DNS": 0.003759152299797101,
+        "IPv": 0.00257001876434697,
+        "fin_count": 0.0023650920237181013,
+        "fin_flag_number": 0.0023564921773083424,
+        "ARP": 0.002104004739737464,
+        "LLC": 0.002020739767238206,
+        "ICMP": 0.0017354399728329232,
+        "DHCP": 0.0003208838015371533,
+        "ece_flag_number": 0.00012148588571696873,
+        "IRC": 9.146764964357783e-05,
+        "cwr_flag_number": 7.283075298555861e-05,
+        "IGMP": 6.357929320735013e-05,
+        "SMTP": 5.0710757004372904e-05,
+        "Telnet": 3.154835526213121e-05,
+        "Number": 0.0
+      },
+      "por_arquivo": [
+        {
+          "arquivo": "Backdoor_Malware.pcap",
+          "rotulo": "Backdoor_Malware",
+          "esperada": "Web",
+          "janelas_de_teste": 272,
+          "na_esperada": 0.30514705882352944,
+          "previstas": {
+            "DDoS+DoS": 9,
+            "Mirai": 0,
+            "Recon": 122,
+            "Spoofing": 31,
+            "Web": 83,
+            "BruteForce": 0,
+            "Benign": 27
+          }
+        },
+        {
+          "arquivo": "BenignTraffic.pcap",
+          "rotulo": "BenignTraffic",
+          "esperada": "Benign",
+          "janelas_de_teste": 0,
+          "na_esperada": null,
+          "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          }
+        },
+        {
+          "arquivo": "BenignTraffic1.pcap",
+          "rotulo": "BenignTraffic",
+          "esperada": "Benign",
+          "janelas_de_teste": 22489,
+          "na_esperada": 0.8662901863133087,
+          "previstas": {
+            "DDoS+DoS": 158,
+            "Mirai": 0,
+            "Recon": 1436,
+            "Spoofing": 1231,
+            "Web": 78,
+            "BruteForce": 104,
+            "Benign": 19482
+          }
+        },
+        {
+          "arquivo": "BrowserHijacking.pcap",
+          "rotulo": "BrowserHijacking",
+          "esperada": "Web",
+          "janelas_de_teste": 281,
+          "na_esperada": 0.4199288256227758,
+          "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 53,
+            "Spoofing": 49,
+            "Web": 118,
+            "BruteForce": 0,
+            "Benign": 61
+          }
+        },
+        {
+          "arquivo": "CommandInjection.pcap",
+          "rotulo": "CommandInjection",
+          "esperada": "Web",
+          "janelas_de_teste": 174,
+          "na_esperada": 0.1781609195402299,
+          "previstas": {
+            "DDoS+DoS": 62,
+            "Mirai": 0,
+            "Recon": 48,
+            "Spoofing": 19,
+            "Web": 31,
+            "BruteForce": 0,
+            "Benign": 14
+          }
+        },
+        {
+          "arquivo": "DDoS-HTTP_Flood-.pcap",
+          "rotulo": "DDoS-HTTP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 15272,
+          "na_esperada": 0.985398114195914,
+          "previstas": {
+            "DDoS+DoS": 15049,
+            "Mirai": 0,
+            "Recon": 165,
+            "Spoofing": 7,
+            "Web": 12,
+            "BruteForce": 0,
+            "Benign": 39
+          }
+        },
+        {
+          "arquivo": "DDoS-ICMP_Flood.pcap",
+          "rotulo": "DDoS-ICMP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 15050,
+          "na_esperada": 0.999468438538206,
+          "previstas": {
+            "DDoS+DoS": 15042,
+            "Mirai": 0,
+            "Recon": 6,
+            "Spoofing": 1,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 1
+          }
+        },
+        {
+          "arquivo": "DDoS-SYN_Flood.pcap",
+          "rotulo": "DDoS-SYN_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 15011,
+          "na_esperada": 0.9966024915062288,
+          "previstas": {
+            "DDoS+DoS": 14960,
+            "Mirai": 0,
+            "Recon": 51,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          }
+        },
+        {
+          "arquivo": "DDoS-TCP_Flood.pcap",
+          "rotulo": "DDoS-TCP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 15051,
+          "na_esperada": 0.9989369477111155,
+          "previstas": {
+            "DDoS+DoS": 15035,
+            "Mirai": 0,
+            "Recon": 12,
+            "Spoofing": 1,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 3
+          }
+        },
+        {
+          "arquivo": "DDoS-UDP_Flood.pcap",
+          "rotulo": "DDoS-UDP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 15278,
+          "na_esperada": 0.9994109176593795,
+          "previstas": {
+            "DDoS+DoS": 15269,
+            "Mirai": 0,
+            "Recon": 2,
+            "Spoofing": 4,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 3
+          }
+        },
+        {
+          "arquivo": "DNS_Spoofing.pcap",
+          "rotulo": "DNS_Spoofing",
+          "esperada": "Spoofing",
+          "janelas_de_teste": 13054,
+          "na_esperada": 0.8974260762984526,
+          "previstas": {
+            "DDoS+DoS": 164,
+            "Mirai": 0,
+            "Recon": 594,
+            "Spoofing": 11715,
+            "Web": 93,
+            "BruteForce": 1,
+            "Benign": 487
+          }
+        },
+        {
+          "arquivo": "DictionaryBruteForce.pcap",
+          "rotulo": "DictionaryBruteForce",
+          "esperada": "BruteForce",
+          "janelas_de_teste": 1469,
+          "na_esperada": 0.3356024506466984,
+          "previstas": {
+            "DDoS+DoS": 130,
+            "Mirai": 0,
+            "Recon": 612,
+            "Spoofing": 73,
+            "Web": 94,
+            "BruteForce": 493,
+            "Benign": 67
+          }
+        },
+        {
+          "arquivo": "DoS-HTTP_Flood1.pcap",
+          "rotulo": "DoS-HTTP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 13907,
+          "na_esperada": 0.8357661609261523,
+          "previstas": {
+            "DDoS+DoS": 11623,
+            "Mirai": 0,
+            "Recon": 1138,
+            "Spoofing": 251,
+            "Web": 235,
+            "BruteForce": 1,
+            "Benign": 659
+          }
+        },
+        {
+          "arquivo": "DoS-SYN_Flood.pcap",
+          "rotulo": "DoS-SYN_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 14883,
+          "na_esperada": 0.9967748437814956,
+          "previstas": {
+            "DDoS+DoS": 14835,
+            "Mirai": 0,
+            "Recon": 48,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          }
+        },
+        {
+          "arquivo": "DoS-TCP_Flood.pcap",
+          "rotulo": "DoS-TCP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 14957,
+          "na_esperada": 0.9989302667647255,
+          "previstas": {
+            "DDoS+DoS": 14941,
+            "Mirai": 0,
+            "Recon": 7,
+            "Spoofing": 4,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 5
+          }
+        },
+        {
+          "arquivo": "DoS-UDP_Flood.pcap",
+          "rotulo": "DoS-UDP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 14872,
+          "na_esperada": 0.9948897256589564,
+          "previstas": {
+            "DDoS+DoS": 14796,
+            "Mirai": 0,
+            "Recon": 9,
+            "Spoofing": 52,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 15
+          }
+        },
+        {
+          "arquivo": "MITM-ArpSpoofing.pcap",
+          "rotulo": "MITM-ArpSpoofing",
+          "esperada": "Spoofing",
+          "janelas_de_teste": 18210,
+          "na_esperada": 0.9193300384404174,
+          "previstas": {
+            "DDoS+DoS": 44,
+            "Mirai": 0,
+            "Recon": 759,
+            "Spoofing": 16741,
+            "Web": 173,
+            "BruteForce": 1,
+            "Benign": 492
+          }
+        },
+        {
+          "arquivo": "Mirai-greip_flood21.pcap",
+          "rotulo": "Mirai-greip_flood",
+          "esperada": "Mirai",
+          "janelas_de_teste": 14866,
+          "na_esperada": 0.9996636620476255,
+          "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 14861,
+            "Recon": 0,
+            "Spoofing": 5,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          }
+        },
+        {
+          "arquivo": "Recon-HostDiscovery.pcap",
+          "rotulo": "Recon-HostDiscovery",
+          "esperada": "Recon",
+          "janelas_de_teste": 11716,
+          "na_esperada": 0.9805394332536702,
+          "previstas": {
+            "DDoS+DoS": 17,
+            "Mirai": 0,
+            "Recon": 11488,
+            "Spoofing": 104,
+            "Web": 11,
+            "BruteForce": 0,
+            "Benign": 96
+          }
+        },
+        {
+          "arquivo": "Recon-OSScan.pcap",
+          "rotulo": "Recon-OSScan",
+          "esperada": "Recon",
+          "janelas_de_teste": 9084,
+          "na_esperada": 0.8686701893439014,
+          "previstas": {
+            "DDoS+DoS": 722,
+            "Mirai": 0,
+            "Recon": 7891,
+            "Spoofing": 102,
+            "Web": 19,
+            "BruteForce": 12,
+            "Benign": 338
+          }
+        },
+        {
+          "arquivo": "Recon-PingSweep.pcap",
+          "rotulo": "Recon-PingSweep",
+          "esperada": "Recon",
+          "janelas_de_teste": 30,
+          "na_esperada": 0.4666666666666667,
+          "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 14,
+            "Spoofing": 3,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 13
+          }
+        },
+        {
+          "arquivo": "Recon-PortScan.pcap",
+          "rotulo": "Recon-PortScan",
+          "esperada": "Recon",
+          "janelas_de_teste": 6597,
+          "na_esperada": 0.8998029407306352,
+          "previstas": {
+            "DDoS+DoS": 576,
+            "Mirai": 0,
+            "Recon": 5936,
+            "Spoofing": 10,
+            "Web": 0,
+            "BruteForce": 3,
+            "Benign": 72
+          }
+        },
+        {
+          "arquivo": "SqlInjection.pcap",
+          "rotulo": "SqlInjection",
+          "esperada": "Web",
+          "janelas_de_teste": 370,
+          "na_esperada": 0.1945945945945946,
+          "previstas": {
+            "DDoS+DoS": 90,
+            "Mirai": 0,
+            "Recon": 144,
+            "Spoofing": 13,
+            "Web": 72,
+            "BruteForce": 3,
+            "Benign": 48
+          }
+        },
+        {
+          "arquivo": "Uploading_Attack.pcap",
+          "rotulo": "Uploading_Attack",
+          "esperada": "Web",
+          "janelas_de_teste": 113,
+          "na_esperada": 0.3008849557522124,
+          "previstas": {
+            "DDoS+DoS": 7,
+            "Mirai": 0,
+            "Recon": 45,
+            "Spoofing": 13,
+            "Web": 34,
+            "BruteForce": 0,
+            "Benign": 14
+          }
+        },
+        {
+          "arquivo": "VulnerabilityScan.pcap",
+          "rotulo": "VulnerabilityScan",
+          "esperada": "Recon",
+          "janelas_de_teste": 5442,
+          "na_esperada": 0.6960676221977214,
+          "previstas": {
+            "DDoS+DoS": 11,
+            "Mirai": 0,
+            "Recon": 3788,
+            "Spoofing": 434,
+            "Web": 192,
+            "BruteForce": 53,
+            "Benign": 964
+          }
+        },
+        {
+          "arquivo": "XSS.pcap",
+          "rotulo": "XSS",
+          "esperada": "Web",
+          "janelas_de_teste": 337,
+          "na_esperada": 0.314540059347181,
+          "previstas": {
+            "DDoS+DoS": 12,
+            "Mirai": 0,
+            "Recon": 130,
+            "Spoofing": 60,
+            "Web": 106,
+            "BruteForce": 0,
+            "Benign": 29
+          }
+        }
+      ],
+      "ips_de_origem": [
+        {
+          "rotulo": "DDoS-UDP_Flood",
+          "categoria": "DDoS",
+          "janelas": 2661376,
+          "minimo": 1,
+          "p25": 1.0,
+          "mediana": 1.0,
+          "p75": 1.0,
+          "maximo": 10,
+          "media": 1.1767409039534436,
+          "ate_1": 0.8355132833541746
+        },
+        {
+          "rotulo": "DDoS-ICMP_Flood",
+          "categoria": "DDoS",
+          "janelas": 2677303,
+          "minimo": 0,
+          "p25": 1.0,
+          "mediana": 1.0,
+          "p75": 1.0,
+          "maximo": 9,
+          "media": 1.1203184697436188,
+          "ate_1": 0.8875259916415885
+        },
+        {
+          "rotulo": "DDoS-HTTP_Flood",
+          "categoria": "DDoS",
+          "janelas": 280956,
+          "minimo": 0,
+          "p25": 1.0,
+          "mediana": 1.0,
+          "p75": 2.0,
+          "maximo": 10,
+          "media": 1.7816348467375676,
+          "ate_1": 0.5995743105682029
+        },
+        {
+          "rotulo": "DDoS-TCP_Flood",
+          "categoria": "DDoS",
+          "janelas": 2650042,
+          "minimo": 1,
+          "p25": 1.0,
+          "mediana": 1.0,
+          "p75": 1.0,
+          "maximo": 10,
+          "media": 1.1750398672926694,
+          "ate_1": 0.8355463800196374
+        },
+        {
+          "rotulo": "DDoS-SYN_Flood",
+          "categoria": "DDoS",
+          "janelas": 2656622,
+          "minimo": 0,
+          "p25": 1.0,
+          "mediana": 1.0,
+          "p75": 1.0,
+          "maximo": 10,
+          "media": 1.1739893744763086,
+          "ate_1": 0.8473798681182344
+        },
+        {
+          "rotulo": "DoS-TCP_Flood",
+          "categoria": "DoS",
+          "janelas": 2597426,
+          "minimo": 1,
+          "p25": 1.0,
+          "mediana": 1.0,
+          "p75": 1.0,
+          "maximo": 9,
+          "media": 1.0512611331371904,
+          "ate_1": 0.9561746898660443
+        },
+        {
+          "rotulo": "DoS-HTTP_Flood",
+          "categoria": "DoS",
+          "janelas": 298903,
+          "minimo": 1,
+          "p25": 1.0,
+          "mediana": 1.0,
+          "p75": 2.0,
+          "maximo": 10,
+          "media": 1.5718912155448423,
+          "ate_1": 0.702405128085031
+        },
+        {
+          "rotulo": "DoS-SYN_Flood",
+          "categoria": "DoS",
+          "janelas": 2624053,
+          "minimo": 1,
+          "p25": 1.0,
+          "mediana": 1.0,
+          "p75": 1.0,
+          "maximo": 9,
+          "media": 1.1113270196905323,
+          "ate_1": 0.9027896921289319
+        },
+        {
+          "rotulo": "DoS-UDP_Flood",
+          "categoria": "DoS",
+          "janelas": 1664550,
+          "minimo": 1,
+          "p25": 1.0,
+          "mediana": 1.0,
+          "p75": 1.0,
+          "maximo": 9,
+          "media": 1.0569090745246463,
+          "ate_1": 0.9560043254933765
+        }
+      ],
+      "modelo": {
+        "arquivo": "rf_regerado_janela_10.joblib",
+        "bytes": 490356977
+      }
+    },
+    {
+      "janela": 100,
+      "linhas": {
+        "regeradas": 1952939,
+        "amostra": 532877,
+        "treino": 365303,
+        "teste": 167574
+      },
+      "por_rotulo": [
+        {
+          "rotulo": "DDoS-UDP_Flood",
+          "categoria": "DDoS",
+          "arquivos": [
+            "DDoS-UDP_Flood.pcap"
+          ],
+          "regeradas": 266297,
+          "amostra": 50000,
+          "treino": 34958,
+          "teste": 15042,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DDoS-ICMP_Flood",
+          "categoria": "DDoS",
+          "arquivos": [
+            "DDoS-ICMP_Flood.pcap"
+          ],
+          "regeradas": 267863,
+          "amostra": 50000,
+          "treino": 35084,
+          "teste": 14916,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DDoS-HTTP_Flood",
+          "categoria": "DDoS",
+          "arquivos": [
+            "DDoS-HTTP_Flood-.pcap"
+          ],
+          "regeradas": 28570,
+          "amostra": 28570,
+          "treino": 19952,
+          "teste": 8618,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DDoS-TCP_Flood",
+          "categoria": "DDoS",
+          "arquivos": [
+            "DDoS-TCP_Flood.pcap"
+          ],
+          "regeradas": 265218,
+          "amostra": 50000,
+          "treino": 35022,
+          "teste": 14978,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DDoS-SYN_Flood",
+          "categoria": "DDoS",
+          "arquivos": [
+            "DDoS-SYN_Flood.pcap"
+          ],
+          "regeradas": 265702,
+          "amostra": 50000,
+          "treino": 34899,
+          "teste": 15101,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DoS-TCP_Flood",
+          "categoria": "DoS",
+          "arquivos": [
+            "DoS-TCP_Flood.pcap"
+          ],
+          "regeradas": 259976,
+          "amostra": 50000,
+          "treino": 34935,
+          "teste": 15065,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DoS-HTTP_Flood",
+          "categoria": "DoS",
+          "arquivos": [
+            "DoS-HTTP_Flood1.pcap"
+          ],
+          "regeradas": 30881,
+          "amostra": 30881,
+          "treino": 21744,
+          "teste": 9137,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DoS-SYN_Flood",
+          "categoria": "DoS",
+          "arquivos": [
+            "DoS-SYN_Flood.pcap"
+          ],
+          "regeradas": 262576,
+          "amostra": 50000,
+          "treino": 34965,
+          "teste": 15035,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DoS-UDP_Flood",
+          "categoria": "DoS",
+          "arquivos": [
+            "DoS-UDP_Flood.pcap"
+          ],
+          "regeradas": 166653,
+          "amostra": 50000,
+          "treino": 35093,
+          "teste": 14907,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Mirai-greip_flood",
+          "categoria": "Mirai",
+          "arquivos": [
+            "Mirai-greip_flood21.pcap"
+          ],
+          "regeradas": 11955,
+          "amostra": 11955,
+          "treino": 8369,
+          "teste": 3586,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Recon-PingSweep",
+          "categoria": "Recon",
+          "arquivos": [
+            "Recon-PingSweep.pcap"
+          ],
+          "regeradas": 114,
+          "amostra": 114,
+          "treino": 96,
+          "teste": 18,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Recon-OSScan",
+          "categoria": "Recon",
+          "arquivos": [
+            "Recon-OSScan.pcap"
+          ],
+          "regeradas": 4087,
+          "amostra": 4087,
+          "treino": 2690,
+          "teste": 1397,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "VulnerabilityScan",
+          "categoria": "Recon",
+          "arquivos": [
+            "VulnerabilityScan.pcap"
+          ],
+          "regeradas": 18836,
+          "amostra": 18836,
+          "treino": 13961,
+          "teste": 4875,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Recon-PortScan",
+          "categoria": "Recon",
+          "arquivos": [
+            "Recon-PortScan.pcap"
+          ],
+          "regeradas": 3783,
+          "amostra": 3783,
+          "treino": 2933,
+          "teste": 850,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Recon-HostDiscovery",
+          "categoria": "Recon",
+          "arquivos": [
+            "Recon-HostDiscovery.pcap"
+          ],
+          "regeradas": 12996,
+          "amostra": 12996,
+          "treino": 9154,
+          "teste": 3842,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "MITM-ArpSpoofing",
+          "categoria": "Spoofing",
+          "arquivos": [
+            "MITM-ArpSpoofing.pcap"
+          ],
+          "regeradas": 8194,
+          "amostra": 8194,
+          "treino": 4330,
+          "teste": 3864,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DNS_Spoofing",
+          "categoria": "Spoofing",
+          "arquivos": [
+            "DNS_Spoofing.pcap"
+          ],
+          "regeradas": 10586,
+          "amostra": 10586,
+          "treino": 7443,
+          "teste": 3143,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "SqlInjection",
+          "categoria": "Web",
+          "arquivos": [
+            "SqlInjection.pcap"
+          ],
+          "regeradas": 325,
+          "amostra": 325,
+          "treino": 223,
+          "teste": 102,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "CommandInjection",
+          "categoria": "Web",
+          "arquivos": [
+            "CommandInjection.pcap"
+          ],
+          "regeradas": 377,
+          "amostra": 377,
+          "treino": 300,
+          "teste": 77,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Backdoor_Malware",
+          "categoria": "Web",
+          "arquivos": [
+            "Backdoor_Malware.pcap"
+          ],
+          "regeradas": 253,
+          "amostra": 253,
+          "treino": 177,
+          "teste": 76,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "Uploading_Attack",
+          "categoria": "Web",
+          "arquivos": [
+            "Uploading_Attack.pcap"
+          ],
+          "regeradas": 106,
+          "amostra": 106,
+          "treino": 75,
+          "teste": 31,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "XSS",
+          "categoria": "Web",
+          "arquivos": [
+            "XSS.pcap"
+          ],
+          "regeradas": 313,
+          "amostra": 313,
+          "treino": 215,
+          "teste": 98,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "BrowserHijacking",
+          "categoria": "Web",
+          "arquivos": [
+            "BrowserHijacking.pcap"
+          ],
+          "regeradas": 459,
+          "amostra": 459,
+          "treino": 378,
+          "teste": 81,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "DictionaryBruteForce",
+          "categoria": "BruteForce",
+          "arquivos": [
+            "DictionaryBruteForce.pcap"
+          ],
+          "regeradas": 1042,
+          "amostra": 1042,
+          "treino": 769,
+          "teste": 273,
+          "linhas_no_arquivo_de_teste": 0
+        },
+        {
+          "rotulo": "BenignTraffic",
+          "categoria": "Benign",
+          "arquivos": [
+            "BenignTraffic.pcap",
+            "BenignTraffic1.pcap"
+          ],
+          "regeradas": 65777,
+          "amostra": 50000,
+          "treino": 27538,
+          "teste": 22462,
+          "linhas_no_arquivo_de_teste": 22462
+        }
+      ],
+      "arquivos_de_teste": [
+        "BenignTraffic1.pcap"
+      ],
+      "divisao": {
+        "treino_sha256": "a2a0f4e6b59773788f34a5d29c381d946bf977e9915a455459639d0ba10a3d32",
+        "teste_sha256": "683e384668b331f232694f1c470db96f333dd00e37c4d20ab43207d473dca2d9"
+      },
+      "treino_segundos": 9.698115209001116,
+      "avaliacao": {
+        "linhas": 167574,
+        "matriz_por_rotulo": {
+          "classes": [
+            "DDoS+DoS",
+            "Mirai",
+            "Recon",
+            "Spoofing",
+            "Web",
+            "BruteForce",
+            "Benign"
+          ],
+          "rotulos": [
+            "DDoS-UDP_Flood",
+            "DDoS-ICMP_Flood",
+            "DDoS-HTTP_Flood",
+            "DDoS-TCP_Flood",
+            "DDoS-SYN_Flood",
+            "DoS-TCP_Flood",
+            "DoS-HTTP_Flood",
+            "DoS-SYN_Flood",
+            "DoS-UDP_Flood",
+            "Mirai-greip_flood",
+            "Recon-PingSweep",
+            "Recon-OSScan",
+            "VulnerabilityScan",
+            "Recon-PortScan",
+            "Recon-HostDiscovery",
+            "MITM-ArpSpoofing",
+            "DNS_Spoofing",
+            "SqlInjection",
+            "CommandInjection",
+            "Backdoor_Malware",
+            "Uploading_Attack",
+            "XSS",
+            "BrowserHijacking",
+            "DictionaryBruteForce",
+            "BenignTraffic"
+          ],
+          "contagem": [
+            [
+              15042,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              14904,
+              0,
+              7,
+              0,
+              0,
+              0,
+              5
+            ],
+            [
+              8601,
+              0,
+              5,
+              0,
+              4,
+              0,
+              8
+            ],
+            [
+              14935,
+              0,
+              15,
+              0,
+              0,
+              0,
+              28
+            ],
+            [
+              15100,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              15056,
+              0,
+              1,
+              1,
+              0,
+              0,
+              7
+            ],
+            [
+              7877,
+              0,
+              916,
+              3,
+              38,
+              0,
+              303
+            ],
+            [
+              15030,
+              0,
+              5,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              14894,
+              0,
+              0,
+              7,
+              0,
+              0,
+              6
+            ],
+            [
+              0,
+              3586,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              9,
+              0,
+              0,
+              0,
+              9
+            ],
+            [
+              95,
+              0,
+              1072,
+              4,
+              0,
+              0,
+              226
+            ],
+            [
+              0,
+              0,
+              4041,
+              2,
+              0,
+              0,
+              832
+            ],
+            [
+              32,
+              0,
+              706,
+              0,
+              0,
+              0,
+              112
+            ],
+            [
+              6,
+              0,
+              3617,
+              2,
+              24,
+              0,
+              193
+            ],
+            [
+              1,
+              0,
+              4,
+              3857,
+              0,
+              0,
+              2
+            ],
+            [
+              22,
+              0,
+              4,
+              3111,
+              3,
+              0,
+              3
+            ],
+            [
+              14,
+              0,
+              71,
+              1,
+              2,
+              0,
+              14
+            ],
+            [
+              37,
+              0,
+              6,
+              0,
+              30,
+              0,
+              4
+            ],
+            [
+              0,
+              0,
+              22,
+              0,
+              43,
+              0,
+              11
+            ],
+            [
+              0,
+              0,
+              4,
+              0,
+              26,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              16,
+              0,
+              73,
+              0,
+              9
+            ],
+            [
+              0,
+              0,
+              14,
+              3,
+              21,
+              1,
+              42
+            ],
+            [
+              30,
+              0,
+              115,
+              0,
+              8,
+              98,
+              22
+            ],
+            [
+              40,
+              0,
+              220,
+              17,
+              129,
+              6,
+              22050
+            ]
+          ]
+        },
+        "amostra": {
+          "acuracia": 0.9773652237220571,
+          "macro_f1": 0.8246317547098545,
+          "f1_ponderado": 0.9771586988955747,
+          "falso_positivo_benigno": 0.018342088861187784,
+          "por_classe": {
+            "DDoS+DoS": {
+              "precisao": 0.9977242104571297,
+              "recall": 0.9889249912458571,
+              "f1": 0.9933051142056726,
+              "suporte": 122799,
+              "taxa_falso_positivo": 0.006186487995533222,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "Mirai": {
+              "precisao": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "suporte": 3586,
+              "taxa_falso_positivo": 0.0,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "Recon": {
+              "precisao": 0.8688253150584123,
+              "recall": 0.860043707885631,
+              "f1": 0.8644122088500436,
+              "suporte": 10982,
+              "taxa_falso_positivo": 0.009106467763359558,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "Spoofing": {
+              "precisao": 0.9942922374429224,
+              "recall": 0.9944341372912802,
+              "f1": 0.9943631823046736,
+              "suporte": 7007,
+              "taxa_falso_positivo": 0.0002491171909545548,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "Web": {
+              "precisao": 0.486284289276808,
+              "recall": 0.41935483870967744,
+              "f1": 0.4503464203233256,
+              "suporte": 465,
+              "taxa_falso_positivo": 0.001232728338988325,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "BruteForce": {
+              "precisao": 0.9333333333333333,
+              "recall": 0.358974358974359,
+              "f1": 0.5185185185185185,
+              "suporte": 273,
+              "taxa_falso_positivo": 4.184075408993371e-05,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "Benign": {
+              "precisao": 0.9230962448193578,
+              "recall": 0.9816579111388122,
+              "f1": 0.9514768387667478,
+              "suporte": 22462,
+              "taxa_falso_positivo": 0.012659187386294724,
+              "recall_na_regra_do_teto": 1.0
+            }
+          },
+          "teto": 1.0
+        }
+      },
+      "importancias": {
+        "Time_To_Live": 0.14186164071048635,
+        "HTTPS": 0.09315437409787976,
+        "IAT": 0.07164912432308983,
+        "Max": 0.06515882435536281,
+        "Min": 0.06216110493631311,
+        "Rate": 0.06105855246449463,
+        "Protocol Type": 0.04421029888405189,
+        "DNS": 0.03785760618756844,
+        "HTTP": 0.035027718969599754,
+        "Variance": 0.032981687940153145,
+        "Std": 0.031722933570917905,
+        "Tot size": 0.030554856735067054,
+        "Tot sum": 0.02977987399434528,
+        "Header_Length": 0.029578103751615955,
+        "AVG": 0.026415937814936983,
+        "syn_count": 0.02483369849451939,
+        "ARP": 0.023780855055914228,
+        "syn_flag_number": 0.022435653423182097,
+        "TCP": 0.016460383792929287,
+        "psh_flag_number": 0.015967333415543173,
+        "ack_count": 0.015064734133178258,
+        "IPv": 0.013328262533796799,
+        "ack_flag_number": 0.012988682790724803,
+        "LLC": 0.011207692085075046,
+        "rst_flag_number": 0.010203192281189868,
+        "rst_count": 0.009718003843320222,
+        "UDP": 0.008952899126161363,
+        "SSH": 0.005083812386504669,
+        "fin_flag_number": 0.0050255039285139426,
+        "ICMP": 0.004744889047458274,
+        "fin_count": 0.004638939251677361,
+        "DHCP": 0.0009820691454466965,
+        "ece_flag_number": 0.00036445809916641706,
+        "cwr_flag_number": 0.00031389575508629114,
+        "IGMP": 0.00027056102699960644,
+        "IRC": 0.0001946385658247057,
+        "Telnet": 0.0001507419508343785,
+        "SMTP": 0.00011559537875910117,
+        "Number": 8.657523110002316e-07
+      },
+      "por_arquivo": [
+        {
+          "arquivo": "Backdoor_Malware.pcap",
+          "rotulo": "Backdoor_Malware",
+          "esperada": "Web",
+          "janelas_de_teste": 76,
+          "na_esperada": 0.5657894736842105,
+          "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 22,
+            "Spoofing": 0,
+            "Web": 43,
+            "BruteForce": 0,
+            "Benign": 11
+          }
+        },
+        {
+          "arquivo": "BenignTraffic.pcap",
+          "rotulo": "BenignTraffic",
+          "esperada": "Benign",
+          "janelas_de_teste": 0,
+          "na_esperada": null,
+          "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          }
+        },
+        {
+          "arquivo": "BenignTraffic1.pcap",
+          "rotulo": "BenignTraffic",
+          "esperada": "Benign",
+          "janelas_de_teste": 22462,
+          "na_esperada": 0.9816579111388122,
+          "previstas": {
+            "DDoS+DoS": 40,
+            "Mirai": 0,
+            "Recon": 220,
+            "Spoofing": 17,
+            "Web": 129,
+            "BruteForce": 6,
+            "Benign": 22050
+          }
+        },
+        {
+          "arquivo": "BrowserHijacking.pcap",
+          "rotulo": "BrowserHijacking",
+          "esperada": "Web",
+          "janelas_de_teste": 81,
+          "na_esperada": 0.25925925925925924,
+          "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 14,
+            "Spoofing": 3,
+            "Web": 21,
+            "BruteForce": 1,
+            "Benign": 42
+          }
+        },
+        {
+          "arquivo": "CommandInjection.pcap",
+          "rotulo": "CommandInjection",
+          "esperada": "Web",
+          "janelas_de_teste": 77,
+          "na_esperada": 0.38961038961038963,
+          "previstas": {
+            "DDoS+DoS": 37,
+            "Mirai": 0,
+            "Recon": 6,
+            "Spoofing": 0,
+            "Web": 30,
+            "BruteForce": 0,
+            "Benign": 4
+          }
+        },
+        {
+          "arquivo": "DDoS-HTTP_Flood-.pcap",
+          "rotulo": "DDoS-HTTP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 8618,
+          "na_esperada": 0.9980273845439778,
+          "previstas": {
+            "DDoS+DoS": 8601,
+            "Mirai": 0,
+            "Recon": 5,
+            "Spoofing": 0,
+            "Web": 4,
+            "BruteForce": 0,
+            "Benign": 8
+          }
+        },
+        {
+          "arquivo": "DDoS-ICMP_Flood.pcap",
+          "rotulo": "DDoS-ICMP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 14916,
+          "na_esperada": 0.999195494770716,
+          "previstas": {
+            "DDoS+DoS": 14904,
+            "Mirai": 0,
+            "Recon": 7,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 5
+          }
+        },
+        {
+          "arquivo": "DDoS-SYN_Flood.pcap",
+          "rotulo": "DDoS-SYN_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 15101,
+          "na_esperada": 0.9999337792199192,
+          "previstas": {
+            "DDoS+DoS": 15100,
+            "Mirai": 0,
+            "Recon": 1,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          }
+        },
+        {
+          "arquivo": "DDoS-TCP_Flood.pcap",
+          "rotulo": "DDoS-TCP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 14978,
+          "na_esperada": 0.9971291227133129,
+          "previstas": {
+            "DDoS+DoS": 14935,
+            "Mirai": 0,
+            "Recon": 15,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 28
+          }
+        },
+        {
+          "arquivo": "DDoS-UDP_Flood.pcap",
+          "rotulo": "DDoS-UDP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 15042,
+          "na_esperada": 1.0,
+          "previstas": {
+            "DDoS+DoS": 15042,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          }
+        },
+        {
+          "arquivo": "DNS_Spoofing.pcap",
+          "rotulo": "DNS_Spoofing",
+          "esperada": "Spoofing",
+          "janelas_de_teste": 3143,
+          "na_esperada": 0.9898186446070634,
+          "previstas": {
+            "DDoS+DoS": 22,
+            "Mirai": 0,
+            "Recon": 4,
+            "Spoofing": 3111,
+            "Web": 3,
+            "BruteForce": 0,
+            "Benign": 3
+          }
+        },
+        {
+          "arquivo": "DictionaryBruteForce.pcap",
+          "rotulo": "DictionaryBruteForce",
+          "esperada": "BruteForce",
+          "janelas_de_teste": 273,
+          "na_esperada": 0.358974358974359,
+          "previstas": {
+            "DDoS+DoS": 30,
+            "Mirai": 0,
+            "Recon": 115,
+            "Spoofing": 0,
+            "Web": 8,
+            "BruteForce": 98,
+            "Benign": 22
+          }
+        },
+        {
+          "arquivo": "DoS-HTTP_Flood1.pcap",
+          "rotulo": "DoS-HTTP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 9137,
+          "na_esperada": 0.8620991572726278,
+          "previstas": {
+            "DDoS+DoS": 7877,
+            "Mirai": 0,
+            "Recon": 916,
+            "Spoofing": 3,
+            "Web": 38,
+            "BruteForce": 0,
+            "Benign": 303
+          }
+        },
+        {
+          "arquivo": "DoS-SYN_Flood.pcap",
+          "rotulo": "DoS-SYN_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 15035,
+          "na_esperada": 0.9996674426338543,
+          "previstas": {
+            "DDoS+DoS": 15030,
+            "Mirai": 0,
+            "Recon": 5,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          }
+        },
+        {
+          "arquivo": "DoS-TCP_Flood.pcap",
+          "rotulo": "DoS-TCP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 15065,
+          "na_esperada": 0.9994025887819449,
+          "previstas": {
+            "DDoS+DoS": 15056,
+            "Mirai": 0,
+            "Recon": 1,
+            "Spoofing": 1,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 7
+          }
+        },
+        {
+          "arquivo": "DoS-UDP_Flood.pcap",
+          "rotulo": "DoS-UDP_Flood",
+          "esperada": "DDoS+DoS",
+          "janelas_de_teste": 14907,
+          "na_esperada": 0.9991279264774938,
+          "previstas": {
+            "DDoS+DoS": 14894,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 7,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 6
+          }
+        },
+        {
+          "arquivo": "MITM-ArpSpoofing.pcap",
+          "rotulo": "MITM-ArpSpoofing",
+          "esperada": "Spoofing",
+          "janelas_de_teste": 3864,
+          "na_esperada": 0.9981884057971014,
+          "previstas": {
+            "DDoS+DoS": 1,
+            "Mirai": 0,
+            "Recon": 4,
+            "Spoofing": 3857,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 2
+          }
+        },
+        {
+          "arquivo": "Mirai-greip_flood21.pcap",
+          "rotulo": "Mirai-greip_flood",
+          "esperada": "Mirai",
+          "janelas_de_teste": 3586,
+          "na_esperada": 1.0,
+          "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 3586,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          }
+        },
+        {
+          "arquivo": "Recon-HostDiscovery.pcap",
+          "rotulo": "Recon-HostDiscovery",
+          "esperada": "Recon",
+          "janelas_de_teste": 3842,
+          "na_esperada": 0.9414367516918272,
+          "previstas": {
+            "DDoS+DoS": 6,
+            "Mirai": 0,
+            "Recon": 3617,
+            "Spoofing": 2,
+            "Web": 24,
+            "BruteForce": 0,
+            "Benign": 193
+          }
+        },
+        {
+          "arquivo": "Recon-OSScan.pcap",
+          "rotulo": "Recon-OSScan",
+          "esperada": "Recon",
+          "janelas_de_teste": 1397,
+          "na_esperada": 0.7673586256263422,
+          "previstas": {
+            "DDoS+DoS": 95,
+            "Mirai": 0,
+            "Recon": 1072,
+            "Spoofing": 4,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 226
+          }
+        },
+        {
+          "arquivo": "Recon-PingSweep.pcap",
+          "rotulo": "Recon-PingSweep",
+          "esperada": "Recon",
+          "janelas_de_teste": 18,
+          "na_esperada": 0.5,
+          "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 9,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 9
+          }
+        },
+        {
+          "arquivo": "Recon-PortScan.pcap",
+          "rotulo": "Recon-PortScan",
+          "esperada": "Recon",
+          "janelas_de_teste": 850,
+          "na_esperada": 0.8305882352941176,
+          "previstas": {
+            "DDoS+DoS": 32,
+            "Mirai": 0,
+            "Recon": 706,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 112
+          }
+        },
+        {
+          "arquivo": "SqlInjection.pcap",
+          "rotulo": "SqlInjection",
+          "esperada": "Web",
+          "janelas_de_teste": 102,
+          "na_esperada": 0.0196078431372549,
+          "previstas": {
+            "DDoS+DoS": 14,
+            "Mirai": 0,
+            "Recon": 71,
+            "Spoofing": 1,
+            "Web": 2,
+            "BruteForce": 0,
+            "Benign": 14
+          }
+        },
+        {
+          "arquivo": "Uploading_Attack.pcap",
+          "rotulo": "Uploading_Attack",
+          "esperada": "Web",
+          "janelas_de_teste": 31,
+          "na_esperada": 0.8387096774193549,
+          "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 4,
+            "Spoofing": 0,
+            "Web": 26,
+            "BruteForce": 0,
+            "Benign": 1
+          }
+        },
+        {
+          "arquivo": "VulnerabilityScan.pcap",
+          "rotulo": "VulnerabilityScan",
+          "esperada": "Recon",
+          "janelas_de_teste": 4875,
+          "na_esperada": 0.8289230769230769,
+          "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 4041,
+            "Spoofing": 2,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 832
+          }
+        },
+        {
+          "arquivo": "XSS.pcap",
+          "rotulo": "XSS",
+          "esperada": "Web",
+          "janelas_de_teste": 98,
+          "na_esperada": 0.7448979591836735,
+          "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 16,
+            "Spoofing": 0,
+            "Web": 73,
+            "BruteForce": 0,
+            "Benign": 9
+          }
+        }
+      ],
+      "ips_de_origem": [
+        {
+          "rotulo": "DDoS-UDP_Flood",
+          "categoria": "DDoS",
+          "janelas": 266297,
+          "minimo": 1,
+          "p25": 2.0,
+          "mediana": 2.0,
+          "p75": 3.0,
+          "maximo": 42,
+          "media": 2.53817729827974,
+          "ate_1": 0.06528049508631341
+        },
+        {
+          "rotulo": "DDoS-ICMP_Flood",
+          "categoria": "DDoS",
+          "janelas": 267863,
+          "minimo": 1,
+          "p25": 2.0,
+          "mediana": 2.0,
+          "p75": 2.0,
+          "maximo": 38,
+          "media": 2.1159099987680268,
+          "ate_1": 0.148590884146
+        },
+        {
+          "rotulo": "DDoS-HTTP_Flood",
+          "categoria": "DDoS",
+          "janelas": 28570,
+          "minimo": 1,
+          "p25": 3.0,
+          "mediana": 5.0,
+          "p75": 8.0,
+          "maximo": 39,
+          "media": 6.134861743087154,
+          "ate_1": 0.0792439621981099
+        },
+        {
+          "rotulo": "DDoS-TCP_Flood",
+          "categoria": "DDoS",
+          "janelas": 265218,
+          "minimo": 1,
+          "p25": 2.0,
+          "mediana": 2.0,
+          "p75": 3.0,
+          "maximo": 39,
+          "media": 2.5355368036860244,
+          "ate_1": 0.05987527241740757
+        },
+        {
+          "rotulo": "DDoS-SYN_Flood",
+          "categoria": "DDoS",
+          "janelas": 265702,
+          "minimo": 1,
+          "p25": 2.0,
+          "mediana": 2.0,
+          "p75": 3.0,
+          "maximo": 39,
+          "media": 2.473154135083665,
+          "ate_1": 0.13995001919443587
+        },
+        {
+          "rotulo": "DoS-TCP_Flood",
+          "categoria": "DoS",
+          "janelas": 259976,
+          "minimo": 1,
+          "p25": 1.0,
+          "mediana": 1.0,
+          "p75": 2.0,
+          "maximo": 25,
+          "media": 1.4101801704772747,
+          "ate_1": 0.7213281225959319
+        },
+        {
+          "rotulo": "DoS-HTTP_Flood",
+          "categoria": "DoS",
+          "janelas": 30881,
+          "minimo": 1,
+          "p25": 2.0,
+          "mediana": 4.0,
+          "p75": 7.0,
+          "maximo": 42,
+          "media": 5.5918202130760015,
+          "ate_1": 0.1238949515883553
+        },
+        {
+          "rotulo": "DoS-SYN_Flood",
+          "categoria": "DoS",
+          "janelas": 262576,
+          "minimo": 1,
+          "p25": 1.0,
+          "mediana": 2.0,
+          "p75": 2.0,
+          "maximo": 31,
+          "media": 1.8262141246724757,
+          "ate_1": 0.43961367375540794
+        },
+        {
+          "rotulo": "DoS-UDP_Flood",
+          "categoria": "DoS",
+          "janelas": 166653,
+          "minimo": 1,
+          "p25": 1.0,
+          "mediana": 1.0,
+          "p75": 2.0,
+          "maximo": 44,
+          "media": 1.552627315439866,
+          "ate_1": 0.6710170233959185
+        }
+      ],
+      "modelo": {
+        "arquivo": "rf_regerado_janela_100.joblib",
+        "bytes": 134960897
+      }
+    }
+  ],
+  "duracao_segundos": 104.67265558299914
+}
