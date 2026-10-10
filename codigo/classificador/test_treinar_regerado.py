@@ -173,6 +173,7 @@ def test_treina_e_avalia_nas_duas_janelas(treino):
     assert m["teto"] == 30 and m["semente"] == 42 and m["alvo"] == "7" and m["divisao"] == "tempo"
     assert m["categorias_sem_pcap"] == ["Web"]
     assert m["rotulos_sem_pcap"] == 34 - 8
+    assert m["rodadas_anteriores"] == []
     de_dois = m["janelas"][0]
     assert de_dois["linhas"]["regeradas"] == 320 and de_dois["linhas"]["amostra"] == 240
     assert de_dois["linhas"]["treino"] + de_dois["linhas"]["teste"] == 240
@@ -247,7 +248,38 @@ def test_relatorio_traz_os_dados_as_duas_janelas_e_o_que_falta(treino):
 def test_os_numeros_sao_os_mesmos_em_outra_execucao(treino):
     antes = ler_manifesto(treino)
     assert executar(treino, "--teto", "30") == 0
-    assert sem_variaveis(ler_manifesto(treino)) == sem_variaveis(antes)
+    depois = ler_manifesto(treino)
+    # A rodada anterior fica registrada como referência; fora isso, nada muda.
+    assert len(depois["rodadas_anteriores"]) == len(antes["rodadas_anteriores"]) + 1
+    resumo = depois["rodadas_anteriores"][-1]
+    assert resumo["pcaps"] == 9 and len(resumo["rotulos"]) == 8 and resumo["rotulos_sem_pcap"] == 26
+    assert resumo["janelas"][0]["macro_f1"] == antes["janelas"][0]["avaliacao"]["amostra"]["macro_f1"]
+    assert set(resumo["janelas"][0]["por_classe"]) == set(ALVOS[ALVO].classes)
+    rodadas = len(depois["rodadas_anteriores"])
+    depois.pop("rodadas_anteriores"), antes.pop("rodadas_anteriores")
+    assert sem_variaveis(depois) == sem_variaveis(antes)
+    texto = (treino / "resultados" / RELATORIO).read_text(encoding="utf-8")
+    assert "## Rodadas anteriores, como referência" in texto
+    assert "Nenhum rótulo entrou" in texto and "Pcaps: de 9 para 9" in texto
+    # Refazer o relatório não acrescenta rodada.
+    assert executar(treino, "--refazer-relatorio") == 0
+    assert len(ler_manifesto(treino)["rodadas_anteriores"]) == rodadas
+
+
+def test_avaliacao_nos_arquivos_inteiros_de_teste(treino):
+    m = ler_manifesto(treino)
+    for j in m["janelas"]:
+        inteiros = j["avaliacao_arquivos_inteiros"]
+        assert inteiros["linhas"] == sum(
+            p["janelas_de_teste"] for p in j["por_arquivo"] if p["arquivo"] in j["arquivos_de_teste"]
+        )
+        por_classe = inteiros["amostra"]["por_classe"]
+        assert por_classe["Benign"]["suporte"] == inteiros["linhas"]
+        assert all(me["suporte"] == 0 for classe, me in por_classe.items() if classe != "Benign")
+    texto = (treino / "resultados" / RELATORIO).read_text(encoding="utf-8")
+    assert "### Nos arquivos inteiros de teste, com janela de 2" in texto
+    assert "| BenignTraffic | `BenignTraffic.pcap` e `BenignTraffic1.pcap` | por arquivo: `BenignTraffic1.pcap` inteiro no teste |" in texto
+    assert "| Recon-PortScan | `Recon-PortScan.pcap` | por tempo |" in texto
 
 
 def test_refazer_relatorio_nao_treina(treino, monkeypatch):

@@ -20,7 +20,7 @@ demais para manter lá. Cada pessoa baixa da fonte oficial só o que a sua taref
 | Rodar os testes (`pytest`) | Nada. Os testes que dependem do dataset são pulados | 0 |
 | Regerar os dados de treino e treinar o classificador | Os pcaps, ao menos um por classe (ver "Regeração dos dados de treino") | de 3 MB a 2 GB por pcap |
 | Treinar na amostra do `MERGED_CSV` (treino exploratório) | `MERGED_CSV/` | 8,7 GB |
-| Calibrar o extrator | O pcap do ataque e o CSV por ataque correspondente | de 39 MB a cerca de 0,6 GB por pcap |
+| Recalibrar o extrator (opcional) | O pcap do ataque e a pasta de CSV por ataque correspondente | de 39 MB a cerca de 0,6 GB por pcap |
 
 Não usar re-uploads de terceiros (Kaggle e afins): não dá para citar a origem no artigo e não há
 garantia de que o conteúdo bate com o oficial.
@@ -34,7 +34,8 @@ Já está no `.gitignore`.
 TCC/CICIoT2023/
 ├── MERGED_CSV/                  <- o dataset oficial de treino (63 arquivos, 8,7 GB), usado no
 │                                   treino exploratório e na exploração
-├── <34 pastas, uma por ataque>/ <- CSVs por ataque, sem rótulo (usados na calibração)
+├── <34 pastas, uma por ataque>/ <- CSVs por ataque, sem rótulo. OPCIONAIS: só servem para
+│                                   recalibrar o extrator (a calibração já foi feita)
 ├── *.pcap                       <- os pcaps, um ou dois por classe, de onde os dados de treino
 │                                   são regerados (ver "Regeração dos dados de treino")
 ├── pcap2csv/                    <- o extrator DOS AUTORES (código de referência)
@@ -339,7 +340,8 @@ CICIoT2023/
 │                                      (`DoS-HTTP_Flood1.pcap`, `BenignTraffic1.pcap`). São a
 │                                      fonte dos dados de treino regerados e da calibração.
 │
-├── <34 pastas por ataque>/          CSVs de 39 features SEM rótulo.
+├── <34 pastas por ataque>/          CSVs de 39 features SEM rótulo. Opcionais: só a
+│                                      recalibração do extrator precisa delas.
 │   ├── DictionaryBruteForce/          Servem de gabarito da calibração:
 │   ├── Recon-PortScan/                é com eles que se compara a saída
 │   ├── DDoS-ICMP_Flood/               do nosso extrator.

@@ -54,6 +54,7 @@ from codigo.classificador.experimento import (
     _gravar_csv,
     _milhar,
     _pct,
+    _pp,
     _tabela,
 )
 from codigo.classificador.mapeamento import CATEGORIA_DO_ROTULO, CATEGORIAS, ROTULOS
@@ -231,6 +232,12 @@ def treinar_janela(regeracao, destino, janela, semente=SEMENTE, arvores=ARVORES,
     previsto = prever(modelo, X_teste)
     rotulos_de_teste = amostra["Label"].to_numpy()[teste]
     avaliacao = avaliar(previsto, rotulos_de_teste, ALVO, grupos=agrupar(X_teste))
+    # A medida nos arquivos inteiros de teste: pcaps que o modelo não viu em nenhuma janela.
+    inteiros = amostra["arquivo"].to_numpy()[teste]
+    nos_inteiros = np.isin(inteiros, arquivos_de_teste)
+    avaliacao_inteiros = (
+        avaliar(previsto[nos_inteiros], rotulos_de_teste[nos_inteiros], ALVO) if nos_inteiros.any() else None
+    )
     caminho = Path(modelos) / f"rf_regerado_janela_{janela}.joblib"
     tamanho = salvar(
         caminho, modelo, FEATURES_39, ALVO, divisao=DIVISAO, semente=semente, arvores=arvores, nucleos=nucleos,
@@ -245,6 +252,7 @@ def treinar_janela(regeracao, destino, janela, semente=SEMENTE, arvores=ARVORES,
         "divisao": {"treino_sha256": impressao_digital(treino), "teste_sha256": impressao_digital(teste)},
         "treino_segundos": segundos,
         "avaliacao": avaliacao,
+        "avaliacao_arquivos_inteiros": avaliacao_inteiros,
         "importancias": importancias(modelo, FEATURES_39),
         "por_arquivo": _por_arquivo(amostra, teste, previsto),
         "ips_de_origem": resumo["ips_de_origem"],
@@ -264,7 +272,44 @@ def rodar(regeracao, destino, semente=SEMENTE, arvores=ARVORES, nucleos=TODOS_OS
     return {"janelas": janelas, "duracao_segundos": time.perf_counter() - inicio}
 
 
-def montar_manifesto(registro, regeracao, caminho_da_regeracao, destino, semente, arvores, nucleos, teto):
+def resumir_rodada(m):
+    """O que fica de uma rodada quando outra a substitui: os pcaps, os rótulos e as medidas principais."""
+    return {
+        "gerado_em": m["gerado_em"],
+        "pcaps": len(m["regeracao"]["pcaps"]),
+        "rotulos": sorted(r["rotulo"] for r in m["regeracao"]["rotulos"]),
+        "rotulos_sem_pcap": m["rotulos_sem_pcap"],
+        "janelas": [
+            {
+                "janela": j["janela"],
+                "teste": j["linhas"]["teste"],
+                "acuracia": j["avaliacao"]["amostra"]["acuracia"],
+                "macro_f1": j["avaliacao"]["amostra"]["macro_f1"],
+                "falso_positivo_benigno": j["avaliacao"]["amostra"]["falso_positivo_benigno"],
+                "por_classe": {
+                    classe: {"recall": me["recall"], "f1": me["f1"], "suporte": me["suporte"]}
+                    for classe, me in j["avaliacao"]["amostra"]["por_classe"].items()
+                },
+            }
+            for j in m["janelas"]
+        ],
+    }
+
+
+def rodadas_anteriores(caminho):
+    """As rodadas registradas no manifesto que está em `caminho`, mais ele próprio resumido."""
+    try:
+        anterior = json.loads(Path(caminho).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    try:
+        return [*anterior.get("rodadas_anteriores", []), resumir_rodada(anterior)]
+    except KeyError:
+        return anterior.get("rodadas_anteriores", [])
+
+
+def montar_manifesto(registro, regeracao, caminho_da_regeracao, destino, semente, arvores, nucleos, teto,
+                     anteriores=()):
     presentes = {r["rotulo"] for r in regeracao["rotulos"]}
     categorias = {CATEGORIA_DO_ROTULO[rotulo] for rotulo in presentes}
     return {
@@ -308,6 +353,7 @@ def montar_manifesto(registro, regeracao, caminho_da_regeracao, destino, semente
         "rotulos_sem_pcap": len(ROTULOS) - len(presentes),
         "janelas": registro["janelas"],
         "duracao_segundos": registro["duracao_segundos"],
+        "rodadas_anteriores": list(anteriores),
     }
 
 
@@ -467,6 +513,25 @@ def _treino_e_teste(m):
             linhas,
         ),
     ]
+    primeira = m["janelas"][0]
+    inteiros = set(primeira["arquivos_de_teste"])
+    secao += [
+        "",
+        "Como cada rótulo foi dividido. O rótulo com mais de um pcap tem um arquivo inteiro no teste, e o modelo",
+        "não vê nenhuma janela dele; nos demais, o teste é o fim do próprio pcap.",
+        "",
+        *_tabela(
+            ["Rótulo", "Arquivos", "Divisão"],
+            [
+                [
+                    r["rotulo"], _enumerar(f"`{a}`" for a in r["arquivos"]),
+                    "por arquivo: " + _enumerar(f"`{a}`" for a in r["arquivos"] if a in inteiros) + " inteiro no teste"
+                    if len(r["arquivos"]) > 1 else "por tempo",
+                ]
+                for r in primeira["por_rotulo"]
+            ],
+        ),
+    ]
     for j in m["janelas"]:
         secao += [
             "",
@@ -507,6 +572,27 @@ def _resultados(m, j):
         for p in j["por_arquivo"]
     ]
     importantes = list(j["importancias"].items())[:FEATURES_LISTADAS]
+    inteiros = []
+    if j["avaliacao_arquivos_inteiros"] is not None:
+        ai = j["avaliacao_arquivos_inteiros"]["amostra"]
+        inteiros = [
+            "",
+            f"### Nos arquivos inteiros de teste, com janela de {j['janela']}",
+            "",
+            "É a medida honesta: " + _enumerar(f"`{a}`" for a in j["arquivos_de_teste"]) + ", pcaps de que o modelo "
+            f"não viu nenhuma janela. {_milhar(j['avaliacao_arquivos_inteiros']['linhas'])} linhas, acurácia "
+            f"{_pct(ai['acuracia'])}, macro-F1 {_pct(ai['macro_f1'])} entre as categorias presentes, tráfego benigno "
+            f"classificado como ataque {_pct(ai['falso_positivo_benigno'])}. A precisão e o falso positivo de cada "
+            "categoria valem só dentro desses arquivos.",
+            "",
+            *_tabela(
+                ["Categoria", "Linhas de teste", "Precisão", "Recall", "F1"],
+                [
+                    [classe, _milhar(me["suporte"]), _pct(me["precisao"]), _pct(me["recall"]), _pct(me["f1"])]
+                    for classe, me in ai["por_classe"].items() if me["suporte"]
+                ],
+            ),
+        ]
     return [
         f"## Resultados com janela de {j['janela']}",
         "",
@@ -529,6 +615,7 @@ def _resultados(m, j):
         "",
         f"As {FEATURES_LISTADAS} features mais importantes (redução média de impureza): "
         + _enumerar(f"`{feature}` ({_pct(valor, 1)})" for feature, valor in importantes) + ".",
+        *inteiros,
     ]
 
 
@@ -609,6 +696,77 @@ def _ips(m):
     return secao
 
 
+def _diferenca(novo, antigo):
+    if novo is None or antigo is None:
+        return "sem valor"
+    return f"{_pct(antigo)} para {_pct(novo)} ({_pp(novo - antigo)} p.p.)"
+
+
+def _rodadas_anteriores(m):
+    anteriores = m.get("rodadas_anteriores", [])
+    if not anteriores:
+        return []
+    secao = [
+        "## Rodadas anteriores, como referência",
+        "",
+        "As medidas das rodadas parciais, antes de os outros pcaps chegarem. Cada rodada é o mesmo comando sobre",
+        "os pcaps que havia na pasta na data.",
+    ]
+    for rodada in anteriores:
+        rotulos = [str(j["janela"]) for j in rodada["janelas"]]
+        secao += [
+            "",
+            (
+                f"Rodada de {datetime.date.fromisoformat(rodada['gerado_em']).strftime('%d/%m/%Y')}: "
+                f"{rodada['pcaps']} pcaps, {len(rodada['rotulos'])} rótulos ({rodada['rotulos_sem_pcap']} sem pcap)."
+            ),
+            "",
+            *_tabela(
+                ["Medida", *(f"Janela de {r}" for r in rotulos)],
+                [
+                    ["Macro-F1", *(_pct(j["macro_f1"]) for j in rodada["janelas"])],
+                    ["Acurácia", *(_pct(j["acuracia"]) for j in rodada["janelas"])],
+                    ["Benigno classificado como ataque", *(_pct(j["falso_positivo_benigno"]) for j in rodada["janelas"])],
+                    ["Linhas de teste", *(_milhar(j["teste"]) for j in rodada["janelas"])],
+                ],
+            ),
+            "",
+            *_tabela(
+                ["Categoria", *(f"Recall ({r})" for r in rotulos), *(f"F1 ({r})" for r in rotulos)],
+                [
+                    [classe, *(_pct(j["por_classe"][classe]["recall"]) for j in rodada["janelas"]),
+                     *(_pct(j["por_classe"][classe]["f1"]) for j in rodada["janelas"])]
+                    for classe in CLASSES
+                ],
+            ),
+        ]
+    ultima = anteriores[-1]
+    presentes = sorted(r["rotulo"] for r in m["regeracao"]["rotulos"])
+    entraram = [r for r in presentes if r not in ultima["rotulos"]]
+    sairam = [r for r in ultima["rotulos"] if r not in presentes]
+    secao += ["", "O que mudou da última rodada para esta:", ""]
+    secao.append(
+        f"- Pcaps: de {ultima['pcaps']} para {len(m['regeracao']['pcaps'])}. "
+        + (f"Rótulos que entraram: {_enumerar(entraram)}. " if entraram else "Nenhum rótulo entrou. ")
+        + (f"Rótulos que saíram: {_enumerar(sairam)}." if sairam else "")
+    )
+    for j in m["janelas"]:
+        anterior = next((a for a in ultima["janelas"] if a["janela"] == j["janela"]), None)
+        if anterior is None:
+            continue
+        a = j["avaliacao"]["amostra"]
+        secao.append(
+            f"- Janela de {j['janela']}: macro-F1 de {_diferenca(a['macro_f1'], anterior['macro_f1'])}; benigno "
+            f"classificado como ataque de {_diferenca(a['falso_positivo_benigno'], anterior['falso_positivo_benigno'])}; "
+            "recall por categoria: "
+            + "; ".join(
+                f"{classe} de {_diferenca(a['por_classe'][classe]['recall'], anterior['por_classe'][classe]['recall'])}"
+                for classe in CLASSES
+            ) + "."
+        )
+    return secao
+
+
 def _ressalvas(m):
     return [
         "## Ressalvas",
@@ -668,8 +826,8 @@ def _como_foram_obtidos(m):
 def montar_relatorio(m):
     secoes = [_cabecalho(m), _dados(m), _treino_e_teste(m)]
     secoes += [_resultados(m, j) for j in m["janelas"]]
-    secoes += [_lado_a_lado(m), _ips(m), _ressalvas(m), _como_foram_obtidos(m)]
-    return "\n".join("\n".join(secao) + "\n" for secao in secoes).rstrip("\n") + "\n"
+    secoes += [_lado_a_lado(m), _ips(m), _rodadas_anteriores(m), _ressalvas(m), _como_foram_obtidos(m)]
+    return "\n".join("\n".join(secao) + "\n" for secao in secoes if secao).rstrip("\n") + "\n"
 
 
 # --- comando ---------------------------------------------------------------------------------
@@ -723,13 +881,14 @@ def main(argv=None):
                 raise ValueError(f"{caminho} não existe: rode python -m codigo.classificador.regerar antes")
             regeracao = json.loads(caminho.read_text(encoding="utf-8"))
             destino = argumentos.destino or regeracao["destino"]
+            anteriores = rodadas_anteriores(saida / MANIFESTO)
             registro = rodar(
                 regeracao, destino, argumentos.semente, argumentos.arvores, argumentos.nucleos, argumentos.teto,
                 argumentos.modelos, ao_terminar=_relatar,
             )
             manifesto = montar_manifesto(
                 registro, regeracao, caminho, destino, argumentos.semente, argumentos.arvores, argumentos.nucleos,
-                argumentos.teto,
+                argumentos.teto, anteriores,
             )
         gravar(manifesto, saida)
     except (OSError, ValueError, KeyError) as erro:
