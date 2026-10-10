@@ -5,6 +5,11 @@ resume uma janela de quadros IPv4 ou ARP consecutivos. As regras de medição se
 código publicado pelos autores do dataset faz, para que o classificador receba em operação
 os mesmos números com que foi treinado.
 
+Com a opção `enderecos`, cada janela sai acompanhada dos endereços dos seus quadros: os MACs
+de origem e de destino e a quantidade de IPs de origem e de destino distintos. É o que a
+regeração dos dados de treino usa para saber se um atacante está na janela, e o que a resposta
+precisa para saber quem bloquear. Sem a opção, a saída são só as 39 colunas.
+
 Uso, a partir da raiz do repositório:
     python -m codigo.captura.extrator entrada.pcap saida.csv
     python -m codigo.captura.extrator --janela 100 entrada.pcap saida.csv
@@ -17,7 +22,7 @@ import os
 import struct
 import sys
 import warnings
-from collections import Counter
+from collections import Counter, namedtuple
 
 import dpkt
 
@@ -63,12 +68,18 @@ MEDIAS = (
     "Header_Length", "Time_To_Live", *(nome for nome, _ in FLAGS), *INDICADORES, "Tot size", "IAT",
 )
 
+# Os endereços de uma janela: os MACs como texto, na grafia do Wireshark (minúsculas, separados
+# por dois-pontos), e a quantidade de IPs distintos. Só o cabeçalho IPv4 traz IP; o ARP não conta.
+Enderecos = namedtuple("Enderecos", ("macs_origem", "macs_destino", "ips_origem", "ips_destino"))
+
 
 def medir_quadro(ts, quadro, ts_anterior=None):
     """Mede um quadro Ethernet.
 
-    Devolve um dicionário com as colunas de MEDIAS, mais "Protocol Type" e "ts". Devolve None
-    se o quadro não entra na conta: não é IPv4 nem ARP, ou não pôde ser decodificado.
+    Devolve um dicionário com as colunas de MEDIAS, mais "Protocol Type", "ts" e os endereços
+    do quadro: "mac_origem" e "mac_destino" em texto, "ip_origem" e "ip_destino" em bytes, ou
+    None fora do IPv4. Devolve None se o quadro não entra na conta: não é IPv4 nem ARP, ou não
+    pôde ser decodificado.
     """
     # Quadro que o dpkt não decodifica como Ethernet é descartado, qualquer que seja o erro:
     # um quadro malformado não pode derrubar a extração. O código dos autores também o descarta.
@@ -78,6 +89,7 @@ def medir_quadro(ts, quadro, ts_anterior=None):
         return None
     medida = dict.fromkeys(MEDIAS, 0)
     medida["Protocol Type"] = 0
+    medida["ip_origem"] = medida["ip_destino"] = None
     if eth.type == dpkt.ethernet.ETH_TYPE_IP:
         ip = eth.data
         # IPv4 com cabeçalho ilegível: o dpkt devolve os bytes crus. Aqui o quadro é ignorado;
@@ -85,6 +97,7 @@ def medir_quadro(ts, quadro, ts_anterior=None):
         if not isinstance(ip, dpkt.ip.IP):
             return None
         medida["Protocol Type"] = ip.p
+        medida["ip_origem"], medida["ip_destino"] = ip.src, ip.dst
         medida["Time_To_Live"] = ip.ttl
         # No código dos autores "LLC" vale 1 em todo quadro IPv4, igual a "IPv".
         medida["IPv"] = medida["LLC"] = 1
@@ -112,6 +125,7 @@ def medir_quadro(ts, quadro, ts_anterior=None):
     medida["Tot size"] = len(quadro)
     medida["IAT"] = 0.0 if ts_anterior is None else ts - ts_anterior
     medida["ts"] = ts
+    medida["mac_destino"], medida["mac_origem"] = quadro[:6].hex(":"), quadro[6:12].hex(":")
     return medida
 
 
@@ -145,23 +159,35 @@ def agregar(medidas):
     return {coluna: linha[coluna] for coluna in COLUNAS}
 
 
+def enderecos(medidas):
+    """Os endereços de uma janela de medidas: MACs de origem e de destino e IPs distintos."""
+    return Enderecos(
+        frozenset(m["mac_origem"] for m in medidas),
+        frozenset(m["mac_destino"] for m in medidas),
+        len({m["ip_origem"] for m in medidas} - {None}),
+        len({m["ip_destino"] for m in medidas} - {None}),
+    )
+
+
 class Extrator:
     """Recebe quadros um a um e devolve uma linha de features a cada janela completa.
 
     Não sabe de onde os quadros vêm. Serve tanto para um arquivo pcap quanto para uma captura
-    ao vivo que entregue (instante, quadro).
+    ao vivo que entregue (instante, quadro). Com `enderecos`, cada janela sai como o par
+    (linha, Enderecos), em vez de só a linha.
     """
 
-    def __init__(self, janela=10):
+    def __init__(self, janela=10, enderecos=False):
         if janela < 1:
             raise ValueError("a janela precisa ter ao menos 1 quadro")
         self.janela = janela
+        self.enderecos = enderecos
         self.ignorados = 0
         self._pendentes = []
         self._ts_anterior = None
 
     def alimentar(self, ts, quadro):
-        """Entrega um quadro. Devolve a linha da janela se ele a completou, senão None."""
+        """Entrega um quadro. Devolve a janela se ele a completou, senão None."""
         ts = float(ts)
         if not math.isfinite(ts):
             raise ValueError("o instante do quadro precisa ser um número finito")
@@ -176,18 +202,21 @@ class Extrator:
         return self._fechar()
 
     def finalizar(self):
-        """Devolve a linha da janela incompleta que sobrou, ou None se não sobrou nada."""
+        """Devolve a janela incompleta que sobrou, ou None se não sobrou nada."""
         return self._fechar() if self._pendentes else None
 
     def _fechar(self):
         linha = agregar(self._pendentes)
+        if self.enderecos:
+            linha = (linha, enderecos(self._pendentes))
         self._pendentes = []
         return linha
 
 
-def extrair(quadros, janela=10):
-    """Gera as linhas de features de uma sequência de (instante, quadro)."""
-    extrator = Extrator(janela)
+def extrair(quadros, janela=10, enderecos=False):
+    """Gera as janelas de uma sequência de (instante, quadro): as linhas de features ou, com
+    `enderecos`, os pares (linha, Enderecos)."""
+    extrator = Extrator(janela, enderecos)
     for ts, quadro in quadros:
         linha = extrator.alimentar(ts, quadro)
         if linha is not None:
