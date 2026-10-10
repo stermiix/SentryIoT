@@ -24,6 +24,9 @@ além da detecção, para a resposta.
 - **Dataset secundário:** dispensado em 10/10/2026, com o orientador. O trabalho segue só com o
   CICIoT2023, que cobre os três cenários da PoC. Ver `ROADMAP.md`.
 - **Stack:** Python, Pandas, scikit-learn, dpkt, servidor MCP, agentes LLM.
+- **Agentes:** três papéis (triagem, decisão e execução), em arquitetura híbrida: triagem e
+  execução no modelo local, e só a decisão pode usar um modelo de fronteira na nuvem, recebendo
+  um resumo sem endereços nem nomes de dispositivo. Ver `ROADMAP.md`.
 - **Cenários da PoC:** DDoS, port scan e brute force. O cenário de exfiltração foi retirado em
   10/10/2026, em decisão com o orientador: o CICIoT2023 não tem essa classe, e os datasets de
   referência da área também não cobrem esse vetor com dados rotulados suficientes.

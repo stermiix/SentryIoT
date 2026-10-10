@@ -26,7 +26,11 @@ O formato do log é definido junto com o contrato da tool MCP, em `codigo/mcp/`.
    pergunta da banca sobre custo de tokens e Denial of Wallet.
 2. **Detalhe do incidente.** Mostra o veredito do Random Forest, confiança e features; o rastro
    dos agentes e chamadas MCP; recomendações; e o histórico das decisões de aprovação, rejeição
-   e desfazer registradas no log.
+   e desfazer registradas no log. No modo ao vivo, o incidente aparece aqui assim que o
+   classificador o abre, antes de os agentes agirem, e o botão "Já resolvido" grava no log que o
+   usuário já tratou o caso: a partir daí o agente de execução não aplica remediação e só explica.
+   A barra superior mostra os provedores de LLM configurados e o modelo local quando está online,
+   e permite escolher qual os agentes usam; o modelo escolhido vai gravado em cada chamada do log.
 3. **Isolado e integrado.** O mesmo incidente com a saída crua do classificador de um lado e a
    saída com agentes do outro. Essa comparação é uma tarefa da PoC e vira figura do artigo.
 4. **Custo e latência.** Tokens, tempo de resposta e custo por incidente, com a comparação entre
