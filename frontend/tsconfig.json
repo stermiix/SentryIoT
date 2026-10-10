@@ -10,6 +10,8 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    // O tsbuildinfo do `tsc -b` fica fora do git, junto com o do tsconfig.node.json.
+    "tsBuildInfoFile": "node_modules/.tmp/tsconfig.tsbuildinfo",
     "jsx": "react-jsx",
     "strict": true,
     "noUnusedLocals": true,
