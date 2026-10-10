@@ -442,7 +442,6 @@ def _dados(m):
 
 
 def _treino_e_teste(m):
-    janelas = _janelas(m)
     linhas = [
         [
             j["janela"], _milhar(j["linhas"]["regeradas"]), _milhar(j["linhas"]["amostra"]),
@@ -482,7 +481,6 @@ def _treino_e_teste(m):
                 ],
             ),
         ]
-    del janelas
     return secao
 
 
@@ -561,9 +559,9 @@ def _lado_a_lado(m):
         ),
         "",
         f"O maior macro-F1 é o da janela de {melhor_f1['janela']}, e a menor taxa de tráfego benigno classificado",
-        f"como ataque é a da janela de {menor_fp['janela']}. Com janela de 100, cada rótulo tem cerca de um décimo",
-        "das linhas da janela de 10, e as classes raras ficam com poucas linhas de teste; a janela de 10 responde",
-        "mais vezes por segundo na operação, com menos quadros por decisão.",
+        f"como ataque é a da janela de {menor_fp['janela']}. Com janela de 100, cada pcap gera cerca de um décimo das",
+        "janelas que gera com 10, e as classes raras ficam com poucas linhas de teste; na operação, a janela de 10",
+        "decide com menos quadros e responde mais vezes por segundo.",
     ]
 
 
