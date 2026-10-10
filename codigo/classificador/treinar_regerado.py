@@ -474,15 +474,20 @@ def _dados(m):
             f"Categorias que ainda não têm pcap: {_enumerar(m['categorias_sem_pcap'])}. "
             f"{m['rotulos_sem_pcap']} dos 34 rótulos ainda não têm pcap."
         )
-    else:
+    elif m["rotulos_sem_pcap"]:
         secao.append(
             f"Todas as {len(CLASSES)} categorias do modelo têm ao menos um pcap. {m['rotulos_sem_pcap']} dos 34 "
             "rótulos ainda não têm pcap."
         )
+    else:
+        secao.append(f"Todos os {len(ROTULOS)} rótulos têm pcap, de um a três arquivos cada.")
+    if m["rotulos_sem_pcap"]:
+        secao += [
+            "Os números deste relatório são parciais até os outros pcaps chegarem: o modelo só conhece as variantes",
+            "de cada categoria que estão na tabela.",
+        ]
     secao += [
-        "Os números deste relatório são parciais até os outros pcaps chegarem: o modelo só conhece as variantes",
-        "de cada categoria que estão na tabela. Com pcaps novos na pasta, `regerar` extrai só eles e este comando",
-        "refaz o treino e o relatório.",
+        "Com pcaps novos na pasta, `regerar` extrai só eles e este comando refaz o treino e o relatório.",
     ]
     return secao
 
@@ -747,8 +752,8 @@ def _rodadas_anteriores(m):
     secao += ["", "O que mudou da última rodada para esta:", ""]
     secao.append(
         f"- Pcaps: de {ultima['pcaps']} para {len(m['regeracao']['pcaps'])}. "
-        + (f"Rótulos que entraram: {_enumerar(entraram)}. " if entraram else "Nenhum rótulo entrou. ")
-        + (f"Rótulos que saíram: {_enumerar(sairam)}." if sairam else "")
+        + (f"Rótulos que entraram: {_enumerar(entraram)}." if entraram else "Nenhum rótulo entrou.")
+        + (f" Rótulos que saíram: {_enumerar(sairam)}." if sairam else "")
     )
     for j in m["janelas"]:
         anterior = next((a for a in ultima["janelas"] if a["janela"] == j["janela"]), None)
@@ -768,21 +773,31 @@ def _rodadas_anteriores(m):
 
 
 def _ressalvas(m):
+    if m["rotulos_sem_pcap"]:
+        cobertura = [
+            "- **Os números são parciais.** Faltam pcaps de " + (
+                _enumerar(m["categorias_sem_pcap"]) + " e de " if m["categorias_sem_pcap"] else ""
+            ) + f"{m['rotulos_sem_pcap']} rótulos. Uma categoria representada por uma ou duas variantes pode ficar",
+            "  mais fácil do que será com todas.",
+        ]
+    else:
+        cobertura = [
+            "- **Uma a três capturas por rótulo.** Todos os 34 rótulos têm pcap, mas a variedade dentro de cada um",
+            "  é a de poucas capturas da mesma rede. O que o modelo aprendeu de uma variante pode não valer para",
+            "  outra captura dela.",
+        ]
     return [
         "## Ressalvas",
         "",
-        "- **Os números são parciais.** Faltam pcaps de " + (
-            _enumerar(m["categorias_sem_pcap"]) + " e de " if m["categorias_sem_pcap"] else ""
-        ) + f"{m['rotulos_sem_pcap']} rótulos. Uma categoria representada por uma ou duas variantes pode ficar mais",
-        "  fácil do que será com todas.",
+        *cobertura,
         (
             "- **Uma semente.** Divisão por tempo não sorteia, mas o teto por rótulo e o modelo usam a semente "
             f"{m['semente']}, e nada foi repetido com outra."
         ),
         "- **O teste vem das mesmas capturas.** As janelas de teste são o fim de cada pcap, da mesma rede e do",
-        "  mesmo dia das de treino. A medida vale para a captura, não para outra rede. O rótulo com dois pcaps",
-        "  tem um arquivo inteiro no teste, que é mais exigente; nos demais, as janelas na fronteira do corte",
-        "  são vizinhas das de treino.",
+        "  mesmo dia das de treino. A medida vale para a captura, não para outra rede. Os rótulos com mais de",
+        "  um pcap têm um arquivo inteiro no teste, que é a medida mais exigente e sai à parte; nos demais, as",
+        "  janelas na fronteira do corte são vizinhas das de treino.",
         "- **As janelas descartadas não são avaliadas.** O tráfego de fundo dos pcaps de ataque fica fora do",
         "  treino e do teste. O que o modelo faz com ele não está medido aqui.",
         "- **O atacante também gera tráfego benigno.** O MAC `dc:a6:32:dc:27:d5` aparece em cerca de 1% dos",
