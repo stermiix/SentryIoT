@@ -6,12 +6,11 @@ interface Props {
 }
 
 export default function ResumoMetricas({ resumo, incidentes }: Props) {
-  const tokens = incidentes.reduce((soma, item) => soma + item.tokensEntrada + item.tokensSaida, 0);
   const ativos = incidentes.filter((item) => item.incidente?.estado === "aberto").length;
   const cartoes = [
     { rotulo: "Janelas analisadas", valor: resumo.janelasClassificadas.toLocaleString("pt-BR"), detalhe: "em todos os lotes do replay", cor: "azul", icone: "▦" },
     { rotulo: "Incidentes", valor: String(resumo.totalIncidentes), detalhe: `${ativos} em acompanhamento`, cor: "ambar", icone: "⌁" },
-    { rotulo: "Chamadas à IA", valor: String(resumo.chamadasLLM), detalhe: `${tokens.toLocaleString("pt-BR")} tokens no replay`, cor: "violeta", icone: "✳" },
+    { rotulo: "Chamadas à IA", valor: String(resumo.chamadasLLM), detalhe: `${resumo.tokens.toLocaleString("pt-BR")} tokens no replay`, cor: "violeta", icone: "✳" },
   ];
 
   return (

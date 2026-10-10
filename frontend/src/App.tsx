@@ -73,14 +73,16 @@ export default function App() {
 
           {erro && <div className="error-banner"><strong>Não foi possível abrir o replay.</strong><span>{erro}</span></div>}
           {carregando && <div className="loading-state">Carregando execução demonstrativa…</div>}
-          {resumo && <ResumoMetricas resumo={resumo} incidentes={incidentes} />}
-
-          <div className="section-heading">
-            <div><h2>Fila de incidentes</h2><p>Alertas agrupados para análise e resposta</p></div>
-            <span className="table-count">{incidentes.length} incidente{incidentes.length === 1 ? "" : "s"}</span>
-          </div>
-
-          {resumo && <FilaDeIncidentes resumo={resumo} incidentes={incidentes} selecionadoId={selecionadoId} onSelecionar={setSelecionadoId} />}
+          {resumo && (
+            <>
+              <ResumoMetricas resumo={resumo} incidentes={incidentes} />
+              <div className="section-heading">
+                <div><h2>Fila de incidentes</h2><p>Alertas agrupados para análise e resposta</p></div>
+                <span className="table-count">{incidentes.length} incidente{incidentes.length === 1 ? "" : "s"}</span>
+              </div>
+              <FilaDeIncidentes resumo={resumo} incidentes={incidentes} selecionadoId={selecionadoId} onSelecionar={setSelecionadoId} />
+            </>
+          )}
           {selecionado && <DetalheDoIncidente incidente={selecionado} />}
 
           <footer className="page-footer"><span>SentryIoT <span className="footer-separator">·</span> TCC II FCI Mackenzie</span><span>Protótipo em modo replay · dados ilustrativos</span></footer>

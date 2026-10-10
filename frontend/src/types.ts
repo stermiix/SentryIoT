@@ -42,4 +42,5 @@ export interface ResumoGeral {
   janelasClassificadas: number;
   totalIncidentes: number;
   chamadasLLM: number;
+  tokens: number;
 }

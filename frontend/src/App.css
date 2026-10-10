@@ -170,7 +170,7 @@ h1, h2, h3 { font-family: "Space Grotesk", "DM Sans", sans-serif; }
 .timeline-node { z-index: 1; display: grid; width: 19px; height: 19px; flex: 0 0 auto; place-items: center; border: 1px solid #e2e7ec; border-radius: 50%; color: #748298; background: white; font-size: 9px; }
 .timeline-llm .timeline-node { border-color: #e9e3f6; color: #8666b9; background: #f7f4fc; }
 .timeline-copy { display: grid; flex: 1; gap: 2px; min-width: 0; }
-.timeline-copy strong { color: #435066; font-size: 8px; text-transform: capitalize; }
+.timeline-copy strong { color: #435066; font-size: 8px; }
 .timeline-copy span { overflow: hidden; color: #8792a1; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .timeline li > small { color: #a0a8b3; font-size: 7px; }
 .text-button { margin-top: 9px; padding: 0; border: 0; color: #6174ce; background: transparent; cursor: pointer; font-size: 8px; font-weight: 600; }
@@ -187,6 +187,7 @@ h1, h2, h3 { font-family: "Space Grotesk", "DM Sans", sans-serif; }
 .status-acao_rejeitada > span, .status-recusa > span { background: #d87569; }
 .status-acao_desfeita > span { background: #939dab; }
 .status-acao_proposta > span { background: #6b7fe3; }
+.status-catalogo_ampliado > span { background: #8870c5; }
 .action-description { overflow: hidden; color: #929baa; font-size: 8px; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 .replay-lock { display: flex; align-items: center; gap: 6px; margin-top: 13px; padding-top: 10px; border-top: 1px solid #eff1f4; color: #9aa2ae; font-size: 8px; }
 .replay-lock span { color: #ba9a5e; }

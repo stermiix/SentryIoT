@@ -37,8 +37,9 @@ export default function FilaDeIncidentes({ resumo, incidentes, selecionadoId, on
                 </button>
               </td>
               <td><span className="category-pill">{view.incidente?.categoria ?? "—"}</span></td>
-              <td><span className={`severity ${view.incidente?.distribuido ? "severity-distributed" : "severity-single"}`}><span />{view.incidente?.distribuido ? "Distribuído" : "Uma origem"}</span></td>
-              <td><span className={`state-pill ${view.incidente?.estado === "aberto" ? "state-open" : "state-closed"}`}><span />{view.incidente?.estado === "aberto" ? "Em análise" : "Encerrado"}</span></td>
+              {/* Sem evento de incidente no log não há perfil nem estado: as colunas ficam vazias, em vez de "Uma origem" e "Encerrado". */}
+              <td>{view.incidente ? <span className={`severity ${view.incidente.distribuido ? "severity-distributed" : "severity-single"}`}><span />{view.incidente.distribuido ? "Distribuído" : "Uma origem"}</span> : "—"}</td>
+              <td>{view.incidente ? <span className={`state-pill ${view.incidente.estado === "aberto" ? "state-open" : "state-closed"}`}><span />{view.incidente.estado === "aberto" ? "Em análise" : "Encerrado"}</span> : "—"}</td>
               <td><span className="confidence-value">{view.incidente ? percentual(view.incidente.confianca) : "—"}</span></td>
               <td>{view.incidente?.janelas.toLocaleString("pt-BR") ?? "—"}</td>
               <td><span className="ai-count">✳ {view.chamadasLLM}</span></td>
