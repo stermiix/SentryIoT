@@ -1,0 +1,24 @@
+{
+  "name": "sentryiot-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Interface web do SentryIoT. Versão mínima: fila de incidentes e detalhe, em modo replay.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "sync:log": "node scripts/sync-log.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
