@@ -97,28 +97,44 @@ EXTRAS = ("indice", "ips_origem", "ips_destino", "atacante")
 FEATURES_LISTADAS = 10
 
 
-def ler_janela(destino, janela):
-    """Os CSVs regerados de uma janela, de todos os rótulos, em ordem de arquivo e de índice."""
+def ler_janela(destino, janela, teto=None, semente=SEMENTE):
+    """Os CSVs regerados de uma janela, de todos os rótulos, em ordem de arquivo e de índice.
+
+    Com `teto`, cada rótulo é limitado ao ser lido, arquivo a arquivo, para que os rótulos de
+    milhões de janelas não fiquem inteiros na memória. Devolve o quadro e um resumo do que foi
+    lido antes do teto: as linhas regeradas de cada rótulo e os IPs de origem por janela nas
+    classes de DDoS e DoS.
+    """
     pasta = Path(destino) / nome_da_pasta(janela)
     arquivos = sorted(pasta.glob("*.csv.gz"))
     if not arquivos:
         raise ValueError(f"nenhum CSV regerado em {pasta}: rode python -m codigo.classificador.regerar")
-    partes = []
+    gerador = np.random.default_rng(semente)
+    partes, resumo = [], {"regeradas": {}, "ips_de_origem": []}
     for arquivo in arquivos:
         parte, _ = carregar(arquivo)
         faltam = [coluna for coluna in ("arquivo", *EXTRAS) if coluna not in parte.columns]
         if faltam:
             raise ValueError(f"{arquivo.name}: faltam as colunas {', '.join(faltam)}")
-        partes.append(parte)
+        for coluna in EXTRAS:
+            parte[coluna] = parte[coluna].astype(np.int64)
+        for rotulo, quantas in parte["Label"].value_counts().items():
+            resumo["regeradas"][rotulo] = resumo["regeradas"].get(rotulo, 0) + int(quantas)
+        resumo["ips_de_origem"] += ips_de_origem(parte)
+        partes.append(parte if teto is None else limitar(parte, teto, gerador))
     quadro = pd.concat(partes, ignore_index=True)
-    for coluna in EXTRAS:
-        quadro[coluna] = quadro[coluna].astype(np.int64)
-    return quadro.sort_values(["arquivo", "indice"], kind="stable").reset_index(drop=True)
+    resumo["regeradas"] = {rotulo: resumo["regeradas"][rotulo] for rotulo in ROTULOS if rotulo in resumo["regeradas"]}
+    resumo["ips_de_origem"].sort(key=lambda r: ROTULOS.index(r["rotulo"]))
+    return quadro.sort_values(["arquivo", "indice"], kind="stable").reset_index(drop=True), resumo
 
 
 def limitar(quadro, teto=TETO, semente=SEMENTE):
-    """No máximo `teto` linhas por rótulo, sorteadas com a semente. As linhas ficam na ordem original."""
-    gerador = np.random.default_rng(semente)
+    """No máximo `teto` linhas por rótulo, sorteadas. As linhas ficam na ordem original.
+
+    `semente` é um número ou um gerador já criado, para que a leitura arquivo a arquivo sorteie
+    como se fosse de uma vez só.
+    """
+    gerador = semente if isinstance(semente, np.random.Generator) else np.random.default_rng(semente)
     rotulos = quadro["Label"].to_numpy()
     manter = np.zeros(len(quadro), dtype=bool)
     for rotulo in sorted(np.unique(rotulos).tolist()):
@@ -177,18 +193,17 @@ def _por_arquivo(amostra, teste, previsto):
     return por_arquivo
 
 
-def _por_rotulo(quadro, amostra, treino, teste, arquivos_de_teste):
+def _por_rotulo(regeracao, resumo, amostra, treino, teste, arquivos_de_teste):
     de_treino, de_teste = amostra.iloc[treino], amostra.iloc[teste]
+    arquivos_do_rotulo = {r["rotulo"]: r["arquivos"] for r in regeracao["rotulos"]}
     por_rotulo = []
-    for rotulo in ROTULOS:
-        if not (quadro["Label"] == rotulo).any():
-            continue
+    for rotulo, regeradas in resumo["regeradas"].items():
         no_teste = de_teste[de_teste["Label"] == rotulo]
         por_rotulo.append({
             "rotulo": rotulo,
             "categoria": CATEGORIA_DO_ROTULO[rotulo],
-            "arquivos": sorted(quadro.loc[quadro["Label"] == rotulo, "arquivo"].unique().tolist()),
-            "regeradas": int((quadro["Label"] == rotulo).sum()),
+            "arquivos": sorted(arquivos_do_rotulo.get(rotulo, [])),
+            "regeradas": regeradas,
             "amostra": int((amostra["Label"] == rotulo).sum()),
             "treino": int((de_treino["Label"] == rotulo).sum()),
             "teste": len(no_teste),
@@ -200,8 +215,7 @@ def _por_rotulo(quadro, amostra, treino, teste, arquivos_de_teste):
 def treinar_janela(regeracao, destino, janela, semente=SEMENTE, arvores=ARVORES, nucleos=TODOS_OS_NUCLEOS,
                    teto=TETO, modelos=MODELOS):
     """Lê, limita, divide, treina, avalia e salva o modelo de uma janela. Devolve o registro dela."""
-    quadro = ler_janela(destino, janela)
-    amostra = limitar(quadro, teto, semente)
+    amostra, resumo = ler_janela(destino, janela, teto, semente)
     totais = {p["arquivo"]: p["janelas"][str(janela)]["extraidas"] for p in regeracao["pcaps"]}
     treino, teste = dividir_por_tempo(amostra, FRACAO_DE_TESTE_POR_TEMPO, totais)
     if len(teste) == 0 or len(treino) == 0:
@@ -224,16 +238,16 @@ def treinar_janela(regeracao, destino, janela, semente=SEMENTE, arvores=ARVORES,
     )
     return {
         "janela": janela,
-        "linhas": {"regeradas": len(quadro), "amostra": len(amostra), "treino": len(treino),
+        "linhas": {"regeradas": sum(resumo["regeradas"].values()), "amostra": len(amostra), "treino": len(treino),
                    "teste": len(teste)},
-        "por_rotulo": _por_rotulo(quadro, amostra, treino, teste, arquivos_de_teste),
+        "por_rotulo": _por_rotulo(regeracao, resumo, amostra, treino, teste, arquivos_de_teste),
         "arquivos_de_teste": sorted(arquivos_de_teste),
         "divisao": {"treino_sha256": impressao_digital(treino), "teste_sha256": impressao_digital(teste)},
         "treino_segundos": segundos,
         "avaliacao": avaliacao,
         "importancias": importancias(modelo, FEATURES_39),
         "por_arquivo": _por_arquivo(amostra, teste, previsto),
-        "ips_de_origem": ips_de_origem(quadro),
+        "ips_de_origem": resumo["ips_de_origem"],
         "modelo": {"arquivo": caminho.name, "bytes": tamanho},
     }
 

@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from codigo.captura.extrator import COLUNAS
-from codigo.classificador.mapeamento import CATEGORIA_DO_ROTULO
+from codigo.classificador.mapeamento import CATEGORIA_DO_ROTULO, ROTULOS
 from codigo.classificador.preparar import ALVOS
 from codigo.classificador.regerar import CABECALHO, nome_da_pasta
 from codigo.classificador.regerar import MANIFESTO as MANIFESTO_DA_REGERACAO
@@ -129,8 +129,10 @@ def test_constantes():
 
 def test_ler_janela_junta_os_csvs_do_rotulo_em_ordem_de_arquivo_e_indice(tmp_path):
     pasta = preparar_regeracao(tmp_path)
-    quadro = ler_janela(pasta / "regerado", 2)
+    quadro, resumo = ler_janela(pasta / "regerado", 2)
     assert len(quadro) == 320
+    assert resumo["regeradas"] == {rotulo: sum(arquivos.values()) for rotulo, arquivos in ARQUIVOS.items()}
+    assert list(resumo["regeradas"]) == [r for r in ROTULOS if r in ARQUIVOS]
     assert list(COLUNAS) == [coluna for coluna in quadro.columns if coluna in COLUNAS]
     assert quadro["Label"].nunique() == 8
     benigno = quadro[quadro["Label"] == "BenignTraffic"]
@@ -139,7 +141,7 @@ def test_ler_janela_junta_os_csvs_do_rotulo_em_ordem_de_arquivo_e_indice(tmp_pat
 
 
 def test_limitar_sorteia_ate_o_teto_por_rotulo_com_semente(tmp_path):
-    quadro = ler_janela(preparar_regeracao(tmp_path) / "regerado", 2)
+    quadro, _ = ler_janela(preparar_regeracao(tmp_path) / "regerado", 2)
     amostra = limitar(quadro, teto=30, semente=42)
     assert amostra["Label"].value_counts().max() == 30
     assert len(amostra) == 8 * 30
@@ -148,11 +150,17 @@ def test_limitar_sorteia_ate_o_teto_por_rotulo_com_semente(tmp_path):
     assert amostra.index.equals(limitar(quadro, teto=30, semente=42).index)
     assert not amostra.index.equals(limitar(quadro, teto=30, semente=7).index)
     assert limitar(quadro, teto=1000, semente=42).index.equals(quadro.index)
+    # Com o teto na leitura, arquivo a arquivo, o sorteio é o mesmo que o de uma vez só.
+    na_leitura, resumo = ler_janela(tmp_path / "regerado", 2, teto=30, semente=42)
+    assert len(na_leitura) == 240 and resumo["regeradas"]["BenignTraffic"] == 40
+    chave = ["arquivo", "indice"]
+    assert na_leitura[chave].reset_index(drop=True).equals(amostra.sort_values(chave)[chave].reset_index(drop=True))
 
 
 def test_ips_de_origem_resume_as_classes_de_ddos_e_dos(tmp_path):
-    quadro = ler_janela(preparar_regeracao(tmp_path) / "regerado", 2)
+    quadro, lido = ler_janela(preparar_regeracao(tmp_path) / "regerado", 2)
     resumo = ips_de_origem(quadro)
+    assert lido["ips_de_origem"] == resumo
     assert [r["rotulo"] for r in resumo] == ["DDoS-ICMP_Flood", "DDoS-SYN_Flood", "DoS-SYN_Flood"]
     ddos = resumo[1]
     assert (ddos["janelas"], ddos["minimo"], ddos["mediana"], ddos["maximo"]) == (40, 5, 5.0, 5)
