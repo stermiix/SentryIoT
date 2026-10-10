@@ -50,8 +50,7 @@ e mostra as telas 1 e 2. O detalhe inclui o resumo do classificador, métricas d
 dos agentes, recomendações e ações históricas. Como é replay, não há controles para criar novas
 aprovações ou executar ações; a interface só apresenta o que já está no log.
 
-**Como rodar** (exige Node.js 18 ou mais recente; não testado neste ambiente por falta de
-Node.js instalado — confira `npm run build` antes de abrir PR):
+**Como rodar** (exige Node.js 18 ou mais recente):
 
 ```
 cd frontend
@@ -63,6 +62,9 @@ npm run dev
 Abre em `http://localhost:5173`. Rode `npm run sync:log` de novo sempre que o log de exemplo for
 regenerado (`python -m codigo.mcp.roteiro --sobrescrever`). O replay funciona sem API e sem
 conexão externa; a tipografia usa fontes locais do sistema.
+
+`npm run build` confere os tipos e gera a versão de produção em `dist/`; `npm run preview` serve
+essa versão para conferir antes de abrir PR. O CI roda o build a cada PR.
 
 **Arquivos:**
 
@@ -79,5 +81,6 @@ conexão externa; a tipografia usa fontes locais do sistema.
 **Não implementado, e por quê:** modo ao vivo (precisa da API fina lendo o backend de verdade,
 que ainda não existe); tela 3, isolado vs. integrado (falta o registro do mesmo incidente sem
 agentes, para comparar); tela 4, custo nuvem vs. on-premises (o log de exemplo só tem números de
-um cenário). As telas 5 e 6 dão para fazer com dado que já existe (`experimentos/resultados/` e
-`codigo/mcp/test_seguranca.py`), e ainda não foram implementadas.
+um cenário); tela 5, qualidade do modelo (dá para fazer com o que já existe em
+`experimentos/resultados/`); tela 6, segurança do MCP (depende do teste de tool poisoning, que
+ainda não foi escrito).
