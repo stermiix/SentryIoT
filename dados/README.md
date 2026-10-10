@@ -36,7 +36,7 @@ TCC/CICIoT2023/
 │                                   treino exploratório e na exploração
 ├── <34 pastas, uma por ataque>/ <- CSVs por ataque, sem rótulo. OPCIONAIS: só servem para
 │                                   recalibrar o extrator (a calibração já foi feita)
-├── *.pcap                       <- os pcaps, um ou dois por classe, de onde os dados de treino
+├── *.pcap                       <- os pcaps, de um a três por classe, de onde os dados de treino
 │                                   são regerados (ver "Regeração dos dados de treino")
 ├── pcap2csv/                    <- o extrator DOS AUTORES (código de referência)
 ├── example.ipynb                <- notebook de ML dos autores (ler as ressalvas abaixo)
@@ -335,7 +335,7 @@ CICIoT2023/
 ├── MERGED_CSV/                      63 arquivos, 8,7 GB — O DATASET DE TREINO
 │   └── Merged01.csv … Merged63.csv  39 features + Label, embaralhado
 │
-├── *.pcap                           Um ou dois pcaps por classe, baixados da fonte oficial.
+├── *.pcap                           De um a três pcaps por classe, baixados da fonte oficial.
 │                                      O nome é o rótulo, às vezes com um sufixo numérico
 │                                      (`DoS-HTTP_Flood1.pcap`, `BenignTraffic1.pcap`). São a
 │                                      fonte dos dados de treino regerados e da calibração.
