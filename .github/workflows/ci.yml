@@ -1,5 +1,5 @@
 # CI do SentryIoT: roda em todo PR e em todo push na main.
-# Tres conferencias independentes: lint, testes e auditoria das dependencias.
+# Quatro conferencias independentes: lint, testes, auditoria das dependencias e build do frontend.
 name: CI
 
 on:
@@ -109,3 +109,37 @@ jobs:
           fi
           python -m pip install "pip-audit==${PIP_AUDIT_VERSION}"
           pip-audit --progress-spinner off -r requirements.txt
+
+  frontend:
+    name: Frontend (build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Baixar o repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Preparar o Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # npm ci instala exatamente o que esta no package-lock.json e falha se ele divergir do package.json.
+      - name: Instalar as dependencias
+        run: npm ci
+
+      # A copia do log em public/dados/ tem de ser igual ao exemplo versionado em codigo/mcp/exemplos/.
+      - name: Conferir se o log de exemplo esta sincronizado
+        run: |
+          npm run sync:log
+          git diff --exit-code -- public/dados/
+
+      # Confere os tipos (tsc -b) e gera a versao de producao.
+      - name: Construir
+        run: npm run build
