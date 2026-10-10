@@ -191,11 +191,18 @@ class Extrator:
         ts = float(ts)
         if not math.isfinite(ts):
             raise ValueError("o instante do quadro precisa ser um número finito")
-        medida = medir_quadro(ts, quadro, self._ts_anterior)
+        return self.acumular(medir_quadro(ts, quadro, self._ts_anterior))
+
+    def acumular(self, medida):
+        """Entrega um quadro já medido por `medir_quadro`, ou None se ele ficou fora do filtro.
+
+        Serve para alimentar vários extratores com uma medição só, quando um pcap é lido com
+        mais de um tamanho de janela. Devolve a janela se o quadro a completou, senão None.
+        """
         if medida is None:
             self.ignorados += 1
             return None
-        self._ts_anterior = ts
+        self._ts_anterior = medida["ts"]
         self._pendentes.append(medida)
         if len(self._pendentes) < self.janela:
             return None

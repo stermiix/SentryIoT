@@ -596,3 +596,23 @@ def test_sem_a_opcao_a_saida_do_extrator_continua_igual():
     assert all(isinstance(linha, dict) and list(linha) == list(COLUNAS) for linha in so_linhas)
     assert [linha for linha, _ in com_enderecos] == so_linhas
     assert all(isinstance(e, Enderecos) for _, e in com_enderecos)
+
+
+def test_acumular_recebe_um_quadro_ja_medido():
+    # Uma medida serve a vários extratores: quem lê um pcap com duas janelas mede cada quadro uma vez.
+    de_dois, de_tres = Extrator(janela=2), Extrator(janela=3)
+    ts_anterior = None
+    saidas = []
+    for i in range(6):
+        medida = medir_quadro(float(i), quadro_tcp(), ts_anterior)
+        ts_anterior = medida["ts"]
+        saidas.append((de_dois.acumular(medida), de_tres.acumular(medida)))
+    assert [i for i, (linha, _) in enumerate(saidas) if linha is not None] == [1, 3, 5]
+    assert [i for i, (_, linha) in enumerate(saidas) if linha is not None] == [2, 5]
+    assert saidas[5][0]["Number"] == 2 and saidas[5][1]["Number"] == 3
+    assert saidas[5][0]["IAT"] == 1.0
+    assert de_dois.finalizar() is None and de_tres.finalizar() is None
+    # `alimentar` é medir e acumular.
+    um = Extrator(janela=1)
+    assert um.alimentar(7.0, quadro_tcp())["Number"] == 1
+    assert um.acumular(None) is None and um.ignorados == 1
