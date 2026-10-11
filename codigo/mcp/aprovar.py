@@ -130,8 +130,9 @@ def _listar(registro):
         print()
         print(descrever(proposta, estado.rotulos.get(proposta.incidente)))
         if proposta.incidente in estado.resolvidos:
-            print("  o incidente foi marcado como já resolvido: a ação não será aplicada, mesmo que aprovada")
-        print(f"  para aprovar:  {_COMANDO} {identificador}")
+            print("  o incidente foi marcado como já resolvido: nenhuma ação é aplicada nele, e a proposta só pode ser rejeitada")
+        else:
+            print(f"  para aprovar:  {_COMANDO} {identificador}")
         print(f"  para rejeitar: {_COMANDO} {identificador} --rejeitar")
 
 

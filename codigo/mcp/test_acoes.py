@@ -1367,6 +1367,20 @@ def test_proposta_de_incidente_marcado_nao_executa_nem_aprovada(mundo):
     assert mundo.desfazer(aplicada.id).estado == "desfeita"
 
 
+def test_proposta_de_incidente_marcado_nao_e_aprovada_mas_pode_ser_rejeitada(mundo):
+    # Aprovar seria dizer à pessoa que a ação vai ser aplicada, e executar_acao a recusaria.
+    pendente = mundo.propor("isolar_dispositivo", "192.168.137.20")
+    outra = mundo.propor("isolar_dispositivo", "192.168.137.20")
+    mundo.marcar_resolvido()
+    mensagem = recusado("incidente_ja_resolvido", mundo.decidir, pendente.id)
+    assert pendente.id in mensagem and "já resolvido" in mensagem and "rejeit" in mensagem
+    assert mundo.estado.propostas[pendente.id].estado == "aguardando_aprovacao"
+    assert mundo.decidir(outra.id, aprovar=False).estado == "rejeitada"
+    # Uma aprovação gravada por fora, depois da marca, deixa o log inválido.
+    mundo.aplicar([novo("acao_aprovada", APROVACAO | {"proposta": pendente.id}, "inc-0001")])
+    violacao(mundo, "acao_aprovada", "já resolvido")
+
+
 def test_marca_so_vale_uma_vez_e_em_incidente_aberto_que_existe(mundo):
     recusado("identificador_desconhecido", marcar_resolvido, mundo.estado, "inc-0099")
     mundo.marcar_resolvido()

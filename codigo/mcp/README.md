@@ -607,11 +607,12 @@ dos agentes (decisão de 2026-10-10). `--resolvido` marca o incidente como já r
 motivo opcional, e grava o evento `incidente_marcado_resolvido`, com o canal e o usuário do
 sistema. Mais adiante, o botão "Já resolvido" da interface grava o mesmo evento, com o canal
 `interface`. Daí em diante o servidor recusa qualquer proposta do incidente e a execução de
-qualquer proposta dele, inclusive a já aprovada (`incidente_ja_resolvido`); o que já estava
-aplicado pode ser desfeito. O agente de decisão vê a marca em `ja_resolvido`, no resumo, e só
+qualquer proposta dele, inclusive a já aprovada (`incidente_ja_resolvido`), e o comando recusa
+aprovar a proposta pendente do incidente, que só pode ser rejeitada; o que já estava aplicado pode
+ser desfeito. O agente de decisão vê a marca em `ja_resolvido`, no resumo, e só
 explica o incidente. A marca vale uma vez, em incidente aberto, e não é desfeita. Como rejeitar,
 ela não libera nada e não pede confirmação. A lista de pendentes avisa quando a proposta é de
-incidente marcado.
+incidente marcado e, para ela, só sugere a rejeição.
 
 O log é entrada, e o comando não confia nele para escrever na tela: tudo o que não é imprimível
 sai escapado. Uma sequência de terminal gravada em um parâmetro aparece como `\x1b[3A`, em vez
@@ -700,7 +701,8 @@ O estado das propostas, das aprovações e das medidas ativas sai do log:
 aparece:
 
 - identificador de proposta e de execução é único;
-- aprovação e rejeição só valem para proposta que aguarda aprovação, e ficam no incidente dela;
+- aprovação e rejeição só valem para proposta que aguarda aprovação, e ficam no incidente dela; a
+  aprovação não vale depois da marca de já resolvido;
 - execução só vale para proposta liberada ou aprovada, de incidente não marcado como já
   resolvido, e precisa ser a aplicação do que a proposta descreve;
 - nenhum evento cita proposta, execução ou incidente que não existe, e a recomendação só cita

@@ -653,6 +653,11 @@ def _aplicar(estado, evento):
                 f"a proposta {proposta.id} não aguarda aprovação: está {proposta.estado}",
             )
             if evento.tipo == "acao_aprovada":
+                _exigir(
+                    proposta.incidente not in estado.resolvidos,
+                    f"o incidente {proposta.incidente} foi marcado como já resolvido, e a proposta {proposta.id} não "
+                    "pode mais ser aprovada",
+                )
                 estado.aprovadas.add(proposta.id)
             mudar_proposta(proposta.id, "liberada" if evento.tipo == "acao_aprovada" else "rejeitada")
         case "acao_executada":
@@ -1244,6 +1249,13 @@ def decidir(estado, id_proposta, aprovar, canal="terminal", motivo=None, usuario
             "liberada": "já foi aprovada" if proposta.exige_aprovacao else "é de risco baixo e não exige aprovação",
         }[proposta.estado]
         raise PedidoRecusado("argumentos_invalidos", f"A proposta {proposta.id} {situacao}.")
+    if aprovar and proposta.incidente in estado.resolvidos:
+        # A execução seria recusada: aprovar diria à pessoa que a ação vai ser aplicada, e não vai.
+        raise PedidoRecusado(
+            "incidente_ja_resolvido",
+            f"A proposta {proposta.id} é do incidente {proposta.incidente}, que foi marcado como já resolvido, e "
+            "nenhuma ação é aplicada nele. A proposta só pode ser rejeitada.",
+        )
     try:
         decisao = Decisao(
             proposta=proposta.id, canal=canal, usuario=usuario or usuario_do_sistema(), motivo=motivo or None
