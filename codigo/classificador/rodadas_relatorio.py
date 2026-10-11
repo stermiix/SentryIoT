@@ -1307,6 +1307,16 @@ def _diferencas_das_capturas(m):
         "Nas medidas da tabela-resumo, a diferença para a configuração 0, com o intervalo de 95% entre parênteses:",
         "",
     ]
+    if not any("comparacao" in resultado for resultado in r.values()):
+        return [
+            "## Quais diferenças contam",
+            "",
+            (
+                "Este manifesto não traz as diferenças pareadas: ele foi gravado antes de o critério existir, e as "
+                "tabelas não marcam nenhuma diferença. As médias e as faixas das sementes valem; para saber quais "
+                "diferenças contam, é preciso rodar a comparação de novo."
+            ),
+        ]
     for nome, resultado in r.items():
         if nome == "0":
             continue
