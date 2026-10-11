@@ -26,6 +26,7 @@ vazio sem imputação.
 import gzip
 import hashlib
 import io
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -224,6 +225,23 @@ def dividir_por_grupos(grupos, rotulos, semente=SEMENTE, fracao=FRACAO_DE_TESTE)
     return np.flatnonzero(~no_teste), np.flatnonzero(no_teste)
 
 
+def ordem_natural(nome):
+    """Chave de ordenação dos pcaps de um rótulo pelo sufixo numérico, e não letra a letra.
+
+    Os pedaços de uma mesma captura têm o nome do rótulo seguido de um número, e o nome sem
+    número é o primeiro: `BenignTraffic.pcap`, `BenignTraffic1.pcap`, ..., `BenignTraffic10.pcap`.
+    Na ordem letra a letra, `BenignTraffic10.pcap` viria antes de `BenignTraffic2.pcap`.
+    """
+    base = re.sub(r"\.pcap$", "", str(nome))
+    numero = re.search(r"(\d*)$", base).group(1)
+    return (base[:len(base) - len(numero)].rstrip("-_").lower(), int(numero or 0), str(nome))
+
+
+def ultimo_arquivo(nomes):
+    """O último pcap de um rótulo na ordem natural: o que vai inteiro para o teste."""
+    return max(nomes, key=ordem_natural)
+
+
 def dividir_por_tempo(quadro, fracao=FRACAO_DE_TESTE_POR_TEMPO, janelas_por_arquivo=None):
     """Divisão por tempo dos dados regerados dos pcaps. Devolve (treino, teste).
 
@@ -231,8 +249,8 @@ def dividir_por_tempo(quadro, fracao=FRACAO_DE_TESTE_POR_TEMPO, janelas_por_arqu
     arquivo, as janelas de índice menor que (1 - fração) do total de janelas do arquivo vão para o
     treino, e as demais para o teste: janelas vizinhas não ficam dos dois lados, a não ser o par
     na fronteira. O total é o de `janelas_por_arquivo`, quando dado, e senão o maior índice
-    presente mais um. Num rótulo com mais de um arquivo, o último em ordem de nome vai inteiro
-    para o teste, e os outros para o treino.
+    presente mais um. Num rótulo com mais de um arquivo, o último pela ordem natural do sufixo
+    numérico (`ultimo_arquivo`) vai inteiro para o teste, e os outros para o treino.
     """
     _faltantes("", quadro.columns, ("Label", "arquivo", "indice"))
     rotulos = quadro["Label"].to_numpy()
@@ -244,7 +262,7 @@ def dividir_por_tempo(quadro, fracao=FRACAO_DE_TESTE_POR_TEMPO, janelas_por_arqu
         do_rotulo = rotulos == rotulo
         nomes = sorted(np.unique(arquivos[do_rotulo]).tolist())
         if len(nomes) > 1:
-            no_teste[do_rotulo & (arquivos == nomes[-1])] = True
+            no_teste[do_rotulo & (arquivos == ultimo_arquivo(nomes))] = True
             continue
         do_arquivo = do_rotulo & (arquivos == nomes[0])
         total = janelas_por_arquivo.get(nomes[0], int(indices[do_arquivo].max()) + 1)
