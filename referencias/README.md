@@ -5,9 +5,22 @@ Bibliografia e material de apoio do SentryIoT.
 Material de origem, na pasta-mãe `RoadMap_TCC/` (fora deste repositório):
 `Artigo_TCC1.pdf`, `Poster_TCC1.pdf`, `EditalTCC_2026_2-V1.pdf`, `PROFESSOR.md`.
 
-Citadas no esqueleto do artigo (`artigo/esqueleto.md`), a ler antes de citar: Neto et al. (2023),
-o artigo do CICIoT2023; Doménech et al. (2025); Ramkumar et al. (2024); Engelen et al. (2021) e
-Liu et al. (2022).
+## Fontes do trabalho
 
-Pedidas pela banca do TCC I, para menção curta no artigo: Darktrace, Netskope, Vectra AI e o
-ataque *Denial of Wallet* (DoW).
+- **Dataset CICIoT2023 (página oficial, pcaps, CSVs e código dos autores):**
+  <https://cicresearch.ca/IOTDataset/CIC_IOT_Dataset2023/>
+- **Artigo do dataset:** Neto et al. (2023), *Sensors* 23(13), 5941, DOI 10.3390/s23135941.
+- **Repositório do projeto:** <https://github.com/stermiix/SentryIoT>
+
+## Referências do artigo
+
+A lista completa, em ABNT, está no fim de `artigo/esqueleto.md`, com a situação de cada fonte
+(revisada por pares, *preprint* ou pendente de conferência). Fontes conferidas em 11/10/2026.
+
+Ainda a conferir antes de citar: o PDF de Doménech et al. (2025), sobre a recomendação de janela
+uniforme; e Ramkumar et al. (2024), se a equipe decidir citá-lo.
+
+## Pedido da banca do TCC I
+
+Darktrace, Netskope, Vectra AI e o ataque *Denial of Wallet* (DoW): uma fonte citável para cada,
+já incluída na lista do artigo. No texto, viram menção curta, sem análise detalhada.

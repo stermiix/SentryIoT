@@ -1,11 +1,12 @@
 # Esqueleto do artigo — SentryIoT (TCC II)
 
-Rascunho das seções, para colar no template oficial do Oriente quando baixado. Trechos marcados
-com `[PENDENTE]` ainda não têm conteúdo; os demais são rascunho pronto para revisão, a partir do
-que já está decidido em `ROADMAP.md` e medido em `experimentos/resultados/`.
+Rascunho das seções do artigo. Trechos marcados com `[PENDENTE]` ainda não têm conteúdo; os
+demais são rascunho pronto para revisão, a partir do que já está decidido em `ROADMAP.md` e
+medido em `experimentos/resultados/`.
 
 **Pendências fora do texto (ação humana, não dá para resolver por aqui):**
-- Baixar o template oficial do artigo no Oriente e migrar este rascunho para ele.
+- O texto do artigo está em `artigo/Artigo_TCC2_SentryIoT.docx`, no template do Oriente. Este
+  esqueleto continua como rascunho e fonte das correções, que precisam ser levadas ao `.docx`.
 
 Pelo edital, o TCC II de CC e SI entrega o artigo científico (10 a 20 páginas, submissão de 03 a
 09/11/2026) e a apresentação oral (15 a 20 minutos). Relatório técnico e pôster são entregas do
@@ -31,21 +32,28 @@ via MCP", e o do TCC II deve dizer detecção e resposta.
 
 ## 2. Trabalhos correlatos
 
-`[PENDENTE — exige leitura das fontes antes de citar]`. Citar pelo menos:
-- Neto et al. (2023) — artigo original do CICIoT2023, documenta as janelas de 10 e de 100 e o
-  rótulo por arquivo.
-- Doménech et al. (2025) — recomenda janela uniforme.
-- Ramkumar et al. (2024) — regenerou os dados do CICIoT2023 filtrando por MAC do atacante.
-- Engelen et al. (2021) e Liu et al. (2022) — correções equivalentes no CICIDS2017.
-- Darktrace, Netskope, Vectra AI e o ataque *Denial of Wallet* — pedidos pela banca do TCC I,
-  prioridade baixa, menção curta sem análise detalhada.
+`[PENDENTE: texto]`. Fontes conferidas em 11/10/2026 (referências completas no fim):
+- Neto et al. (2023): artigo original do CICIoT2023, revisado por pares (*Sensors*), que agrupa
+  as features em janelas de 10 e de 100 pacotes e calcula a média. Os pcaps e o código de extração
+  dos autores vêm da página oficial do dataset (CANADIAN INSTITUTE FOR CYBERSECURITY, 2023).
+- Doménech et al. (2025): revisado por pares (*Internet of Things*, Elsevier). Confirmado: o
+  artigo documenta a janela de 100 para DDoS, DoS e Mirai e de 10 para o resto, e mede queda de
+  até 66,87% de F1 ao treinar num dataset e testar no outro. **Não confirmado** que recomende
+  janela uniforme (ScienceDirect bloqueou a leitura): abrir o PDF pelo acesso da Mackenzie; se
+  não houver recomendação explícita, escrever "documenta a diferença de janelas".
+- Engelen, Rimmer e Joosen (2021) e Liu et al. (2022): revisados por pares (IEEE SPW e IEEE
+  CNS), sobre erros de geração de tráfego, de features e de rótulo no CICIDS2017/CSE-CIC-IDS2018.
+- Darktrace, Netskope, Vectra AI e *Denial of Wallet* (Kelly, Glavin e Barrett, 2021): pedidos
+  pela banca do TCC I, prioridade baixa, menção curta sem análise detalhada. Opcional: Zhang et
+  al. (2026), *preprint* sobre *Denial of Wallet* em agentes LLM que chamam ferramentas.
 
 Deixar explícito o que é contribuição nossa: a camada MCP, com o contrato das tools, a política
 de risco graduada com aprovação humana e a arquitetura híbrida dos agentes, e a comparação entre
 as configurações local, nuvem e híbrida; no classificador, o teste direto da janela trocada
 (`experimentos/resultados/teste_da_janela.md`) e a medida, por pcap e por tamanho de janela, das
 janelas sem quadro do atacante (`experimentos/resultados/janelas_sem_atacante.md`). A filtragem
-por MAC do atacante já aparece em Ramkumar et al. (2024) e deve ser citada como tal.
+por MAC do atacante já aparece em Ramkumar et al. (2024) e deve ser citada como tal
+`[CONFERIR: Ramkumar et al. saiu da lista no #23; aguardando a equipe]`.
 
 ## 3. Metodologia
 
@@ -67,12 +75,15 @@ ROADMAP.md]`; a extração das 39 features por janela de quadros é feita com `d
 dos autores do dataset, e não com o Scapy previsto no TCC I. No código dos autores, o Scapy só é
 importado para Zigbee e Bluetooth e não contribui para nenhuma das 39 colunas.
 
-O trabalho não faz coleta in loco em dispositivos IoT reais: seria inviável no prazo, e o tráfego
-capturado não teria rótulo. O papel da captura é cumprido pelos pcaps brutos do CICIoT2023, que o
-extrator lê da mesma forma que leria um arquivo gravado na rede. O Wireshark não é necessário ao
-sistema: serve para inspecionar capturas, e a gravação pode ser feita com `tcpdump`. O Scapy
-também não é usado, porque a extração precisa repetir o cálculo dos autores, feito com `dpkt`. A
-captura ao vivo fica como um adaptador futuro sobre o mesmo extrator.
+Os pcaps, os CSVs e o código de extração dos autores vêm da página oficial do CICIoT2023
+(CANADIAN INSTITUTE FOR CYBERSECURITY, 2023), e o código e os scripts dos experimentos deste
+trabalho estão no repositório do projeto (OLIVEIRA et al., 2026). O trabalho não faz coleta in
+loco em dispositivos IoT reais: seria inviável no prazo, e o tráfego capturado não teria rótulo.
+O papel da captura é cumprido pelos pcaps brutos do CICIoT2023, que o extrator lê da mesma forma
+que leria um arquivo gravado na rede. O Wireshark não é necessário ao sistema: serve para
+inspecionar capturas, e a gravação pode ser feita com `tcpdump`. O Scapy também não é usado,
+porque a extração precisa repetir o cálculo dos autores, feito com `dpkt`. A captura ao vivo fica
+como um adaptador futuro sobre o mesmo extrator.
 
 O extrator (`codigo/captura/extrator.py`) foi calibrado em duas etapas. Na primeira, contra os
 CSVs oficiais de 5 pcaps, um por família (DDoS, DoS, Mirai, Recon e BruteForce), somando 167.304
@@ -334,4 +345,54 @@ Rascunho a partir do que já foi medido:
 
 ## Referências
 
-`[PENDENTE]` — lista cresce conforme a seção 2 for escrita.
+Formato ABNT (NBR 6023). Itens marcados com `[CONFERIR]` ainda precisam de dado que não foi
+possível confirmar por aqui.
+
+CANADIAN INSTITUTE FOR CYBERSECURITY. **CIC IoT Dataset 2023**. Fredericton: University of New
+Brunswick, 2023. Disponível em: https://cicresearch.ca/IOTDataset/CIC_IOT_Dataset2023/. Acesso
+em: 11 out. 2026.
+
+DARKTRACE. **Darktrace leading the future of network detection and response with recognition
+from KuppingerCole**. 2024. Disponível em:
+https://www.darktrace.com/blog/darktrace-leading-the-future-of-network-detection-and-response-with-recognition-from-kuppingercole.
+Acesso em: 11 out. 2026. `[CONFERIR ano na página]`
+
+DOMÉNECH, J. et al. Evaluating and enhancing intrusion detection systems in IoMT: the importance
+of domain-specific datasets. **Internet of Things**, 2025. Disponível em:
+https://www.sciencedirect.com/science/article/pii/S2542660525001453. Acesso em: 11 out. 2026.
+`[CONFERIR iniciais e lista de autores, volume e número do artigo]`
+
+ENGELEN, G.; RIMMER, V.; JOOSEN, W. Troubleshooting an intrusion detection dataset: the
+CICIDS2017 case study. In: IEEE SECURITY AND PRIVACY WORKSHOPS (SPW), 2021, San Francisco.
+**Proceedings** [...]. [S. l.]: IEEE, 2021. p. 7-12. DOI: 10.1109/SPW53761.2021.00009.
+
+KELLY, D.; GLAVIN, F. G.; BARRETT, E. **Denial of Wallet**: defining a looming threat to
+serverless computing. arXiv, 2021. Disponível em: https://arxiv.org/abs/2104.08031. Acesso em:
+11 out. 2026.
+
+LIU, L.; ENGELEN, G.; LYNAR, T.; ESSAM, D.; JOOSEN, W. Error prevalence in NIDS datasets: a case
+study on CIC-IDS-2017 and CSE-CIC-IDS-2018. In: IEEE CONFERENCE ON COMMUNICATIONS AND NETWORK
+SECURITY (CNS), 2022, Austin. **Proceedings** [...]. [S. l.]: IEEE, 2022. p. 254-263. DOI:
+10.1109/CNS56114.2022.9947235.
+
+NETO, E. C. P.; DADKHAH, S.; FERREIRA, R.; ZOHOURIAN, A.; LU, R.; GHORBANI, A. A. CICIoT2023: a
+real-time dataset and benchmark for large-scale attacks in IoT environment. **Sensors**, v. 23,
+n. 13, 5941, 2023. DOI: 10.3390/s23135941.
+
+NETSKOPE. **Netskope introduces SkopeAI**: revolutionary AI-driven security for the future of
+data protection and cyber threat defense. 25 jul. 2023. Disponível em:
+https://www.netskope.com/fr/press-releases/netskope-introduces-skopeai-revolutionary-ai-driven-security-for-the-future-of-data-protection-and-cyber-threat-defense.
+Acesso em: 11 out. 2026.
+
+OLIVEIRA, B. S.; GREGORIN, M. Q.; ROLING, J. V.; GUIMARÃES, P. H. C. **SentryIoT**: MultiAgent
+NIDR. [S. l.]: GitHub, 2026. Repositório de código. Disponível em:
+https://github.com/stermiix/SentryIoT. Acesso em: 11 out. 2026.
+
+VECTRA AI. **Vectra advances security AI to deliver Attack Signal Intelligence**. Dark Reading,
+12 out. 2022. Disponível em:
+https://www.darkreading.com/operations/vectra-advances-security-ai-to-deliver-attack-signal-intelligence-empowering-security-teams-to-investigate-and-respond-to-attacks-in-real-time.
+Acesso em: 11 out. 2026.
+
+Opcional: ZHANG, J. et al. **Persistent billable state**: denial-of-wallet attacks and defenses
+in tool-calling LLM agents. arXiv, 2026. Disponível em: https://arxiv.org/abs/2609.28585. Acesso
+em: 11 out. 2026. `[CONFERIR autores]`
