@@ -6,7 +6,10 @@ que já está decidido em `ROADMAP.md` e medido em `experimentos/resultados/`.
 
 **Pendências fora do texto (ação humana, não dá para resolver por aqui):**
 - Baixar o template oficial do artigo no Oriente e migrar este rascunho para ele.
-- Confirmar com o orientador se o TCC II exige pôster e relatório além do artigo (edital cita os três).
+
+Pelo edital, o TCC II de CC e SI entrega o artigo científico (10 a 20 páginas, submissão de 03 a
+09/11/2026) e a apresentação oral (15 a 20 minutos). Relatório técnico e pôster são entregas do
+TCC I.
 
 ---
 
@@ -34,8 +37,12 @@ pedido pela banca do TCC I (ver `README.md`, seção "Correções da banca do TC
 - Darktrace, Netskope, Vectra AI e o ataque *Denial of Wallet* — pedidos pela banca do TCC I,
   prioridade baixa, menção curta sem análise detalhada.
 
-Deixar explícito o que é contribuição nossa: o teste direto da janela trocada
-(`experimentos/resultados/teste_da_janela.md`) e a medida de janelas sem pacote do atacante.
+Deixar explícito o que é contribuição nossa: a camada MCP, com o contrato das tools, a política
+de risco graduada com aprovação humana e a arquitetura híbrida dos agentes, e a comparação entre
+as configurações local, nuvem e híbrida; no classificador, o teste direto da janela trocada
+(`experimentos/resultados/teste_da_janela.md`) e a medida, por pcap e por tamanho de janela, das
+janelas sem quadro do atacante (`experimentos/resultados/janelas_sem_atacante.md`). A filtragem
+por MAC do atacante já aparece em Ramkumar et al. (2024) e deve ser citada como tal.
 
 ## 3. Metodologia
 
@@ -59,36 +66,40 @@ Na fase exploratória, o `MERGED_CSV` publicado pelos autores (45.019.234 linhas
 amostrado com teto de 50.000 linhas por rótulo e semente fixa (42), preservando integralmente as
 classes raras. A amostra resultante tem 1.288.479 linhas, registradas em
 `experimentos/resultados/manifesto_amostra.json`. Os rótulos (34 classes) são normalizados e
-mapeados para 7 categorias (DDoS e DoS fundidas, dado que suas features de pacote são
-indistinguíveis — a separação dos dois é feita depois, pela quantidade de endereços de origem do
-incidente, fora do modelo).
+mapeados para 7 categorias, com DDoS e DoS juntos. As features descrevem os pacotes, e não
+quantas máquinas atacam: 29,5% das linhas do `MERGED_CSV` têm o vetor das 39 features igual ao de
+uma linha de outra categoria, quase sempre o mesmo flood rotulado como DDoS e como DoS. A
+separação entre os dois é feita depois, pela quantidade de endereços de origem do incidente, fora
+do modelo.
 
 Os dados de treino finais, porém, não vêm do `MERGED_CSV`: são regerados a partir dos pcaps com o
 nosso extrator (decisão de 2026-10-10, `ROADMAP.md`). O motivo está na seção 3.3 e nas limitações
 do dataset: a janela de agregação varia com a classe e o rótulo é do arquivo inteiro. Na
-regeração, cada um dos 38 pcaps (os 34 rótulos, três deles com uma segunda parte) é extraído em
-janela única; numa captura benigna toda janela é benigna, e numa captura de ataque a janela só
-recebe o rótulo do arquivo se contém um quadro de um dos sete Raspberry Pi atacantes
-documentados pelos autores, e é descartada caso contrário. A divisão treino/teste é por tempo
-dentro de cada pcap (os primeiros 70% das janelas para o treino) ou por arquivo inteiro quando o
-rótulo tem mais de um pcap, o que evita que janelas vizinhas caiam dos dois lados. O teto de
-50.000 janelas por rótulo e a semente 42 são mantidos (`codigo/classificador/regerar.py`,
-`experimentos/resultados/regeracao.md`).
+regeração, cada um dos 38 pcaps é extraído em janela única. Os 34 rótulos têm pcap: 31 com um
+arquivo, `DDoS-SYN_Flood` e `DoS-SYN_Flood` com dois cada e `BenignTraffic` com três. Numa captura
+benigna toda janela é benigna, e numa captura de ataque a janela só recebe o rótulo do arquivo se
+contém um quadro de um dos sete Raspberry Pi atacantes documentados pelos autores, e é descartada
+caso contrário. A divisão treino/teste é por tempo dentro de cada pcap (os primeiros 70% das
+janelas para o treino) ou por arquivo inteiro quando o rótulo tem mais de um pcap, o que evita que
+janelas vizinhas caiam dos dois lados. O teto de 50.000 janelas por rótulo e a semente 42 são
+mantidos (`codigo/classificador/regerar.py`, `experimentos/resultados/regeracao.md`).
 
 ### 3.3 Treino e avaliação do classificador
 
-O classificador é um Random Forest (scikit-learn, 100 árvores), treinado e avaliado sobre a
-amostra descrita acima, com divisão de 80/20 entre treino e teste. Duas estratégias de divisão
-foram testadas: sorteio estratificado de linhas (15,11% dos vetores de teste também aparecem no
-treino, por causa de features repetidas) e divisão por grupos de vetores idênticos (0% de
-sobreposição). Duas priores de treino também foram comparadas: a proporção da própria amostra e a
-proporção natural do dataset completo (via peso de amostra).
+Na fase exploratória, o Random Forest (scikit-learn, 100 árvores, parâmetros padrão) foi treinado
+e avaliado na amostra do `MERGED_CSV` descrita acima, com 80% das linhas para o treino e 20% para
+o teste. Duas estratégias de divisão foram testadas: sorteio estratificado de linhas (15,11% dos
+vetores de teste também aparecem no treino, por causa de features repetidas) e divisão por grupos
+de vetores idênticos (0% de sobreposição). Duas priores de treino também foram comparadas: a
+proporção da própria amostra e a proporção natural do dataset completo, por peso de amostra.
 
-Na melhor configuração testada (7 categorias, sorteio estratificado, priori da amostra, 39
-features): acurácia de 93,81% na amostra de teste, equivalente a 98,58% quando reponderada para a
-distribuição natural do dataset completo; macro-F1 de 74,11% (69,96% reponderado). Com a priori
-natural, o alarme falso no tráfego benigno cai de 46,38% para 14,48%, mas o recall de Recon cai
-de 92,61% para 76,83% e o de BruteForce despenca (`experimentos/resultados/treino_exploratorio.md`).
+Na configuração tomada como referência (7 categorias, sorteio estratificado, priori da amostra,
+39 features), a acurácia é de 93,81% na amostra de teste, ou 98,58% reponderada para a
+distribuição natural do dataset completo, e o macro-F1 é de 74,11% (69,96% reponderado). A
+divisão por grupos dá valores da mesma ordem, e a diferença entre as duas não se distingue do
+ruído entre sementes. Com a priori natural, o tráfego benigno classificado como ataque cai de
+46,38% para 14,48%, mas o recall reponderado de Recon cai de 92,52% para 78,87%, e o de
+BruteForce, de 33,55% para 12,98% (`experimentos/resultados/treino_exploratorio.md`).
 
 Um teste adicional, isolando o efeito do tamanho da janela, mostrou que o modelo treinado nas
 janelas do `MERGED_CSV` (100 pacotes para DDoS/DoS/Mirai, 10 para as demais) não generaliza para
@@ -98,26 +109,37 @@ janela de 100 (`experimentos/resultados/teste_da_janela.md`). Retirar as seis co
 dependem do tamanho da janela não resolve. Foi esse resultado que levou à regeração dos dados
 (seção 3.2).
 
+O classificador do sistema é treinado de outra forma, nos dados regerados (seção 3.2): um Random
+Forest de 100 árvores, com os parâmetros padrão do scikit-learn e sem busca de hiperparâmetros,
+nas 39 features, em 7 categorias, com janela de 100 quadros, teto de 50.000 janelas por rótulo,
+semente 42 e a divisão por tempo e por arquivo descrita na seção 3.2. São 567.732 janelas de
+treino e 273.566 de teste (`experimentos/resultados/regeracao.md`).
+
 Nos dados regerados, os dois modelos (janela de 10 e de 100) foram treinados e comparados, e a
 janela de 100 quadros ficou como a do sistema (decisão de 2026-10-10). Com janela de 100:
 macro-F1 de 82,3%, acurácia de 98,3%, DDoS+DoS com F1 de 99,3%, Mirai 99,6%, Spoofing 99,4%,
 Recon 87,3%; Web (47,1%) e BruteForce (51,8%) continuam fracos, com recall entre 35% e 37%,
 confundidos com Recon e com tráfego benigno. Num pcap benigno inteiro que o modelo não viu no
 treino, 1,9% das janelas são classificadas como ataque, contra 12,7% com janela de 10; nos três
-arquivos inteiros reservados para teste (`BenignTraffic2`, `DDoS-SYN_Flood1`, `DoS-SYN_Flood1`),
-a acurácia é de 99,5%. A janela de 10 só supera a de 100 em Recon e Mirai, por menos de um ponto
+arquivos inteiros reservados para teste (`BenignTraffic2`, `DDoS-SYN_Flood1` e `DoS-SYN_Flood1`),
+que só têm tráfego benigno e floods de SYN, a acurácia é de 99,5%. A janela de 10 só tem recall
+maior em Recon e Mirai, por menos de um ponto, e F1 maior só em Mirai
 (`experimentos/resultados/regeracao.md`). Ficam em aberto a proporção das classes no treino e o
 limiar de operação para Web e BruteForce.
 
 ### 3.4 Justificativa do Random Forest
 
-O modelo escolhido é o Random Forest, e não uma rede neural, por dois motivos: reproduz o
-baseline já publicado pelos autores do dataset (Neto et al., 2023), que o situam entre os
-melhores modelos testados; e, mais importante para o restante do sistema, permite recuperar quais
-features pesaram em cada decisão de classificação. Essa explicabilidade é o insumo direto do
-sistema multiagente: os agentes de decisão usam as features mais relevantes de um incidente para
-compor a recomendação de mitigação. Uma rede neural entregaria apenas rótulo e confiança, sem essa
-rastreabilidade por decisão.
+O modelo escolhido é o Random Forest, e não uma rede neural, por dois motivos: no benchmark
+publicado pelos autores do dataset (Neto et al., 2023), ele está entre os melhores modelos
+testados; e, mais importante para o restante do sistema, a importância de cada feature sai do
+próprio treino, sem um método de explicação à parte. Neste trabalho, a importância é medida por
+redução média de impureza e vale para o modelo inteiro (`experimentos/resultados/regeracao.md`).
+Para cada incidente, o servidor entrega aos agentes as features principais, com o valor de
+referência do tráfego benigno, e é esse o insumo da recomendação de mitigação. `[PENDENTE: dizer
+como as features principais de um incidente são escolhidas; se for adotada atribuição por
+decisão, como o TreeSHAP, citar o método.]` O protocolo dos autores não é reproduzido aqui: o
+notebook publicado não treina o Random Forest, e os nossos dados de treino são regerados dos
+pcaps, então os números não se comparam diretamente com os do artigo do dataset.
 
 ### 3.5 Servidor MCP e sistema multiagente
 
