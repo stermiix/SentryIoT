@@ -11,8 +11,8 @@ extraídas como os autores extraíram, são procuradas entre as linhas do mesmo 
 ## Resumo
 
 - 38 pcaps, 34 rótulos, contra as 45.019.234 linhas dos 63 arquivos do `MERGED_CSV`.
-- Em todos os pcaps, entre 95,53% e 99,00% das nossas linhas têm par exato, nas 39 colunas, entre as linhas do mesmo rótulo. Nenhum pedaço de 10 MB fica com menos da metade das linhas com par.
-- Em 15 rótulos os nossos pcaps cobrem todas as linhas do `MERGED_CSV`. Nesses, o `MERGED_CSV` traz 95,77% das nossas linhas: o que falta é a perda dos arquivos truncados na fonte oficial (ver "Como ler os números").
+- Em 15 rótulos os nossos pcaps cobrem todas as linhas do `MERGED_CSV`: cada linha desses rótulos tem par entre as nossas, e uma divergência do extrator em qualquer janela deles deixaria essa cobertura abaixo de 100%. É a prova de que o cálculo é o dos autores. Do nosso lado, o `MERGED_CSV` traz 95,77% das nossas linhas nesses rótulos; o que falta é a perda dos arquivos truncados na fonte oficial.
+- Em todos os pcaps, entre 95,53% e 99,00% das nossas linhas têm par entre as linhas do mesmo rótulo: uma linha do `MERGED_CSV` com os 39 valores iguais aos nossos até cerca de 9 algarismos significativos. Nas linhas únicas (uma vez no pcap e no máximo uma no `MERGED_CSV`), entre 95,53% e 96,33%. Nenhum pedaço de 10 MB fica com menos da metade das linhas com par.
 - No total, os pcaps cobrem 5.297.358 das 45.019.234 linhas do `MERGED_CSV` (11,77%).
 - Instante: 38 pcaps em microssegundos. Nenhum quadro IPv4 ou ARP ficou de fora da extração.
 
@@ -25,16 +25,23 @@ extraídas como os autores extraíram, são procuradas entre as linhas do mesmo 
    relativo de até cerca de 4,7e-10, perto de 9 algarismos), deixa o infinito como está, põe todo NaN num
    padrão só e mistura os valores num hash de 64 bits. O `MERGED_CSV` escreve os números no formato do
    Java (`3.861904144287109E-5`), o infinito como texto e o NaN como campo vazio, então a chave é sobre o
-   valor numérico, e não sobre o texto.
+   valor numérico, e não sobre o texto. Também não é uma comparação bit a bit: o `MERGED_CSV` grava o `IAT`
+   com 15 algarismos significativos (`0.0417121887207031`, contra `0.041712188720703126` no extrator), e
+   `Rate`, `Std` e `Variance` às vezes diferem no último bit, de um jeito de somar ou de imprimir para
+   outro. Em quatro rótulos pequenos conferidos à parte, o maior desvio relativo entre valores que casam
+   foi de 9,5e-13, muito abaixo do arredondamento da chave. Par, aqui, quer dizer os 39 valores iguais
+   até cerca de 9 algarismos significativos.
 3. A extração de cada pcap é a dos autores: pedaços de 10.000.000 de bytes, como o `tcpdump -C 10`
    (`calibrar.fatiar`), um extrator novo por pedaço e a janela da classe, 100 em DDoS, DoS e Mirai e 10
    nas demais. Na mesma leitura sai a extração contínua, a da operação e da regeração dos dados de treino.
 4. (a) Fração das nossas linhas com par no rótulo do pcap, por multiconjunto: cada linha do `MERGED_CSV`
    serve de par a uma linha nossa só. (b) Fração das linhas de cada rótulo no `MERGED_CSV` cobertas pelos
-   pcaps daquele rótulo. Para as linhas sem par, se casariam ignorando as colunas de tempo (`Rate`,
-   `IAT`) ou as de tamanho, e em que outro rótulo as linhas do pcap mais aparecem.
-5. Controle do vizinho mais próximo: até 200 linhas sem par de cada pcap, sorteadas,
-   comparadas coluna a coluna com a linha mais parecida do mesmo rótulo no `MERGED_CSV`.
+   pcaps daquele rótulo. Para as linhas sem par, o que o `MERGED_CSV` do rótulo tem de igual a elas: a
+   mesma linha, uma linha igual fora as colunas de tempo (`Rate`, `IAT`) ou fora as de tamanho. E em que
+   outro rótulo as linhas do pcap mais aparecem.
+5. Controle do vizinho mais próximo: até 200 linhas sem par de cada pcap, sorteadas
+   entre as que nenhuma dessas igualdades explica, comparadas coluna a coluna com a linha mais parecida do
+   mesmo rótulo no `MERGED_CSV`, procurada entre todas as que têm a mesma chave grossa.
 6. Leitura contínua contra fatiada, em todos os pcaps.
 
 ## Resultado por pcap
@@ -126,6 +133,10 @@ Tabela também em `calibracao_conjunto_rotulos.csv`.
 
 ## Como ler os números
 
+- **A prova de que o cálculo é o dos autores é a cobertura (b) de 100% nos 15 rótulos completos.** Neles, toda linha do `MERGED_CSV` tem par entre as nossas. Uma divergência do extrator ou
+  da emulação do fatiamento em qualquer janela desses rótulos deixaria uma linha deles sem par, e (b)
+  abaixo de 100%. A fração (a), sozinha, não basta: uma divergência numa coluna ou num protocolo raro
+  moveria (a) em décimos de ponto, dentro da perda dos arquivos truncados.
 - **A cobertura (b) baixa nos floods e no benigno não indica erro.** O `MERGED_CSV` vem de todas as
   capturas dos autores, e temos uma ou duas partes de cada rótulo. 20 dos 38 pcaps têm entre 2.048.000.000 e
   2.048.100.000 bytes, o que indica partes cortadas com `tcpdump -C 2048` de capturas maiores. Nesses
@@ -135,16 +146,12 @@ Tabela também em `calibracao_conjunto_rotulos.csv`.
   cobrem todas as linhas do `MERGED_CSV`, ele traz 95,77% das nossas linhas
   (entre 95,53% e 96,33% por pcap). Os arquivos truncados na fonte oficial perderam as linhas
   que viriam depois do corte, e como o conjunto é embaralhado a perda cai em todas as classes em
-  proporção parecida: o `exploracao.md` mede 4,26% de linhas a menos contra os CSVs por ataque. As linhas
-  sem par são essas, e o controle do vizinho mostra que são outras janelas, e não janelas calculadas de
-  outro jeito.
+  proporção parecida: o `exploracao.md` mede 4,26% de linhas a menos contra os CSVs por ataque.
 - **Acima dessa faixa, o excesso vem das linhas repetidas dos floods** (12 pcaps). Uma linha nossa que se
-  perdeu no `MERGED_CSV` ainda acha par numa linha idêntica vinda de outra parte da mesma captura.
+  perdeu no `MERGED_CSV` ainda acha par numa linha idêntica vinda de outra parte da mesma captura. Nas
+  linhas únicas, que não têm essa ajuda, (a) fica entre 95,53% e 96,33% em todos os pcaps.
 - **A fração em outro rótulo** mostra a sobreposição já conhecida entre DDoS e DoS (`ROADMAP.md`,
   04/10/2026): as mesmas janelas aparecem com os dois rótulos.
-- **Se o extrator divergisse** em alguma coluna ou protocolo, ou a emulação do fatiamento estivesse
-  errada, a fração (a) cairia para perto do que a leitura contínua consegue (seção seguinte), e não
-  ficaria na faixa da perda dos arquivos truncados.
 
 ## Leitura contínua contra leitura fatiada
 
@@ -197,21 +204,58 @@ entre as duas leituras, entre as 39 colunas.
 
 Maior distância entre todos os pcaps e colunas: 0,0102.
 
-## Linhas sem par: o vizinho mais próximo
+## Linhas sem par
 
-Foram examinadas 7.238 linhas sem par, até 200 por pcap. Para cada uma, o `MERGED_CSV` foi percorrido em busca das linhas do mesmo rótulo com o mesmo `Number` e os mesmos tamanhos, ou o mesmo protocolo e as mesmas contagens de flags (até 64 por chave), e a mais parecida foi comparada coluna a coluna, com a tolerância do calibrador.
+São 150.225 linhas sem par nos 38 pcaps. Para cada uma, o índice diz o que o `MERGED_CSV` do rótulo tem de igual a ela, na ordem da tabela: a primeira classe que se aplica é a da linha.
+
+| o que o `MERGED_CSV` tem | linhas sem par | fração |
+|---|---|---|
+| a mesma linha, que já serviu de par a outra linha nossa igual | 2.141 | 1,43% |
+| uma linha igual fora `Rate` e `IAT` | 73.047 | 48,63% |
+| uma linha igual fora as colunas de tamanho | 49 | 0,03% |
+| nada disso | 74.988 | 49,92% |
+
+A primeira classe vem da correspondência por multiconjunto: cada linha do `MERGED_CSV` serve de par a uma linha nossa só, e uma linha que se repete mais no pcap do que lá fica com a sobra sem par. A segunda é comum em tráfego repetitivo, em que muitas janelas têm os mesmos quadros e só os instantes mudam; ela não separa uma janela que falta no `MERGED_CSV` de uma calculada com outro instante, e por isso não prova nada sozinha.
+
+### O vizinho mais próximo das linhas da última classe
+
+Foram examinadas 7.007 linhas da última classe, até 200 por pcap. Para cada uma, o `MERGED_CSV` foi percorrido e todas as linhas do mesmo rótulo com o mesmo `Number` e os mesmos tamanhos, ou com o mesmo protocolo e as mesmas contagens de flags, foram comparadas com ela, sem limite de candidatas, pelos valores arredondados da chave. O vizinho é a que difere em menos colunas.
 
 | desfecho | linhas |
 |---|---|
-| o vizinho difere só em `Rate` ou `IAT` | 3.285 |
-| difere em `Rate` ou `IAT` e em outras colunas | 3.595 |
-| difere em outras colunas, com `Rate` e `IAT` iguais | 1 |
-| igual em todas as colunas | 7 |
-| nenhum candidato com a mesma chave grossa | 350 |
+| o vizinho difere em `Rate` ou `IAT` e em outras colunas | 6.540 |
+| o vizinho difere só em outras colunas | 14 |
+| nenhuma linha com a mesma chave grossa | 453 |
 
-Colunas que mais diferem no vizinho mais próximo: `IAT` (6.865), `Rate` (6.856), `Time_To_Live` (3.253), `Std` (2.608), `Variance` (2.608), `Tot sum` (2.353), `AVG` (2.353), `Tot size` (2.353).
+Colunas que diferem no vizinho mais próximo, por quantidade de linhas:
 
-Uma linha calculada de outro jeito acharia um vizinho igual em quase tudo e diferente sempre na mesma coluna. O que aparece é o contrário: o vizinho difere nos instantes e em geral em várias outras colunas, ou nem existe. As linhas sem par são janelas que faltam no `MERGED_CSV`. O vizinho igual em todas as colunas é o de uma linha repetida no pcap: a linha idêntica do `MERGED_CSV` já serviu de par a outra linha nossa igual, e na correspondência por multiconjunto cada uma serve a uma só. Por pcap, os desfechos estão no manifesto, em `vizinho`.
+| colunas diferentes | linhas |
+|---|---|
+| 2 | 8 |
+| 3 | 968 |
+| 4 | 257 |
+| 5 | 333 |
+| 6 | 394 |
+| 7 | 640 |
+| 8 | 995 |
+| 9 | 1.046 |
+| 10 | 756 |
+| 11 | 418 |
+| 12 | 261 |
+| 13 | 146 |
+| 14 | 79 |
+| 15 | 69 |
+| 16 | 53 |
+| 17 | 41 |
+| 18 | 31 |
+| 19 | 21 |
+| 20 | 12 |
+| 21 | 9 |
+| 22 | 8 |
+| 23 | 7 |
+| 24 | 2 |
+
+O que a tabela mostra: das 7.007 linhas, 6.554 têm vizinho, que difere delas em 8 colunas na mediana, e 453 não têm nenhuma linha com a mesma chave grossa. As colunas que mais diferem são `Rate` (6.535), `IAT` (6.531), `Time_To_Live` (5.232), `Std` (4.576), `Variance` (4.576), `Tot sum` (3.807), `AVG` (3.807), `Tot size` (3.807). O vizinho só ilustra o que falta no `MERGED_CSV`; a prova de que as linhas sem par não vêm de um cálculo diferente é a cobertura (b) de 100% nos rótulos completos. Por pcap, os desfechos estão no manifesto, em `vizinho`.
 
 ## A captura de cada pcap
 
@@ -219,7 +263,7 @@ O que o cabeçalho e os quadros de cada pcap dizem da captura. O instante em nan
 para microssegundos, como o `tcpdump -r ... -w` do fatiamento dos autores grava. Quadro menor que 60
 bytes não passa assim no fio (falta o preenchimento) e quadro maior que 1514 bytes só existe com
 offload de segmentação na máquina que capturou. As opções `--preencher` e `--limitar` do extrator
-medem o quadro como no fio; desligadas, como aqui, ele reproduz os autores.
+medem o quadro como no fio. Nesta calibração, que reproduz os autores, ficaram `--preencher` e `--limitar` desligadas.
 
 - Quadro menor que 60 bytes: `DNS_Spoofing.pcap`, `MITM-ArpSpoofing.pcap`, `Mirai-greip_flood21.pcap`. Quadro maior que 1514 bytes: 35 dos 38 pcaps.
 - Limite de captura declarado: 262.144 bytes em 35 pcaps; 1.500 bytes em 3 pcaps.
@@ -277,7 +321,7 @@ A partir da raiz do repositório, com os pcaps e o `MERGED_CSV` na pasta do data
   `calibracao_conjunto_pcaps.csv`, `calibracao_conjunto_rotulos.csv` e `manifesto_calibracao_conjunto.json`.
   O manifesto traz o SHA-256 de cada pcap e de cada arquivo do `MERGED_CSV`.
 - Os dados intermediários ficam em `dados/processed/calibracao_conjunto`, fora do git. Numa execução seguinte,
-  o índice e as extrações são reaproveitados enquanto os arquivos e o código do extrator não mudarem;
-  para refazer tudo, apague a pasta.
-- Tempo total desta execução: 25,8 min; o pcap mais demorado levou 4,8 min. Os tempos das extrações reaproveitadas são os da execução em que foram feitas.
+  o índice e as extrações são reaproveitados enquanto os arquivos e o código que gera cada um não
+  mudarem; para refazer tudo, apague a pasta.
+- Tempo total desta execução: 5,1 min; o pcap mais demorado levou 4,8 min. Os tempos das extrações reaproveitadas são os da execução em que foram feitas.
 - Com os mesmos arquivos, os números saem iguais. Só mudam a data e os tempos.
