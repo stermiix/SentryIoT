@@ -136,7 +136,7 @@ jobs:
           npm run sync:log
           git diff --exit-code -- public/dados/
 
-      # Leitura do log, agregacao e telas, com os casos adversariais da revisao.
+      # Leitura do log, reconstrucao do estado, telas e conferencia das listas contra o contrato do MCP.
       - name: Rodar os testes
         run: npm test
 

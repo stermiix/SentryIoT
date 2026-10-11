@@ -50,23 +50,33 @@ disso: usa só o log de exemplo já versionado em `codigo/mcp/exemplos/incidente
 ## Estado atual
 
 Implementado: um app estático (Vite + React + TypeScript), sem backend, que lê o log de exemplo
-e mostra as telas 1 e 2 em modo replay.
+e mostra as telas 1 e 2 em modo replay. O log segue o contrato 0.3.0 do MCP.
 
 - **Leitura do log.** Cada linha é conferida contra o contrato (`codigo/mcp/contrato.json`) na
-  carga. Linha fora do contrato, evento com `id` repetido e última linha sem quebra de linha no
-  fim (que, no modo ao vivo, pode estar sendo gravada) são descartados, e o número da linha
-  aparece num aviso no topo da tela. Os eventos seguem a ordem do `id`, e não a do arquivo.
+  carga: campos, tipos, valores aceitos, limites e caracteres de texto, endereços IP e nomes de
+  feature. Linha fora do contrato e evento com `id` repetido são descartados, e o número da linha
+  aparece num aviso no topo da tela. Os eventos seguem a ordem do `id`, e não a do arquivo. No
+  modo ao vivo, que ainda não existe, a última linha sem quebra de linha no fim vai ser ignorada,
+  porque pode estar sendo gravada (`ignorarUltimaIncompleta` em `src/log.ts`); no replay, ela é
+  lida, como faz o leitor do Python. A conferência é mais frouxa que a do Python em três pontos:
+  campo a mais não derruba a linha, inteiro acima de 2^53 é recusado, e a classificação dos
+  caracteres do Unicode é a do navegador.
+- **Reconstrução.** O estado de incidentes, marcas, propostas, execuções e promoções é
+  reconstruído com as regras do `reconstruir` de `codigo/mcp/acoes.py`. O Python recusa o log
+  inteiro no primeiro evento fora de lugar; a interface ignora esse evento, avisa com o id dele e
+  segue. A única regra que fica de fora é a de que a ação promovida ao catálogo seja exatamente a
+  que foi aprovada: a interface confere o nome, a origem e a proposta, e não os textos.
 - **Fila.** Um incidente só ganha linha se o log tem o evento de abertura dele. Eventos que citam
-  um incidente sem abertura ficam contados à parte, com aviso, e não somam em "Incidentes".
-- **Detalhe.** Veredito do classificador; rastro dos agentes com a hora de cada chamada (no fuso
-  de quem abre a página); recomendações com o agente e as propostas ligadas; o estado de cada
-  proposta, reconstruído como no `reconstruir` de `codigo/mcp/acoes.py` (risco, aprovação,
-  motivos do risco alto, decisões, execuções e efeitos); e o histórico de decisões e ações, com
-  hora e id em todas as linhas.
-- **Replay.** Abre no estado final e pode ser percorrido evento a evento.
-- **Antes do contrato.** A interface já mostra o evento `incidente_marcado_resolvido` e aceita a
-  categoria `DDoS+DoS` do modelo, que vão entrar no contrato em outro PR. O log de exemplo atual
-  não tem nenhum dos dois.
+  um incidente que não estava aberto naquele ponto ficam contados à parte, com aviso, e não
+  somam em "Incidentes". O incidente marcado como já resolvido aparece como tal.
+- **Detalhe.** Veredito do classificador, com a categoria do modelo e a do incidente; rastro dos
+  agentes com a hora de cada chamada (no fuso de quem abre a página); recomendações com o agente
+  e as propostas ligadas; o estado de cada proposta (alvo com o rótulo neutro, risco, aprovação,
+  motivos do risco alto, decisões com canal e usuário, execuções e efeitos); a marca de já
+  resolvido; e o histórico de decisões e ações, com hora e id em todas as linhas. A frase de cada
+  motivo de risco alto é a do contrato, e não a que veio no log; texto escrito por um agente ou
+  por uma pessoa (recomendação, justificativa, motivo, mensagem de recusa) aparece entre aspas.
+- **Replay.** Abre no estado final e pode ser percorrido evento a evento, também pelo teclado.
 
 Como é replay, não há controles para criar aprovações ou executar ações; a interface só apresenta
 o que já está no log.
@@ -85,9 +95,12 @@ está no `package-lock.json`. A cópia do log em `public/dados/` é versionada: 
 (`python -m codigo.mcp.roteiro --sobrescrever`), e versione a cópia junto. O replay funciona sem
 API e sem conexão externa; a tipografia usa fontes locais do sistema.
 
-`npm test` roda os testes (Vitest) da leitura do log, da agregação e das telas, com os casos
-adversariais da revisão: duplicados, ordem trocada, incidente trocado ou sem abertura, campo
-ausente, `toString` e `constructor`, HTML no log e última linha cortada. `npm run build` confere
+`npm test` roda os testes (Vitest). Eles leem o log de exemplo e variações dele (duplicados,
+ordem trocada, incidente trocado ou sem abertura, campo ausente, `toString` e `constructor`, HTML
+no log, linha cortada) e um caso para cada regra de sequência do `reconstruir`; desenham as telas
+e o controle do replay; e comparam as listas de `src/listas.ts` com o `contrato.json` e com o
+`acoes.py`, para que uma mudança no contrato do MCP faça o teste falhar até a interface
+acompanhar. `npm run build` confere
 os tipos e gera a versão de produção em `dist/`; `npm run preview` serve essa versão. O CI roda,
 a cada PR, os testes, o `npm audit --omit=dev --audit-level=high` e o build.
 
@@ -95,8 +108,9 @@ a cada PR, os testes, o `npm audit --omit=dev --audit-level=high` e o build.
 
 | Arquivo | Papel |
 |---|---|
+| `src/listas.ts` | Os valores fixos do contrato (categorias, motivos, estados) e o catálogo de base |
 | `src/contrato.ts` | Confere cada linha do log contra o contrato, tipo de evento por tipo de evento |
-| `src/log.ts` | Lê o JSONL (descarte, ordem, avisos) e agrega os eventos: contadores da tela 1, incidentes, propostas e marca de já resolvido |
+| `src/log.ts` | Lê o JSONL (descarte, ordem, avisos), reconstrói o estado com as regras do `reconstruir` e agrega os eventos por incidente |
 | `src/types.ts` | Os tipos do log, como união discriminada por `tipo`, e o que a interface monta a partir deles |
 | `src/rotulos.ts`, `src/formato.ts` | Como cada valor do log aparece na tela; formato de números e horas |
 | `src/components/ResumoMetricas.tsx` | Cartões do resumo com janelas, incidentes, chamadas e tokens do replay |
@@ -104,7 +118,7 @@ a cada PR, os testes, o `npm audit --omit=dev --audit-level=high` e o build.
 | `src/components/DetalheDoIncidente.tsx` | Tela 2 |
 | `src/components/ControleDoReplay.tsx` | Avanço do replay evento a evento |
 | `src/components/LimiteDeErro.tsx` | Error boundary da fila e do detalhe |
-| `src/log.test.ts`, `src/telas.test.tsx` | Testes da leitura, da agregação e das telas |
+| `src/log.test.ts`, `src/telas.test.tsx`, `src/contrato.test.ts` | Testes da leitura e da reconstrução, das telas e das listas contra o contrato |
 | `scripts/sync-log.mjs` | Copia o log de exemplo para `public/dados/`; recusa link simbólico |
 | `public/dados/incidente_flood.jsonl` | Cópia estática do replay versionado em `codigo/mcp/exemplos/` |
 
