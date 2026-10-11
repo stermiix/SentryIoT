@@ -17,16 +17,20 @@ from codigo.classificador.test_preparar import quadro_sintetico
 from codigo.classificador.treinar import carregar_modelo
 from codigo.classificador.treinar_regerado import (
     ALVO,
+    CLASSES,
     MANIFESTO,
     METRICAS,
     POR_ARQUIVO,
     RELATORIO,
     TETO,
+    arquivos_inteiros_no_teste,
+    ataque_como_benigno,
     ips_de_origem,
     ler_janela,
     limitar,
     main,
     montar_relatorio,
+    reponderada,
 )
 
 JANELAS = (2, 5)
@@ -105,6 +109,10 @@ def executar(pasta, *extras):
         "--saida", str(pasta / "resultados"), "--modelos", str(pasta / "modelos"), "--arvores", "5", "--nucleos", "1",
         *extras,
     ])
+
+
+def pct(valor):
+    return f"{100 * valor:.2f}%".replace(".", ",")
 
 
 def ler_csv(caminho):
@@ -310,3 +318,89 @@ def test_teto_padrao_vale_quando_nao_e_dado(tmp_path):
     m = ler_manifesto(pasta)
     assert m["teto"] == TETO and m["janelas"][0]["linhas"]["amostra"] == 320
     assert np.isclose(sum(r["amostra"] for r in m["janelas"][0]["por_rotulo"]), 320)
+
+
+def test_arquivos_inteiros_no_teste_seguem_o_sufixo_numerico():
+    amostra = pd.DataFrame({
+        "Label": ["BenignTraffic"] * 3 + ["Recon-PortScan"] + ["DoS-SYN_Flood"] * 2,
+        "arquivo": ["BenignTraffic.pcap", "BenignTraffic2.pcap", "BenignTraffic10.pcap", "Recon-PortScan.pcap",
+                    "DoS-SYN_Flood.pcap", "DoS-SYN_Flood1.pcap"],
+    })
+    assert arquivos_inteiros_no_teste(amostra) == ["BenignTraffic10.pcap", "DoS-SYN_Flood1.pcap"]
+
+
+def test_o_corte_e_sobre_o_total_de_janelas_extraidas_e_nao_sobre_as_mantidas(tmp_path):
+    # Recon-PortScan tem 40 janelas mantidas (índices 0 a 39) de 50 extraídas: o corte de 70% fica na
+    # janela 35, e vão 5 para o teste. Com o corte nas mantidas, iriam 12 (índices 28 a 39).
+    pasta = preparar_regeracao(tmp_path)
+    caminho = pasta / "resultados" / MANIFESTO_DA_REGERACAO
+    regeracao = json.loads(caminho.read_text(encoding="utf-8"))
+    recon = next(p for p in regeracao["pcaps"] if p["arquivo"] == "Recon-PortScan.pcap")
+    for contagem in recon["janelas"].values():
+        contagem["extraidas"], contagem["descartadas"] = 50, 10
+    caminho.write_text(json.dumps(regeracao, ensure_ascii=False), encoding="utf-8")
+    assert executar(pasta, "--teto", "1000") == 0
+    for j in ler_manifesto(pasta)["janelas"]:
+        linha = next(r for r in j["por_rotulo"] if r["rotulo"] == "Recon-PortScan")
+        assert (linha["treino"], linha["teste"]) == (35, 5)
+        # Os outros pcaps têm 3 janelas descartadas além das 40 mantidas: corte em int(0,7 x 43 + 0,5) = 30.
+        outro = next(r for r in j["por_rotulo"] if r["rotulo"] == "Mirai-udpplain")
+        assert (outro["treino"], outro["teste"]) == (30, 10)
+
+
+def janela_de_mentira(contagem, regeradas):
+    """O registro de uma janela no manifesto do treino, só com a matriz por rótulo e as linhas regeradas."""
+    rotulos = list(contagem)
+    return {
+        "avaliacao": {"matriz_por_rotulo": {"classes": list(CLASSES), "rotulos": rotulos,
+                                            "contagem": [contagem[r] for r in rotulos]}},
+        "por_rotulo": [{"rotulo": r, "regeradas": regeradas[r]} for r in rotulos],
+    }
+
+
+def test_reponderada_pesa_cada_rotulo_pelas_janelas_regeradas():
+    # Colunas na ordem de CLASSES: DDoS+DoS, Mirai, Recon, Spoofing, Web, BruteForce, Benign.
+    j = janela_de_mentira(
+        {
+            "Recon-PortScan": [0, 0, 8, 0, 0, 0, 2],
+            "VulnerabilityScan": [0, 0, 1, 0, 0, 0, 9],
+            "BenignTraffic": [0, 0, 1, 0, 0, 0, 9],
+        },
+        {"Recon-PortScan": 10, "VulnerabilityScan": 100, "BenignTraffic": 10},
+    )
+    r = reponderada(j)
+    # Recon junta dois rótulos: (8 + 10 x 1) / (10 + 100), contra 9 / 20 na mistura do teste.
+    assert np.isclose(r["por_classe"]["Recon"]["recall"], 18 / 110)
+    # O benigno é um rótulo só: o recall e o benigno classificado como ataque não mudam.
+    assert np.isclose(r["por_classe"]["Benign"]["recall"], 0.9)
+    assert np.isclose(r["falso_positivo_benigno"], 0.1)
+    # Ataque classificado como benigno: das 110 janelas de ataque reponderadas, 2 + 90 viram Benign.
+    assert np.isclose(ataque_como_benigno(r), 92 / 110)
+
+
+def test_relatorio_traz_o_ataque_perdido_com_o_nome_certo_e_as_medidas_reponderadas(treino):
+    m = ler_manifesto(treino)
+    texto = montar_relatorio(m)
+    j = m["janelas"][0]
+    a = j["avaliacao"]["amostra"]
+    assert "| Categoria | Linhas de teste | Precisão | Recall | F1 | Falso positivo da categoria |" in texto
+    assert "Na linha Benign, ele é o ataque classificado como benigno" in texto
+    perdido = a["por_classe"]["Benign"]["taxa_falso_positivo"]
+    assert ataque_como_benigno(a) == perdido
+    assert f"Ataque classificado como benigno: {pct(perdido)}." in texto
+    r = reponderada(j)
+    assert f"macro-F1 {pct(r['macro_f1'])}" in texto
+    assert "| Macro-F1 reponderado |" in texto and "| Ataque classificado como benigno |" in texto
+    assert "Recall reponderado" in texto
+
+
+def test_janela_sem_benigno_no_teste_nao_conta_como_zero(treino):
+    m = ler_manifesto(treino)
+    m["janelas"][1]["avaliacao"]["amostra"]["falso_positivo_benigno"] = 0.5
+    m["janelas"][0]["avaliacao"]["amostra"]["falso_positivo_benigno"] = None
+    texto = " ".join(montar_relatorio(m).split())
+    # Com o "or 0" antigo, a janela de 2, sem valor, seria a de menor taxa.
+    assert "a menor taxa de tráfego benigno classificado como ataque é a da janela de 5" in texto
+    m["janelas"][1]["avaliacao"]["amostra"]["falso_positivo_benigno"] = None
+    texto = " ".join(montar_relatorio(m).split())
+    assert "nenhuma janela tem tráfego benigno no teste" in texto

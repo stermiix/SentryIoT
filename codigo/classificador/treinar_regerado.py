@@ -12,7 +12,7 @@ O que ele faz, para cada janela:
    com semente fixa, como na amostra do treino exploratório.
 2. Divide treino e teste por tempo: dentro de cada pcap, as primeiras 70% das janelas vão para o
    treino e as últimas 30% para o teste, para não deixar janelas vizinhas dos dois lados. Um
-   rótulo com mais de um pcap tem o último arquivo, em ordem de nome, inteiro no teste.
+   rótulo com mais de um pcap tem o último arquivo, pelo sufixo numérico do nome, inteiro no teste.
 3. Treina o Random Forest de 7 categorias, com DDoS e DoS juntos, nas 39 features, com os
    parâmetros padrão do scikit-learn, e salva o modelo em `modelos/`, fora do git.
 4. Mede na parte de teste: precisão, recall e F1 por categoria, macro-F1, taxa de falso positivo
@@ -45,6 +45,7 @@ from codigo.classificador.avaliar import (
     contar,
     importancias,
     matriz_de_confusao,
+    medir,
 )
 from codigo.classificador.experimento import (
     MATRIZES,
@@ -69,6 +70,7 @@ from codigo.classificador.preparar import (
     dividir_por_tempo,
     impressao_digital,
     matriz,
+    ultimo_arquivo,
 )
 from codigo.classificador.regerar import MANIFESTO as MANIFESTO_DA_REGERACAO
 from codigo.classificador.regerar import nome_da_pasta
@@ -84,6 +86,8 @@ from codigo.classificador.treinar import (
 
 MANIFESTO = "manifesto_treino_regerado.json"
 RELATORIO = "regeracao.md"
+# O relatório das rodadas de teste do modelo, com os controles que este relatório não faz.
+RODADAS = "rodadas_de_teste.md"
 METRICAS = "regeracao_metricas.csv"
 POR_ARQUIVO = "regeracao_por_arquivo.csv"
 MODELOS = "modelos"
@@ -170,6 +174,17 @@ def ips_de_origem(quadro):
     return resumo
 
 
+def arquivos_inteiros_no_teste(amostra):
+    """Os pcaps que vão inteiros para o teste: o último, na ordem natural, de cada rótulo com mais de um.
+
+    É a mesma escolha de `dividir_por_tempo`, que usa `ultimo_arquivo`.
+    """
+    return sorted(
+        ultimo_arquivo(arquivos.tolist())
+        for arquivos in amostra.groupby("Label")["arquivo"].unique().values if len(arquivos) > 1
+    )
+
+
 def _por_arquivo(amostra, teste, previsto):
     """Por pcap: as janelas de teste, a fração na categoria esperada e as categorias previstas."""
     arquivos = amostra[["arquivo", "Label"]].drop_duplicates().sort_values("arquivo")
@@ -221,10 +236,7 @@ def treinar_janela(regeracao, destino, janela, semente=SEMENTE, arvores=ARVORES,
     treino, teste = dividir_por_tempo(amostra, FRACAO_DE_TESTE_POR_TEMPO, totais)
     if len(teste) == 0 or len(treino) == 0:
         raise ValueError(f"janela de {janela}: a divisão por tempo deixou o treino ou o teste vazio")
-    arquivos_de_teste = []
-    for arquivos in amostra.groupby("Label")["arquivo"].unique().values:
-        if len(arquivos) > 1:
-            arquivos_de_teste.append(max(arquivos.tolist()))
+    arquivos_de_teste = arquivos_inteiros_no_teste(amostra)
     X = matriz(amostra, FEATURES_39)
     y = alvo(amostra["Label"].to_numpy(), ALVO)
     modelo, segundos = treinar(X[treino], y[treino], semente, arvores, nucleos=nucleos)
@@ -429,6 +441,11 @@ def _cabecalho(m):
         "nosso extrator, em janela única e com o rótulo decidido janela a janela (decisão de 10/10/2026 no",
         "`ROADMAP.md`). Este relatório traz o Random Forest de 7 categorias treinado nesses dados, um modelo por",
         "janela, de " + _enumerar(_janelas(m)) + " quadros, e as medidas de cada um na parte de teste.",
+        "",
+        f"Os controles do modelo de janela de 100 estão em `{RODADAS}`: variação entre sementes, rotação do pcap",
+        "benigno de fora do treino, tráfego de fundo dos pcaps de ataque, pcap inteiro fora do treino, atalhos da",
+        "captura, ponto de operação, intervalos de confiança das classes raras e custo. Eles mudam a leitura de",
+        "parte dos números abaixo.",
     ]
 
 
@@ -509,9 +526,9 @@ def _treino_e_teste(m):
         "amostra do treino exploratório. A divisão é por tempo: dentro de cada pcap, as primeiras",
         f"{_pct(1 - m['fracao_de_teste'], 0)} das janelas vão para o treino e as últimas {_pct(m['fracao_de_teste'], 0)}",
         "para o teste, com o corte no total de janelas do arquivo, para não deixar janelas vizinhas dos dois lados.",
-        "Um rótulo com mais de um pcap tem o último arquivo, em ordem de nome, inteiro no teste. O modelo é o",
-        f"`RandomForestClassifier` do scikit-learn com {m['arvores']} árvores e os demais parâmetros padrão, sem",
-        f"`StandardScaler`, com as {m['features']} features e {len(CLASSES)} categorias (DDoS e DoS juntos).",
+        "Um rótulo com mais de um pcap tem o último arquivo, pelo sufixo numérico do nome, inteiro no teste.",
+        f"O modelo é o `RandomForestClassifier` do scikit-learn com {m['arvores']} árvores e os demais parâmetros padrão,",
+        f"sem `StandardScaler`, com as {m['features']} features e {len(CLASSES)} categorias (DDoS e DoS juntos).",
         "",
         *_tabela(
             ["Janela", "Linhas regeradas", "Após o teto", "Treino", "Teste", "Arquivos inteiros no teste", "Treino (s)"],
@@ -559,13 +576,44 @@ def _mais_prevista(previstas):
     return classe if quantas else "nenhuma"
 
 
+def populacao_regerada(j):
+    """As janelas regeradas de cada rótulo, antes do teto: a mistura para a qual as medidas são reponderadas."""
+    return {r["rotulo"]: r["regeradas"] for r in j["por_rotulo"]}
+
+
+def reponderada(j):
+    """As medidas da parte de teste com cada rótulo pesando o que pesa nas janelas regeradas.
+
+    O teto muda a mistura dos rótulos no teste, e a mistura muda de uma janela para outra. O recall
+    de um rótulo não muda com o peso; o de uma categoria que junta rótulos muda, e a precisão, o F1,
+    a acurácia e o macro-F1 mudam com a mistura.
+    """
+    confusao = matriz_de_confusao(_por_rotulo_do_alvo(j["avaliacao"]), ALVO, populacao_regerada(j))
+    return medir(confusao, ALVOS[ALVO].benigno)
+
+
+def ataque_como_benigno(medidas):
+    """A fração das janelas de ataque classificadas como benignas: o ataque perdido.
+
+    É a taxa de falso positivo da categoria benigna, que conta as janelas das outras categorias
+    previstas como benignas.
+    """
+    return medidas["por_classe"][ALVOS[ALVO].benigno]["taxa_falso_positivo"]
+
+
 def _resultados(m, j):
     a = j["avaliacao"]["amostra"]
+    r = reponderada(j)
     por_rotulo = _por_rotulo_do_alvo(j["avaliacao"])
     confusao = matriz_de_confusao(por_rotulo, ALVO)
     por_classe = [
         [classe, _milhar(me["suporte"]), _pct(me["precisao"]), _pct(me["recall"]), _pct(me["f1"]),
          _pct(me["taxa_falso_positivo"])]
+        for classe, me in a["por_classe"].items()
+    ]
+    reponderadas = [
+        [classe, _pct(me["precisao"]), _pct(r["por_classe"][classe]["precisao"]), _pct(me["recall"]),
+         _pct(r["por_classe"][classe]["recall"]), _pct(me["f1"]), _pct(r["por_classe"][classe]["f1"])]
         for classe, me in a["por_classe"].items()
     ]
     matriz_linhas = [
@@ -584,11 +632,13 @@ def _resultados(m, j):
             "",
             f"### Nos arquivos inteiros de teste, com janela de {j['janela']}",
             "",
-            "É a medida honesta: " + _enumerar(f"`{a}`" for a in j["arquivos_de_teste"]) + ", pcaps de que o modelo "
-            f"não viu nenhuma janela. {_milhar(j['avaliacao_arquivos_inteiros']['linhas'])} linhas, acurácia "
+            _enumerar(f"`{a}`" for a in j["arquivos_de_teste"]) + ", pcaps de que o modelo não viu nenhuma janela, "
+            "com as janelas que o teto sorteou de cada um. "
+            f"{_milhar(j['avaliacao_arquivos_inteiros']['linhas'])} linhas, acurácia "
             f"{_pct(ai['acuracia'])}, macro-F1 {_pct(ai['macro_f1'])} entre as categorias presentes, tráfego benigno "
             f"classificado como ataque {_pct(ai['falso_positivo_benigno'])}. A precisão e o falso positivo de cada "
-            "categoria valem só dentro desses arquivos.",
+            "categoria valem só dentro desses arquivos. A medida depende de qual pcap fica de fora: a rotação do",
+            f"pcap benigno de fora está em `{RODADAS}`.",
             "",
             *_tabela(
                 ["Categoria", "Linhas de teste", "Precisão", "Recall", "F1"],
@@ -604,10 +654,32 @@ def _resultados(m, j):
         (
             f"Na parte de teste, de {_milhar(j['linhas']['teste'])} linhas: acurácia {_pct(a['acuracia'])}, macro-F1 "
             f"{_pct(a['macro_f1'])}, F1 ponderado {_pct(a['f1_ponderado'])}, teto destas linhas {_pct(a['teto'])}. "
-            f"Tráfego benigno classificado como ataque: {_pct(a['falso_positivo_benigno'])}."
+            f"Tráfego benigno classificado como ataque: {_pct(a['falso_positivo_benigno'])}. Ataque classificado "
+            f"como benigno: {_pct(ataque_como_benigno(a))}."
         ),
         "",
-        *_tabela(["Categoria", "Linhas de teste", "Precisão", "Recall", "F1", "Falso positivo"], por_classe),
+        *_tabela(
+            ["Categoria", "Linhas de teste", "Precisão", "Recall", "F1", "Falso positivo da categoria"], por_classe,
+        ),
+        "",
+        "O falso positivo de uma categoria é a fração das janelas das outras categorias que o modelo pôs nela.",
+        "Na linha Benign, ele é o ataque classificado como benigno, isto é, o ataque perdido, e não o alarme",
+        "falso; o alarme falso é o tráfego benigno classificado como ataque, dado acima.",
+        "",
+        (
+            "As medidas acima estão na mistura do teste, que o teto deforma: cada rótulo entra com no máximo "
+            f"{_milhar(m['teto'])} linhas. Reponderadas para a mistura das janelas regeradas, antes do teto, em que "
+            f"cada rótulo pesa as janelas que tem: acurácia {_pct(r['acuracia'])}, macro-F1 {_pct(r['macro_f1'])}, "
+            f"F1 ponderado {_pct(r['f1_ponderado'])}, ataque classificado como benigno "
+            f"{_pct(ataque_como_benigno(r))}. O tráfego benigno classificado como ataque não muda, porque o benigno "
+            "é um rótulo só."
+        ),
+        "",
+        *_tabela(
+            ["Categoria", "Precisão", "Precisão reponderada", "Recall", "Recall reponderado", "F1",
+             "F1 reponderado"],
+            reponderadas,
+        ),
         "",
         "Matriz de confusão, com a categoria real nas linhas e a prevista nas colunas:",
         "",
@@ -635,12 +707,20 @@ def _lado_a_lado(m):
         linhas.append(linha)
     globais = [
         ["Macro-F1", *(_pct(j["avaliacao"]["amostra"]["macro_f1"]) for j in janelas)],
+        ["Macro-F1 reponderado", *(_pct(reponderada(j)["macro_f1"]) for j in janelas)],
         ["Acurácia", *(_pct(j["avaliacao"]["amostra"]["acuracia"]) for j in janelas)],
         ["Benigno classificado como ataque", *(_pct(j["avaliacao"]["amostra"]["falso_positivo_benigno"]) for j in janelas)],
+        ["Ataque classificado como benigno", *(_pct(ataque_como_benigno(j["avaliacao"]["amostra"])) for j in janelas)],
         ["Linhas de teste", *(_milhar(j["linhas"]["teste"]) for j in janelas)],
     ]
     melhor_f1 = max(janelas, key=lambda j: j["avaliacao"]["amostra"]["macro_f1"])
-    menor_fp = min(janelas, key=lambda j: j["avaliacao"]["amostra"]["falso_positivo_benigno"] or 0)
+    # Janela sem benigno no teste não tem a taxa: fica fora da comparação, e não conta como 0%.
+    com_benigno = [j for j in janelas if j["avaliacao"]["amostra"]["falso_positivo_benigno"] is not None]
+    if com_benigno:
+        menor_fp = min(com_benigno, key=lambda j: j["avaliacao"]["amostra"]["falso_positivo_benigno"])
+        frase_do_benigno = f"a menor taxa de tráfego benigno classificado como ataque é a da janela de {menor_fp['janela']}"
+    else:
+        frase_do_benigno = "nenhuma janela tem tráfego benigno no teste, e a taxa de benigno classificado como ataque fica sem valor"
     return [
         "## As duas janelas lado a lado",
         "",
@@ -650,10 +730,11 @@ def _lado_a_lado(m):
             ["Categoria", *(f"Recall ({r})" for r in rotulos), *(f"F1 ({r})" for r in rotulos)], linhas,
         ),
         "",
-        f"O maior macro-F1 é o da janela de {melhor_f1['janela']}, e a menor taxa de tráfego benigno classificado",
-        f"como ataque é a da janela de {menor_fp['janela']}. Com janela de 100, cada pcap gera cerca de um décimo das",
-        "janelas que gera com 10, e as classes raras ficam com poucas linhas de teste; na operação, a janela de 10",
-        "decide com menos quadros e responde mais vezes por segundo.",
+        (
+            f"O maior macro-F1 é o da janela de {melhor_f1['janela']}, e {frase_do_benigno}. Com janela de 100, cada "
+            "pcap gera cerca de um décimo das janelas que gera com 10, e as classes raras ficam com poucas linhas de "
+            "teste; na operação, a janela de 10 decide com menos quadros e responde mais vezes por segundo."
+        ),
     ]
 
 
@@ -696,8 +777,13 @@ def _ips(m):
             f"Com janela de {j['janela']}, a mediana de IPs de origem por janela vai de {_decimal(min(ddos))} a "
             f"{_decimal(max(ddos))} nas classes de DDoS e de {_decimal(min(dos))} a {_decimal(max(dos))} nas de DoS: "
             + ("as faixas não se cruzam." if separa else "as faixas se cruzam, e a contagem de uma janela isolada não "
-               "separa as duas categorias. A separação precisa olhar as janelas do incidente em conjunto.")
+               "separa as duas categorias.")
         )
+    secao += [
+        "",
+        "A contagem inclui os IPs de origem de todos os quadros IPv4 da janela, também os da vítima e os do tráfego",
+        "de fundo, e não só os das máquinas que atacam.",
+    ]
     return secao
 
 
@@ -772,6 +858,17 @@ def _rodadas_anteriores(m):
     return secao
 
 
+def _benignas_com_atacante(m):
+    """A fração das janelas dos pcaps benignos com ao menos um quadro de um MAC da lista, por janela."""
+    benignos = [p for p in m["regeracao"]["pcaps"] if p["benigno"]]
+    fracoes = {}
+    for janela in _janelas(m):
+        extraidas = sum(p["janelas"][janela]["extraidas"] for p in benignos)
+        if extraidas:
+            fracoes[janela] = sum(p["janelas"][janela]["com_atacante"] for p in benignos) / extraidas
+    return fracoes
+
+
 def _ressalvas(m):
     if m["rotulos_sem_pcap"]:
         cobertura = [
@@ -791,18 +888,25 @@ def _ressalvas(m):
         "",
         *cobertura,
         (
-            "- **Uma semente.** Divisão por tempo não sorteia, mas o teto por rótulo e o modelo usam a semente "
-            f"{m['semente']}, e nada foi repetido com outra."
+            "- **Uma semente neste relatório.** Divisão por tempo não sorteia, mas o teto por rótulo e o modelo usam "
+            f"a semente {m['semente']}. A variação entre sementes está em `{RODADAS}`."
         ),
         "- **O teste vem das mesmas capturas.** As janelas de teste são o fim de cada pcap, da mesma rede e do",
         "  mesmo dia das de treino. A medida vale para a captura, não para outra rede. Os rótulos com mais de",
-        "  um pcap têm um arquivo inteiro no teste, que é a medida mais exigente e sai à parte; nos demais, as",
-        "  janelas na fronteira do corte são vizinhas das de treino.",
-        "- **As janelas descartadas não são avaliadas.** O tráfego de fundo dos pcaps de ataque fica fora do",
-        "  treino e do teste. O que o modelo faz com ele não está medido aqui.",
-        "- **O atacante também gera tráfego benigno.** O MAC `dc:a6:32:dc:27:d5` aparece em cerca de 1% dos",
-        "  quadros dos pcaps benignos (`janelas_sem_atacante.md`). A regra de rótulo não o usa nos pcaps benignos,",
-        "  então parte do tráfego comum desse dispositivo está no treino como benigno.",
+        "  um pcap têm um arquivo inteiro no teste, que sai à parte e depende de qual arquivo fica de fora; nos",
+        "  demais, as janelas na fronteira do corte são vizinhas das de treino. A rotação do arquivo de fora e o",
+        f"  recall com o pcap inteiro fora do treino estão em `{RODADAS}`.",
+        "- **As janelas descartadas não são avaliadas aqui.** O tráfego de fundo dos pcaps de ataque fica fora do",
+        f"  treino e do teste. O que o modelo faz com ele está em `{RODADAS}`.",
+        (
+            "- **O atacante também gera tráfego benigno.** O MAC `dc:a6:32:dc:27:d5` aparece em cerca de 1% dos "
+            "quadros dos pcaps benignos (`janelas_sem_atacante.md`), e "
+            + _enumerar(
+                f"{_pct(fracao, 1)} das janelas de {janela}" for janela, fracao in _benignas_com_atacante(m).items()
+            )
+            + " desses pcaps têm ao menos um quadro de um MAC da lista. A regra de rótulo não usa a lista nos pcaps "
+            "benignos, então parte do tráfego comum desse dispositivo está no treino como benigno."
+        ),
         "- **As seis colunas da janela deixaram de ser atalho.** Com uma janela só, `Number` vale o mesmo em todas",
         "  as classes, a não ser na última janela de cada pcap, que pode ficar incompleta.",
     ]
