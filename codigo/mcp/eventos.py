@@ -13,7 +13,9 @@ Quem grava o quê: o servidor e o comando de aprovação usam `Registro`, que ac
 do contrato. O código dos agentes recebe `GravadorDoAgente`, que só aceita `llm_chamada` e
 `recomendacao_emitida`.
 """
+import errno
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -41,6 +43,9 @@ TIPOS_DO_AGENTE = tuple(_DADOS_DO_AGENTE)
 # Caracteres que o JSON deixa passar crus dentro de um texto e que alguns leitores tratam como fim
 # de linha (`str.splitlines`, por exemplo). No arquivo eles vão escapados: um evento, uma linha.
 _FIM_DE_LINHA_PARA_ALGUNS = {0x85: "\\u0085", 0x2028: "\\u2028", 0x2029: "\\u2029"}
+# O arquivo do log nunca é aberto através de um link simbólico. Onde a opção não existe (Windows), o
+# caminho é aberto como vem.
+_SEM_SEGUIR_LINK = getattr(os, "O_NOFOLLOW", 0)
 # Onde está o incidente dentro de `dados`, nos tipos de evento que o trazem sem depender do estado.
 # Nos demais (aprovação, promoção, recomendação), quem confere é a reconstrução (`acoes.reconstruir`).
 _INCIDENTE_DOS_DADOS = {
@@ -150,6 +155,23 @@ def _resumo_do_erro(erro, maximo=3):
     return visivel("; ".join(partes))[:300]
 
 
+def _abrir(caminho, gravar=False):
+    """Abre o arquivo do log sem seguir link simbólico.
+
+    Para gravar, o arquivo que ainda não existe é criado só com leitura e escrita para o dono
+    (0600): o log traz endereços, alvos e contas da rede. Um link simbólico no lugar do log, mesmo
+    pendente, é recusado, para que o log não seja escrito em outro arquivo.
+    """
+    modo = os.O_RDWR | os.O_CREAT | os.O_APPEND if gravar else os.O_RDONLY
+    try:
+        descritor = os.open(caminho, modo | _SEM_SEGUIR_LINK, 0o600)
+    except OSError as erro:
+        if erro.errno == errno.ELOOP:
+            raise OSError(f"o log de eventos não pode ser um link simbólico: {caminho}") from None
+        raise
+    return open(descritor, "a+" if gravar else "r", encoding="utf-8")
+
+
 def ler(caminho):
     """Lê o log e devolve os eventos na ordem em que foram gravados.
 
@@ -157,7 +179,7 @@ def ler(caminho):
     `LogInvalido`, que é um ValueError, com o número da linha.
     """
     try:
-        with open(caminho, encoding="utf-8") as arquivo:
+        with _abrir(caminho) as arquivo:
             return _ler_linhas(arquivo, caminho)
     except FileNotFoundError:
         return EventosLidos(caminho)
@@ -193,8 +215,9 @@ class Registro:
         A trava é a do `fcntl`. Onde ele não existe (Windows), não há trava, e só um processo
         por vez pode usar o arquivo.
         """
-        self.caminho.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.caminho, "a+", encoding="utf-8") as arquivo:
+        # A pasta que o log cria é só do dono, como o arquivo.
+        self.caminho.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with _abrir(self.caminho, gravar=True) as arquivo:
             if fcntl is not None:
                 fcntl.flock(arquivo, fcntl.LOCK_EX)
             arquivo.seek(0)

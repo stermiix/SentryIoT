@@ -1,4 +1,6 @@
 import json
+import os
+import stat
 import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -100,6 +102,37 @@ def test_cria_a_pasta_do_log(tmp_path):
     caminho = tmp_path / "pasta" / "nova" / "eventos.jsonl"
     Registro(caminho).gravar(novo("janelas_classificadas", LOTE))
     assert len(ler(caminho)) == 1
+
+
+def test_log_novo_so_e_lido_e_escrito_pelo_dono(tmp_path):
+    # O log traz endereços, alvos e contas da rede. Com a umask comum (022), ele nasceria legível por todos.
+    antiga = os.umask(0o022)
+    try:
+        caminho = tmp_path / "pasta" / "eventos.jsonl"
+        Registro(caminho).gravar(novo("janelas_classificadas", LOTE))
+    finally:
+        os.umask(antiga)
+    assert stat.S_IMODE(caminho.stat().st_mode) == 0o600
+    assert stat.S_IMODE(caminho.parent.stat().st_mode) == 0o700
+
+
+@pytest.mark.skipif(not hasattr(os, "O_NOFOLLOW"), reason="o sistema não tem O_NOFOLLOW")
+def test_log_que_e_link_simbolico_nao_e_seguido(tmp_path):
+    destino = tmp_path / "outro_arquivo.jsonl"
+    caminho = tmp_path / "eventos.jsonl"
+    # Link pendente: antes, o destino era criado e recebia o log.
+    caminho.symlink_to(destino)
+    with pytest.raises(OSError, match="link simbólico"):
+        Registro(caminho).gravar(novo("janelas_classificadas", LOTE))
+    assert not destino.exists()
+    # Link para um arquivo que existe também não é seguido, nem para ler.
+    Registro(destino).gravar(novo("janelas_classificadas", LOTE))
+    antes = destino.read_bytes()
+    with pytest.raises(OSError, match="link simbólico"):
+        Registro(caminho).gravar(novo("janelas_classificadas", LOTE))
+    with pytest.raises(OSError, match="link simbólico"):
+        ler(caminho)
+    assert destino.read_bytes() == antes
 
 
 def test_ler_arquivo_que_nao_existe_devolve_lista_vazia(tmp_path):
