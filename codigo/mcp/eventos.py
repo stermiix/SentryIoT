@@ -209,11 +209,11 @@ class Registro:
         `decidir` devolve um par: o resultado, que é repassado a quem chamou, e os rascunhos
         dos eventos a gravar. O arquivo fica travado da leitura até a gravação, para que dois
         processos não decidam sobre o mesmo estado nem repitam um identificador. Se `decidir`
-        falhar, se algum rascunho estiver fora do contrato ou se alguma linha não puder ser
-        lida de volta, nada é gravado.
+        falhar, se algum rascunho estiver fora do contrato, fora da sequência do log ou se alguma
+        linha não puder ser lida de volta, nada é gravado.
 
-        A trava é a do `fcntl`. Onde ele não existe (Windows), não há trava, e só um processo
-        por vez pode usar o arquivo.
+        A trava é a do `fcntl`. Onde ele não existe (Windows), não há trava: só um processo por
+        vez deve usar o arquivo, e isso não é conferido.
         """
         # A pasta que o log cria é só do dono, como o arquivo.
         self.caminho.parent.mkdir(parents=True, exist_ok=True, mode=0o700)

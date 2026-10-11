@@ -6,21 +6,26 @@ desfazer. A autonomia é graduada pelo risco. Ação de risco baixo é aplicada 
 ação de risco alto e toda ação nova só são aplicadas depois que uma pessoa aprova.
 
 O risco não sai só do nome da ação e da duração. Uma ação é de risco baixo quando o alvo faz
-parte do incidente aberto, no papel que a política aceita para a ação, não é endereço
-protegido, a duração cabe no prazo e o incidente ainda não atingiu o limite de medidas de risco
-baixo ativas. O papel depende da ação: limitar a taxa vale para origem e para destino, e
-bloquear só para origem, porque o destino é o dispositivo atacado e bloqueá-lo tira a vítima do
-ar. Os números e os papéis ficam em `politica.toml`. O piso fica aqui, no código:
-isolar_dispositivo, revogar_credencial e toda ação nova são sempre de risco alto.
+parte do incidente aberto, no papel que a política aceita para a ação, não é endereço protegido
+nem crítico, a duração cabe no prazo e nem o incidente nem o sistema todo atingiram o limite de
+medidas de risco baixo ativas. O papel depende da ação: limitar a taxa vale para origem e para
+destino, e bloquear só para origem fora da rede local, porque o destino é o dispositivo atacado,
+bloqueá-lo tira a vítima do ar, e a origem de um flood é forjável. Os números e os papéis ficam
+em `politica.toml`. O piso fica aqui, no código: isolar_dispositivo, revogar_credencial e toda
+ação nova são sempre de risco alto.
+
+O agente de decisão não conhece endereço (arquitetura híbrida). Cada endereço do incidente ganha
+um rótulo neutro (`origem-1`, `destino-1`), o resumo que ele lê é montado aqui, sem endereço, e
+`propor` troca o rótulo do alvo pelo endereço antes de calcular o risco.
 
 A proposta de risco alto diz por quê: traz a lista dos motivos, cada um com um código estável e
 uma frase (`tipos.MOTIVOS_DE_RISCO_ALTO`). A lista sai da mesma conta que decide o risco, e por
 isso é vazia quando o risco é baixo, e só então.
 
 Quem chama as tools é um modelo de linguagem, que pode ser enganado por conteúdo vindo da rede.
-Por isso tudo o que chega é tratado como entrada: textos têm uma linha e tamanho máximo, o alvo
-de uma ação de base é um endereço IP sem zona, e a mensagem de recusa nunca devolve a entrada
-inteira. O log também é entrada: `reconstruir` confere cada transição, e `executar` não confia
+Por isso tudo o que chega é tratado como entrada: textos têm uma linha, tamanho máximo e só
+caracteres visíveis, o alvo de uma ação de base é um endereço IP sem zona ou o rótulo dele, e a
+mensagem de recusa nunca devolve a entrada inteira. O log também é entrada: `reconstruir` confere cada transição, e `executar` não confia
 no campo `estado` lido.
 
 Nada aqui toca a rede: aplicar uma ação é registrar um evento no log. O estado das propostas,
