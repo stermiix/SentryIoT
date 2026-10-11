@@ -235,12 +235,12 @@ do incidente, e não as janelas, e o detalhe vem em fatias de até 20 janelas. N
 executada num ambiente simulado, com aprovação humana e possibilidade de desfazer (ver
 `codigo/mcp/README.md` e `codigo/mcp/politica.toml`).
 
-Arquitetura híbrida (decisões de 2026-10-10 e 2026-10-11): os agentes de triagem e de execução,
-e a verificação do efeito, rodam num modelo local, o Qwen3 8B servido pelo Ollama num computador
-do laboratório (GPU RTX 2070 Super); só o agente de decisão pode usar um modelo de fronteira pela
-nuvem, acessado pelo OpenRouter. A garantia de que nenhum endereço da rede chega a ele está no
-servidor, e não no prompt: o agente de decisão não tem as tools que devolvem endereços e lê o
-incidente por `obter_resumo`, montado pelo servidor com um rótulo neutro (`origem-1`,
+Arquitetura híbrida (Figura 1; decisões de 2026-10-10 e 2026-10-11): os agentes de triagem e de
+execução, e a verificação do efeito, rodam num modelo local, o Qwen3 8B servido pelo Ollama num
+computador do laboratório (GPU RTX 2070 Super); só o agente de decisão pode usar um modelo de
+fronteira pela nuvem, acessado pelo OpenRouter. A garantia de que nenhum endereço da rede chega a
+ele está no servidor, e não no prompt: o agente de decisão não tem as tools que devolvem endereços
+e lê o incidente por `obter_resumo`, montado pelo servidor com um rótulo neutro (`origem-1`,
 `destino-1`) no lugar de cada endereço. Ele propõe a ação com o rótulo; o servidor troca o rótulo
 pelo endereço e calcula o risco sobre o endereço real, e só o agente de execução, local e o único
 com credenciais, recebe o endereço. Toda resposta à linha de decisão passa ainda por um filtro
@@ -268,10 +268,11 @@ marca é o evento `incidente_marcado_resolvido`, gravado hoje pelo comando de ap
 usuário. Daí em diante o servidor recusa qualquer proposta do incidente e a execução das propostas
 dele, inclusive as já aprovadas, e o comando de aprovação recusa aprovar as pendentes; o que já
 estava aplicado pode ser desfeito, e o agente de decisão, que vê a marca no resumo, só explica o
-incidente. O log grava o instante de cada etapa, da janela à verificação, o que permite medir o
-tempo entre detecção e remediação, com e sem intervenção humana. Do lado da detecção, a janela de
-100 quadros fecha, na mediana, em 5 ms em DDoS e DoS e entre 1,3 s e 2,5 s em Recon, BruteForce e
-Web, e a classificação de uma janela leva 1,6 ms (`experimentos/resultados/rodadas_de_teste.md`).
+incidente. O log grava o instante de cada etapa, da janela à verificação (Figura 2), o que permite
+medir o tempo entre detecção e remediação, com e sem intervenção humana. Do lado da detecção, a
+janela de 100 quadros fecha, na mediana, em 5 ms em DDoS e DoS e entre 1,3 s e 2,5 s em Recon,
+BruteForce e Web, e a classificação de uma janela leva 1,6 ms
+(`experimentos/resultados/rodadas_de_teste.md`).
 
 ### 3.6 Avaliação da PoC e dos agentes
 
@@ -285,24 +286,29 @@ poisoning `[a escrever]`.
 
 ## 4. Resultados
 
-`[PENDENTE]` Consolidar aqui a versão final do classificador (os números da janela de 100 nos
-dados regerados e os controles estão na seção 3.3; falta escolher a medida principal, o
-tratamento do tráfego de fundo e o ponto de operação) e, quando disponíveis, as métricas dos agentes (qualidade da recomendação, custo em tokens, tempo
-entre detecção e remediação) e a comparação entre as configurações local, nuvem e híbrida.
+`[PENDENTE]` Consolidar aqui a versão final do classificador (Figura 3, matriz de confusão no
+corte por tempo; os números da janela de 100 nos dados regerados e os controles estão na seção
+3.3; falta escolher a medida principal, o tratamento do tráfego de fundo e o ponto de operação)
+e, quando disponíveis, as métricas dos agentes (qualidade da recomendação, custo em tokens, tempo
+entre detecção e remediação) e a comparação entre as configurações local, nuvem e híbrida. A
+legenda da Figura 3 precisa dizer que a linha Benign vem de um único pcap fora do treino e trazer
+as ressalvas de Recon e de Spoofing da seção 3.3.
 
 ## 5. Limitações
 
 Rascunho a partir do que já foi medido:
 - **Atalho da janela no dataset oficial**: o modelo treinado no `MERGED_CSV` aprende o tamanho da
-  janela, não o comportamento do tráfego (seção 3.3). A regeração em janela única resolve isso ao
-  custo de treinar só com os pcaps disponíveis, e os resultados valem para a janela de 100.
+  janela, não o comportamento do tráfego (seção 3.3; Figura 4). A regeração em janela única
+  resolve isso ao custo de treinar só com os pcaps disponíveis, e os resultados valem para a
+  janela de 100.
 - **Tráfego de fundo**: entre 33% e 87% das janelas de 10 dos pcaps de varredura, força bruta,
   Web e spoofing não contêm nenhum quadro do atacante
-  (`experimentos/resultados/janelas_sem_atacante.md`). A regeração descarta essas janelas, e por
-  isso Web e BruteForce ficam com poucas janelas de treino e de teste. Classificadas pelo modelo,
-  72% delas viram ataque, e nos pcaps de spoofing e no `VulnerabilityScan.pcap` a maior parte cai
-  na categoria da própria captura. Parte do fundo pode conter efeito do ataque, e por isso essa
-  fração é uma estimativa pessimista do alarme falso durante um ataque.
+  (`experimentos/resultados/janelas_sem_atacante.md`; Figura 5). A regeração descarta essas
+  janelas, e por isso Web e BruteForce ficam com poucas janelas de treino e de teste.
+  Classificadas pelo modelo, 72% delas viram ataque, e nos pcaps de spoofing e no
+  `VulnerabilityScan.pcap` a maior parte cai na categoria da própria captura. Parte do fundo pode
+  conter efeito do ataque, e por isso essa fração é uma estimativa pessimista do alarme falso
+  durante um ataque.
 - **Web e BruteForce**: recall entre 35% e 37% no corte por tempo, confundidos com Recon e com
   tráfego benigno, e com intervalos largos: por blocos, de 19,2% a 52,0% em BruteForce, que tem
   um tamanho efetivo de 15 janelas de teste. Os pcaps dessas classes são curtos, e o grupo não tem
