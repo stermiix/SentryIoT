@@ -10,6 +10,11 @@ nosso extrator, em janela única e com o rótulo decidido janela a janela (decis
 `ROADMAP.md`). Este relatório traz o Random Forest de 7 categorias treinado nesses dados, um modelo por
 janela, de 10 e 100 quadros, e as medidas de cada um na parte de teste.
 
+Os controles do modelo de janela de 100 estão em `rodadas_de_teste.md`: variação entre sementes, rotação do pcap
+benigno de fora do treino, tráfego de fundo dos pcaps de ataque, pcap inteiro fora do treino, atalhos da
+captura, ponto de operação, intervalos de confiança das classes raras e custo. Eles mudam a leitura de
+parte dos números abaixo.
+
 ## Os dados regerados
 
 Os pcaps da pasta do dataset em 10/10/2026, lidos
@@ -107,9 +112,9 @@ Cada rótulo entra com no máximo 50.000 linhas, sorteadas com a semente 42, com
 amostra do treino exploratório. A divisão é por tempo: dentro de cada pcap, as primeiras
 70% das janelas vão para o treino e as últimas 30%
 para o teste, com o corte no total de janelas do arquivo, para não deixar janelas vizinhas dos dois lados.
-Um rótulo com mais de um pcap tem o último arquivo, em ordem de nome, inteiro no teste. O modelo é o
-`RandomForestClassifier` do scikit-learn com 100 árvores e os demais parâmetros padrão, sem
-`StandardScaler`, com as 39 features e 7 categorias (DDoS e DoS juntos).
+Um rótulo com mais de um pcap tem o último arquivo, pelo sufixo numérico do nome, inteiro no teste.
+O modelo é o `RandomForestClassifier` do scikit-learn com 100 árvores e os demais parâmetros padrão,
+sem `StandardScaler`, com as 39 features e 7 categorias (DDoS e DoS juntos).
 
 | Janela | Linhas regeradas | Após o teto | Treino | Teste | Arquivos inteiros no teste | Treino (s) |
 |---|---|---|---|---|---|---|
@@ -236,9 +241,9 @@ Linhas por rótulo com janela de 100:
 
 ## Resultados com janela de 10
 
-Na parte de teste, de 386.922 linhas: acurácia 95,11%, macro-F1 75,71%, F1 ponderado 95,15%, teto destas linhas 99,89%. Tráfego benigno classificado como ataque: 12,66%.
+Na parte de teste, de 386.922 linhas: acurácia 95,11%, macro-F1 75,71%, F1 ponderado 95,15%, teto destas linhas 99,89%. Tráfego benigno classificado como ataque: 12,66%. Ataque classificado como benigno: 1,51%.
 
-| Categoria | Linhas de teste | Precisão | Recall | F1 | Falso positivo |
+| Categoria | Linhas de teste | Precisão | Recall | F1 | Falso positivo da categoria |
 |---|---|---|---|---|---|
 | DDoS+DoS | 258.808 | 98,81% | 96,99% | 97,89% | 2,35% |
 | Mirai | 44.910 | 99,99% | 99,57% | 99,78% | 0,00% |
@@ -247,6 +252,22 @@ Na parte de teste, de 386.922 linhas: acurácia 95,11%, macro-F1 75,71%, F1 pond
 | Web | 1.547 | 35,83% | 27,54% | 31,14% | 0,20% |
 | BruteForce | 1.469 | 76,45% | 34,04% | 47,10% | 0,04% |
 | Benign | 16.061 | 71,45% | 87,34% | 78,60% | 1,51% |
+
+O falso positivo de uma categoria é a fração das janelas das outras categorias que o modelo pôs nela.
+Na linha Benign, ele é o ataque classificado como benigno, isto é, o ataque perdido, e não o alarme
+falso; o alarme falso é o tráfego benigno classificado como ataque, dado acima.
+
+As medidas acima estão na mistura do teste, que o teto deforma: cada rótulo entra com no máximo 50.000 linhas. Reponderadas para a mistura das janelas regeradas, antes do teto, em que cada rótulo pesa as janelas que tem: acurácia 99,04%, macro-F1 67,86%, F1 ponderado 99,12%, ataque classificado como benigno 0,19%. O tráfego benigno classificado como ataque não muda, porque o benigno é um rótulo só.
+
+| Categoria | Precisão | Precisão reponderada | Recall | Recall reponderado | F1 | F1 reponderado |
+|---|---|---|---|---|---|---|
+| DDoS+DoS | 98,81% | 99,87% | 96,99% | 99,54% | 97,89% | 99,70% |
+| Mirai | 99,99% | 100,00% | 99,57% | 99,43% | 99,78% | 99,71% |
+| Recon | 81,99% | 59,63% | 88,44% | 85,31% | 85,09% | 70,20% |
+| Spoofing | 90,35% | 50,31% | 90,30% | 89,89% | 90,33% | 64,51% |
+| Web | 35,83% | 15,72% | 27,54% | 29,74% | 31,14% | 20,57% |
+| BruteForce | 76,45% | 27,15% | 34,04% | 34,04% | 47,10% | 30,21% |
+| Benign | 71,45% | 93,08% | 87,34% | 87,34% | 78,60% | 90,12% |
 
 Matriz de confusão, com a categoria real nas linhas e a prevista nas colunas:
 
@@ -307,7 +328,8 @@ As 10 features mais importantes (redução média de impureza): `Min` (13,2%), `
 
 ### Nos arquivos inteiros de teste, com janela de 10
 
-É a medida honesta: `BenignTraffic2.pcap`, `DDoS-SYN_Flood1.pcap` e `DoS-SYN_Flood1.pcap`, pcaps de que o modelo não viu nenhuma janela. 65.932 linhas, acurácia 96,74%, macro-F1 96,32% entre as categorias presentes, tráfego benigno classificado como ataque 12,66%. A precisão e o falso positivo de cada categoria valem só dentro desses arquivos.
+`BenignTraffic2.pcap`, `DDoS-SYN_Flood1.pcap` e `DoS-SYN_Flood1.pcap`, pcaps de que o modelo não viu nenhuma janela, com as janelas que o teto sorteou de cada um. 65.932 linhas, acurácia 96,74%, macro-F1 96,32% entre as categorias presentes, tráfego benigno classificado como ataque 12,66%. A precisão e o falso positivo de cada categoria valem só dentro desses arquivos. A medida depende de qual pcap fica de fora: a rotação do
+pcap benigno de fora está em `rodadas_de_teste.md`.
 
 | Categoria | Linhas de teste | Precisão | Recall | F1 |
 |---|---|---|---|---|
@@ -316,9 +338,9 @@ As 10 features mais importantes (redução média de impureza): `Min` (13,2%), `
 
 ## Resultados com janela de 100
 
-Na parte de teste, de 273.566 linhas: acurácia 98,26%, macro-F1 82,27%, F1 ponderado 98,26%, teto destas linhas 100,00%. Tráfego benigno classificado como ataque: 1,86%.
+Na parte de teste, de 273.566 linhas: acurácia 98,26%, macro-F1 82,27%, F1 ponderado 98,26%, teto destas linhas 100,00%. Tráfego benigno classificado como ataque: 1,86%. Ataque classificado como benigno: 1,03%.
 
-| Categoria | Linhas de teste | Precisão | Recall | F1 | Falso positivo |
+| Categoria | Linhas de teste | Precisão | Recall | F1 | Falso positivo da categoria |
 |---|---|---|---|---|---|
 | DDoS+DoS | 214.373 | 99,76% | 98,88% | 99,32% | 0,86% |
 | Mirai | 24.458 | 99,98% | 99,25% | 99,61% | 0,00% |
@@ -327,6 +349,22 @@ Na parte de teste, de 273.566 linhas: acurácia 98,26%, macro-F1 82,27%, F1 pond
 | Web | 465 | 64,66% | 36,99% | 47,06% | 0,03% |
 | BruteForce | 273 | 97,96% | 35,16% | 51,75% | 0,00% |
 | Benign | 16.008 | 85,56% | 98,14% | 91,42% | 1,03% |
+
+O falso positivo de uma categoria é a fração das janelas das outras categorias que o modelo pôs nela.
+Na linha Benign, ele é o ataque classificado como benigno, isto é, o ataque perdido, e não o alarme
+falso; o alarme falso é o tráfego benigno classificado como ataque, dado acima.
+
+As medidas acima estão na mistura do teste, que o teto deforma: cada rótulo entra com no máximo 50.000 linhas. Reponderadas para a mistura das janelas regeradas, antes do teto, em que cada rótulo pesa as janelas que tem: acurácia 99,46%, macro-F1 82,05%, F1 ponderado 99,46%, ataque classificado como benigno 0,29%. O tráfego benigno classificado como ataque não muda, porque o benigno é um rótulo só.
+
+| Categoria | Precisão | Precisão reponderada | Recall | Recall reponderado | F1 | F1 reponderado |
+|---|---|---|---|---|---|---|
+| DDoS+DoS | 99,76% | 99,93% | 98,88% | 99,71% | 99,32% | 99,82% |
+| Mirai | 99,98% | 99,96% | 99,25% | 99,25% | 99,61% | 99,60% |
+| Recon | 86,89% | 85,30% | 87,65% | 87,62% | 87,27% | 86,45% |
+| Spoofing | 99,46% | 98,65% | 99,41% | 99,31% | 99,44% | 98,98% |
+| Web | 64,66% | 59,08% | 36,99% | 34,65% | 47,06% | 43,68% |
+| BruteForce | 97,96% | 96,90% | 35,16% | 35,16% | 51,75% | 51,60% |
+| Benign | 85,56% | 90,66% | 98,14% | 98,14% | 91,42% | 94,25% |
 
 Matriz de confusão, com a categoria real nas linhas e a prevista nas colunas:
 
@@ -387,7 +425,8 @@ As 10 features mais importantes (redução média de impureza): `Time_To_Live` (
 
 ### Nos arquivos inteiros de teste, com janela de 100
 
-É a medida honesta: `BenignTraffic2.pcap`, `DDoS-SYN_Flood1.pcap` e `DoS-SYN_Flood1.pcap`, pcaps de que o modelo não viu nenhuma janela. 66.325 linhas, acurácia 99,52%, macro-F1 99,45% entre as categorias presentes, tráfego benigno classificado como ataque 1,86%. A precisão e o falso positivo de cada categoria valem só dentro desses arquivos.
+`BenignTraffic2.pcap`, `DDoS-SYN_Flood1.pcap` e `DoS-SYN_Flood1.pcap`, pcaps de que o modelo não viu nenhuma janela, com as janelas que o teto sorteou de cada um. 66.325 linhas, acurácia 99,52%, macro-F1 99,45% entre as categorias presentes, tráfego benigno classificado como ataque 1,86%. A precisão e o falso positivo de cada categoria valem só dentro desses arquivos. A medida depende de qual pcap fica de fora: a rotação do
+pcap benigno de fora está em `rodadas_de_teste.md`.
 
 | Categoria | Linhas de teste | Precisão | Recall | F1 |
 |---|---|---|---|---|
@@ -399,8 +438,10 @@ As 10 features mais importantes (redução média de impureza): `Time_To_Live` (
 | Medida | Janela de 10 | Janela de 100 |
 |---|---|---|
 | Macro-F1 | 75,71% | 82,27% |
+| Macro-F1 reponderado | 67,86% | 82,05% |
 | Acurácia | 95,11% | 98,26% |
 | Benigno classificado como ataque | 12,66% | 1,86% |
+| Ataque classificado como benigno | 1,51% | 1,03% |
 | Linhas de teste | 386.922 | 273.566 |
 
 | Categoria | Recall (10) | Recall (100) | F1 (10) | F1 (100) |
@@ -413,10 +454,7 @@ As 10 features mais importantes (redução média de impureza): `Time_To_Live` (
 | BruteForce | 34,04% | 35,16% | 47,10% | 51,75% |
 | Benign | 87,34% | 98,14% | 78,60% | 91,42% |
 
-O maior macro-F1 é o da janela de 100, e a menor taxa de tráfego benigno classificado
-como ataque é a da janela de 100. Com janela de 100, cada pcap gera cerca de um décimo das
-janelas que gera com 10, e as classes raras ficam com poucas linhas de teste; na operação, a janela de 10
-decide com menos quadros e responde mais vezes por segundo.
+O maior macro-F1 é o da janela de 100, e a menor taxa de tráfego benigno classificado como ataque é a da janela de 100. Com janela de 100, cada pcap gera cerca de um décimo das janelas que gera com 10, e as classes raras ficam com poucas linhas de teste; na operação, a janela de 10 decide com menos quadros e responde mais vezes por segundo.
 
 ## IPs de origem por janela em DDoS e DoS
 
@@ -466,8 +504,11 @@ Janela de 100:
 | DoS-SYN_Flood | DoS | 526.530 | 1 | 1,0 | 1,0 | 2,0 | 36 | 1,63 | 57,08% |
 | DoS-UDP_Flood | DoS | 166.653 | 1 | 1,0 | 1,0 | 2,0 | 44 | 1,55 | 67,10% |
 
-Com janela de 10, a mediana de IPs de origem por janela vai de 1,0 a 3,0 nas classes de DDoS e de 1,0 a 1,0 nas de DoS: as faixas se cruzam, e a contagem de uma janela isolada não separa as duas categorias. A separação precisa olhar as janelas do incidente em conjunto.
-Com janela de 100, a mediana de IPs de origem por janela vai de 1,0 a 10,0 nas classes de DDoS e de 1,0 a 4,0 nas de DoS: as faixas se cruzam, e a contagem de uma janela isolada não separa as duas categorias. A separação precisa olhar as janelas do incidente em conjunto.
+Com janela de 10, a mediana de IPs de origem por janela vai de 1,0 a 3,0 nas classes de DDoS e de 1,0 a 1,0 nas de DoS: as faixas se cruzam, e a contagem de uma janela isolada não separa as duas categorias.
+Com janela de 100, a mediana de IPs de origem por janela vai de 1,0 a 10,0 nas classes de DDoS e de 1,0 a 4,0 nas de DoS: as faixas se cruzam, e a contagem de uma janela isolada não separa as duas categorias.
+
+A contagem inclui os IPs de origem de todos os quadros IPv4 da janela, também os da vítima e os do tráfego
+de fundo, e não só os das máquinas que atacam.
 
 ## Rodadas anteriores, como referência
 
@@ -504,16 +545,15 @@ O que mudou da última rodada para esta:
 - **Uma a três capturas por rótulo.** Todos os 34 rótulos têm pcap, mas a variedade dentro de cada um
   é a de poucas capturas da mesma rede. O que o modelo aprendeu de uma variante pode não valer para
   outra captura dela.
-- **Uma semente.** Divisão por tempo não sorteia, mas o teto por rótulo e o modelo usam a semente 42, e nada foi repetido com outra.
+- **Uma semente neste relatório.** Divisão por tempo não sorteia, mas o teto por rótulo e o modelo usam a semente 42. A variação entre sementes está em `rodadas_de_teste.md`.
 - **O teste vem das mesmas capturas.** As janelas de teste são o fim de cada pcap, da mesma rede e do
   mesmo dia das de treino. A medida vale para a captura, não para outra rede. Os rótulos com mais de
-  um pcap têm um arquivo inteiro no teste, que é a medida mais exigente e sai à parte; nos demais, as
-  janelas na fronteira do corte são vizinhas das de treino.
-- **As janelas descartadas não são avaliadas.** O tráfego de fundo dos pcaps de ataque fica fora do
-  treino e do teste. O que o modelo faz com ele não está medido aqui.
-- **O atacante também gera tráfego benigno.** O MAC `dc:a6:32:dc:27:d5` aparece em cerca de 1% dos
-  quadros dos pcaps benignos (`janelas_sem_atacante.md`). A regra de rótulo não o usa nos pcaps benignos,
-  então parte do tráfego comum desse dispositivo está no treino como benigno.
+  um pcap têm um arquivo inteiro no teste, que sai à parte e depende de qual arquivo fica de fora; nos
+  demais, as janelas na fronteira do corte são vizinhas das de treino. A rotação do arquivo de fora e o
+  recall com o pcap inteiro fora do treino estão em `rodadas_de_teste.md`.
+- **As janelas descartadas não são avaliadas aqui.** O tráfego de fundo dos pcaps de ataque fica fora do
+  treino e do teste. O que o modelo faz com ele está em `rodadas_de_teste.md`.
+- **O atacante também gera tráfego benigno.** O MAC `dc:a6:32:dc:27:d5` aparece em cerca de 1% dos quadros dos pcaps benignos (`janelas_sem_atacante.md`), e 5,5% das janelas de 10 e 27,1% das janelas de 100 desses pcaps têm ao menos um quadro de um MAC da lista. A regra de rótulo não usa a lista nos pcaps benignos, então parte do tráfego comum desse dispositivo está no treino como benigno.
 - **As seis colunas da janela deixaram de ser atalho.** Com uma janela só, `Number` vale o mesmo em todas
   as classes, a não ser na última janela de cada pcap, que pode ficar incompleta.
 

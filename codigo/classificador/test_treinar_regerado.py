@@ -1,6 +1,7 @@
 import csv
 import gzip
 import json
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -420,3 +421,26 @@ def test_janela_sem_benigno_no_teste_nao_conta_como_zero(treino):
     m["janelas"][1]["avaliacao"]["amostra"]["falso_positivo_benigno"] = None
     texto = " ".join(montar_relatorio(m).split())
     assert "nenhuma janela tem tráfego benigno no teste" in texto
+
+
+# --- os resultados versionados ---------------------------------------------------------------
+
+RESULTADOS = Path(__file__).resolve().parents[2] / "experimentos" / "resultados"
+
+
+@pytest.mark.skipif(not (RESULTADOS / MANIFESTO).exists(), reason="treino regerado ainda não rodado")
+def test_resultados_versionados_da_regeracao_saem_do_manifesto():
+    m = json.loads((RESULTADOS / MANIFESTO).read_text(encoding="utf-8"))
+    assert (RESULTADOS / RELATORIO).read_text(encoding="utf-8") == montar_relatorio(m)
+    metricas = {(linha["janela"], linha["classe"]): linha for linha in ler_csv(RESULTADOS / METRICAS)}
+    for j in m["janelas"]:
+        for classe, medida in j["avaliacao"]["amostra"]["por_classe"].items():
+            linha = metricas[(str(j["janela"]), classe)]
+            assert linha["recall"] == ("" if medida["recall"] is None else f"{medida['recall']:.6f}")
+            assert int(linha["suporte"]) == medida["suporte"]
+        confusao = pd.read_csv(RESULTADOS / "matrizes_confusao" / f"regerado_janela_{j['janela']}_por_rotulo.csv",
+                               index_col=0)
+        assert confusao.to_numpy().tolist() == j["avaliacao"]["matriz_por_rotulo"]["contagem"]
+        por_arquivo = [l for l in ler_csv(RESULTADOS / POR_ARQUIVO) if l["janela"] == str(j["janela"])]
+        assert [l["arquivo"] for l in por_arquivo] == [p["arquivo"] for p in j["por_arquivo"]]
+        assert sum(int(l["janelas_de_teste"]) for l in por_arquivo) == j["linhas"]["teste"]
