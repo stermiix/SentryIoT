@@ -1,6 +1,6 @@
 # Treino sobre os dados regerados
 
-Gerado por `python -m codigo.classificador.treinar_regerado` em 10/10/2026, com Python 3.11.2, scikit-learn 1.9.1, pandas 3.0.6 e numpy 2.4.6.
+Gerado por `python -m codigo.classificador.treinar_regerado` em 11/10/2026, com Python 3.11.2, scikit-learn 1.9.1, pandas 3.0.6 e numpy 2.4.6.
 
 O modelo treinado no `MERGED_CSV` oficial aprende o tamanho da janela, de 100 quadros nas classes de
 DDoS, DoS e Mirai e de 10 nas demais, em vez do comportamento do tráfego (`teste_da_janela.md`), e o
@@ -17,7 +17,7 @@ parte dos números abaixo.
 
 ## Os dados regerados
 
-Os pcaps da pasta do dataset em 10/10/2026, lidos
+Os pcaps da pasta do dataset em 11/10/2026, lidos
 inteiros pelo extrator em leitura contínua, com os dois tamanhos de janela. Regra de rótulo: num pcap
 benigno toda janela é `BenignTraffic`; num pcap de ataque a janela recebe o rótulo do arquivo se tem
 quadro com MAC de um Raspberry Pi atacante na origem ou no destino, e é descartada se não tem. A janela
@@ -25,44 +25,44 @@ descartada não vira benigna, porque o tráfego de fundo de uma captura de ataqu
 
 | Arquivo | Rótulo | Categoria | Pacotes | Janelas de 10 | Mantidas (10) | Janelas de 100 | Mantidas (100) | Extração (s) |
 |---|---|---|---|---|---|---|---|---|
-| `Backdoor_Malware.pcap` | Backdoor_Malware | Web | 33.414 | 3.218 | 912 (28,3%) | 322 | 253 (78,6%) | 0,3 |
-| `BenignTraffic.pcap` | BenignTraffic | Benign | 3.664.164 | 362.278 | 362.278 (100,0%) | 36.228 | 36.228 (100,0%) | 35,9 |
-| `BenignTraffic1.pcap` | BenignTraffic | Benign | 2.988.642 | 295.489 | 295.489 (100,0%) | 29.549 | 29.549 (100,0%) | 29,5 |
-| `BenignTraffic2.pcap` | BenignTraffic | Benign | 3.138.002 | 310.319 | 310.319 (100,0%) | 31.032 | 31.032 (100,0%) | 31,1 |
-| `BrowserHijacking.pcap` | BrowserHijacking | Web | 59.821 | 5.858 | 2.476 (42,3%) | 586 | 459 (78,3%) | 0,5 |
-| `CommandInjection.pcap` | CommandInjection | Web | 55.741 | 5.409 | 1.202 (22,2%) | 541 | 377 (69,7%) | 0,5 |
-| `DDoS-ACK_Fragmentation.pcap` | DDoS-ACK_Fragmentation | DDoS | 2.503.835 | 249.836 | 243.900 (97,6%) | 24.984 | 24.457 (97,9%) | 22,8 |
-| `DDoS-HTTP_Flood-.pcap` | DDoS-HTTP_Flood | DDoS | 2.881.005 | 287.559 | 280.956 (97,7%) | 28.756 | 28.570 (99,4%) | 27,4 |
-| `DDoS-ICMP_Flood.pcap` | DDoS-ICMP_Flood | DDoS | 26.793.240 | 2.679.086 | 2.677.303 (99,9%) | 267.909 | 267.863 (100,0%) | 219,6 |
-| `DDoS-ICMP_Fragmentation.pcap` | DDoS-ICMP_Fragmentation | DDoS | 2.064.692 | 205.967 | 203.141 (98,6%) | 20.597 | 20.479 (99,4%) | 17,9 |
-| `DDoS-PSHACK_Flood.pcap` | DDoS-PSHACK_Flood | DDoS | 26.774.357 | 2.677.112 | 2.675.472 (99,9%) | 267.712 | 267.618 (100,0%) | 240,8 |
-| `DDoS-RSTFINFlood.pcap` | DDoS-RSTFINFlood | DDoS | 26.686.473 | 2.668.315 | 2.666.660 (99,9%) | 266.832 | 266.742 (100,0%) | 239,9 |
-| `DDoS-SYN_Flood.pcap` | DDoS-SYN_Flood | DDoS | 26.597.011 | 2.659.244 | 2.656.622 (99,9%) | 265.925 | 265.702 (99,9%) | 235,9 |
-| `DDoS-SYN_Flood1.pcap` | DDoS-SYN_Flood | DDoS | 26.715.334 | 2.670.961 | 2.669.541 (99,9%) | 267.097 | 267.029 (100,0%) | 240,4 |
-| `DDoS-SlowLoris.pcap` | DDoS-SlowLoris | DDoS | 2.351.454 | 233.903 | 179.601 (76,8%) | 23.391 | 21.710 (92,8%) | 22,2 |
-| `DDoS-SynonymousIP_Flood.pcap` | DDoS-SynonymousIP_Flood | DDoS | 26.855.630 | 2.685.243 | 2.684.667 (100,0%) | 268.525 | 268.499 (100,0%) | 241,7 |
-| `DDoS-TCP_Flood.pcap` | DDoS-TCP_Flood | DDoS | 26.570.958 | 2.656.703 | 2.650.042 (99,7%) | 265.671 | 265.218 (99,8%) | 237,8 |
-| `DDoS-UDP_Flood.pcap` | DDoS-UDP_Flood | DDoS | 26.653.551 | 2.665.025 | 2.661.376 (99,9%) | 266.503 | 266.297 (99,9%) | 203,0 |
-| `DDoS-UDP_Fragmentation.pcap` | DDoS-UDP_Fragmentation | DDoS | 2.248.843 | 224.381 | 221.697 (98,8%) | 22.439 | 22.394 (99,8%) | 19,2 |
-| `DNS_Spoofing.pcap` | DNS_Spoofing | Spoofing | 1.812.557 | 178.872 | 47.876 (26,8%) | 17.888 | 10.586 (59,2%) | 15,7 |
-| `DictionaryBruteForce.pcap` | DictionaryBruteForce | BruteForce | 133.138 | 13.064 | 5.549 (42,5%) | 1.307 | 1.042 (79,7%) | 1,2 |
-| `DoS-HTTP_Flood1.pcap` | DoS-HTTP_Flood | DoS | 3.114.983 | 310.988 | 298.903 (96,1%) | 31.099 | 30.881 (99,3%) | 30,4 |
-| `DoS-SYN_Flood.pcap` | DoS-SYN_Flood | DoS | 26.261.611 | 2.625.859 | 2.624.053 (99,9%) | 262.586 | 262.576 (100,0%) | 235,4 |
-| `DoS-SYN_Flood1.pcap` | DoS-SYN_Flood | DoS | 26.405.653 | 2.640.253 | 2.637.380 (99,9%) | 264.026 | 263.954 (100,0%) | 237,1 |
-| `DoS-TCP_Flood.pcap` | DoS-TCP_Flood | DoS | 26.005.549 | 2.600.275 | 2.597.426 (99,9%) | 260.028 | 259.976 (100,0%) | 237,6 |
-| `DoS-UDP_Flood.pcap` | DoS-UDP_Flood | DoS | 16.676.370 | 1.667.378 | 1.664.550 (99,8%) | 166.738 | 166.653 (99,9%) | 128,7 |
-| `MITM-ArpSpoofing.pcap` | MITM-ArpSpoofing | Spoofing | 2.491.622 | 247.646 | 31.228 (12,6%) | 24.765 | 8.194 (33,1%) | 21,7 |
-| `Mirai-greeth_flood.pcap` | Mirai-greeth_flood | Mirai | 3.352.569 | 335.007 | 329.157 (98,3%) | 33.501 | 33.008 (98,5%) | 41,0 |
-| `Mirai-greip_flood21.pcap` | Mirai-greip_flood | Mirai | 1.196.296 | 119.545 | 119.531 (100,0%) | 11.955 | 11.955 (100,0%) | 12,8 |
-| `Mirai-udpplain.pcap` | Mirai-udpplain | Mirai | 3.642.269 | 363.888 | 362.081 (99,5%) | 36.389 | 36.373 (100,0%) | 30,5 |
-| `Recon-HostDiscovery.pcap` | Recon-HostDiscovery | Recon | 1.371.112 | 134.369 | 90.530 (67,4%) | 13.437 | 12.996 (96,7%) | 12,2 |
-| `Recon-OSScan.pcap` | Recon-OSScan | Recon | 992.241 | 98.243 | 29.750 (30,3%) | 9.825 | 4.087 (41,6%) | 8,6 |
-| `Recon-PingSweep.pcap` | Recon-PingSweep | Recon | 22.943 | 2.262 | 540 (23,9%) | 227 | 114 (50,2%) | 0,2 |
-| `Recon-PortScan.pcap` | Recon-PortScan | Recon | 831.856 | 82.278 | 30.872 (37,5%) | 8.228 | 3.783 (46,0%) | 7,2 |
-| `SqlInjection.pcap` | SqlInjection | Web | 53.462 | 5.245 | 1.035 (19,7%) | 525 | 325 (61,9%) | 0,5 |
+| `Backdoor_Malware.pcap` | Backdoor_Malware | Web | 33.414 | 3.218 | 912 (28,3%) | 322 | 253 (78,6%) | 0,4 |
+| `BenignTraffic.pcap` | BenignTraffic | Benign | 3.664.164 | 362.278 | 362.278 (100,0%) | 36.228 | 36.228 (100,0%) | 44,0 |
+| `BenignTraffic1.pcap` | BenignTraffic | Benign | 2.988.642 | 295.489 | 295.489 (100,0%) | 29.549 | 29.549 (100,0%) | 32,8 |
+| `BenignTraffic2.pcap` | BenignTraffic | Benign | 3.138.002 | 310.319 | 310.319 (100,0%) | 31.032 | 31.032 (100,0%) | 34,4 |
+| `BrowserHijacking.pcap` | BrowserHijacking | Web | 59.821 | 5.858 | 2.476 (42,3%) | 586 | 459 (78,3%) | 0,7 |
+| `CommandInjection.pcap` | CommandInjection | Web | 55.741 | 5.409 | 1.202 (22,2%) | 541 | 377 (69,7%) | 0,6 |
+| `DDoS-ACK_Fragmentation.pcap` | DDoS-ACK_Fragmentation | DDoS | 2.503.835 | 249.836 | 243.900 (97,6%) | 24.984 | 24.457 (97,9%) | 25,7 |
+| `DDoS-HTTP_Flood-.pcap` | DDoS-HTTP_Flood | DDoS | 2.881.005 | 287.559 | 280.956 (97,7%) | 28.756 | 28.570 (99,4%) | 31,4 |
+| `DDoS-ICMP_Flood.pcap` | DDoS-ICMP_Flood | DDoS | 26.793.240 | 2.679.086 | 2.677.303 (99,9%) | 267.909 | 267.863 (100,0%) | 261,3 |
+| `DDoS-ICMP_Fragmentation.pcap` | DDoS-ICMP_Fragmentation | DDoS | 2.064.692 | 205.967 | 203.141 (98,6%) | 20.597 | 20.479 (99,4%) | 19,2 |
+| `DDoS-PSHACK_Flood.pcap` | DDoS-PSHACK_Flood | DDoS | 26.774.357 | 2.677.112 | 2.675.472 (99,9%) | 267.712 | 267.618 (100,0%) | 276,4 |
+| `DDoS-RSTFINFlood.pcap` | DDoS-RSTFINFlood | DDoS | 26.686.473 | 2.668.315 | 2.666.660 (99,9%) | 266.832 | 266.742 (100,0%) | 272,0 |
+| `DDoS-SYN_Flood.pcap` | DDoS-SYN_Flood | DDoS | 26.597.011 | 2.659.244 | 2.656.622 (99,9%) | 265.925 | 265.702 (99,9%) | 283,6 |
+| `DDoS-SYN_Flood1.pcap` | DDoS-SYN_Flood | DDoS | 26.715.334 | 2.670.961 | 2.669.541 (99,9%) | 267.097 | 267.029 (100,0%) | 275,5 |
+| `DDoS-SlowLoris.pcap` | DDoS-SlowLoris | DDoS | 2.351.454 | 233.903 | 179.601 (76,8%) | 23.391 | 21.710 (92,8%) | 26,0 |
+| `DDoS-SynonymousIP_Flood.pcap` | DDoS-SynonymousIP_Flood | DDoS | 26.855.630 | 2.685.243 | 2.684.667 (100,0%) | 268.525 | 268.499 (100,0%) | 276,6 |
+| `DDoS-TCP_Flood.pcap` | DDoS-TCP_Flood | DDoS | 26.570.958 | 2.656.703 | 2.650.042 (99,7%) | 265.671 | 265.218 (99,8%) | 270,7 |
+| `DDoS-UDP_Flood.pcap` | DDoS-UDP_Flood | DDoS | 26.653.551 | 2.665.025 | 2.661.376 (99,9%) | 266.503 | 266.297 (99,9%) | 238,5 |
+| `DDoS-UDP_Fragmentation.pcap` | DDoS-UDP_Fragmentation | DDoS | 2.248.843 | 224.381 | 221.697 (98,8%) | 22.439 | 22.394 (99,8%) | 22,0 |
+| `DNS_Spoofing.pcap` | DNS_Spoofing | Spoofing | 1.812.557 | 178.872 | 47.876 (26,8%) | 17.888 | 10.586 (59,2%) | 19,7 |
+| `DictionaryBruteForce.pcap` | DictionaryBruteForce | BruteForce | 133.138 | 13.064 | 5.549 (42,5%) | 1.307 | 1.042 (79,7%) | 1,5 |
+| `DoS-HTTP_Flood1.pcap` | DoS-HTTP_Flood | DoS | 3.114.983 | 310.988 | 298.903 (96,1%) | 31.099 | 30.881 (99,3%) | 34,3 |
+| `DoS-SYN_Flood.pcap` | DoS-SYN_Flood | DoS | 26.261.611 | 2.625.859 | 2.624.053 (99,9%) | 262.586 | 262.576 (100,0%) | 270,7 |
+| `DoS-SYN_Flood1.pcap` | DoS-SYN_Flood | DoS | 26.405.653 | 2.640.253 | 2.637.380 (99,9%) | 264.026 | 263.954 (100,0%) | 280,5 |
+| `DoS-TCP_Flood.pcap` | DoS-TCP_Flood | DoS | 26.005.549 | 2.600.275 | 2.597.426 (99,9%) | 260.028 | 259.976 (100,0%) | 264,2 |
+| `DoS-UDP_Flood.pcap` | DoS-UDP_Flood | DoS | 16.676.370 | 1.667.378 | 1.664.550 (99,8%) | 166.738 | 166.653 (99,9%) | 149,7 |
+| `MITM-ArpSpoofing.pcap` | MITM-ArpSpoofing | Spoofing | 2.491.622 | 247.646 | 31.228 (12,6%) | 24.765 | 8.194 (33,1%) | 28,0 |
+| `Mirai-greeth_flood.pcap` | Mirai-greeth_flood | Mirai | 3.352.569 | 335.007 | 329.157 (98,3%) | 33.501 | 33.008 (98,5%) | 47,9 |
+| `Mirai-greip_flood21.pcap` | Mirai-greip_flood | Mirai | 1.196.296 | 119.545 | 119.531 (100,0%) | 11.955 | 11.955 (100,0%) | 14,6 |
+| `Mirai-udpplain.pcap` | Mirai-udpplain | Mirai | 3.642.269 | 363.888 | 362.081 (99,5%) | 36.389 | 36.373 (100,0%) | 35,5 |
+| `Recon-HostDiscovery.pcap` | Recon-HostDiscovery | Recon | 1.371.112 | 134.369 | 90.530 (67,4%) | 13.437 | 12.996 (96,7%) | 14,9 |
+| `Recon-OSScan.pcap` | Recon-OSScan | Recon | 992.241 | 98.243 | 29.750 (30,3%) | 9.825 | 4.087 (41,6%) | 11,1 |
+| `Recon-PingSweep.pcap` | Recon-PingSweep | Recon | 22.943 | 2.262 | 540 (23,9%) | 227 | 114 (50,2%) | 0,3 |
+| `Recon-PortScan.pcap` | Recon-PortScan | Recon | 831.856 | 82.278 | 30.872 (37,5%) | 8.228 | 3.783 (46,0%) | 9,0 |
+| `SqlInjection.pcap` | SqlInjection | Web | 53.462 | 5.245 | 1.035 (19,7%) | 525 | 325 (61,9%) | 0,6 |
 | `Uploading_Attack.pcap` | Uploading_Attack | Web | 12.939 | 1.252 | 357 (28,5%) | 126 | 106 (84,1%) | 0,1 |
-| `VulnerabilityScan.pcap` | VulnerabilityScan | Recon | 3.802.533 | 373.312 | 88.114 (23,6%) | 37.332 | 18.836 (50,5%) | 33,5 |
-| `XSS.pcap` | XSS | Web | 40.183 | 3.845 | 976 (25,4%) | 385 | 313 (81,3%) | 0,3 |
+| `VulnerabilityScan.pcap` | VulnerabilityScan | Recon | 3.802.533 | 373.312 | 88.114 (23,6%) | 37.332 | 18.836 (50,5%) | 42,5 |
+| `XSS.pcap` | XSS | Web | 40.183 | 3.845 | 976 (25,4%) | 385 | 313 (81,3%) | 0,4 |
 
 Linhas regeradas por rótulo, somando os arquivos dele:
 
@@ -118,8 +118,8 @@ sem `StandardScaler`, com as 39 features e 7 categorias (DDoS e DoS juntos).
 
 | Janela | Linhas regeradas | Após o teto | Treino | Teste | Arquivos inteiros no teste | Treino (s) |
 |---|---|---|---|---|---|---|
-| 10 | 34.403.562 | 1.252.773 | 865.851 | 386.922 | `BenignTraffic2.pcap`, `DDoS-SYN_Flood1.pcap` e `DoS-SYN_Flood1.pcap` | 16,3 |
-| 100 | 3.476.234 | 841.298 | 567.732 | 273.566 | `BenignTraffic2.pcap`, `DDoS-SYN_Flood1.pcap` e `DoS-SYN_Flood1.pcap` | 12,7 |
+| 10 | 34.403.562 | 1.252.773 | 865.851 | 386.922 | `BenignTraffic2.pcap`, `DDoS-SYN_Flood1.pcap` e `DoS-SYN_Flood1.pcap` | 15,9 |
+| 100 | 3.476.234 | 841.298 | 567.732 | 273.566 | `BenignTraffic2.pcap`, `DDoS-SYN_Flood1.pcap` e `DoS-SYN_Flood1.pcap` | 12,3 |
 
 Como cada rótulo foi dividido. O rótulo com mais de um pcap tem um arquivo inteiro no teste, e o modelo
 não vê nenhuma janela dele; nos demais, o teste é o fim do próprio pcap.
@@ -560,9 +560,9 @@ O que mudou da última rodada para esta:
 ## Como os números foram obtidos
 
 - Comando: `python -m codigo.classificador.treinar_regerado`, a partir da raiz do repositório, depois de `python -m codigo.classificador.regerar`. Ele refaz a leitura, o teto, a divisão, o treino, a avaliação e este relatório.
-- Dados: `dados/processed/regerado/janela_<W>/<rotulo>.csv.gz`, registrados em `manifesto_regeracao.json` (gerado em 10/10/2026, pcaps em `CICIoT2023`), com o SHA-256 de cada pcap.
+- Dados: `dados/processed/regerado/janela_<W>/<rotulo>.csv.gz`, registrados em `manifesto_regeracao.json` (gerado em 11/10/2026, pcaps em `CICIoT2023`), com o SHA-256 de cada pcap, a versão 2 da regra e o extrator de SHA-256 `8bd38fb392d5bec5a318699b2cef4a67a7c0c43461ecd01ce20be5b7db0b4a65`.
 - Modelos: um por janela, em `modelos/`, fora do git: `rf_regerado_janela_10.joblib` (596,9 MB) e `rf_regerado_janela_100.joblib` (184,5 MB). Treinados com 4 núcleos; a quantidade de núcleos muda o tempo, e não o modelo. Predição com um núcleo, em ordem fixa.
 - Divisões: o SHA-256 das posições de treino e de teste de cada janela está em `manifesto_treino_regerado.json`.
 - `regeracao_metricas.csv` tem uma linha por janela e categoria; `regeracao_por_arquivo.csv`, uma por janela e pcap; `matrizes_confusao/regerado_janela_<W>.csv` é a matriz de confusão e `_por_rotulo.csv` abre a classe real nos 34 rótulos.
-- Tempo total, na máquina em que rodou: 164,1 s.
+- Tempo total, na máquina em que rodou: 175,9 s. Pico de memória do processo: 3,1 GB, que é o necessário para reproduzir.
 - Com os mesmos CSVs regerados e a mesma semente, os números saem iguais. Só mudam a data e os tempos.
