@@ -2,6 +2,7 @@
 
 Tudo é sorteado com semente fixa, então uma falha se repete igual em qualquer máquina.
 """
+import gc
 import io
 import math
 import random
@@ -17,12 +18,15 @@ from codigo.captura.calibrar import ler_oficial
 from codigo.captura.extrator import (
     COLUNAS,
     MAIOR_REGISTRO,
+    QUADRO_MAXIMO,
+    QUADRO_MINIMO,
     Extrator,
     agregar,
     extrair,
     gravar_csv,
     ler_pcap,
     medir_quadro,
+    tamanho_no_fio,
 )
 from codigo.captura.test_extrator import (
     MACS,
@@ -47,7 +51,8 @@ SO_EM_TCP = (*FLAGS, "HTTP", "HTTPS", "Telnet", "SMTP", "SSH", "IRC")
 # Colunas que só existem na linha da janela. O resto, mais o instante, vem de cada quadro.
 SO_NA_JANELA = ("Rate", *CONTAGENS, "Tot sum", "Min", "Max", "AVG", "Std", "Number", "Variance")
 CHAVES_DA_MEDIDA = {
-    *(c for c in COLUNAS if c not in SO_NA_JANELA), "ts", "mac_origem", "mac_destino", "ip_origem", "ip_destino",
+    *(c for c in COLUNAS if c not in SO_NA_JANELA),
+    "ts", "mac_origem", "mac_destino", "ip_origem", "ip_destino", "ip_arp",
 }
 
 PCAP_NANO_BE = b"\xa1\xb2\x3c\x4d"
@@ -214,6 +219,25 @@ def test_quadros_validos_adulterados_nunca_derrubam_a_medicao(semente):
     assert vistos == {None, (1, 0, 0), (0, 1, 0), (0, 0, 1), (0, 0, 0)}
 
 
+@pytest.mark.parametrize("semente", range(4))
+def test_as_opcoes_do_quadro_no_fio_so_mudam_o_tamanho_medido(semente):
+    sorteio = random.Random(1500 + semente)
+    for _ in range(1500):
+        if sorteio.random() < 0.5:
+            quadro = bytes_com_cara_de_quadro(sorteio)
+        else:
+            quadro = adulterar(sorteio, quadro_sorteado(sorteio)) + bytes(sorteio.choice((0, 0, 2000)))
+        preencher, limitar = sorteio.random() < 0.5, sorteio.random() < 0.5
+        como_gravado = conferir_medida(1.5, quadro)
+        no_fio = medir_quadro(1.5, quadro, None, preencher, limitar)
+        # O quadro é decodificado como foi gravado: entra no filtro, ou não, do mesmo jeito.
+        assert (no_fio is None) == (como_gravado is None), quadro.hex()
+        if no_fio is not None:
+            assert no_fio == como_gravado | {"Tot size": tamanho_no_fio(quadro, preencher, limitar)}, quadro.hex()
+            assert not preencher or no_fio["Tot size"] >= QUADRO_MINIMO
+            assert not limitar or no_fio["Tot size"] <= QUADRO_MAXIMO
+
+
 def ip_dentro_de_ip(niveis):
     """IPv4 que carrega IPv4 (protocolo 4), `niveis` vezes: o dpkt decodifica um dentro do outro."""
     pacote = b""
@@ -274,6 +298,10 @@ def ler_tudo(fluxo):
     quadros, erro = [], None
     with warnings.catch_warnings(record=True) as avisos:
         warnings.simplefilter("always")
+        # O bloco grava os avisos do processo inteiro. Um arquivo esquecido aberto por outro teste
+        # pode ser fechado pelo coletor de lixo no meio da leitura, e o ResourceWarning dele não é
+        # da leitura.
+        warnings.simplefilter("ignore", ResourceWarning)
         try:
             for ts, quadro in ler_pcap(fluxo):
                 quadros.append((ts, quadro))
@@ -346,6 +374,30 @@ def test_fluxos_aleatorios_terminam_em_fim_aviso_ou_erro_de_valor(semente):
     for _ in range(200):
         conferir_leitura(sorteio.randbytes(sorteio.randrange(64)))
         conferir_leitura(sorteio.choice(MAGICOS) + sorteio.randbytes(sorteio.randrange(64)))
+
+
+class FluxoQueColetaLixo(io.BytesIO):
+    """Roda o coletor de lixo a cada leitura, como se ele passasse no meio do teste."""
+
+    def read(self, n=-1):
+        gc.collect()
+        return super().read(n)
+
+
+def test_aviso_de_arquivo_esquecido_por_outro_codigo_nao_entra_nos_avisos_da_leitura(tmp_path):
+    # Como o código dos autores no teste diferencial: o arquivo fica num ciclo de referências e só
+    # é fechado pelo coletor, com ResourceWarning, no momento em que ele passar.
+    caminho = tmp_path / "esquecido.pcap"
+    caminho.write_bytes(pcap([]))
+    coleta_automatica = gc.isenabled()
+    gc.disable()
+    try:
+        dpkt.pcap.Reader(open(caminho, "rb"))  # noqa: SIM115
+        quadros, avisos, erro = ler_tudo(FluxoQueColetaLixo(pcap([(1, 0, quadro_tcp())])))
+    finally:
+        if coleta_automatica:
+            gc.enable()
+    assert (len(quadros), avisos, erro) == (1, [], None)
 
 
 @pytest.mark.parametrize("magico", MAGICOS)

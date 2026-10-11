@@ -38,7 +38,7 @@ from pathlib import Path
 
 import dpkt
 
-from codigo.captura.extrator import Extrator, ler_pcap, medir_quadro
+from codigo.captura.extrator import CapturaIncompleta, Extrator, ler_pcap, medir_quadro
 from codigo.classificador.experimento import (
     _campo,
     _decimal,
@@ -119,7 +119,7 @@ class _LeituraComHash:
             pass
 
 
-def percorrer(pcap, janelas=JANELAS, ao_fechar=None, atacantes=ATACANTES):
+def percorrer(pcap, janelas=JANELAS, ao_fechar=None, atacantes=ATACANTES, contar_quadros=False, opcoes=None):
     """Lê um pcap inteiro uma vez, com um tamanho de janela ou vários.
 
     Conta os quadros por MAC de origem e de destino, em todos os quadros do arquivo, e, para
@@ -127,14 +127,22 @@ def percorrer(pcap, janelas=JANELAS, ao_fechar=None, atacantes=ATACANTES):
     cada quadro é medido uma vez e entregue a todos os extratores.
 
     `ao_fechar(janela, indice, linha, enderecos, com_atacante)` é chamado a cada janela fechada,
-    com o índice dela no arquivo para aquele tamanho de janela, as 39 colunas e os endereços.
+    com o índice dela no arquivo para aquele tamanho de janela, as 39 colunas e os endereços. Com
+    `contar_quadros`, recebe também, como sexto argumento, quantos quadros da janela têm um MAC
+    da lista na origem ou no destino.
+
+    `opcoes` vai para `medir_quadro` em cada quadro: são as opções do extrator que mudam o quadro
+    antes da medida. Sem elas, a medida reproduz o código dos autores.
 
     Devolve o registro: pacotes lidos, bytes e SHA-256 do arquivo, segundos, os avisos do leitor,
     as contagens por MAC e as contagens de janelas por tamanho.
     """
     pcap = Path(pcap)
+    opcoes = opcoes or {}
     extratores = {janela: Extrator(janela, enderecos=True) for janela in janelas}
     indices = dict.fromkeys(janelas, 0)
+    # Quadros com MAC da lista na janela que está aberta, para cada tamanho de janela.
+    quadros_do_atacante = dict.fromkeys(janelas, 0)
     contagem = {
         janela: {"extraidas": 0, "com_atacante": 0, "sem_atacante": 0, "incompletas": 0} for janela in janelas
     }
@@ -149,12 +157,14 @@ def percorrer(pcap, janelas=JANELAS, ao_fechar=None, atacantes=ATACANTES):
         conta["com_atacante" if com_atacante else "sem_atacante"] += 1
         conta["incompletas"] += linha["Number"] < janela
         if ao_fechar is not None:
-            ao_fechar(janela, indices[janela], linha, enderecos, com_atacante)
+            extras = (quadros_do_atacante[janela],) if contar_quadros else ()
+            ao_fechar(janela, indices[janela], linha, enderecos, com_atacante, *extras)
+        quadros_do_atacante[janela] = 0
         indices[janela] += 1
 
     inicio = time.perf_counter()
     with warnings.catch_warnings(record=True) as avisos:
-        warnings.simplefilter("always")
+        warnings.simplefilter("always", CapturaIncompleta)
         try:
             with open(pcap, "rb") as arquivo:
                 leitura = _LeituraComHash(arquivo)
@@ -163,11 +173,13 @@ def percorrer(pcap, janelas=JANELAS, ao_fechar=None, atacantes=ATACANTES):
                     pacotes += 1
                     macs_destino[quadro[:6].hex(":")] += 1
                     macs_origem[quadro[6:12].hex(":")] += 1
-                    medida = medir_quadro(ts, quadro, ts_anterior)
+                    medida = medir_quadro(ts, quadro, ts_anterior, **opcoes)
                     if medida is None:
                         continue
                     ts_anterior = ts
+                    do_atacante = medida["mac_origem"] in atacantes or medida["mac_destino"] in atacantes
                     for janela, extrator in extratores.items():
+                        quadros_do_atacante[janela] += do_atacante
                         saida = extrator.acumular(medida)
                         if saida is not None:
                             fechar(janela, saida)
@@ -183,7 +195,7 @@ def percorrer(pcap, janelas=JANELAS, ao_fechar=None, atacantes=ATACANTES):
         "bytes": leitura.bytes,
         "sha256": leitura.sha256.hexdigest(),
         "segundos": time.perf_counter() - inicio,
-        "avisos": [str(aviso.message) for aviso in avisos],
+        "avisos": [str(aviso.message) for aviso in avisos if issubclass(aviso.category, CapturaIncompleta)],
         "macs_origem": macs_origem,
         "macs_destino": macs_destino,
         "janelas": contagem,

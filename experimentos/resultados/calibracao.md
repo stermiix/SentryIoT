@@ -5,6 +5,9 @@ Gerado por `python -m codigo.captura.calibrar` em 04/10/2026, com Python 3.11.2 
 O extrator (`codigo/captura/extrator.py`) foi executado sobre pcaps do CICIoT2023 e a saída
 foi comparada, coluna a coluna, com os CSVs publicados pelos autores do dataset.
 
+A conferência de todos os pcaps do dataset, contra o `MERGED_CSV`, está em `calibracao_conjunto.md`
+(`python -m codigo.captura.calibrar_conjunto`).
+
 ## Escopo
 
 A comparação cobre 5 pcaps, os que estão disponíveis localmente com o CSV oficial correspondente: `DDoS-HTTP_Flood-` (janela de 100), `DictionaryBruteForce` (janela de 10), `DoS-HTTP_Flood1` (janela de 100), `Mirai-greip_flood21` (janela de 100), `Recon-PortScan` (janela de 10).
@@ -74,6 +77,8 @@ O classificador é treinado com os CSVs oficiais, então o extrator repete estes
 - Quadros IPv6 não geram linha.
 - Quadro maior que o limite de captura declarado no cabeçalho do pcap entra cortado nesse
   limite, como a libpcap entrega ao `tcpdump` que fatia o arquivo.
+- Captura com fração de tempo em nanossegundos tem o instante truncado para microssegundos,
+  como o `tcpdump -r ... -w` do fatiamento grava. Os pcaps do dataset estão em microssegundos.
 - A última janela de cada pedaço pode ficar incompleta. Com um único quadro, `Std` e
   `Variance` ficam vazios e `Rate` é infinito.
 
@@ -85,8 +90,6 @@ O classificador é treinado com os CSVs oficiais, então o extrator repete estes
 - O código dos autores trata o instante 0 como ausência de quadro anterior. O extrator só
   considera ausente o quadro anterior no início da leitura. A diferença só aparece em
   capturas com instante exatamente igual a zero.
-- O extrator lê capturas com fração de tempo em nanossegundos. Não há referência dos autores
-  para esse formato.
 - O extrator decodifica só os primeiros 1600 bytes de cada quadro, o que cobre todos os
   cabeçalhos usados na medição. Um quadro maior que isso cuja decodificação completa falhe
   é descartado pelo código dos autores e mantido pelo extrator.

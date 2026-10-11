@@ -30,6 +30,8 @@ from codigo.classificador.preparar import (
     impressao_digital,
     ler,
     matriz,
+    ordem_natural,
+    ultimo_arquivo,
 )
 
 RAIZ = Path(__file__).resolve().parents[2]
@@ -481,6 +483,29 @@ def test_divisao_por_tempo_poe_um_arquivo_inteiro_no_teste_quando_o_rotulo_tem_m
     assert invertido.loc[teste][invertido["Label"] == "BenignTraffic"].loc[:, "arquivo"].unique().tolist() == [
         "BenignTraffic1.pcap"
     ]
+
+
+def test_ordem_natural_segue_o_sufixo_numerico_e_nao_a_ordem_das_letras():
+    nomes = ["BenignTraffic10.pcap", "BenignTraffic2.pcap", "BenignTraffic.pcap", "BenignTraffic1.pcap"]
+    assert max(nomes) == "BenignTraffic2.pcap"  # a ordem letra a letra erra
+    assert sorted(nomes, key=ordem_natural) == [
+        "BenignTraffic.pcap", "BenignTraffic1.pcap", "BenignTraffic2.pcap", "BenignTraffic10.pcap",
+    ]
+    assert ultimo_arquivo(nomes) == "BenignTraffic10.pcap"
+    # O separador antes do número e o nome sem número, como nos pcaps do dataset.
+    assert ultimo_arquivo(["DoS-SYN_Flood_2.pcap", "DoS-SYN_Flood1.pcap", "DoS-SYN_Flood.pcap"]) == "DoS-SYN_Flood_2.pcap"
+    assert ultimo_arquivo(["DDoS-SYN_Flood.pcap", "DDoS-SYN_Flood1.pcap"]) == "DDoS-SYN_Flood1.pcap"
+
+
+def test_divisao_por_tempo_poe_no_teste_o_ultimo_arquivo_pelo_sufixo_numerico():
+    quadro = quadro_regerado({
+        "BenignTraffic": {
+            "BenignTraffic.pcap": range(3), "BenignTraffic2.pcap": range(3), "BenignTraffic10.pcap": range(3),
+        },
+    })
+    treino, teste = dividir_por_tempo(quadro)
+    assert quadro.loc[teste, "arquivo"].unique().tolist() == ["BenignTraffic10.pcap"]
+    assert sorted(quadro.loc[treino, "arquivo"].unique().tolist()) == ["BenignTraffic.pcap", "BenignTraffic2.pcap"]
 
 
 def test_divisao_por_tempo_aceita_outra_fracao_e_exige_as_colunas():

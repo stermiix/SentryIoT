@@ -8,10 +8,14 @@ from codigo.captura.extrator import COLUNAS
 from codigo.captura.test_extrator import pcap
 from codigo.classificador.preparar import carregar
 from codigo.classificador.regerar import (
+    CABECALHO,
     COLUNAS_EXTRAS,
+    DESCARTADAS,
     DESTINO,
     MANIFESTO,
     PARTES,
+    VERSAO_DA_REGRA,
+    codigo_do_extrator,
     main,
     nome_da_pasta,
 )
@@ -48,10 +52,19 @@ def ler_manifesto(pasta):
     return json.loads((pasta / "resultados" / MANIFESTO).read_text(encoding="utf-8"))
 
 
+def ler_sem_cabecalho(caminho):
+    return pd.read_csv(caminho, header=None, names=list(CABECALHO), dtype={"arquivo": str, "Label": str})
+
+
 def test_pastas_e_colunas():
     assert DESTINO == "dados/processed/regerado"
     assert nome_da_pasta(10) == "janela_10"
-    assert COLUNAS_EXTRAS == ("Label", "arquivo", "indice", "ips_origem", "ips_destino", "atacante")
+    # As colunas novas ficam no fim: as de antes continuam nas mesmas posições.
+    assert COLUNAS_EXTRAS == (
+        "Label", "arquivo", "indice", "ips_origem", "ips_destino", "atacante", "quadros_atacante", "macs_atacante",
+    )
+    assert CABECALHO.index("indice") == 41 and CABECALHO.index("atacante") == 44
+    assert (PARTES, DESCARTADAS) == ("partes", "descartadas")
 
 
 def test_main_grava_um_csv_por_rotulo_e_janela_com_a_regra_de_rotulo(tmp_path, capsys):
@@ -71,6 +84,7 @@ def test_main_grava_um_csv_por_rotulo_e_janela_com_a_regra_de_rotulo(tmp_path, c
     assert recon["Label"].unique().tolist() == ["Recon-PortScan"]
     assert recon["arquivo"].unique().tolist() == ["Recon-PortScan.pcap"]
     assert recon["atacante"].tolist() == [1, 1]
+    assert recon["quadros_atacante"].tolist() == [1, 1] and recon["macs_atacante"].tolist() == [1, 1]
     assert recon["Number"].tolist() == [2, 2]
     assert recon["ips_origem"].tolist() == [2, 2] and recon["ips_destino"].tolist() == [1, 1]
     de_cinco = ler(regerado / "janela_5" / "Recon-PortScan.csv.gz")
@@ -80,6 +94,7 @@ def test_main_grava_um_csv_por_rotulo_e_janela_com_a_regra_de_rotulo(tmp_path, c
     assert benigno["arquivo"].tolist() == ["BenignTraffic.pcap"] * 4 + ["BenignTraffic1.pcap"] * 2
     assert benigno["indice"].tolist() == [0, 1, 2, 3, 0, 1]
     assert benigno["atacante"].tolist() == [0, 0, 0, 0, 1, 1]
+    assert benigno["quadros_atacante"].tolist() == [0, 0, 0, 0, 2, 1]
     assert benigno["Number"].tolist() == [2, 2, 2, 1, 2, 1]
     assert benigno["Label"].unique().tolist() == ["BenignTraffic"]
     # O arquivo é lido pelo preparo do treino como qualquer CSV com rótulo.
@@ -96,6 +111,9 @@ def test_main_grava_um_csv_por_rotulo_e_janela_com_a_regra_de_rotulo(tmp_path, c
     assert por_arquivo["BenignTraffic1.pcap"]["janelas"]["2"] == {
         "extraidas": 2, "mantidas": 2, "descartadas": 0, "com_atacante": 2, "incompletas": 1,
     }
+    assert m["versao_da_regra"] == VERSAO_DA_REGRA
+    assert m["extrator"] == {"sha256": codigo_do_extrator(), "opcoes": {}}
+    assert len(m["extrator"]["sha256"]) == 64
     assert len(por_arquivo["Recon-PortScan.pcap"]["sha256"]) == 64
     assert por_arquivo["Recon-PortScan.pcap"]["bytes"] == (tmp_path / "dataset" / "Recon-PortScan.pcap").stat().st_size
     assert {r["rotulo"] for r in m["rotulos"]} == {"BenignTraffic", "DoS-HTTP_Flood", "Recon-PortScan"}
@@ -185,3 +203,110 @@ def test_main_sem_csv_anterior_e_sem_manifesto_refaz_tudo(tmp_path):
     (tmp_path / "resultados" / MANIFESTO).unlink()
     assert executar(tmp_path) == 0
     assert ler(tmp_path / "regerado" / "janela_2" / "Recon-PortScan.csv.gz")["indice"].tolist() == [1, 3]
+
+
+def test_as_janelas_descartadas_ficam_a_parte_com_as_mesmas_colunas(tmp_path):
+    preparar_dataset(tmp_path / "dataset")
+    assert executar(tmp_path) == 0
+    pasta = tmp_path / "regerado" / "janela_2"
+    descartadas = ler_sem_cabecalho(pasta / DESCARTADAS / "Recon-PortScan.csv.gz")
+    mantidas = ler_sem_cabecalho(pasta / PARTES / "Recon-PortScan.csv.gz")
+    # As 6 janelas do arquivo: 2 mantidas e 4 descartadas, sem repetir nem perder nenhuma.
+    assert descartadas["indice"].tolist() == [0, 2, 4, 5]
+    assert sorted([*descartadas["indice"], *mantidas["indice"]]) == list(range(6))
+    assert (descartadas["atacante"] == 0).all() and (descartadas["quadros_atacante"] == 0).all()
+    assert (descartadas["macs_atacante"] == 0).all()
+    assert descartadas["Label"].unique().tolist() == ["Recon-PortScan"]
+    assert list(descartadas[list(COLUNAS)].columns) == list(COLUNAS)
+    # As descartadas não entram no arquivo do rótulo, que continua só com as mantidas.
+    assert ler(pasta / "Recon-PortScan.csv.gz")["indice"].tolist() == [1, 3]
+    m = ler_manifesto(tmp_path)
+    recon = next(p for p in m["pcaps"] if p["arquivo"] == "Recon-PortScan.pcap")
+    assert recon["janelas"]["2"]["descartadas"] == len(descartadas) == 4
+    # Num pcap benigno nada é descartado, e a parte das descartadas existe vazia.
+    assert ler_sem_cabecalho(pasta / DESCARTADAS / "BenignTraffic.csv.gz").empty
+
+
+def test_mudanca_no_extrator_na_regra_ou_o_pedido_de_refazer_leem_tudo_de_novo(tmp_path, monkeypatch):
+    import codigo.classificador.regerar as modulo
+
+    preparar_dataset(tmp_path / "dataset")
+    assert executar(tmp_path) == 0
+    lidos = []
+    original = modulo.percorrer
+
+    def contando(caminho, *args, **kwargs):
+        lidos.append(Path(caminho).name)
+        return original(caminho, *args, **kwargs)
+
+    monkeypatch.setattr(modulo, "percorrer", contando)
+    assert executar(tmp_path) == 0 and lidos == []
+    # Uma correção no código do extrator invalida as partes gravadas com o código anterior.
+    monkeypatch.setattr(modulo, "codigo_do_extrator", lambda: "f" * 64)
+    assert executar(tmp_path) == 0 and len(lidos) == 4
+    assert ler_manifesto(tmp_path)["extrator"]["sha256"] == "f" * 64
+    lidos.clear()
+    assert executar(tmp_path) == 0 and lidos == []
+    # Outra versão da regra também.
+    monkeypatch.setattr(modulo, "VERSAO_DA_REGRA", VERSAO_DA_REGRA + 1)
+    assert executar(tmp_path) == 0 and len(lidos) == 4
+    lidos.clear()
+    # E --refazer lê tudo, mesmo sem mudança.
+    assert executar(tmp_path, "--refazer") == 0 and len(lidos) == 4
+    # Se a parte das descartadas sumiu, o pcap é lido de novo.
+    lidos.clear()
+    (tmp_path / "regerado" / "janela_5" / DESCARTADAS / "Recon-PortScan.csv.gz").unlink()
+    assert executar(tmp_path) == 0 and lidos == ["Recon-PortScan.pcap"]
+
+
+def test_varios_processos_dao_o_mesmo_resultado_da_leitura_em_sequencia(tmp_path):
+    preparar_dataset(tmp_path / "dataset")
+    assert executar(tmp_path) == 0
+    sequencia = tmp_path / "regerado"
+    paralela = tmp_path / "paralela"
+    assert main([
+        "--dataset", str(tmp_path / "dataset"), "--saida", str(tmp_path / "resultados_paralela"),
+        "--destino", str(paralela), "--janelas", "2,5", "--processos", "2",
+    ]) == 0
+    for caminho in sorted(sequencia.rglob("*.csv.gz")):
+        outro = paralela / caminho.relative_to(sequencia)
+        with gzip.open(caminho, "rb") as a, gzip.open(outro, "rb") as b:
+            assert a.read() == b.read(), caminho
+    um = ler_manifesto(tmp_path)
+    dois = json.loads((tmp_path / "resultados_paralela" / MANIFESTO).read_text(encoding="utf-8"))
+    assert [p["janelas"] for p in um["pcaps"]] == [p["janelas"] for p in dois["pcaps"]]
+    assert executar(tmp_path, "--processos", "0") == 2
+
+
+def test_opcoes_do_extrator_preenchem_e_limitam_o_tamanho_do_quadro_e_ficam_no_manifesto(tmp_path, monkeypatch):
+    import codigo.classificador.regerar as modulo
+    from codigo.captura.test_extrator import eth, ipv4, tcp
+
+    pasta = preparar_dataset(tmp_path / "dataset")
+    # Quadros de 54 bytes, sem o preenchimento até 60, e um pcap benigno com quadros de 3.054 bytes.
+    grande = eth(0x0800, ipv4(6, tcp(40000, 443, 0x10, dados=b"x" * 3000)))
+    (pasta / "BenignTraffic2.pcap").write_bytes(pcap([(i, 0, grande) for i in range(4)]))
+    assert executar(tmp_path) == 0
+    sem_opcao = ler(tmp_path / "regerado" / "janela_2" / "Recon-PortScan.csv.gz")
+    assert sem_opcao["Min"].tolist() == [54.0, 54.0]
+    assert ler(tmp_path / "regerado" / "janela_2" / "BenignTraffic.csv.gz")["Max"].max() == 3054.0
+    assert main([
+        "--dataset", str(pasta), "--saida", str(tmp_path / "preenchido_limitado"), "--destino", str(tmp_path / "regerado_preenchido_limitado"),
+        "--janelas", "2,5", "--preencher", "--limitar",
+    ]) == 0
+    limitado = ler(tmp_path / "regerado_preenchido_limitado" / "janela_2" / "Recon-PortScan.csv.gz")
+    assert limitado["Min"].tolist() == [60.0, 60.0]
+    assert ler(tmp_path / "regerado_preenchido_limitado" / "janela_2" / "BenignTraffic.csv.gz")["Max"].max() == 1514.0
+    # A opção só muda o tamanho: as mesmas janelas são mantidas, com os mesmos índices.
+    assert limitado["indice"].tolist() == sem_opcao["indice"].tolist()
+    m = json.loads((tmp_path / "preenchido_limitado" / MANIFESTO).read_text(encoding="utf-8"))
+    assert m["extrator"]["opcoes"] == {"limitar": True, "preencher": True}
+    # Rodar de novo sem as opções, na mesma pasta, lê todos os pcaps de novo.
+    lidos = []
+    original = modulo.percorrer
+    monkeypatch.setattr(modulo, "percorrer", lambda caminho, *a, **k: lidos.append(caminho) or original(caminho, *a, **k))
+    assert main([
+        "--dataset", str(pasta), "--saida", str(tmp_path / "preenchido_limitado"), "--destino", str(tmp_path / "regerado_preenchido_limitado"),
+        "--janelas", "2,5",
+    ]) == 0
+    assert len(lidos) == 5
