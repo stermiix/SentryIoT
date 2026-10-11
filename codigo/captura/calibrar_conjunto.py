@@ -915,6 +915,7 @@ def montar_relatorio(m):
         "offload de segmentação na máquina que capturou. As opções `--preencher` e `--limitar` do extrator",
         "medem o quadro como no fio; desligadas, como aqui, ele reproduz os autores.",
         "",
+        *_resumo_da_captura(pcaps),
         *_tabela(
             ["pcap", "instante", "limite de captura", "gravados menores que o original", "quadros < 60 B",
              "quadros > 1514 B", "quadros fora do filtro"],
@@ -932,13 +933,13 @@ def montar_relatorio(m):
         "",
         "    python -m codigo.captura.calibrar_conjunto --dataset CICIoT2023 --processos 3",
         "",
-        "- O comando constrói o índice do `MERGED_CSV` (cerca de 2 GB de memória), extrai os pcaps em paralelo,",
-        "  casa as linhas, roda o controle do vizinho e grava este relatório, `calibracao_conjunto_pcaps.csv`,",
-        "  `calibracao_conjunto_rotulos.csv` e `manifesto_calibracao_conjunto.json`. O manifesto traz o SHA-256 de",
-        "  cada pcap e de cada arquivo do `MERGED_CSV`.",
-        f"- Os dados intermediários ficam em `{TRABALHO}`, fora do git. Numa execução seguinte, o índice e",
-        "  as extrações são reaproveitados enquanto os arquivos e o código do extrator não mudarem; para refazer",
-        "  tudo, apague a pasta.",
+        "- O comando constrói o índice do `MERGED_CSV` (o processo do índice chega a cerca de 4,3 GB de memória),",
+        "  extrai os pcaps em paralelo, casa as linhas, roda o controle do vizinho e grava este relatório,",
+        "  `calibracao_conjunto_pcaps.csv`, `calibracao_conjunto_rotulos.csv` e `manifesto_calibracao_conjunto.json`.",
+        "  O manifesto traz o SHA-256 de cada pcap e de cada arquivo do `MERGED_CSV`.",
+        f"- Os dados intermediários ficam em `{TRABALHO}`, fora do git. Numa execução seguinte,",
+        "  o índice e as extrações são reaproveitados enquanto os arquivos e o código do extrator não mudarem;",
+        "  para refazer tudo, apague a pasta.",
         (
             f"- Tempo total desta execução: {_decimal(m['segundos'] / 60)} min; o pcap mais demorado levou "
             f"{_decimal(mais_lento / 60)} min. Os tempos das extrações reaproveitadas são os da execução em que"
@@ -948,6 +949,29 @@ def montar_relatorio(m):
         "",
     ]
     return "\n".join(linhas)
+
+
+def _nomes(pcaps):
+    return ", ".join(f"`{p['arquivo']}`" for p in pcaps) or "nenhum"
+
+
+def _resumo_da_captura(pcaps):
+    """O que a tabela da captura mostra, em frases: quadros curtos, longos e limite de captura."""
+    curtos = [p for p in pcaps if p["quadros_menores_que_60"]]
+    longos = [p for p in pcaps if p["quadros_maiores_que_1514"]]
+    limites = Counter(p["limite_de_captura"] for p in pcaps)
+    cortados = [p for p in pcaps if p["registros_menores_que_o_original"]]
+    return [
+        f"- Quadro menor que 60 bytes: {_nomes(curtos)}. Quadro maior que 1514 bytes: {len(longos)} dos {len(pcaps)} pcaps.",
+        "- Limite de captura declarado: "
+        + "; ".join(f"{_milhar(limite)} bytes em {n} pcaps" for limite, n in limites.most_common()) + ".",
+        (
+            f"- Registro gravado com menos bytes que o quadro original (limite de captura curto): {_nomes(cortados)}."
+            if cortados else
+            "- Nenhum pcap tem registro gravado com menos bytes que o quadro original (limite de captura curto)."
+        ),
+        "",
+    ]
 
 
 def _secao_vizinho(m):
@@ -967,8 +991,9 @@ def _secao_vizinho(m):
         (
             f"Foram examinadas {_milhar(total['examinadas'])} linhas sem par, até {m['vizinhos_por_pcap']} por pcap. "
             "Para cada uma, o `MERGED_CSV` foi percorrido em busca das linhas do mesmo rótulo com o mesmo `Number` e os"
-            " mesmos tamanhos, ou o mesmo protocolo e as mesmas contagens de flags, e a mais parecida foi comparada"
-            " coluna a coluna, com a tolerância do calibrador."
+            " mesmos tamanhos, ou o mesmo protocolo e as mesmas contagens de flags (até "
+            f"{CANDIDATOS_POR_CHAVE} por chave), e a mais parecida foi comparada coluna a coluna, com a tolerância do"
+            " calibrador."
         ),
         "",
         *_tabela(
@@ -987,8 +1012,10 @@ def _secao_vizinho(m):
         (
             "Uma linha calculada de outro jeito acharia um vizinho igual em quase tudo e diferente sempre na mesma"
             " coluna. O que aparece é o contrário: o vizinho difere nos instantes e em geral em várias outras"
-            " colunas, ou nem existe. As linhas sem par são janelas que faltam no `MERGED_CSV`. Por pcap, os"
-            " desfechos estão no manifesto, em `vizinho`."
+            " colunas, ou nem existe. As linhas sem par são janelas que faltam no `MERGED_CSV`. O vizinho igual em"
+            " todas as colunas é o de uma linha repetida no pcap: a linha idêntica do `MERGED_CSV` já serviu de par"
+            " a outra linha nossa igual, e na correspondência por multiconjunto cada uma serve a uma só. Por pcap,"
+            " os desfechos estão no manifesto, em `vizinho`."
         ),
         "",
     ]
