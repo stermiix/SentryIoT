@@ -117,6 +117,27 @@ def test_percorrer_conta_macs_e_janelas_com_e_sem_atacante(tmp_path):
     assert de_cinco[2][2]["Number"] == 2
 
 
+def test_percorrer_conta_os_quadros_do_atacante_em_cada_janela_quando_pedido(tmp_path):
+    # O atacante na origem, no destino e nas duas pontas: os três quadros contam.
+    registros = [
+        (1, 0, quadro(ATACANTE, VITIMA)), (2, 0, quadro(VITIMA, ATACANTE)), (3, 0, quadro(OUTRO, VITIMA)),
+        (4, 0, quadro(ATACANTE, ATACANTE)), (5, 0, quadro(OUTRO, VITIMA)), (6, 0, quadro(OUTRO, VITIMA)),
+        (7, 0, quadro(VITIMA, ATACANTE)),
+    ]
+    captura = tmp_path / "Recon-PortScan.pcap"
+    captura.write_bytes(pcap(registros))
+    fechadas = []
+    percorrer(captura, janelas=(2, 3), ao_fechar=lambda *args: fechadas.append(args), contar_quadros=True)
+    de_dois = [(args[1], args[4], args[5]) for args in fechadas if args[0] == 2]
+    assert de_dois == [(0, True, 2), (1, True, 1), (2, False, 0), (3, True, 1)]
+    de_tres = [(args[1], args[5]) for args in fechadas if args[0] == 3]
+    assert de_tres == [(0, 2), (1, 1), (2, 1)]
+    # Sem o pedido, a chamada continua com os cinco argumentos de antes.
+    fechadas.clear()
+    percorrer(captura, janelas=(2,), ao_fechar=lambda *args: fechadas.append(args))
+    assert {len(args) for args in fechadas} == {5}
+
+
 def test_percorrer_registra_captura_interrompida_e_faz_o_hash_do_arquivo_inteiro(tmp_path):
     captura = tmp_path / "Recon-PortScan.pcap"
     inteiro = pcap([(i, 0, quadro(OUTRO, VITIMA)) for i in range(4)])
