@@ -10,8 +10,8 @@ e os IPs de origem e de destino, e os IPs que os quadros ARP anunciam como orige
 regeração dos dados de treino usa para saber se um atacante está na janela, e o que a resposta
 precisa para saber quem bloquear. Sem a opção, a saída são só as 39 colunas.
 
-As opções `preencher` e `limitar`, desligadas por padrão, medem o tamanho do quadro como ele
-passa no fio, e não como a máquina que capturou o gravou (veja `tamanho_no_fio`).
+As opções `preencher` e `limitar`, desligadas por padrão, aproximam o tamanho do quadro do que
+passa no fio, e não do que a máquina que capturou gravou (veja `tamanho_no_fio`).
 
 Uso, a partir da raiz do repositório:
     python -m codigo.captura.extrator entrada.pcap saida.csv
@@ -132,9 +132,10 @@ def tamanho_no_fio(quadro, preencher=False, limitar=False):
     `limitar` faz o quadro maior que 1514 bytes contar como 1514. Quadro assim não existe no fio:
     é a placa da máquina que capturou juntando vários segmentos TCP num só (offload de
     segmentação). Ele aparece em 80% a 93% das janelas de 100 quadros dos pcaps benignos e em
-    nenhuma das de spoofing.
+    nenhuma das de spoofing. É uma aproximação: no fio, um quadro agregado de 64 KB seria várias
+    dezenas de quadros de até 1514 bytes, e a contagem de quadros da janela continua a da captura.
 
-    As duas opções juntas medem o quadro como ele passa no fio. Ficam desligadas por padrão
+    As duas opções juntas aproximam o quadro do que passa no fio. Ficam desligadas por padrão
     porque o código dos autores não faz nenhuma das duas coisas, e o extrator precisa reproduzir
     os números com que o modelo publicado foi treinado. Ligar ou não no treino e na operação, e
     regerar os dados de treino com elas, é uma decisão da equipe ainda em aberto; o que importa é
