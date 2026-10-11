@@ -2296,7 +2296,8 @@ def _cabecalho_das_capturas(m):
         "",
         (
             f"Cada configuração foi treinada com as sementes {_enumerar(p['sementes'][:p['sementes_de_controle']])}, que "
-            "mudam juntas o teto e o Random Forest. Os valores são a média das sementes, com o menor e o maior entre "
+            "definem ao mesmo tempo o sorteio do teto e o Random Forest. Os valores são a média das sementes, com o "
+            "menor e o maior entre "
             "parênteses. Uma diferença para a configuração 0 só conta quando as faixas das sementes não se cruzam; "
             "dentro delas, é \"sem diferença\"."
         ),
@@ -2340,14 +2341,18 @@ def _diferencas_das_capturas(m):
         return []
     referencia = medidas_do_resumo(r["0"], sementes)
     secao = ["## Quais diferenças passam do ruído", ""]
-    rotulos = {**ROTULOS_DO_RESUMO,
-               **{f"fora_{c}_como_ataque": f"{c} visto como ataque com o pcap fora" for c in CATEGORIAS_DO_RESUMO}}
+    rotulos = {
+        "macro_f1": "macro-F1 no corte por tempo", "pior_benigno": "benigno como ataque no pior pcap benigno de fora",
+        "fundo": "fundo virando ataque",
+        **{f"fora_{c}": f"recall de {c} com o pcap fora" for c in CATEGORIAS_DO_RESUMO},
+        **{f"fora_{c}_como_ataque": f"{c} visto como algum ataque com o pcap fora" for c in CATEGORIAS_DO_RESUMO},
+    }
     for nome, resultado in r.items():
         if nome == "0":
             continue
         medidas = medidas_do_resumo(resultado, sementes)
         acima = [
-            f"{rotulos[chave].lower() if chave != 'macro_f1' else rotulos[chave]} ({_pp(_media(medidas[chave]) - _media(referencia[chave]))} p.p.)"
+            f"{rotulos[chave]} ({_pp(_media(medidas[chave]) - _media(referencia[chave]))} p.p.)"
             for chave in rotulos if passa_do_ruido(referencia[chave], medidas[chave])
         ]
         secao.append(
