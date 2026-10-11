@@ -22,10 +22,12 @@ import argparse
 import csv
 import itertools
 import math
+import operator
 import os
 import socket
 import struct
 import sys
+import time
 import warnings
 from collections import Counter, namedtuple
 
@@ -67,6 +69,9 @@ PREFIXO_DECODIFICADO = 1600
 JANELA_MAXIMA = 10_000
 # Maior registro aceito num pcap: é o limite de captura mais alto do tcpdump e do Wireshark.
 MAIOR_REGISTRO = 262_144
+# O CSV é descarregado no disco a cada tantas linhas, ou depois de tantos segundos.
+DESCARGA_LINHAS = 1000
+DESCARGA_SEGUNDOS = 1.0
 # Menor e maior quadro Ethernet no fio, sem o FCS e sem etiqueta de VLAN (MTU de 1500 bytes).
 QUADRO_MINIMO = 60
 QUADRO_MAXIMO = 1514
@@ -248,8 +253,13 @@ class Extrator:
     """
 
     def __init__(self, janela=10, enderecos=False, preencher=False, limitar=False):
-        if janela < 1:
-            raise ValueError("a janela precisa ter ao menos 1 quadro")
+        # A janela guarda os quadros até fechar, então a memória cresce com ela. Um número com
+        # parte decimal ou um booleano não é tamanho de janela.
+        if isinstance(janela, bool) or not hasattr(type(janela), "__index__"):
+            raise TypeError("a janela precisa ser um número inteiro")
+        janela = operator.index(janela)
+        if not 1 <= janela <= JANELA_MAXIMA:
+            raise ValueError(f"a janela precisa ter entre 1 e {JANELA_MAXIMA} quadros")
         self.janela = janela
         self.enderecos = enderecos
         self.preencher = preencher
@@ -404,15 +414,25 @@ def _texto(valor):
     return str(valor)
 
 
-def gravar_csv(linhas, destino):
-    """Grava as linhas no formato do CSV oficial e devolve quantas gravou."""
+def gravar_csv(linhas, destino, a_cada=DESCARGA_LINHAS, segundos=DESCARGA_SEGUNDOS):
+    """Grava as linhas no formato do CSV oficial e devolve quantas gravou.
+
+    Descarrega o arquivo a cada `a_cada` linhas, ou na primeira linha depois de `segundos` sem
+    descarregar, e no fim. Numa captura ao vivo lenta cada linha chega ao disco logo; num pcap
+    grande o arquivo não é descarregado a cada linha, o que custava tempo.
+    """
     escritor = csv.writer(destino, lineterminator="\n")
     escritor.writerow(COLUNAS)
     total = 0
+    ultima_descarga = time.monotonic()
     for linha in linhas:
         escritor.writerow([_texto(linha[coluna]) for coluna in COLUNAS])
-        destino.flush()
         total += 1
+        agora = time.monotonic()
+        if total % a_cada == 0 or agora - ultima_descarga >= segundos:
+            destino.flush()
+            ultima_descarga = agora
+    destino.flush()
     return total
 
 

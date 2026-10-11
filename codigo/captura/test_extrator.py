@@ -759,3 +759,43 @@ def test_ler_pcap_conta_os_registros_gravados_menores_que_o_original():
     assert [quadro for _, quadro in ler_pcap(io.BytesIO(dados), contagem)] == [a, a, a]
     assert contagem == {"menor_que_o_original": 2}
     assert len(list(ler_pcap(io.BytesIO(dados)))) == 3  # sem contagem, nada muda
+
+
+# --- gravação do CSV e validação da janela ----------------------------------------------------
+
+
+class Destino(io.StringIO):
+    """Saída de texto que conta as descargas."""
+
+    descargas = 0
+
+    def flush(self):
+        self.descargas += 1
+        super().flush()
+
+
+def test_gravar_csv_descarrega_a_cada_tantas_linhas_e_no_fim():
+    quadros = [(float(i), quadro_tcp()) for i in range(25)]
+    destino = Destino()
+    assert gravar_csv(extrair(quadros, janela=1), destino, a_cada=10, segundos=math.inf) == 25
+    assert destino.descargas == 3  # nas linhas 10 e 20, e no fim
+    destino = Destino()
+    gravar_csv(extrair(quadros, janela=1), destino, a_cada=1000, segundos=0.0)
+    assert destino.descargas == 26  # sem intervalo mínimo, toda linha é descarregada
+
+
+@pytest.mark.parametrize("janela,erro", [
+    (0, ValueError), (-3, ValueError), (10_001, ValueError), (2.5, TypeError), (10.0, TypeError),
+    ("10", TypeError), (True, TypeError),
+])
+def test_extrator_recusa_janela_que_nao_e_inteiro_entre_1_e_o_teto(janela, erro):
+    with pytest.raises(erro, match="janela"):
+        Extrator(janela=janela)
+
+
+def test_extrator_aceita_janela_inteira_de_outros_tipos():
+    import numpy as np
+
+    assert Extrator(janela=np.int64(100)).janela == 100
+    assert type(Extrator(janela=np.int64(100)).janela) is int
+    assert Extrator(janela=10_000).janela == 10_000
