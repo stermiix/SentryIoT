@@ -15,16 +15,19 @@ TCC I.
 
 ## Resumo / Abstract
 
-`[PENDENTE]` — escrever por último, depois que Resultados e Metodologia fecharem. Rever o que o
+`[PENDENTE]` Escrever por último, depois que Resultados e Metodologia fecharem. Rever o que o
 resumo do TCC I prometia (classificação em MQTT/CoAP e detecção em tempo real) e ajustar: as 39
 features só distinguem os protocolos que têm indicador (HTTP, HTTPS, DNS, SSH, Telnet e poucos
-outros), e o extrator lê arquivo pcap, não captura ao vivo. Mencionar a arquitetura híbrida (dado
-da rede não sai do ambiente) como parte da contribuição.
+outros), e o extrator lê arquivo pcap, não captura ao vivo. As demais diferenças em relação ao TCC
+I estão na abertura da seção 3. Mencionar a arquitetura híbrida (dado da rede não sai do
+ambiente) como parte da contribuição.
 
 ## 1. Introdução
 
-`[PENDENTE]` — enquadrar como NIDR (detecção **e** resposta), não NIDS, conforme reposicionamento
-pedido pela banca do TCC I (ver `README.md`, seção "Correções da banca do TCC I").
+`[PENDENTE]` Enquadrar como NIDR (detecção **e** resposta), não NIDS, conforme o
+reposicionamento pedido pela banca do TCC I (ver `README.md`, seção "Correções da banca do TCC
+I"). O título também precisa mudar: o do TCC I era "Detecção de Ataques em IoT com IA Preditiva
+via MCP", e o do TCC II deve dizer detecção e resposta.
 
 ## 2. Trabalhos correlatos
 
@@ -46,19 +49,47 @@ por MAC do atacante já aparece em Ramkumar et al. (2024) e deve ser citada como
 
 ## 3. Metodologia
 
+Em relação à proposta do TCC I, o trabalho mudou nos pontos a seguir. Não há classificação
+específica de MQTT e CoAP, porque as 39 features só têm indicador para HTTP, HTTPS, DNS, SSH,
+Telnet, SMTP, IRC e DHCP. A extração lê arquivo pcap, e a captura ao vivo fica como trabalho
+futuro. Não houve busca de hiperparâmetros por grid search: o Random Forest usa os parâmetros
+padrão do scikit-learn, porque a contribuição do trabalho está na camada MCP. O N-BaIoT deixou de
+ser o dataset secundário, e nenhum outro o substituiu. O cenário de exfiltração de dados saiu da
+PoC, porque o CICIoT2023 não tem essa classe. E os agentes rodam num modelo local, com modelos de
+nuvem só nos experimentos, em vez de um único modelo comercial em nuvem.
+
 ### 3.1 Captura e extração de features
 
-O sistema processa tráfego bruto em arquivo PCAP, não apenas o CSV pré-processado do dataset —
-resposta direta ao avaliador 2 do TCC I. A captura da rede é feita com Wireshark ou ferramenta
-equivalente (a decidir); a extração das 39 features por janela de quadros é feita com `dpkt`, no
-lugar do Scapy usado no TCC I. O Scapy fica restrito à captura de Zigbee e Bluetooth, fora do
-escopo atual.
+O sistema processa tráfego bruto em arquivo pcap, e não apenas o CSV pré-processado do dataset, o
+que responde ao avaliador 2 do TCC I. A captura da rede grava um arquivo pcap, com `tcpdump`,
+Wireshark ou ferramenta equivalente `[PENDENTE: fechar a ferramenta, decisão em aberto no
+ROADMAP.md]`; a extração das 39 features por janela de quadros é feita com `dpkt`, como no código
+dos autores do dataset, e não com o Scapy previsto no TCC I. No código dos autores, o Scapy só é
+importado para Zigbee e Bluetooth e não contribui para nenhuma das 39 colunas.
+
+O trabalho não faz coleta in loco em dispositivos IoT reais: seria inviável no prazo, e o tráfego
+capturado não teria rótulo. O papel da captura é cumprido pelos pcaps brutos do CICIoT2023, que o
+extrator lê da mesma forma que leria um arquivo gravado na rede. O Wireshark não é necessário ao
+sistema: serve para inspecionar capturas, e a gravação pode ser feita com `tcpdump`. O Scapy
+também não é usado, porque a extração precisa repetir o cálculo dos autores, feito com `dpkt`. A
+captura ao vivo fica como um adaptador futuro sobre o mesmo extrator.
 
 O extrator (`codigo/captura/extrator.py`) foi calibrado contra os CSVs oficiais do CICIoT2023 em
 5 pcaps (um por família: DDoS, DoS, Mirai, Recon e BruteForce), somando 167.304 linhas. As 39
 colunas foram reproduzidas sem nenhuma divergência, com tolerância relativa de 1e-9 e desvio
 relativo máximo observado de 9,88e-13 — atribuível a arredondamento de ponto flutuante
 (`experimentos/resultados/calibracao.md`).
+
+O sistema lê o pcap, e não registros NetFlow, outro ponto levantado pela banca do TCC I. Um
+registro NetFlow típico resume cada fluxo em poucos campos: endereços, portas, protocolo,
+quantidade de pacotes e de bytes, instantes de início e fim e, no máximo, a união das flags TCP
+do fluxo. É leve e não guarda conteúdo, mas perde o que as 39 features do CICIoT2023 medem quadro
+a quadro: a flag de cada pacote, o tamanho de cada quadro e a variação entre eles (`Min`, `Max`,
+`Std`), o intervalo entre chegadas (`IAT`) e a fração da janela em cada protocolo de aplicação. O
+custo do pcap é o volume, já que os 38 pcaps usados somam cerca de 46 GB, e a exposição do
+conteúdo dos pacotes na captura; o extrator guarda só os campos de cabeçalho que mede e os
+endereços da janela, e nenhum conteúdo de pacote chega aos agentes. Numa rede que só exporte
+NetFlow, o classificador teria de ser treinado de novo, com outro conjunto de features.
 
 ### 3.2 Pré-processamento e amostragem
 
@@ -85,6 +116,11 @@ janelas vizinhas caiam dos dois lados. O teto de 50.000 janelas por rótulo e a 
 mantidos (`codigo/classificador/regerar.py`, `experimentos/resultados/regeracao.md`).
 
 ### 3.3 Treino e avaliação do classificador
+
+As métricas do classificador são a precisão, o recall e o F1 de cada categoria, o macro-F1 e a
+taxa de falso positivo, com destaque para o tráfego benigno classificado como ataque. A acurácia
+global não é a métrica principal: DDoS e DoS somam 89,5% das linhas do `MERGED_CSV`, e um modelo
+que respondesse DDoS para tudo acertaria 72,3%.
 
 Na fase exploratória, o Random Forest (scikit-learn, 100 árvores, parâmetros padrão) foi treinado
 e avaliado na amostra do `MERGED_CSV` descrita acima, com 80% das linhas para o treino e 20% para
@@ -143,25 +179,47 @@ pcaps, então os números não se comparam diretamente com os do artigo do datas
 
 ### 3.5 Servidor MCP e sistema multiagente
 
-`[PENDENTE — ligar à implementação real do servidor, hoje em stub]`. Resumo do contrato já fechado:
-9 tools MCP divididas entre três agentes (triagem, decisão, execução); eventos registrados em log
-JSONL; política de risco gradua ações em baixo risco (execução automática) e alto risco (aprovação
-humana obrigatória), com teto de propostas pendentes por incidente para conter o custo de tokens
-(ver `codigo/mcp/README.md` e `codigo/mcp/politica.toml`).
+`[PENDENTE: ligar à implementação real do servidor, hoje em stub]` O contrato tem 9 tools MCP
+divididas entre os três agentes (triagem, decisão e execução) e grava cada passo num log de
+eventos em JSONL. A política de risco separa as ações de risco baixo, aplicadas sem aprovação,
+das de risco alto, que dependem de aprovação humana, e limita a 10 as propostas que aguardam
+aprovação em cada incidente, porque a fila é lida por uma pessoa e um agente enganado por
+conteúdo vindo da rede poderia enchê-la. O custo de tokens é contido de outra forma: os agentes
+recebem o resumo do incidente, e não as janelas, e o detalhe vem em fatias de até 20 janelas. Na
+PoC, a resposta é executada num ambiente simulado, com aprovação humana e possibilidade de
+desfazer (ver `codigo/mcp/README.md` e `codigo/mcp/politica.toml`).
 
 Arquitetura híbrida (decisão de 2026-10-10): os agentes de triagem e de execução, e a verificação
-do efeito, rodam num modelo local (Ollama, no laboratório do grupo); só o agente de decisão pode
-usar um modelo de fronteira pela nuvem, e recebe apenas o resumo da triagem, com endereços e
-nomes de dispositivo trocados por rótulos neutros pelo orquestrador. O agente de execução, local,
-desfaz a troca e é o único com credenciais. O orquestrador aceita três configurações, tudo local,
-tudo na nuvem e híbrida, e a comparação entre elas em qualidade, custo e tempo é resultado do
-artigo. Isso responde ao ponto da banca sobre riscos de IA em nuvem e à alternativa on-premises.
+do efeito, rodam num modelo local, o Qwen3 8B servido pelo Ollama num computador do laboratório
+(GPU RTX 2070 Super); só o agente de decisão pode usar um modelo de fronteira pela nuvem, acessado
+pelo OpenRouter, e recebe apenas o resumo da triagem, com endereços e nomes de dispositivo
+trocados por rótulos neutros pelo orquestrador. O agente de execução, local, desfaz a troca e é o
+único com credenciais. O orquestrador aceita três configurações, tudo local, tudo na nuvem e
+híbrida, e a comparação entre elas em qualidade, custo e tempo é resultado do artigo. Isso
+responde ao ponto da banca sobre riscos de IA em nuvem e à alternativa on-premises.
+
+A busca na internet dos agentes fica desligada por padrão, e por isso nenhum dado da rede sai da
+máquina por ela; a comparação com a busca ligada fica como experimento. O custo em tokens é
+medido por chamada: cada chamada ao modelo grava no log o agente, o modelo e os tokens de entrada
+e de saída, e o contador da interface mostra quantas chamadas um incidente gerou. O risco de
+Denial of Wallet será tratado pela política de acionamento `[a escrever]`, que fará de um flood
+de centenas de janelas por segundo um único incidente, e não centenas de chamadas ao modelo.
 
 O classificador avisa a pessoa que opera a rede no instante em que o incidente abre, antes dos
 agentes. A interface tem o botão "Já resolvido": com ele marcado, o agente de execução não aplica
 remediação e o sistema só explica o incidente. O log grava o instante de cada etapa, da janela à
 verificação, o que permite medir o tempo entre detecção e remediação, com e sem intervenção
 humana.
+
+### 3.6 Avaliação da PoC e dos agentes
+
+`[PENDENTE]` Cenários: DDoS, varredura de portas e força bruta, reproduzidos a partir dos pcaps
+do CICIoT2023. Comparações: a saída isolada do classificador contra a saída integrada, com os
+agentes, no mesmo incidente, como previa o TCC I; e as três configurações dos agentes (tudo
+local, tudo na nuvem e híbrida). Medidas: qualidade da recomendação `[métrica a definir]`; tokens
+e custo por incidente; tempo entre a abertura do incidente e a remediação, com e sem a marca de já
+resolvido; e propostas aprovadas, rejeitadas e desfeitas. Segurança do MCP: o teste de tool
+poisoning `[a escrever]`.
 
 ## 4. Resultados
 
