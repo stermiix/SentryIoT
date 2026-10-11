@@ -1,3 +1,4 @@
+import { inteiro } from "../formato";
 import type { IncidenteView, ResumoGeral } from "../types";
 
 interface Props {
@@ -9,6 +10,12 @@ interface Props {
 
 function percentual(confianca: number) {
   return `${Math.round(confianca * 100)}%`;
+}
+
+function estadoNaFila(view: IncidenteView): { classe: string; texto: string } {
+  return view.incidente.estado === "encerrado"
+    ? { classe: "state-closed", texto: "Encerrado" }
+    : { classe: "state-open", texto: "Em análise" };
 }
 
 /** Fila selecionável com categoria, prioridade e métricas úteis para triagem. */
@@ -28,27 +35,35 @@ export default function FilaDeIncidentes({ resumo, incidentes, selecionadoId, on
           </tr>
         </thead>
         <tbody>
-          {incidentes.map((view) => (
-            <tr key={view.id} className={view.id === selecionadoId ? "selecionada" : ""}>
-              <td>
-                <button className="incident-select" onClick={() => onSelecionar(view.id)} aria-pressed={view.id === selecionadoId}>
-                  <span className="incident-marker" />
-                  <span><strong>{view.id}</strong><small>Detecção automática</small></span>
-                </button>
-              </td>
-              <td><span className="category-pill">{view.incidente?.categoria ?? "—"}</span></td>
-              {/* Sem evento de incidente no log não há perfil nem estado: as colunas ficam vazias, em vez de "Uma origem" e "Encerrado". */}
-              <td>{view.incidente ? <span className={`severity ${view.incidente.distribuido ? "severity-distributed" : "severity-single"}`}><span />{view.incidente.distribuido ? "Distribuído" : "Uma origem"}</span> : "—"}</td>
-              <td>{view.incidente ? <span className={`state-pill ${view.incidente.estado === "aberto" ? "state-open" : "state-closed"}`}><span />{view.incidente.estado === "aberto" ? "Em análise" : "Encerrado"}</span> : "—"}</td>
-              <td><span className="confidence-value">{view.incidente ? percentual(view.incidente.confianca) : "—"}</span></td>
-              <td>{view.incidente?.janelas.toLocaleString("pt-BR") ?? "—"}</td>
-              <td><span className="ai-count">✳ {view.chamadasLLM}</span></td>
-            </tr>
-          ))}
+          {incidentes.map((view) => {
+            const estado = estadoNaFila(view);
+            return (
+              <tr key={view.id} className={view.id === selecionadoId ? "selecionada" : ""}>
+                <td>
+                  <button className="incident-select" onClick={() => onSelecionar(view.id)} aria-pressed={view.id === selecionadoId}>
+                    <span className="incident-marker" />
+                    <span><strong>{view.id}</strong><small>Detecção automática</small></span>
+                  </button>
+                </td>
+                <td><span className="category-pill">{view.incidente.categoria}</span></td>
+                <td><span className={`severity ${view.incidente.distribuido ? "severity-distributed" : "severity-single"}`}><span />{view.incidente.distribuido ? "Distribuído" : "Uma origem"}</span></td>
+                <td><span className={`state-pill ${estado.classe}`}><span />{estado.texto}</span></td>
+                <td><span className="confidence-value">{percentual(view.incidente.confianca)}</span></td>
+                <td>{inteiro(view.incidente.janelas)}</td>
+                <td><span className="ai-count">✳ {view.chamadasLLM}</span></td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
-      {incidentes.length === 0 && <div className="empty-state">Nenhum incidente foi encontrado neste replay.</div>}
-      <div className="queue-footnote"><span><i className="tiny-dot" /> Dados de demonstração</span><span>{resumo.totalIncidentes} registro(s) no arquivo</span></div>
+      {incidentes.length === 0 && <div className="empty-state">Nenhum incidente aberto até este ponto do replay.</div>}
+      <div className="queue-footnote">
+        <span><i className="tiny-dot" /> Dados de demonstração</span>
+        <span>
+          {resumo.totalIncidentes} incidente(s) com abertura no log
+          {resumo.eventosSemAbertura > 0 && ` · ${resumo.eventosSemAbertura} evento(s) de incidente sem abertura, fora da fila`}
+        </span>
+      </div>
     </section>
   );
 }

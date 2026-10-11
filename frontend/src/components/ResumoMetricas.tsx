@@ -1,3 +1,4 @@
+import { inteiro } from "../formato";
 import type { IncidenteView, ResumoGeral } from "../types";
 
 interface Props {
@@ -6,11 +7,11 @@ interface Props {
 }
 
 export default function ResumoMetricas({ resumo, incidentes }: Props) {
-  const ativos = incidentes.filter((item) => item.incidente?.estado === "aberto").length;
+  const ativos = incidentes.filter((item) => item.incidente.estado === "aberto").length;
   const cartoes = [
-    { rotulo: "Janelas analisadas", valor: resumo.janelasClassificadas.toLocaleString("pt-BR"), detalhe: "em todos os lotes do replay", cor: "azul", icone: "▦" },
+    { rotulo: "Janelas analisadas", valor: inteiro(resumo.janelasClassificadas), detalhe: "em todos os lotes do replay", cor: "azul", icone: "▦" },
     { rotulo: "Incidentes", valor: String(resumo.totalIncidentes), detalhe: `${ativos} em acompanhamento`, cor: "ambar", icone: "⌁" },
-    { rotulo: "Chamadas à IA", valor: String(resumo.chamadasLLM), detalhe: `${resumo.tokens.toLocaleString("pt-BR")} tokens no replay`, cor: "violeta", icone: "✳" },
+    { rotulo: "Chamadas à IA", valor: String(resumo.chamadasLLM), detalhe: `${inteiro(resumo.tokens)} tokens no replay`, cor: "violeta", icone: "✳" },
   ];
 
   return (

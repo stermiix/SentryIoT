@@ -1,30 +1,40 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DetalheDoIncidente from "./components/DetalheDoIncidente";
 import FilaDeIncidentes from "./components/FilaDeIncidentes";
+import LimiteDeErro from "./components/LimiteDeErro";
 import ResumoMetricas from "./components/ResumoMetricas";
-import { agregar, carregarLog } from "./log";
-import type { IncidenteView, ResumoGeral } from "./types";
+import { type Agregado, agregar, carregarLog } from "./log";
+import type { Evento } from "./types";
 
 export default function App() {
-  const [resumo, setResumo] = useState<ResumoGeral | null>(null);
-  const [incidentes, setIncidentes] = useState<IncidenteView[]>([]);
+  const [eventos, setEventos] = useState<Evento[]>([]);
+  const [avisos, setAvisos] = useState<string[]>([]);
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
     carregarLog()
-      .then((eventos) => {
-        const agregado = agregar(eventos);
-        setResumo(agregado.resumo);
-        setIncidentes(agregado.incidentes);
-        setSelecionadoId(agregado.incidentes[0]?.id ?? null);
+      .then((lido) => {
+        const final = agregar(lido.eventos);
+        setEventos(lido.eventos);
+        setAvisos([...lido.avisos, ...final.avisos]);
+        setSelecionadoId(final.incidentes[0]?.id ?? null);
       })
       .catch((erroCarregado: Error) => setErro(erroCarregado.message))
       .finally(() => setCarregando(false));
   }, []);
 
-  const selecionado = incidentes.find((view) => view.id === selecionadoId) ?? null;
+  const agregado = useMemo((): { valor: Agregado } | { falha: string } => {
+    try {
+      return { valor: agregar(eventos) };
+    } catch (falha) {
+      return { falha: (falha as Error).message };
+    }
+  }, [eventos]);
+  const resumo = "valor" in agregado ? agregado.valor.resumo : null;
+  const incidentes = "valor" in agregado ? agregado.valor.incidentes : [];
+  const selecionado = incidentes.find((view) => view.id === selecionadoId) ?? incidentes[0] ?? null;
 
   return (
     <div className="shell">
@@ -71,19 +81,32 @@ export default function App() {
             </div>
           </section>
 
-          {erro && <div className="error-banner"><strong>Não foi possível abrir o replay.</strong><span>{erro}</span></div>}
+          {erro && <div className="error-banner" role="alert"><strong>Não foi possível abrir o replay.</strong><span>{erro}</span></div>}
+          {"falha" in agregado && <div className="error-banner" role="alert"><strong>Não foi possível montar o replay.</strong><span>{agregado.falha}</span></div>}
+          {avisos.length > 0 && (
+            <div className="warning-banner" role="status">
+              <strong>O log tem {avisos.length} aviso(s). A tela mostra só o que passou na conferência.</strong>
+              <ul>{avisos.map((aviso, indice) => <li key={indice}>{aviso}</li>)}</ul>
+            </div>
+          )}
           {carregando && <div className="loading-state">Carregando execução demonstrativa…</div>}
-          {resumo && (
+          {!carregando && !erro && resumo && (
             <>
               <ResumoMetricas resumo={resumo} incidentes={incidentes} />
               <div className="section-heading">
                 <div><h2>Fila de incidentes</h2><p>Alertas agrupados para análise e resposta</p></div>
                 <span className="table-count">{incidentes.length} incidente{incidentes.length === 1 ? "" : "s"}</span>
               </div>
-              <FilaDeIncidentes resumo={resumo} incidentes={incidentes} selecionadoId={selecionadoId} onSelecionar={setSelecionadoId} />
+              <LimiteDeErro parte="a fila de incidentes" chave={String(eventos.length)}>
+                <FilaDeIncidentes resumo={resumo} incidentes={incidentes} selecionadoId={selecionado?.id ?? null} onSelecionar={setSelecionadoId} />
+              </LimiteDeErro>
             </>
           )}
-          {selecionado && <DetalheDoIncidente incidente={selecionado} />}
+          {selecionado && (
+            <LimiteDeErro parte={`o detalhe do incidente ${selecionado.id}`} chave={selecionado.id}>
+              <DetalheDoIncidente key={selecionado.id} incidente={selecionado} />
+            </LimiteDeErro>
+          )}
 
           <footer className="page-footer"><span>SentryIoT <span className="footer-separator">·</span> TCC II FCI Mackenzie</span><span>Protótipo em modo replay · dados ilustrativos</span></footer>
         </div>

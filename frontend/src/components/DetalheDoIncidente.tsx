@@ -1,75 +1,132 @@
-import { useState } from "react";
-import type { Evento, IncidenteView } from "../types";
+import { Fragment, useState } from "react";
+import { inteiro, numero } from "../formato";
+import { ESTADO_DA_PROPOSTA, NOME_DO_AGENTE, PELO_CANAL, RESULTADO_DO_EFEITO, ROTULO_DO_EVENTO, rotulo } from "../rotulos";
+import type { Agente, Evento, EventoDeLLM, EventoDeTool, IncidenteView, PropostaView, TipoDeEvento } from "../types";
+import Instante from "./Instante";
 
 interface Props {
   incidente: IncidenteView;
 }
 
-// Rótulo e cor de cada tipo de evento de decisão, para a lista de ações.
-const ROTULO_DO_EVENTO: Record<string, string> = {
-  acao_proposta: "Proposta criada",
-  acao_aprovada: "Aprovada",
-  acao_rejeitada: "Rejeitada",
-  acao_executada: "Executada",
-  acao_desfeita: "Desfeita",
-  efeito_verificado: "Efeito verificado",
-  catalogo_ampliado: "Promovida ao catálogo",
-  recusa: "Recusada pelo servidor",
-};
+// Os eventos que entram no histórico de decisões e ações.
+const EVENTOS_DO_HISTORICO = new Set<TipoDeEvento>([
+  "acao_proposta",
+  "acao_aprovada",
+  "acao_rejeitada",
+  "acao_executada",
+  "acao_desfeita",
+  "efeito_verificado",
+  "catalogo_ampliado",
+  "recusa",
+]);
+const RASTRO_RESUMIDO = 7;
 
-// Nome de cada agente como aparece na tela. No log vai sem acento (`AGENTES` em tipos.py).
-const NOME_DO_AGENTE: Record<string, string> = {
-  triagem: "Triagem",
-  decisao: "Decisão",
-  execucao: "Execução",
-};
+function nomeDoAgente(agente: Agente | null): string {
+  // `agente` é nulo na tool_chamada quando o stub sobe com `--agente todos`.
+  return agente === null ? "Agente não identificado" : rotulo(NOME_DO_AGENTE, agente);
+}
 
-const RESULTADO_DO_EFEITO: Record<string, string> = {
-  cessou: "o incidente cessou",
-  diminuiu: "o incidente diminuiu",
-  persiste: "o incidente persiste",
-};
+/** A proposta ou a execução de que a recusa fala, quando os argumentos da tool dizem. */
+function idDaRecusa(argumentos: Record<string, unknown>): string {
+  const citado = argumentos.id_proposta ?? argumentos.id_execucao;
+  return typeof citado === "string" ? citado : "sem id";
+}
 
-// O que cada tipo traz em `dados` é diferente (ver a tabela do log em codigo/mcp/README.md):
-// proposta e execução têm ação e alvo; decisão e promoção apontam para a proposta; o efeito
-// aponta para a execução; a recusa traz a tool.
-function descricaoDaAcao(evento: Evento): string {
-  const dados = evento.dados;
+// Cada linha do histórico diz de qual proposta ou execução está falando (o id), e o que aconteceu.
+// O que cada tipo traz em `dados` está na tabela do log em codigo/mcp/README.md.
+function linhaDoHistorico(evento: Evento): { id: string; descricao: string } | null {
   switch (evento.tipo) {
+    case "acao_proposta": {
+      const { dados } = evento;
+      const aprovacao = dados.exige_aprovacao ? "exige aprovação" : "sem aprovação";
+      return { id: dados.id, descricao: `${dados.acao} em ${dados.alvo} · risco ${dados.risco}, ${aprovacao}` };
+    }
     case "acao_aprovada":
-    case "acao_rejeitada":
-      return dados.motivo ? `${dados.proposta} · ${dados.motivo}` : dados.proposta;
+    case "acao_rejeitada": {
+      const { dados } = evento;
+      return { id: dados.proposta, descricao: `${rotulo(PELO_CANAL, dados.canal)}${dados.motivo ? ` · ${dados.motivo}` : ""}` };
+    }
+    case "acao_executada":
+    case "acao_desfeita":
+      return { id: evento.dados.id, descricao: `${evento.dados.acao} em ${evento.dados.alvo} · proposta ${evento.dados.proposta}` };
     case "efeito_verificado":
-      return `${dados.execucao} · ${RESULTADO_DO_EFEITO[dados.resultado] ?? dados.resultado}`;
+      return {
+        id: evento.dados.execucao,
+        descricao: `${rotulo(RESULTADO_DO_EFEITO, evento.dados.resultado)} · ${evento.dados.observacao}`,
+      };
     case "catalogo_ampliado":
-      return `${dados.acao?.nome ?? dados.proposta} (de ${dados.proposta})`;
+      return { id: evento.dados.proposta, descricao: `a ação ${evento.dados.acao.nome} entra no catálogo` };
     case "recusa":
-      return `${dados.tool} · ${dados.mensagem}`;
+      return { id: idDaRecusa(evento.dados.argumentos), descricao: `${evento.dados.tool} · ${evento.dados.mensagem}` };
     default:
-      return dados.alvo ? `${dados.acao} em ${dados.alvo}` : dados.acao;
+      return null;
   }
 }
 
-// Valores de feature como o IAT (2,8e-5) virariam "0" com o arredondamento padrão de três casas.
-function numero(valor: number): string {
-  const opcoes = Math.abs(valor) < 1 && valor !== 0 ? { maximumSignificantDigits: 3 } : undefined;
-  return valor.toLocaleString("pt-BR", opcoes);
+function CartaoDaProposta({ proposta }: { proposta: PropostaView }) {
+  return (
+    <li className="proposal">
+      <div className="proposal-head">
+        <code className="event-id">{proposta.id}</code>
+        <strong>{proposta.acao}</strong>
+        <span className="proposal-target">em {proposta.alvo}</span>
+        <span className={`proposal-state proposal-${proposta.estado}`}>{rotulo(ESTADO_DA_PROPOSTA, proposta.estado)}</span>
+      </div>
+      <div className="proposal-meta">
+        <span className={`risk risk-${proposta.risco}`}>Risco {proposta.risco}</span>
+        <span>{proposta.exigeAprovacao ? "Exige aprovação humana" : "Sem aprovação humana"}</span>
+        {proposta.nova && <span>Ação nova</span>}
+        {proposta.promovida && <span>Promovida ao catálogo</span>}
+        <span>Criada às <Instante valor={proposta.criadaEm} /></span>
+      </div>
+      {proposta.motivosDeRiscoAlto.length > 0 && (
+        <ul className="proposal-reasons" aria-label="Motivos do risco alto">
+          {proposta.motivosDeRiscoAlto.map((motivo) => <li key={motivo.codigo}>{motivo.descricao}</li>)}
+        </ul>
+      )}
+      {proposta.decisoes.map((decisao) => (
+        <div className="proposal-step" key={decisao.instante + decisao.tipo}>
+          <Instante valor={decisao.instante} /> {decisao.tipo === "acao_aprovada" ? "Aprovada" : "Rejeitada"} {rotulo(PELO_CANAL, decisao.canal)}
+          {decisao.motivo && <> · {decisao.motivo}</>}
+        </div>
+      ))}
+      {proposta.execucoes.map((execucao) => (
+        <Fragment key={execucao.id}>
+          <div className="proposal-step">
+            <Instante valor={execucao.aplicadaEm} /> Execução <code className="event-id">{execucao.id}</code> aplicada
+          </div>
+          {execucao.efeitos.map((efeito) => (
+            <div className="proposal-step" key={efeito.instante + efeito.resultado}>
+              <Instante valor={efeito.instante} /> Efeito verificado: {rotulo(RESULTADO_DO_EFEITO, efeito.resultado)}
+            </div>
+          ))}
+          {execucao.desfeitaEm && (
+            <div className="proposal-step">
+              <Instante valor={execucao.desfeitaEm} /> Execução <code className="event-id">{execucao.id}</code> desfeita
+            </div>
+          )}
+        </Fragment>
+      ))}
+    </li>
+  );
 }
 
-export default function DetalheDoIncidente({ incidente }: Props) {
+export default function DetalheDoIncidente({ incidente: view }: Props) {
   const [mostrarRastroCompleto, setMostrarRastroCompleto] = useState(false);
-  const dados = incidente.incidente;
-  const rastro = incidente.eventos.filter(
-    (evento) => evento.tipo === "tool_chamada" || evento.tipo === "llm_chamada",
+  const dados = view.incidente;
+  const rastro = view.eventos.filter(
+    (evento): evento is EventoDeTool | EventoDeLLM => evento.tipo === "tool_chamada" || evento.tipo === "llm_chamada",
   );
-  const acoes = incidente.eventos.filter((evento) => ROTULO_DO_EVENTO[evento.tipo] !== undefined);
-  const eventosVisiveis = mostrarRastroCompleto ? rastro : rastro.slice(0, 7);
-  const tokensTotal = incidente.tokensEntrada + incidente.tokensSaida;
+  const historico = view.eventos.filter((evento) => EVENTOS_DO_HISTORICO.has(evento.tipo));
+  const eventosVisiveis = mostrarRastroCompleto ? rastro : rastro.slice(0, RASTRO_RESUMIDO);
+  const tokensTotal = view.tokensEntrada + view.tokensSaida;
+  const propostasPorId = new Map(view.propostas.map((proposta) => [proposta.id, proposta]));
+  const agentesDaRecomendacao = Array.from(new Set(view.recomendacoes.map((evento) => evento.dados.agente)));
 
   return (
     <section className="detalhe">
       <div className="detail-heading">
-        <div><div className="eyebrow">ANÁLISE DO ALERTA</div><h2>{incidente.id}</h2></div>
+        <div><div className="eyebrow">ANÁLISE DO ALERTA</div><h2>{view.id}</h2></div>
         <span className="replay-pill"><span className="status-dot" /> REPLAY</span>
       </div>
       <div className="replay-notice"><span>ⓘ</span><p><strong>Execução roteirizada.</strong> Valores ilustrativos do stub MCP: não representam tráfego, predição nem decisão reais de uma LLM.</p></div>
@@ -77,64 +134,111 @@ export default function DetalheDoIncidente({ incidente }: Props) {
       <div className="detail-grid">
         <article className="panel verdict-panel">
           <div className="panel-title"><span className="panel-icon model-icon">◈</span><div><h3>Veredito do modelo</h3><p>Random Forest · 39 features</p></div></div>
-          {dados ? (
-            <>
-              <div className="verdict-summary">
-                <div><span className="field-label">CATEGORIA DO INCIDENTE</span><strong className="attack-category">{dados.categoria}</strong></div>
-                <div className="confidence-block"><strong>{Math.round(dados.confianca * 100)}<small>%</small></strong><span>confiança</span></div>
-              </div>
-              <div className="model-note">Saída do modelo: <strong>{dados.categoria_do_modelo}</strong>{dados.categoria !== dados.categoria_do_modelo && <span className="classification-note"> · refinada pela regra de origens</span>}</div>
-              <div className="feature-title"><strong>Features em destaque</strong><span>vs. tráfego benigno</span></div>
-              <div className="feature-list">
-                {dados.features_principais.map((feature) => {
-                  const ratio = Math.min(Math.abs(feature.valor) / (Math.abs(feature.referencia_benigno) || 1), 5);
-                  return <div className="feature-row" key={feature.nome}>
-                    <div className="feature-label"><strong>{feature.nome}</strong><span>{numero(feature.valor)}</span></div>
-                    <div className="feature-track"><span style={{ width: `${Math.max(4, (ratio / 5) * 100)}%` }} /></div>
-                    <small>Benigno: {numero(feature.referencia_benigno)}</small>
-                  </div>;
-                })}
-              </div>
-              <div className="incident-facts"><span><small>ORIGENS</small><strong>{dados.origens_distintas} dispositivos</strong></span><span><small>VOLUME</small><strong>{dados.janelas.toLocaleString("pt-BR")} janelas</strong></span></div>
-            </>
-          ) : <p>Sem dados do incidente neste trecho do log.</p>}
+          <div className="verdict-summary">
+            <div><span className="field-label">CATEGORIA DO INCIDENTE</span><strong className="attack-category">{dados.categoria}</strong></div>
+            <div className="confidence-block"><strong>{Math.round(dados.confianca * 100)}<small>%</small></strong><span>confiança</span></div>
+          </div>
+          <div className="model-note">Saída do modelo: <strong>{dados.categoria_do_modelo}</strong>{dados.categoria !== dados.categoria_do_modelo && <span className="classification-note"> · refinada pela regra de origens</span>}</div>
+          <div className="feature-title"><strong>Features em destaque</strong><span>vs. tráfego benigno</span></div>
+          <div className="feature-list">
+            {dados.features_principais.map((feature) => {
+              const razao = Math.min(Math.abs(feature.valor) / (Math.abs(feature.referencia_benigno) || 1), 5);
+              return <div className="feature-row" key={feature.nome}>
+                <div className="feature-label"><strong>{feature.nome}</strong><span>{numero(feature.valor)}</span></div>
+                <div className="feature-track"><span style={{ width: `${Math.max(4, (razao / 5) * 100)}%` }} /></div>
+                <small>Benigno: {numero(feature.referencia_benigno)}</small>
+              </div>;
+            })}
+          </div>
+          <div className="incident-facts">
+            <span><small>ORIGENS</small><strong>{dados.origens_distintas} dispositivos</strong></span>
+            <span><small>VOLUME</small><strong>{inteiro(dados.janelas)} janelas</strong></span>
+            <span><small>PERÍODO</small><strong><Instante valor={dados.inicio} /> a <Instante valor={dados.fim} /></strong></span>
+          </div>
         </article>
 
         <article className="panel trace-panel" id="atividade">
-          <div className="panel-title"><span className="panel-icon trace-icon">⌁</span><div><h3>Rastro dos agentes</h3><p>{rastro.length} eventos · {incidente.chamadasLLM} chamadas à IA</p></div></div>
-          <div className="trace-summary"><span><strong>{tokensTotal.toLocaleString("pt-BR")}</strong><small>tokens totais</small></span><span><strong>{incidente.tokensEntrada.toLocaleString("pt-BR")}</strong><small>entrada</small></span><span><strong>{incidente.tokensSaida.toLocaleString("pt-BR")}</strong><small>saída</small></span></div>
+          <div className="panel-title"><span className="panel-icon trace-icon">⌁</span><div><h3>Rastro dos agentes</h3><p>{rastro.length} eventos · {view.chamadasLLM} chamadas à IA</p></div></div>
+          <div className="trace-summary"><span><strong>{inteiro(tokensTotal)}</strong><small>tokens totais</small></span><span><strong>{inteiro(view.tokensEntrada)}</strong><small>entrada</small></span><span><strong>{inteiro(view.tokensSaida)}</strong><small>saída</small></span></div>
           <ol className="timeline">
             {eventosVisiveis.map((evento) => (
               <li key={evento.id} className={evento.tipo === "llm_chamada" ? "timeline-llm" : "timeline-tool"}>
+                <Instante valor={evento.instante} />
                 <span className="timeline-node">{evento.tipo === "llm_chamada" ? "✳" : "↗"}</span>
-                {/* `agente` é nulo na tool_chamada quando o stub sobe com `--agente todos`. */}
-                <div className="timeline-copy"><strong>{NOME_DO_AGENTE[evento.dados.agente] ?? evento.dados.agente ?? "Agente não identificado"}</strong><span>{evento.tipo === "tool_chamada" ? `Tool · ${evento.dados.nome}` : `Modelo · ${evento.dados.modelo}`}</span></div>
-                <small>{Math.round(evento.dados.duracao_ms).toLocaleString("pt-BR")} ms</small>
+                <div className="timeline-copy"><strong>{nomeDoAgente(evento.dados.agente)}</strong><span>{evento.tipo === "tool_chamada" ? `Tool · ${evento.dados.nome}` : `Modelo · ${evento.dados.modelo}`}</span></div>
+                <small>{inteiro(Math.round(evento.dados.duracao_ms))} ms</small>
               </li>
             ))}
           </ol>
-          {rastro.length > 7 && <button className="text-button" onClick={() => setMostrarRastroCompleto(!mostrarRastroCompleto)}>{mostrarRastroCompleto ? "Mostrar resumo" : `Ver todos os ${rastro.length} eventos`} <span>→</span></button>}
+          {rastro.length > RASTRO_RESUMIDO && <button className="text-button" onClick={() => setMostrarRastroCompleto(!mostrarRastroCompleto)}>{mostrarRastroCompleto ? "Mostrar resumo" : `Ver todos os ${rastro.length} eventos`} <span>→</span></button>}
         </article>
       </div>
 
       <div className="lower-grid">
         <article className="panel recommendation-panel">
-          <div className="panel-title"><span className="panel-icon recommendation-icon">✳</span><div><h3>Recomendação do agente</h3><p>Agente de decisão · registro do replay</p></div></div>
-          {incidente.recomendacoes.length === 0 ? <p className="empty-copy">Nenhuma recomendação neste registro.</p> : incidente.recomendacoes.map((evento) => <p key={evento.id} className="recommendation-copy">“{evento.dados.texto}”</p>)}
+          <div className="panel-title">
+            <span className="panel-icon recommendation-icon">✳</span>
+            <div>
+              <h3>Recomendação do agente</h3>
+              <p>{agentesDaRecomendacao.length > 0 ? agentesDaRecomendacao.map((agente) => `Agente de ${rotulo(NOME_DO_AGENTE, agente).toLowerCase()}`).join(" · ") : "Nenhum agente"} · registro do replay</p>
+            </div>
+          </div>
+          {view.recomendacoes.length === 0 ? <p className="empty-copy">Nenhuma recomendação neste registro.</p> : (
+            <ol className="recommendation-list">
+              {view.recomendacoes.map((evento) => (
+                <li key={evento.id}>
+                  <div className="recommendation-meta"><Instante valor={evento.instante} /> · Agente de {rotulo(NOME_DO_AGENTE, evento.dados.agente).toLowerCase()}</div>
+                  <p className="recommendation-copy">“{evento.dados.texto}”</p>
+                  {evento.dados.propostas.length > 0 && (
+                    <ul className="recommendation-proposals" aria-label="Propostas ligadas à recomendação">
+                      {evento.dados.propostas.map((id) => {
+                        const proposta = propostasPorId.get(id);
+                        return (
+                          <li key={id}>
+                            <code className="event-id">{id}</code>
+                            {proposta ? ` ${proposta.acao} em ${proposta.alvo} · ${rotulo(ESTADO_DA_PROPOSTA, proposta.estado)}` : " proposta não encontrada neste incidente"}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
         </article>
 
-        <article className="panel actions-panel">
-          <div className="panel-title"><span className="panel-icon actions-icon">✓</span><div><h3>Decisões e ações</h3><p>Histórico registrado no log</p></div></div>
-          <ul className="action-list">
-            {acoes.map((evento) => {
-              const descricao = descricaoDaAcao(evento);
-              // O CSS corta a descrição com reticências; o texto inteiro fica no title.
-              return <li key={evento.id}><span className={`action-status status-${evento.tipo}`}><span />{ROTULO_DO_EVENTO[evento.tipo]}</span><span className="action-description" title={descricao}>{descricao}</span></li>;
-            })}
-          </ul>
-          <div className="replay-lock"><span>▣</span> Controles desativados durante o replay</div>
+        <article className="panel proposals-panel">
+          <div className="panel-title"><span className="panel-icon actions-icon">◇</span><div><h3>Propostas de ação</h3><p>Estado de cada proposta depois do último evento</p></div></div>
+          {view.propostas.length === 0 ? <p className="empty-copy">Nenhuma proposta neste registro.</p> : (
+            <ul className="proposal-list">
+              {view.propostas.map((proposta) => <CartaoDaProposta key={proposta.id} proposta={proposta} />)}
+            </ul>
+          )}
         </article>
       </div>
+
+      <article className="panel actions-panel">
+        <div className="panel-title"><span className="panel-icon actions-icon">✓</span><div><h3>Decisões e ações</h3><p>Histórico registrado no log, em ordem</p></div></div>
+        <ul className="action-list">
+          {historico.map((evento) => {
+            const linha = linhaDoHistorico(evento);
+            if (!linha) {
+              return null;
+            }
+            // O CSS corta a descrição com reticências; o texto inteiro fica no title.
+            return (
+              <li key={evento.id}>
+                <Instante valor={evento.instante} />
+                <span className={`action-status status-${evento.tipo}`}><span />{rotulo(ROTULO_DO_EVENTO, evento.tipo)}</span>
+                <code className="event-id">{linha.id}</code>
+                <span className="action-description" title={linha.descricao}>{linha.descricao}</span>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="replay-lock"><span>▣</span> Controles desativados durante o replay</div>
+      </article>
     </section>
   );
 }
