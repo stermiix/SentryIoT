@@ -9,6 +9,7 @@ import pytest
 
 from codigo.captura.extrator import (
     COLUNAS,
+    CapturaIncompleta,
     Enderecos,
     Extrator,
     agregar,
@@ -691,3 +692,45 @@ def test_main_com_as_opcoes_do_quadro_no_fio(tmp_path):
         "": ("42", "2962"), "--preencher": ("60", "2962"), "--limitar": ("42", "1514"),
         "--preencher --limitar": ("60", "1514"),
     }
+
+
+# --- leitura: nanossegundos e aviso da captura incompleta --------------------------------------
+
+
+def test_pcap_em_nanossegundos_e_truncado_para_microssegundos_como_no_tcpdump():
+    # O tcpdump 4.99.1 grava em microssegundos e trunca: 100, 400 e 900 ns viram 0 µs, 1700 ns vira 1 µs.
+    quadros = [quadro_udp()] * 4
+    registros = [(1_700_000_000, fracao, q) for fracao, q in zip((100, 400, 900, 1700), quadros)]
+    lidos = list(ler_pcap(io.BytesIO(pcap(registros, magico=PCAP_NANO))))
+    no_tcpdump = [(1_700_000_000 + micros / 1e6, q) for micros, q in zip((0, 0, 0, 1), quadros)]
+    assert lidos == no_tcpdump
+    em_micros = pcap([(1_700_000_000, m, q) for m, q in zip((0, 0, 0, 1), quadros)])
+    assert lidos == list(ler_pcap(io.BytesIO(em_micros)))
+    # Rate da saída do tcpdump; com a fração lida em nanossegundos dava 2396745,14.
+    (linha,) = extrair(lidos)
+    assert linha["Rate"] == 4194304.0
+    # A mesma rajada inteira dentro de um microssegundo dá Rate infinito, como nos autores.
+    (rajada,) = extrair(ler_pcap(io.BytesIO(pcap([(5, n, quadro_udp()) for n in (10, 20, 999)], magico=PCAP_NANO))))
+    assert rajada["Rate"] == math.inf
+
+
+def test_pcap_em_microssegundos_continua_igual():
+    registros = [(1_700_000_000, micros, quadro_tcp()) for micros in (0, 1, 999_999)]
+    assert [ts for ts, _ in ler_pcap(io.BytesIO(pcap(registros)))] == [1_700_000_000 + m / 1e6 for m in (0, 1, 999_999)]
+
+
+def test_aviso_de_captura_incompleta_tem_categoria_propria():
+    with pytest.warns(CapturaIncompleta, match="incompleto"):
+        list(ler_pcap(io.BytesIO(pcap([(1, 0, quadro_tcp())])[:-3])))
+    assert issubclass(CapturaIncompleta, UserWarning)
+
+
+def test_ler_pcap_conta_os_registros_gravados_menores_que_o_original():
+    a = quadro_tcp()
+    dados = pcap([(1, 0, a)])
+    dados += struct.pack("<IIII", 2, 0, len(a), 1454) + a  # gravado com 54 de 1454 bytes
+    dados += struct.pack("<IIII", 3, 0, len(a), len(a) + 1) + a
+    contagem = Counter()
+    assert [quadro for _, quadro in ler_pcap(io.BytesIO(dados), contagem)] == [a, a, a]
+    assert contagem == {"menor_que_o_original": 2}
+    assert len(list(ler_pcap(io.BytesIO(dados)))) == 3  # sem contagem, nada muda

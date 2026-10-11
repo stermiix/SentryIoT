@@ -276,12 +276,21 @@ def extrair(quadros, janela=10, enderecos=False, preencher=False, limitar=False)
         yield linha
 
 
-# Número mágico do pcap clássico: ordem dos bytes e divisor da fração de segundo.
+class CapturaIncompleta(UserWarning):
+    """Aviso de `ler_pcap`: a captura terminou no meio de um pacote.
+
+    Tem categoria própria para que quem lê um pcap registre só os avisos da leitura, e não os de
+    outro código que por acaso cheguem no mesmo intervalo, como um ResourceWarning.
+    """
+
+
+# Número mágico do pcap clássico: ordem dos bytes e quantas unidades da fração de segundo formam
+# um microssegundo.
 _MAGICOS = {
-    b"\xd4\xc3\xb2\xa1": ("<", 1e6),
-    b"\xa1\xb2\xc3\xd4": (">", 1e6),
-    b"\x4d\x3c\xb2\xa1": ("<", 1e9),
-    b"\xa1\xb2\x3c\x4d": (">", 1e9),
+    b"\xd4\xc3\xb2\xa1": ("<", 1),
+    b"\xa1\xb2\xc3\xd4": (">", 1),
+    b"\x4d\x3c\xb2\xa1": ("<", 1000),
+    b"\xa1\xb2\x3c\x4d": (">", 1000),
 }
 _PCAPNG = b"\x0a\x0d\x0d\x0a"
 _ETHERNET = 1
@@ -302,17 +311,26 @@ def _ler_exato(fluxo, n):
     return b"".join(partes)
 
 
-def ler_pcap(origem):
+def ler_pcap(origem, contagem=None):
     """Gera (instante, quadro) de um pcap, sem carregar o arquivo inteiro na memória.
 
     `origem` é um caminho ou um fluxo binário já aberto, como a entrada padrão. Se a captura
     foi interrompida no meio de um pacote, a leitura termina no último pacote completo e emite
-    um aviso. Um registro maior que o limite de captura declarado no cabeçalho é entregue cortado
-    nesse limite, como faz a libpcap. Acima do maior registro aceito, o arquivo é recusado.
+    um aviso `CapturaIncompleta`. Um registro maior que o limite de captura declarado no
+    cabeçalho é entregue cortado nesse limite, como faz a libpcap. Acima do maior registro
+    aceito, o arquivo é recusado.
+
+    O instante de um pcap em nanossegundos é truncado para microssegundos, como o `tcpdump -r
+    ... -w` com que os autores fatiaram os pcaps grava: o modelo foi treinado com instantes em
+    microssegundos, e uma rajada dentro do mesmo microssegundo dá `Rate` infinito nos dois casos.
+
+    Com `contagem`, um `collections.Counter`, a leitura soma nele "menor_que_o_original": os
+    registros gravados com menos bytes que o quadro original, sinal de captura com limite curto
+    (`tcpdump -s`). Nesses registros as colunas de tamanho saem menores do que seriam.
     """
     if not hasattr(origem, "read"):
         with open(origem, "rb") as arquivo:
-            yield from ler_pcap(arquivo)
+            yield from ler_pcap(arquivo, contagem)
         return
     cabecalho = _ler_exato(origem, 24)
     if cabecalho[:4] == _PCAPNG:
@@ -321,7 +339,7 @@ def ler_pcap(origem):
         )
     if len(cabecalho) < 24 or cabecalho[:4] not in _MAGICOS:
         raise ValueError("a entrada não é um arquivo pcap")
-    ordem, divisor = _MAGICOS[cabecalho[:4]]
+    ordem, por_microssegundo = _MAGICOS[cabecalho[:4]]
     limite, enlace = struct.unpack(ordem + "II", cabecalho[16:24])
     limite = min(limite or MAIOR_REGISTRO, MAIOR_REGISTRO)
     if enlace != _ETHERNET:
@@ -333,9 +351,9 @@ def ler_pcap(origem):
             return
         numero += 1
         if len(registro) < 16:
-            warnings.warn(_AVISO_INCOMPLETO.format(numero), stacklevel=2)
+            warnings.warn(_AVISO_INCOMPLETO.format(numero), CapturaIncompleta, stacklevel=2)
             return
-        segundos, fracao, capturado, _ = struct.unpack(ordem + "IIII", registro)
+        segundos, fracao, capturado, original = struct.unpack(ordem + "IIII", registro)
         if capturado > MAIOR_REGISTRO:
             raise ValueError(
                 f"pacote {numero} com tamanho impossível ({capturado} bytes, limite de {MAIOR_REGISTRO}): "
@@ -343,10 +361,12 @@ def ler_pcap(origem):
             )
         quadro = _ler_exato(origem, capturado)
         if len(quadro) < capturado:
-            warnings.warn(_AVISO_INCOMPLETO.format(numero), stacklevel=2)
+            warnings.warn(_AVISO_INCOMPLETO.format(numero), CapturaIncompleta, stacklevel=2)
             return
+        if contagem is not None and capturado < original:
+            contagem["menor_que_o_original"] += 1
         # O tcpdump dos autores lê com a libpcap, que só entrega os bytes até o limite declarado.
-        yield segundos + fracao / divisor, quadro[:limite]
+        yield segundos + (fracao // por_microssegundo) / 1e6, quadro[:limite]
 
 
 def _texto(valor):
