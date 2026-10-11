@@ -135,8 +135,8 @@ DADOS_POR_TIPO = {
     },
     "recomendacao_emitida": {"agente": "decisao", "texto": "Bloquear a origem.", "propostas": ["prop-0001"]},
     "acao_proposta": PROPOSTA,
-    "acao_aprovada": {"proposta": "prop-0001", "canal": "terminal", "motivo": None},
-    "acao_rejeitada": {"proposta": "prop-0001", "canal": "terminal", "motivo": "Dispositivo crítico."},
+    "acao_aprovada": {"proposta": "prop-0001", "canal": "terminal", "usuario": "maria", "motivo": None},
+    "acao_rejeitada": {"proposta": "prop-0001", "canal": "terminal", "usuario": "maria", "motivo": "Dispositivo crítico."},
     "acao_executada": EXECUCAO,
     "acao_desfeita": EXECUCAO | {"estado": "desfeita", "desfeita_em": INSTANTE},
     "efeito_verificado": {
@@ -195,9 +195,10 @@ def test_cada_agente_so_enxerga_as_tools_da_sua_linha():
     assert tools_do_agente("execucao") == (
         "verificar_efeito", "executar_acao", "desfazer_acao", "consultar_estado",
     )
-    assert tools_do_agente(None) == tuple(tool.nome for tool in TOOLS)
-    with pytest.raises(ValueError, match="agente desconhecido"):
-        tools_do_agente("detector")
+    assert tools_do_agente("todos") == tuple(tool.nome for tool in TOOLS)
+    for desconhecido in ("detector", None):
+        with pytest.raises(ValueError, match="agente desconhecido"):
+            tools_do_agente(desconhecido)
 
 
 def test_argumentos_das_tools_sao_os_da_especificacao():
@@ -432,6 +433,16 @@ def test_motivos_de_recusa_do_contrato():
         assert validar_evento(evento("recusa", dados=DADOS_POR_TIPO["recusa"] | {"motivo": motivo})).dados.motivo == motivo
     with pytest.raises(ValidationError):
         validar_evento(evento("recusa", dados=DADOS_POR_TIPO["recusa"] | {"motivo": "fila_cheia"}))
+
+
+def test_decisao_traz_o_usuario_que_decidiu():
+    for invalido in (None, "", "maria\x1b[2J", "x" * 201):
+        with pytest.raises(ValidationError):
+            validar_evento(evento("acao_aprovada", dados=DADOS_POR_TIPO["acao_aprovada"] | {"usuario": invalido}))
+    sem_usuario = {campo: valor for campo, valor in DADOS_POR_TIPO["acao_aprovada"].items() if campo != "usuario"}
+    with pytest.raises(ValidationError):
+        validar_evento(evento("acao_aprovada", dados=sem_usuario))
+    assert "usuario" in contrato()["$defs"]["Decisao"]["required"]
 
 
 def test_evento_sem_incidente_traz_o_campo_nulo():

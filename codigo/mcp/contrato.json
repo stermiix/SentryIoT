@@ -382,6 +382,13 @@
           ],
           "type": "string"
         },
+        "usuario": {
+          "description": "Usuário do sistema que registrou a decisão",
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
         "motivo": {
           "anyOf": [
             {
@@ -399,6 +406,7 @@
       "required": [
         "proposta",
         "canal",
+        "usuario",
         "motivo"
       ],
       "title": "Decisao",

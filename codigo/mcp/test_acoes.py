@@ -19,6 +19,7 @@ from codigo.mcp.acoes import (
     promover,
     propor,
     reconstruir,
+    usuario_do_sistema,
 )
 from codigo.mcp.eventos import LogInvalido, novo
 from codigo.mcp.test_tipos import INCIDENTE_DA_ESPECIFICACAO
@@ -363,6 +364,17 @@ def test_proposta_rejeitada_nao_executa(mundo):
     assert mundo.eventos[-1].dados.canal == "terminal"
     assert "rejeitada" in recusado("proposta_nao_liberada", mundo.executar, "prop-0001")
     assert ambiente(mundo.estado).isolamentos == []
+
+
+def test_decisao_grava_quem_decidiu(mundo):
+    mundo.propor("isolar_dispositivo", "192.168.137.20")
+    mundo.propor("isolar_dispositivo", "192.168.137.20")
+    # Sem dizer quem, vale o usuário do sistema que roda o processo.
+    mundo.decidir("prop-0001")
+    assert mundo.eventos[-1].dados.usuario == usuario_do_sistema()
+    _, rascunhos = decidir(mundo.estado, "prop-0002", False, canal="interface", usuario="joao")
+    mundo.aplicar(rascunhos)
+    assert (mundo.eventos[-1].dados.canal, mundo.eventos[-1].dados.usuario) == ("interface", "joao")
 
 
 def test_cada_medida_ativa_aparece_no_seu_grupo(mundo):
@@ -1227,7 +1239,7 @@ def test_proposta_de_risco_baixo_nao_executa_depois_que_o_incidente_encerra(mund
 
 # --- reconstrução: o log é entrada, e cada transição é conferida -----------------------------
 
-APROVACAO = {"proposta": "prop-0001", "canal": "terminal", "motivo": None}
+APROVACAO = {"proposta": "prop-0001", "canal": "terminal", "usuario": "maria", "motivo": None}
 EFEITO = {"execucao": "exec-0001", "incidente": "inc-0001", "resultado": "persiste", "observacao": "Continua."}
 
 

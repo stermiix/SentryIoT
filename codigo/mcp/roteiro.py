@@ -31,6 +31,8 @@ from codigo.mcp.tipos import AGENTES, ChamadaDeLLM, Recomendacao
 
 SAIDA_PADRAO = Path(__file__).with_name("exemplos") / "incidente_flood.jsonl"
 MODELO = "modelo-de-exemplo"
+# O usuário do sistema que decide no exemplo. É fixo, para que o arquivo saia igual em qualquer máquina.
+PESSOA = "operador"
 _FLOOD = next(cenario for cenario in CENARIOS if cenario.nome == "flood")
 _INCIDENTE = _FLOOD.incidente.id
 
@@ -158,8 +160,8 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
         pass
 
     # A pessoa decide pelo canal dela: rejeita o isolamento e aprova a ação nova.
-    pessoa(decidir, isolamento.id, False, espera=40, motivo="O dispositivo não pode sair de serviço.")
-    pessoa(decidir, syn_cookies.id, True, espera=12)
+    pessoa(decidir, isolamento.id, False, espera=40, motivo="O dispositivo não pode sair de serviço.", usuario=PESSOA)
+    pessoa(decidir, syn_cookies.id, True, espera=12, usuario=PESSOA)
 
     # Execução: aplica a ação aprovada, confere que o incidente cessou e desfaz o bloqueio inútil.
     modelo("execucao", 1090, 60, 1.5)

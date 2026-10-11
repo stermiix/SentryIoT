@@ -25,7 +25,14 @@ import shlex
 import sys
 from pathlib import Path
 
-from codigo.mcp.acoes import BASE, PedidoRecusado, decidir, promover, reconstruir
+from codigo.mcp.acoes import (
+    BASE,
+    PedidoRecusado,
+    decidir,
+    promover,
+    reconstruir,
+    usuario_do_sistema,
+)
 from codigo.mcp.eventos import CAMINHO_PADRAO, Registro
 from codigo.mcp.tipos import visivel
 
@@ -187,6 +194,8 @@ def main(argv=None):
         if not Path(argumentos.log).is_file():
             raise ValueError(f"log de eventos não encontrado: {argumentos.log}")
         registro = Registro(argumentos.log)
+        # Quem decide é a pessoa que rodou o comando: o nome dela fica na decisão.
+        usuario = usuario_do_sistema()
         if argumentos.proposta is None:
             _listar(registro)
         elif argumentos.promover:
@@ -202,7 +211,9 @@ def main(argv=None):
         elif argumentos.rejeitar:
             # Rejeitar não libera nada: é gravado sem pergunta, depois de mostrar o que foi rejeitado.
             proposta, _ = registro.atualizar(
-                lambda eventos: decidir(reconstruir(eventos), argumentos.proposta, False, motivo=argumentos.motivo)
+                lambda eventos: decidir(
+                    reconstruir(eventos), argumentos.proposta, False, motivo=argumentos.motivo, usuario=usuario,
+                )
             )
             print(descrever(proposta))
             print(f"{visivel(proposta.id)} rejeitada. A ação não será aplicada.")
@@ -213,7 +224,7 @@ def main(argv=None):
                     f"Aprovar {visivel(proposta.id)}? Com a aprovação, o agente de execução pode aplicar a ação "
                     "acima. Digite sim para confirmar: "
                 ),
-                lambda estado: decidir(estado, argumentos.proposta, True, motivo=argumentos.motivo),
+                lambda estado: decidir(estado, argumentos.proposta, True, motivo=argumentos.motivo, usuario=usuario),
             )
             print(f"{visivel(proposta.id)} aprovada. O agente de execução já pode aplicar a ação.")
     except _SemConfirmacao as motivo:

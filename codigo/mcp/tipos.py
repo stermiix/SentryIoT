@@ -43,6 +43,8 @@ VERSAO = "0.3.0"
 LIMITE_DE_JANELAS = 20
 ARQUIVO_DO_CONTRATO = Path(__file__).with_name("contrato.json")
 AGENTES = ("triagem", "decisao", "execucao")
+# O nome que expõe todas as tools em um processo só. Serve só para desenvolvimento e precisa ser dito.
+TODOS = "todos"
 # Tamanhos máximos. O que um agente escreve chega a uma pessoa, na tela de aprovação, e ao log:
 # nenhum texto entra sem limite.
 TEXTO_CURTO = 200
@@ -520,11 +522,11 @@ TOOLS = (
 
 
 def tools_do_agente(agente):
-    """Nomes das tools que o agente enxerga. Sem agente, todas."""
-    if agente is None:
+    """Nomes das tools que o agente enxerga. Com `TODOS`, todas: é preciso pedir, não é o padrão."""
+    if agente == TODOS:
         return tuple(tool.nome for tool in TOOLS)
     if agente not in AGENTES:
-        raise ValueError(f"agente desconhecido: {agente!r}")
+        raise ValueError(f"agente desconhecido: {agente!r}. Diga {', '.join(AGENTES)} ou {TODOS}")
     return tuple(tool.nome for tool in TOOLS if agente in tool.agentes)
 
 
@@ -567,6 +569,7 @@ class Decisao(Modelo):
 
     proposta: Texto
     canal: Literal["terminal", "interface"]
+    usuario: Texto = Field(description="Usuário do sistema que registrou a decisão")
     motivo: TextoLongo | None
 
 

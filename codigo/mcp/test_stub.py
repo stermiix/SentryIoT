@@ -48,7 +48,7 @@ def registro(tmp_path):
 
 @pytest.fixture
 def stub(registro):
-    stub = Stub(registro)
+    stub = Stub(registro, agente="todos")
     stub.abrir_incidentes()
     return stub
 
@@ -106,12 +106,12 @@ def test_abrir_incidentes_grava_o_lote_e_a_abertura_de_cada_cenario(stub):
 
 def test_incidente_ja_aberto_no_log_nao_e_aberto_de_novo(stub, registro):
     stub.abrir_incidentes()
-    Stub(registro).abrir_incidentes()
+    Stub(registro, agente="todos").abrir_incidentes()
     assert len(registro.ler()) == 8
 
 
 def test_stub_pode_abrir_so_alguns_cenarios(registro):
-    stub = Stub(registro, cenarios=[POR_NOME["varredura"]])
+    stub = Stub(registro, agente="todos", cenarios=[POR_NOME["varredura"]])
     stub.abrir_incidentes()
     assert [evento.incidente for evento in registro.ler()] == [None, "inc-0003"]
     assert chamar(stub, "obter_incidente", id="inc-0003").categoria == "Recon"
@@ -610,7 +610,7 @@ def test_log_de_um_incidente_inteiro_e_valido_e_a_leitura_reconstroi_a_sequencia
 
 def test_dois_processos_sobre_o_mesmo_log_enxergam_o_mesmo_estado(stub, registro):
     proposta = chamar(stub, "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO)
-    outro = Stub(Registro(registro.caminho))
+    outro = Stub(Registro(registro.caminho), agente="todos")
     execucao = chamar(outro, "executar_acao", id_proposta=proposta.id)
     assert chamar(stub, "consultar_estado").bloqueios == [execucao]
 
@@ -851,7 +851,7 @@ def test_linha_de_aprovacao_repetida_nao_executa_de_novo(stub):
 
 
 def test_evento_que_cita_proposta_inexistente_e_erro_com_a_linha_e_nao_keyerror(stub, capsys):
-    acrescentar(stub, "acao_aprovada", {"proposta": "prop-0007", "canal": "interface", "motivo": None})
+    acrescentar(stub, "acao_aprovada", {"proposta": "prop-0007", "canal": "interface", "usuario": "maria", "motivo": None})
     log_invalido(stub, "linha 9", "acao_aprovada", "prop-0007", "não existe")
     # A linha de comando do stub explica e não sobe o servidor.
     assert main(["--log", str(stub.registro.caminho), "--agente", "todos"]) == 1
@@ -905,6 +905,20 @@ def test_agente_nao_chama_tool_de_outra_linha(registro, agente, tool, argumentos
 def test_agente_desconhecido_nao_cria_stub(registro):
     with pytest.raises(ValueError, match="agente desconhecido"):
         Stub(registro, agente="detector")
+
+
+def test_stub_sem_dizer_o_agente_nao_abre_as_tools(registro):
+    # Como na linha de comando, expor todas as tools é uma escolha explícita, e não o padrão.
+    with pytest.raises(TypeError, match="agente"):
+        Stub(registro)
+    with pytest.raises(ValueError, match="agente desconhecido"):
+        Stub(registro, agente=None)
+    todos = Stub(registro, agente="todos")
+    todos.abrir_incidentes()
+    assert tuple(tool.name for tool in listar(criar_servidor(todos))) == tuple(tool.nome for tool in TOOLS)
+    chamar(todos, "obter_incidente", id="inc-0001")
+    # No log, a chamada de quem tem todas as tools fica sem agente: não se sabe qual dos três chamou.
+    assert registro.ler()[-1].dados.agente is None
 
 
 # --- servidor MCP ----------------------------------------------------------------------------

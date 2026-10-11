@@ -35,6 +35,7 @@ from codigo.mcp.tipos import (
     LIMITE_DE_JANELAS,
     TEXTO_CURTO,
     TEXTO_LONGO,
+    TODOS,
     TOOLS,
     ChamadaDeTool,
     Consulta,
@@ -52,8 +53,6 @@ INSTRUCOES = (
     "bruta), inc-0003 (varredura de portas) e inc-0004. Ação de risco alto e ação nova, fora do catálogo, "
     "só são executadas depois que uma pessoa aprova."
 )
-# Na linha de comando, a forma explícita de expor as nove tools em um processo só.
-TODOS = "todos"
 _LOG_INVALIDO = (
     "O log de eventos do servidor está inconsistente, e nenhuma tool é atendida até que ele seja corrigido. "
     "O detalhe está na saída de erro do servidor."
@@ -166,17 +165,20 @@ _RESUMOS = {
 
 
 class Stub:
-    """As nove tools, respondidas com os cenários e registradas no log de eventos.
+    """As tools do contrato, respondidas com os cenários e registradas no log de eventos.
 
-    Com `agente`, o stub atende só as tools da linha desse agente e registra o nome dele em
-    cada chamada. Sem agente, atende todas: é o que `--agente todos` pede na linha de comando,
-    e serve só para desenvolvimento.
+    O agente é obrigatório. Com `triagem`, `decisao` ou `execucao`, o stub atende só as tools
+    da linha desse agente e registra o nome dele em cada chamada. Com `agente="todos"`, atende
+    todas e deixa o agente nulo no log: é o que `--agente todos` pede na linha de comando, e
+    serve só para desenvolvimento.
     """
 
-    def __init__(self, registro=None, agente=None, cenarios=CENARIOS, politica=None, secoes=None):
+    def __init__(self, registro=None, *, agente, cenarios=CENARIOS, politica=None, secoes=None):
         self.registro = registro if registro is not None else Registro()
-        self.agente = agente
-        self._permitidas = tools_do_agente(agente)
+        # As tools que este processo atende e anuncia ao cliente.
+        self.permitidas = tools_do_agente(agente)
+        # Com todas as tools, não se sabe qual dos três agentes chamou: o log fica sem o nome.
+        self.agente = None if agente == TODOS else agente
         self._cenarios = {cenario.incidente.id: cenario for cenario in cenarios}
         self._politica = politica if politica is not None else carregar_politica()
         self._secoes = secoes if secoes is not None else carregar()
@@ -238,11 +240,11 @@ class Stub:
         return resultado
 
     def _atender(self, nome, estado, argumentos, inicio):
-        if nome not in self._permitidas:
+        if nome not in self.permitidas:
             raise PedidoRecusado(
                 "tool_fora_da_linha",
                 f"A tool {nome} não faz parte da linha do agente de {self.agente}, que só enxerga: "
-                f"{', '.join(self._permitidas)}.",
+                f"{', '.join(self.permitidas)}.",
             )
         try:
             entrada = _TOOLS[nome].entrada.model_validate(argumentos)
@@ -381,7 +383,7 @@ def criar_servidor(stub):
     """Monta o servidor MCP com as tools que o stub atende."""
     servidor = MCPServer("sentryiot-stub", instructions=INSTRUCOES, log_level="WARNING")
     for tool in TOOLS:
-        if tool.nome in tools_do_agente(stub.agente):
+        if tool.nome in stub.permitidas:
             servidor.add_tool(_funcao_da_tool(stub, tool), name=tool.nome, description=tool.descricao)
     return servidor
 
@@ -407,7 +409,7 @@ def main(argv=None):
     except SystemExit as encerramento:
         return encerramento.code
     try:
-        stub = Stub(Registro(argumentos.log), agente=None if argumentos.agente == TODOS else argumentos.agente)
+        stub = Stub(Registro(argumentos.log), agente=argumentos.agente)
         stub.abrir_incidentes()
     except (OSError, ValueError) as erro:
         print(f"erro: {erro}", file=sys.stderr)

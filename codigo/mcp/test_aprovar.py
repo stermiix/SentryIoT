@@ -4,7 +4,7 @@ import shutil
 import pytest
 
 from codigo.mcp import aprovar as comando
-from codigo.mcp.acoes import PedidoRecusado
+from codigo.mcp.acoes import PedidoRecusado, usuario_do_sistema
 from codigo.mcp.aprovar import main
 from codigo.mcp.eventos import Registro
 from codigo.mcp.stub import Stub
@@ -14,7 +14,7 @@ from codigo.mcp.tipos import MOTIVOS_DE_RISCO_ALTO, TOOLS
 
 @pytest.fixture
 def stub(tmp_path):
-    stub = Stub(Registro(tmp_path / "eventos.jsonl"))
+    stub = Stub(Registro(tmp_path / "eventos.jsonl"), agente="todos")
     stub.abrir_incidentes()
     return stub
 
@@ -91,7 +91,18 @@ def test_aprovar_libera_a_proposta_para_execucao(stub, capsys):
     decisao = stub.registro.ler()[-1]
     assert (decisao.tipo, decisao.incidente) == ("acao_aprovada", "inc-0001")
     assert (decisao.dados.proposta, decisao.dados.canal, decisao.dados.motivo) == ("prop-0001", "terminal", None)
+    # Quem aprovou é o usuário do sistema que rodou o comando.
+    assert decisao.dados.usuario == usuario_do_sistema() and decisao.dados.usuario
     assert stub.chamar("executar_acao", id_proposta="prop-0001").estado == "aplicada"
+
+
+def test_decisao_grava_o_usuario_do_sistema_que_rodou_o_comando(stub, monkeypatch):
+    monkeypatch.setattr(comando, "usuario_do_sistema", lambda: "maria")
+    propor_isolamento(stub)
+    propor_isolamento(stub)
+    assert aprovar(stub, "prop-0001", "--sim") == 0
+    assert aprovar(stub, "prop-0002", "--rejeitar") == 0
+    assert [evento.dados.usuario for evento in stub.registro.ler()[-2:]] == ["maria", "maria"]
 
 
 def test_rejeitar_registra_o_motivo_e_a_proposta_nao_executa(stub, capsys):
@@ -102,6 +113,7 @@ def test_rejeitar_registra_o_motivo_e_a_proposta_nao_executa(stub, capsys):
     decisao = stub.registro.ler()[-1]
     assert decisao.tipo == "acao_rejeitada"
     assert decisao.dados.motivo == "O dispositivo não pode sair do ar."
+    assert decisao.dados.usuario == usuario_do_sistema()
     with pytest.raises(PedidoRecusado, match="rejeitada"):
         stub.chamar("executar_acao", id_proposta="prop-0001")
 
@@ -228,7 +240,7 @@ def test_log_com_evento_fora_de_lugar_da_erro_com_a_linha_e_sem_traceback(stub, 
     with open(stub.registro.caminho, "a", encoding="utf-8") as arquivo:
         arquivo.write(json.dumps({
             "id": "ev-000011", "instante": ultimo.instante.isoformat(), "tipo": "acao_aprovada", "incidente": None,
-            "dados": {"proposta": "prop-0007", "canal": "interface", "motivo": None},
+            "dados": {"proposta": "prop-0007", "canal": "interface", "usuario": "maria", "motivo": None},
         }) + "\n")
     antes = stub.registro.caminho.read_bytes()
     assert aprovar(stub, *argumentos) == 1
@@ -482,7 +494,7 @@ def test_proposta_que_muda_entre_a_tela_e_a_confirmacao_nao_e_aprovada(stub, tmp
     # A pessoa viu o isolamento de 192.168.137.20. Se, na hora de gravar, o identificador for de outra proposta,
     # a aprovação não vale.
     propor_isolamento(stub)
-    outro = Stub(Registro(tmp_path / "outro.jsonl"))
+    outro = Stub(Registro(tmp_path / "outro.jsonl"), agente="todos")
     outro.abrir_incidentes()
     outro.chamar(
         "propor_acao", id="inc-0001", acao="isolar_dispositivo", alvo="192.168.137.1", parametros={},

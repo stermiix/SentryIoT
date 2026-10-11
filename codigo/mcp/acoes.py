@@ -28,11 +28,18 @@ das aprovações e das medidas ativas é sempre reconstruído a partir dos event
 e as funções deste módulo não gravam nada. Elas recebem o estado e devolvem o resultado e os
 rascunhos dos eventos, que quem chamou grava com `eventos.Registro`.
 """
+import getpass
 import ipaddress
+import os
 import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+
+try:
+    import pwd
+except ImportError:  # No Windows não existe pwd: o nome vem de getpass.
+    pwd = None
 
 from pydantic import TypeAdapter, ValidationError
 
@@ -902,11 +909,25 @@ def _execucao_da_proposta(estado, proposta):
     return next(execucao for execucao in estado.execucoes.values() if execucao.proposta == proposta.id)
 
 
-def decidir(estado, id_proposta, aprovar, canal="terminal", motivo=None):
+def usuario_do_sistema():
+    """O nome do usuário do sistema operacional dono do processo, para registrar quem decidiu.
+
+    Vem da conta do processo, e não das variáveis de ambiente, onde houver como. O nome é escapado
+    e cortado para caber no contrato.
+    """
+    try:
+        nome = pwd.getpwuid(os.getuid()).pw_name if pwd is not None else getpass.getuser()
+    except (KeyError, OSError):
+        nome = ""
+    return visivel(nome).strip()[:TEXTO_CURTO] or "desconhecido"
+
+
+def decidir(estado, id_proposta, aprovar, canal="terminal", motivo=None, usuario=None):
     """Aprova ou rejeita uma proposta que aguarda aprovação.
 
     Não é tool: nenhum agente chega aqui. A decisão entra por um canal só da pessoa, que neste
-    trabalho é o comando `python -m codigo.mcp.aprovar`.
+    trabalho é o comando `python -m codigo.mcp.aprovar`. Fica registrado quem decidiu: o usuário
+    dado ou, sem ele, o usuário do sistema que roda o processo.
     """
     proposta = _proposta(estado, id_proposta)
     if proposta.estado != "aguardando_aprovacao":
@@ -918,7 +939,9 @@ def decidir(estado, id_proposta, aprovar, canal="terminal", motivo=None):
         }[proposta.estado]
         raise PedidoRecusado("argumentos_invalidos", f"A proposta {proposta.id} {situacao}.")
     try:
-        decisao = Decisao(proposta=proposta.id, canal=canal, motivo=motivo or None)
+        decisao = Decisao(
+            proposta=proposta.id, canal=canal, usuario=usuario or usuario_do_sistema(), motivo=motivo or None
+        )
     except ValidationError:
         raise PedidoRecusado("argumentos_invalidos", f"O motivo da decisão precisa ser {_UMA_LINHA}.") from None
     decidida = proposta.model_copy(update={"estado": "liberada" if aprovar else "rejeitada"})
