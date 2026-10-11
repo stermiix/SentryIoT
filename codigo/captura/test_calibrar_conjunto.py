@@ -231,6 +231,24 @@ def test_vizinho_mais_proximo_aponta_as_colunas_que_diferem(tmp_path):
     assert resultado["colunas"] == {"Rate": 1, "IAT": 1}
 
 
+# --- cache -----------------------------------------------------------------------------------
+
+
+def test_versoes_do_cache_mudam_com_o_codigo_que_gera_cada_dado(monkeypatch):
+    from codigo.captura import calibrar_conjunto
+
+    extracao, indice = calibrar_conjunto.versao_da_extracao(), calibrar_conjunto.versao_do_indice()
+    # Outra forma de extrair, no próprio calibrador, invalida só as extrações guardadas.
+    monkeypatch.setattr(calibrar_conjunto, "extrair_pcap", lambda caminho, janela, limite=0: None)
+    assert calibrar_conjunto.versao_da_extracao() != extracao
+    assert calibrar_conjunto.versao_do_indice() == indice
+    monkeypatch.undo()
+    # Outra leitura do MERGED_CSV invalida só o índice.
+    monkeypatch.setattr(calibrar_conjunto, "ler_merged", lambda caminho: None)
+    assert calibrar_conjunto.versao_do_indice() != indice
+    assert calibrar_conjunto.versao_da_extracao() == extracao
+
+
 # --- ponta a ponta ----------------------------------------------------------------------------
 
 

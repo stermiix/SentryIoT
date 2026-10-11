@@ -49,6 +49,7 @@ import array
 import csv
 import datetime
 import hashlib
+import inspect
 import io
 import json
 import platform
@@ -77,6 +78,7 @@ from codigo.captura.extrator import (
     nome_do_tipo,
     tipo_ethernet,
 )
+from codigo.classificador import mapeamento
 from codigo.classificador.atacantes import rotulo_do_pcap
 from codigo.classificador.mapeamento import CATEGORIA_DO_ROTULO, normalizar
 
@@ -85,7 +87,8 @@ TABELA_PCAPS = "calibracao_conjunto_pcaps.csv"
 TABELA_ROTULOS = "calibracao_conjunto_rotulos.csv"
 MANIFESTO = "manifesto_calibracao_conjunto.json"
 TRABALHO = "dados/processed/calibracao_conjunto"
-# Muda quando a forma de extrair muda, para invalidar as extrações guardadas em --trabalho.
+# Entram no resumo do código que invalida o que está guardado em --trabalho (versao_da_extracao e
+# versao_do_indice), junto com o texto das funções que geram cada dado.
 VERSAO_EXTRACAO = 1
 VERSAO_INDICE = 1
 
@@ -235,7 +238,8 @@ def construir_indice(pasta_merged, destino):
             np.save(destino / f"{rotulo}__{variante}.npy", np.sort(np.concatenate(pedacos)))
         rotulos.clear()
     resumo = {
-        "versao": VERSAO_INDICE, "bits_mantidos": BITS_MANTIDOS, "pasta": Path(pasta_merged).as_posix(),
+        "versao_do_codigo": versao_do_indice(), "bits_mantidos": BITS_MANTIDOS,
+        "pasta": Path(pasta_merged).as_posix(),
         "arquivos": arquivos, "linhas": sum(por_rotulo.values()), "por_rotulo": dict(sorted(por_rotulo.items())),
         "segundos": round(time.perf_counter() - inicio, 1),
     }
@@ -251,7 +255,7 @@ def indice_valido(pasta_merged, destino):
         return None
     atuais = [{"arquivo": c.name, **_identidade(c)} for c in _arquivos_merged(pasta_merged)]
     guardados = [{chave: a[chave] for chave in ("arquivo", "bytes", "modificado_ns")} for a in resumo["arquivos"]]
-    if (resumo.get("versao"), resumo.get("bits_mantidos")) != (VERSAO_INDICE, BITS_MANTIDOS) or atuais != guardados:
+    if resumo.get("versao_do_codigo") != versao_do_indice() or atuais != guardados:
         return None
     return resumo
 
@@ -376,12 +380,36 @@ def extrair_pcap(caminho, janela, limite=LIMITE_PEDACO):
     return fatiada, np.frombuffer(pedacos_das_linhas, dtype=np.int32).copy(), continua, registro
 
 
-def versao_do_codigo():
-    """SHA-256 do código que decide os números extraídos, para invalidar as extrações guardadas."""
-    sha = hashlib.sha256(str(VERSAO_EXTRACAO).encode())
-    for modulo in (extrator, calibrar):
-        sha.update(Path(modulo.__file__).read_bytes())
+def _resumo_do_codigo(*partes):
+    """SHA-256 de textos, arquivos de código e do código-fonte de funções e classes."""
+    sha = hashlib.sha256()
+    for parte in partes:
+        if isinstance(parte, Path):
+            sha.update(parte.read_bytes())
+        elif isinstance(parte, str):
+            sha.update(parte.encode())
+        else:
+            sha.update(inspect.getsource(parte).encode())
     return sha.hexdigest()
+
+
+def versao_da_extracao():
+    """Resumo do código que decide os números extraídos de um pcap: o extrator, o fatiamento, a
+    janela da classe e o rótulo do pcap. Muda quando algum deles muda, e a extração é refeita."""
+    return _resumo_do_codigo(
+        str(VERSAO_EXTRACAO), Path(extrator.__file__), Path(calibrar.__file__), Path(mapeamento.__file__),
+        extrair_pcap, _guardar, _matriz, _LeituraComHash, cabecalho_pcap, janela_da_classe, processar_pcap,
+        rotulo_do_pcap,
+    )
+
+
+def versao_do_indice():
+    """Resumo do código que decide os hashes do índice: a leitura do MERGED_CSV, a normalização dos
+    rótulos e a chave. Muda quando algum deles muda, e o índice é refeito."""
+    return _resumo_do_codigo(
+        str(VERSAO_INDICE), str(BITS_MANTIDOS), repr(VARIANTES), _CONSTANTES.tobytes().hex(),
+        Path(mapeamento.__file__), ler_merged, quantizar, _misturar, hashes, construir_indice,
+    )
 
 
 def _arquivos_da_extracao(trabalho, caminho):
@@ -612,7 +640,7 @@ def rodar(dataset, pasta_merged, trabalho, processos=3, vizinhos_por_pcap=200):
     trabalho = Path(trabalho)
     pcaps = listar_pcaps(dataset)
     _arquivos_merged(pasta_merged)  # sem o MERGED_CSV, nada é extraído
-    versao = versao_do_codigo()
+    versao = versao_da_extracao()
     destino_indice = trabalho / "indice"
     resumo_indice = indice_valido(pasta_merged, destino_indice)
     registros = {}
@@ -683,7 +711,7 @@ def montar_manifesto(pcaps, rotulos, resumo_indice, dataset, vizinhos_por_pcap, 
             },
         },
         "vizinhos_por_pcap": vizinhos_por_pcap,
-        "merged_csv": {k: v for k, v in resumo_indice.items() if k not in ("versao", "segundos")},
+        "merged_csv": {k: v for k, v in resumo_indice.items() if k not in ("versao_do_codigo", "segundos")},
         "pcaps": pcaps,
         "rotulos": rotulos,
         "segundos": round(segundos, 1),
