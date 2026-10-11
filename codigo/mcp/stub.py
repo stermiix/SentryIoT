@@ -237,8 +237,8 @@ class Stub:
                 resultado, rascunhos = self._atender(nome, estado, argumentos, inicio)
             except PedidoRecusado as recusa:
                 if self.agente == LINHA_SEM_ENDERECOS:
-                    # A mensagem pode repetir um endereço: o de um rótulo resolvido, ou o que veio no pedido.
-                    recusa = PedidoRecusado(recusa.motivo, mascarar_enderecos(recusa.mensagem))
+                    # Rede de proteção: o filtro roda sobre a mensagem inteira, antes do corte.
+                    recusa = PedidoRecusado(recusa.motivo, mascarar_enderecos(recusa.inteira))
                 dados = Recusa(
                     agente=self.agente, tool=nome, argumentos=para_o_log, motivo=recusa.motivo,
                     mensagem=recusa.mensagem,

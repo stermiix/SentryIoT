@@ -133,12 +133,24 @@ def test_pessoa_marca_o_incidente_como_ja_resolvido_pelo_terminal(stub, capsys, 
     assert stub.registro.caminho.read_bytes() == antes
 
 
-def test_lista_avisa_quando_a_proposta_pendente_e_de_incidente_ja_resolvido(stub, capsys):
+def test_proposta_de_incidente_ja_resolvido_so_pode_ser_rejeitada(stub, capsys, monkeypatch):
+    propor_isolamento(stub)
     propor_isolamento(stub)
     assert aprovar(stub, "--resolvido", "inc-0001") == 0
     capsys.readouterr()
     assert aprovar(stub) == 0
-    assert "já resolvido" in capsys.readouterr().out
+    lista = capsys.readouterr().out
+    assert "já resolvido" in lista and "só pode ser rejeitada" in lista and "para aprovar" not in lista
+    # Aprovar é recusado antes de qualquer pergunta, e nunca diz que o agente já pode aplicar.
+    Terminal(monkeypatch)
+    antes = stub.registro.caminho.read_bytes()
+    for argumentos in (["prop-0001", "--sim"], ["prop-0001"]):
+        assert aprovar(stub, *argumentos) == 1
+        saida = capsys.readouterr()
+        assert "já resolvido" in saida.err and "já pode aplicar" not in saida.out
+    assert stub.registro.caminho.read_bytes() == antes
+    assert aprovar(stub, "prop-0002", "--rejeitar") == 0
+    assert tipos(stub)[-1] == "acao_rejeitada"
 
 
 def test_rejeitar_registra_o_motivo_e_a_proposta_nao_executa(stub, capsys):
@@ -461,6 +473,16 @@ def test_tela_mostra_o_endereco_de_cada_rotulo_que_o_agente_de_decisao_escreveu(
     assert aprovar(stub, "prop-0001", "--rejeitar") == 0
     tela = capsys.readouterr().out.splitlines()
     assert all(linha in tela for linha in esperadas)
+
+
+def test_tela_reconhece_o_rotulo_em_outra_grafia_no_texto(stub, capsys):
+    Stub(stub.registro, agente="decisao").chamar(
+        "propor_acao", id="inc-0001", acao="ativar_syn_cookies", alvo="o dispositivo atacado",
+        parametros=ACAO_NOVA | {"passos": ["Ativar SYN cookies em DESTINO-1.", "Conferir Origem-01 depois."]},
+        justificativa="O bloqueio não resolveu.",
+    )
+    assert aprovar(stub) == 0
+    assert "  rótulos citados: destino-1 = 192.168.137.20, origem-1 = 203.0.113.7" in capsys.readouterr().out.splitlines()
 
 
 def test_tela_mostra_todos_os_motivos_do_risco_alto_com_o_codigo_e_a_frase(stub, capsys, monkeypatch):

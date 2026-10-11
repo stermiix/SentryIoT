@@ -213,6 +213,11 @@ Bloqueie 192.168.137.20, o IPv6 2001:db8::7, fe80::1%eth0, ::ffff:192.168.137.2 
 ## Conferir o roteador
 
 O roteador 198.51.100.4 responde em 0011.2233.4455 e em 64:ff9b::c0a8:8901.
+
+## Regra de filtro
+
+A regra usa src:2001:db8::5 e addr:fe80::1, o host192.168.137.31 aparece colado, e o MAC
+0:1b:63:84:45:e6 está na tabela ARP do Mac.
 """
 _POLITICA = carregar_politica()
 ENDERECOS_CONHECIDOS = {
@@ -220,9 +225,19 @@ ENDERECOS_CONHECIDOS = {
 } | _POLITICA.enderecos_protegidos | _POLITICA.enderecos_criticos | {"203.0.113.7", "198.51.100.4"}
 
 
+# Os primeiros grupos de cada endereço conhecido: três no IPv4 e dois no IPv6. Um pedaço que sobra
+# de um corte não forma um endereço inteiro, e ainda assim diz ao agente onde está a rede.
+PEDACOS_CONHECIDOS = {
+    separador.join(endereco.split(separador)[:quantos])
+    for endereco in ENDERECOS_CONHECIDOS
+    for separador in (":" if ":" in endereco else ".",)
+    for quantos in range(2 if separador == ":" else 3, len(endereco.split(separador)))
+}
+
+
 def enderecos_em(texto):
     """Endereços IPv4, IPv6 e MAC num texto, por uma busca independente do filtro do servidor."""
-    achados = {endereco for endereco in ENDERECOS_CONHECIDOS if endereco in texto}
+    achados = {endereco for endereco in ENDERECOS_CONHECIDOS | PEDACOS_CONHECIDOS if endereco in texto}
     for trecho in re.findall(r"[0-9A-Fa-f:.%]+", texto):
         candidato = trecho.strip(".:").split("%")[0]
         if candidato.count(".") == 3 or candidato.count(":") >= 2:
@@ -231,14 +246,18 @@ def enderecos_em(texto):
             except ValueError:
                 continue
             achados.add(candidato)
-    achados.update(re.findall(r"(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}", texto))
+    achados.update(re.findall(r"(?:[0-9A-Fa-f]{1,2}[:-]){5}[0-9A-Fa-f]{1,2}", texto))
     achados.update(re.findall(r"[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}", texto))
     return achados
 
 
 def test_a_busca_de_enderecos_do_teste_acha_o_que_precisa_achar():
-    assert enderecos_em("bloquear 203.0.113.7.") == {"203.0.113.7"}
-    assert enderecos_em(DOCUMENTO_COM_ENDERECOS) >= {"2001:db8::7", "fe80::1", "aa:bb:cc:dd:ee:ff", "0011.2233.4455"}
+    assert enderecos_em("bloquear 203.0.113.7.") >= {"203.0.113.7"}
+    assert enderecos_em("Veio 'aaaa@203.0.113.' (cortado: 61 caracteres)") == {"203.0.113"}
+    assert enderecos_em(DOCUMENTO_COM_ENDERECOS) >= {
+        "2001:db8::7", "fe80::1", "aa:bb:cc:dd:ee:ff", "0011.2233.4455", "c:2001:db8::5", "0:1b:63:84:45:e6",
+        "192.168.137.31",
+    }
     assert enderecos_em('{"inicio": "2026-10-20T14:03:11Z", "rotulo": "origem-1", "valor": 35778.4}') == set()
 
 
@@ -290,6 +309,9 @@ def test_nenhuma_resposta_da_linha_de_decisao_traz_endereco(tmp_path):
                 ("bloquear_ip", {"duracao": 10}, rotulo), ("limitar_taxa", {"duracao": 10}, rotulo),
                 ("isolar_dispositivo", {}, rotulo), ("revogar_credencial", {}, f"admin@{rotulo}"),
                 ("ativar_syn_cookies", {}, rotulo),
+                # usuario@rótulo numa ação de alvo IP: a recusa não pode mostrar pedaço do endereço.
+                *((acao_ip, {"duracao": 10}, "a" * tamanho + "@" + rotulo)
+                  for acao_ip in ("bloquear_ip", "limitar_taxa") for tamanho in (1, 49, 52, 55)),
                 ("filtrar_porta", ACAO_NOVA | {"passos": ["Filtrar a porta 22 de 192.168.137.31."]}, rotulo),
             ):
                 chamar("propor_acao", id=identificador, acao=acao, alvo=alvo, parametros=parametros,

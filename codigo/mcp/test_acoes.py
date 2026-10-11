@@ -20,12 +20,14 @@ from codigo.mcp.acoes import (
     promover,
     propor,
     reconstruir,
+    resumir,
     resumo_do_incidente,
     usuario_do_sistema,
 )
 from codigo.mcp.eventos import LogInvalido, novo
 from codigo.mcp.test_tipos import INCIDENTE_DA_ESPECIFICACAO
 from codigo.mcp.tipos import (
+    MARCADOR_DE_ENDERECO,
     MOTIVOS_DE_RISCO_ALTO,
     Ambiente,
     Recusa,
@@ -1123,10 +1125,32 @@ def test_ipv6_que_embute_endereco_da_rede_local_conta_como_rede_local(embutido):
     assert motivos(mundo.propor("bloquear_ip", alvo, {"duracao": 10})) == ["alvo_na_rede_local"]
 
 
-def test_ipv6_comum_nao_vira_protegido_por_engano():
-    incidente = INCIDENTE_DA_ESPECIFICACAO | {"origens": [{"endereco": "2001:db8::c0a8:8901", "quadros": 9120}]}
+@pytest.mark.parametrize("origem,esperados", [
+    # ULA (fc00::/7) é, por definição, endereço de rede local.
+    ("fd00::50", ["alvo_na_rede_local"]),
+    ("fc12:3456::1", ["alvo_na_rede_local"]),
+    # NAT64 de uso local (64:ff9b:1::/48, RFC 8215): o IPv4 no fim, como num /96, e na posição do /48.
+    ("64:ff9b:1::c0a8:8932", ["alvo_na_rede_local"]),
+    ("64:ff9b:1:c0a8:89:3200::", ["alvo_na_rede_local"]),
+    ("64:ff9b:1:c0a8:89:100::", ["alvo_na_rede_local", "alvo_protegido"]),
+    # ISATAP: o IPv4 nos últimos 32 bits, depois de 0:5efe ou 200:5efe.
+    ("2001:db8::5efe:c0a8:8901", ["alvo_na_rede_local", "alvo_protegido"]),
+    ("2001:db8::200:5efe:c0a8:8932", ["alvo_na_rede_local"]),
+    # Teredo: o IPv4 do cliente, com os bits invertidos, e o do servidor.
+    ("2001:0:cb00:7105:0:0:3f57:76fe", ["alvo_na_rede_local", "alvo_protegido"]),
+], ids=ascii)
+def test_origem_ipv6_da_rede_local_ou_com_ipv4_dentro_nao_e_bloqueada_sem_aprovacao(origem, esperados):
+    incidente = INCIDENTE_DA_ESPECIFICACAO | {"origens": [{"endereco": origem, "quadros": 9120}]}
     mundo = Mundo(incidente=incidente)
-    assert motivos(mundo.propor("bloquear_ip", "2001:db8::c0a8:8901", {"duracao": 10})) == []
+    alvo = mundo.estado.incidentes["inc-0001"].origens[0].endereco
+    assert motivos(mundo.propor("bloquear_ip", alvo, {"duracao": 10})) == esperados
+
+
+def test_ipv6_comum_nao_vira_protegido_por_engano():
+    for comum in ("2001:db8::c0a8:8901", "2001:db8:1:2:3:4:c0a8:8901", "2606:4700::6810:84e5"):
+        incidente = INCIDENTE_DA_ESPECIFICACAO | {"origens": [{"endereco": comum, "quadros": 9120}]}
+        mundo = Mundo(incidente=incidente)
+        assert motivos(mundo.propor("bloquear_ip", comum, {"duracao": 10})) == []
 
 
 # --- rótulos neutros: o agente de decisão não conhece endereço --------------------------------
@@ -1201,6 +1225,61 @@ def test_recusa_do_alvo_com_endereco_nao_repete_a_entrada(mundo):
     assert len(mensagem) < 700 and "a" * 100 not in mensagem and "203.0.113.7" not in mensagem
 
 
+IPV6_DE_ORIGEM = "2001:db8:85a3::8a2e:370:7334"
+
+
+@pytest.mark.parametrize("origem,pedacos", [
+    ("203.0.113.7", ["203.0", "0.113", "113.7"]),
+    (IPV6_DE_ORIGEM, ["2001:db8", "db8:85a3", "85a3:", "8a2e", "370:7334"]),
+], ids=["ipv4", "ipv6"])
+def test_recusa_do_alvo_com_rotulo_nunca_mostra_o_endereco_resolvido(origem, pedacos):
+    # usuario@rótulo numa ação de alvo IP: antes, a recusa repetia o alvo resolvido, cortado em 60
+    # caracteres, e o pedaço que sobrava do corte não formava um endereço inteiro para o filtro pegar.
+    mundo = Mundo(incidente=INCIDENTE_DA_ESPECIFICACAO | {"origens": [{"endereco": origem, "quadros": 9120}]})
+    for acao, parametros in (("bloquear_ip", {"duracao": 10}), ("isolar_dispositivo", {}), ("limitar_taxa", {"duracao": 5})):
+        for tamanho in (1, 30, 45, 49, 50, 53, 55, 58, 60, 70, 150):
+            alvo = "a" * tamanho + "@origem-1"
+            mensagem = recusado("alvo_malformado", mundo.propor, acao, alvo, parametros, so_rotulos=True)
+            assert not any(pedaco in mensagem for pedaco in pedacos), mensagem
+            # Quando repete a entrada, a mensagem repete o que o agente escreveu, com o rótulo, e a
+            # contagem do corte é a do texto dele, e não a do endereço.
+            if "Veio" in mensagem:
+                assert "@origem-1" in mensagem or f"cortado: {len(alvo)} caracteres" in mensagem, mensagem
+    # O mesmo vale fora da linha de decisão: o rótulo foi o que o agente escreveu.
+    assert "203.0" not in recusado("alvo_malformado", mundo.propor, "bloquear_ip", "admin@origem-1", {"duracao": 10})
+    # revogar_credencial sem usuário, com o rótulo.
+    mensagem = recusado("alvo_malformado", mundo.propor, "revogar_credencial", "origem-1", so_rotulos=True)
+    assert "origem-1" in mensagem and not any(pedaco in mensagem for pedaco in pedacos)
+
+
+def test_rotulo_de_endereco_especial_e_recusado_sem_mostrar_o_endereco():
+    mundo = Mundo(incidente=INCIDENTE_DA_ESPECIFICACAO | {"origens": [{"endereco": "224.0.0.1", "quadros": 10}]})
+    mensagem = recusado("alvo_nao_permitido", mundo.propor, "bloquear_ip", "origem-1", {"duracao": 10}, so_rotulos=True)
+    assert "origem-1" in mensagem and "multicast" in mensagem and "224.0" not in mensagem
+    # Sem rótulo, quem escreveu o endereço o vê na mensagem, como antes.
+    assert "224.0.0.1" in recusado("alvo_nao_permitido", mundo.propor, "bloquear_ip", "224.0.0.1", {"duracao": 10})
+
+
+def test_resumo_de_um_valor_filtra_o_endereco_antes_de_cortar():
+    # O corte vem depois do filtro: nenhum pedaço de endereço sobra, e o tamanho contado é o do texto filtrado.
+    for endereco in ("203.0.113.7", IPV6_DE_ORIGEM, "aa:bb:cc:dd:ee:ff"):
+        for tamanho in range(40, 70):
+            resumido = resumir("a" * tamanho + "@" + endereco)
+            assert endereco[:4] not in resumido.split("@", 1)[-1], resumido
+            if "cortado" in resumido:
+                assert f"{tamanho + 1 + len(MARCADOR_DE_ENDERECO)} caracteres" in resumido
+
+
+@pytest.mark.parametrize("alvo", [
+    "DESTINO-1", "destino-01", "o destino-1", "Destino 1", "origem_2", "o dispositivo destino-1 atacado", "origem-0",
+], ids=ascii)
+def test_rotulo_escrito_de_outro_jeito_na_acao_nova_e_recusado_na_linha_de_decisao(mundo, alvo):
+    # Sem a recusa, o texto ia cru para Execucao.alvo, e a tela de aprovação não mostrava o endereço.
+    mensagem = recusado("alvo_malformado", mundo.propor, "ativar_syn_cookies", alvo, ACAO_NOVA, so_rotulos=True)
+    assert "rótulo" in mensagem and "destino-1" in mensagem
+    assert mundo.estado.propostas == {}
+
+
 def test_acao_nova_da_linha_de_decisao_aceita_alvo_em_texto_sem_endereco(mundo):
     proposta = mundo.propor("ativar_syn_cookies", "o dispositivo atacado", ACAO_NOVA, so_rotulos=True)
     assert (proposta.alvo, proposta.alvo_com_rotulo) == ("o dispositivo atacado", None)
@@ -1230,6 +1309,28 @@ def test_acao_promovida_vai_ao_catalogo_sem_endereco(mundo):
     assert "rótulo" in promovida.alvo
     # A reconstrução aceita a promoção, porque é a mesma conta que o servidor faz.
     assert mundo.estado.promovidas["ativar_syn_cookies"] == promovida
+
+
+def test_promocao_gravada_com_filtro_mais_antigo_continua_valida(mundo):
+    # O filtro de endereços melhora com o tempo. A promoção gravada por uma versão que deixou passar
+    # um endereço (aqui, depois de "src:") continua aceita: a conferência aplica o filtro de agora aos
+    # dois lados. O que não sai do texto aprovado continua recusado.
+    aprovado = ACAO_NOVA | {"passos": ["Filtrar src:2001:db8::5 no roteador."]}
+    mundo.propor("filtrar_origem", "192.168.137.20", aprovado)
+    mundo.decidir("prop-0001")
+    mundo.executar("prop-0001")
+    referencia = Mundo()
+    referencia.eventos = list(mundo.eventos)
+    referencia.promover("prop-0001")
+    promocao = dados_de(referencia, "catalogo_ampliado")
+    gravada_antes = promocao | {"acao": promocao["acao"] | {"passos": ["Filtrar src:2001:db8::5 no roteador."]}}
+    outro = Mundo()
+    outro.eventos = list(mundo.eventos)
+    outro.aplicar([novo("catalogo_ampliado", gravada_antes, "inc-0001")])
+    assert list(outro.estado.promovidas) == ["filtrar_origem"]
+    trocada = promocao | {"acao": promocao["acao"] | {"passos": ["Filtrar [endereço] e desligar o firewall."]}}
+    mundo.aplicar([novo("catalogo_ampliado", trocada, "inc-0001")])
+    violacao(mundo, "catalogo_ampliado", "aprovada")
 
 
 def test_resumo_do_incidente_tem_rotulos_e_nenhum_endereco():
@@ -1298,6 +1399,20 @@ def test_proposta_de_incidente_marcado_nao_executa_nem_aprovada(mundo):
     assert mundo.desfazer(aplicada.id).estado == "desfeita"
 
 
+def test_proposta_de_incidente_marcado_nao_e_aprovada_mas_pode_ser_rejeitada(mundo):
+    # Aprovar seria dizer à pessoa que a ação vai ser aplicada, e executar_acao a recusaria.
+    pendente = mundo.propor("isolar_dispositivo", "192.168.137.20")
+    outra = mundo.propor("isolar_dispositivo", "192.168.137.20")
+    mundo.marcar_resolvido()
+    mensagem = recusado("incidente_ja_resolvido", mundo.decidir, pendente.id)
+    assert pendente.id in mensagem and "já resolvido" in mensagem and "rejeit" in mensagem
+    assert mundo.estado.propostas[pendente.id].estado == "aguardando_aprovacao"
+    assert mundo.decidir(outra.id, aprovar=False).estado == "rejeitada"
+    # Uma aprovação gravada por fora, depois da marca, deixa o log inválido.
+    mundo.aplicar([novo("acao_aprovada", APROVACAO | {"proposta": pendente.id}, "inc-0001")])
+    violacao(mundo, "acao_aprovada", "já resolvido")
+
+
 def test_marca_so_vale_uma_vez_e_em_incidente_aberto_que_existe(mundo):
     recusado("identificador_desconhecido", marcar_resolvido, mundo.estado, "inc-0099")
     mundo.marcar_resolvido()
@@ -1316,6 +1431,12 @@ def test_marca_no_log_e_conferida_na_reconstrucao(mundo):
         ([novo("incidente_marcado_resolvido", marca, "inc-0001")] * 2, "já foi marcado"),
         ([novo("incidente_marcado_resolvido", marca | {"incidente": "inc-0002"}, "inc-0002")], "inc-0002"),
     ]
+    encerrado = INCIDENTE_DA_ESPECIFICACAO | {"estado": "encerrado"}
+    casos.append((
+        # A leitura do log concorda com o comando: incidente encerrado não recebe a marca.
+        [novo("incidente_encerrado", encerrado, "inc-0001"), novo("incidente_marcado_resolvido", marca, "inc-0001")],
+        "encerrado",
+    ))
     for rascunhos, trecho in casos:
         outro = Mundo()
         outro.aplicar(rascunhos)

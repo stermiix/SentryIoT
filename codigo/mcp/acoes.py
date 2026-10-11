@@ -104,12 +104,15 @@ _UMA_LINHA = (
 
 
 def resumir(valor, maximo=_MAIOR_TRECHO):
-    """Como um valor recebido aparece em uma mensagem: escapado e cortado.
+    """Como um valor recebido aparece em uma mensagem: sem endereço, escapado e cortado.
 
     A mensagem de recusa volta para o agente e vai para o log. Ela nunca devolve a entrada
-    inteira nem repete sequência de terminal ou quebra de linha que veio nela.
+    inteira nem repete sequência de terminal ou quebra de linha que veio nela. O filtro de
+    endereços vem antes do corte: nenhum pedaço de endereço sobra dele, e o tamanho contado é o
+    do texto já filtrado, que não diz o tamanho de endereço nenhum.
     """
     if isinstance(valor, str):
+        valor = mascarar_enderecos(valor)
         if len(valor) <= maximo:
             return repr(valor)
         return f"{valor[:maximo]!r} (cortado: {_milhar(len(valor))} caracteres)"
@@ -136,6 +139,9 @@ class PedidoRecusado(Exception):
     """
 
     def __init__(self, motivo, mensagem):
+        # Guardada antes do corte, para que um filtro aplicado depois (o da linha de decisão) venha
+        # antes do corte, e não sobre um pedaço.
+        self.inteira = mensagem
         mensagem = visivel(mensagem)[:TEXTO_LONGO]
         super().__init__(mensagem)
         self.motivo = motivo
@@ -215,13 +221,25 @@ _REDE = "rede"
 _PROTEGIDOS = "enderecos_protegidos"
 _CRITICOS = "enderecos_criticos"
 _REDES_LOCAIS = "redes_locais"
-# Prefixos IPv6 que levam um IPv4 dentro deles: NAT64 (64:ff9b::/96) e SIIT (::ffff:0:0:0/96). O IPv4
-# compatível (::/96) e o 6to4 (2002::/16) são tratados à parte, em `_ipv4_embutido`.
+# Prefixos IPv6 que levam um IPv4 dentro deles: NAT64 (64:ff9b::/96), SIIT (::ffff:0:0:0/96) e o
+# IPv4 compatível (::/96), todos com o IPv4 nos últimos 32 bits. O NAT64 de uso local, o 6to4, o
+# ISATAP e o Teredo são tratados à parte, em `_ipv4_embutidos`.
 _NAT64 = ipaddress.ip_network("64:ff9b::/96")
 _SIIT = ipaddress.ip_network("::ffff:0:0:0/96")
 _COMPATIVEL = ipaddress.ip_network("::/96")
+# NAT64 de uso local (RFC 8215). A rede escolhe o tamanho do prefixo dentro do /48, e o IPv4 fica numa
+# posição diferente em cada tamanho (RFC 6052), pulando o octeto 8: os quatro tamanhos são conferidos.
+_NAT64_LOCAL = ipaddress.ip_network("64:ff9b:1::/48")
+_POSICOES_NO_NAT64_LOCAL = ((6, 7, 9, 10), (7, 9, 10, 11), (9, 10, 11, 12), (12, 13, 14, 15))
+# ISATAP: o identificador de interface é 0:5efe ou 200:5efe, seguido do IPv4.
+_ISATAP = (bytes.fromhex("00005efe"), bytes.fromhex("02005efe"))
+# ULA: a faixa de endereços IPv6 de uso local, que conta sempre como rede local.
+_ULA = ipaddress.ip_network("fc00::/7")
 # Alvo escrito com o rótulo neutro de um endereço do incidente: o rótulo só, ou usuario@rótulo.
 _ALVO_COM_ROTULO = re.compile(r"(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,63}@)?(?:origem|destino)-[1-9][0-9]{0,5}")
+# O que parece um rótulo sem ser escrito como ele: outra caixa, zero à esquerda, espaço no lugar do
+# hífen, ou o rótulo no meio de um texto. Na linha de decisão, o alvo assim é recusado.
+_PARECE_ROTULO = re.compile(r"(?i)(?:origem|destino)[\s_-]*[0-9]")
 # O alvo da ação promovida: genérico, sem o endereço da proposta que deu origem a ela.
 _ALVO_DA_PROMOVIDA = (
     "Texto de uma linha que diga sobre o que a ação age. Um endereço do incidente vai com o rótulo neutro, "
@@ -428,28 +446,38 @@ def _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros):
     return [codigo for codigo in MOTIVOS_DE_RISCO_ALTO if codigo in valem]
 
 
-def _ipv4_embutido(endereco):
-    """O IPv4 que um endereço IPv6 leva dentro dele, ou None.
+def _ipv4_embutidos(endereco):
+    """Os IPv4 que um endereço IPv6 leva dentro dele, ou nenhum.
 
     São as formas em que um IPv6 chega ao mesmo dispositivo que um IPv4: o IPv4 compatível
-    (`::a.b.c.d`), o SIIT (`::ffff:0:a.b.c.d`), o NAT64 (`64:ff9b::a.b.c.d`) e o 6to4
-    (`2002:AABB:CCDD::`). O IPv4 escrito como IPv6 (`::ffff:a.b.c.d`) já vira o IPv4 na leitura.
+    (`::a.b.c.d`), o SIIT (`::ffff:0:a.b.c.d`), o NAT64 (`64:ff9b::a.b.c.d`), o NAT64 de uso local
+    (`64:ff9b:1::/48`, em qualquer das posições que o tamanho do prefixo permite), o 6to4
+    (`2002:AABB:CCDD::`), o ISATAP (`...:5efe:a.b.c.d`) e o Teredo (o servidor e o cliente). O IPv4
+    escrito como IPv6 (`::ffff:a.b.c.d`) já vira o IPv4 na leitura. Na dúvida sobre a posição,
+    valem todas: o endereço conta como protegido ou local se qualquer uma delas for.
     """
     ip = ipaddress.ip_address(endereco)
     if ip.version != 6:
-        return None
+        return ()
+    octetos = ip.packed
+    embutidos = []
     if ip.sixtofour is not None:
-        return str(ip.sixtofour)
+        embutidos.append(ip.sixtofour)
+    if ip.teredo is not None:
+        embutidos.extend(ip.teredo)
     # O compatível exclui :: e ::1, que são o endereço não especificado e o loopback do IPv6.
-    if ip in _NAT64 or ip in _SIIT or (ip in _COMPATIVEL and int(ip) > 1):
-        return str(ipaddress.IPv4Address(int(ip) & 0xFFFF_FFFF))
-    return None
+    if ip in _NAT64 or ip in _SIIT or (ip in _COMPATIVEL and int(ip) > 1) or octetos[8:12] in _ISATAP:
+        embutidos.append(ipaddress.IPv4Address(octetos[12:16]))
+    if ip in _NAT64_LOCAL:
+        embutidos.extend(
+            ipaddress.IPv4Address(bytes(octetos[posicao] for posicao in posicoes)) for posicoes in _POSICOES_NO_NAT64_LOCAL
+        )
+    return tuple(dict.fromkeys(str(embutido) for embutido in embutidos))
 
 
 def _formas(endereco):
     """O endereço e, quando ele é um IPv6 que leva um IPv4, também esse IPv4."""
-    embutido = _ipv4_embutido(endereco)
-    return (endereco,) if embutido is None else (endereco, embutido)
+    return (endereco, *_ipv4_embutidos(endereco))
 
 
 def _protegido(politica, endereco):
@@ -458,7 +486,9 @@ def _protegido(politica, endereco):
 
 
 def _na_rede_local(politica, endereco):
-    """O endereço está numa das redes locais, escrito direto ou dentro de um IPv6."""
+    """O endereço está numa das redes locais, escrito direto ou dentro de um IPv6, ou é um IPv6 de ULA."""
+    if ipaddress.ip_address(endereco) in _ULA:
+        return True
     return any(
         ipaddress.ip_address(forma) in rede for forma in _formas(endereco) for rede in politica.redes_locais
         if ipaddress.ip_address(forma).version == rede.version
@@ -528,11 +558,21 @@ def _motivo_de_endereco_recusado(politica, endereco):
     return None
 
 
-def _conferir_alvo_permitido(politica, acao, alvo):
-    """Recusa o alvo de uma ação de base quando o endereço dele é um dos endereços especiais."""
+def _conferir_alvo_permitido(politica, acao, alvo, com_rotulo=None):
+    """Recusa o alvo de uma ação de base quando o endereço dele é um dos endereços especiais.
+
+    Com `com_rotulo`, o alvo como o agente o escreveu, a mensagem cita o rótulo, e não o endereço
+    em que o servidor o trocou.
+    """
     endereco = alvo.rpartition("@")[2]
     motivo = _motivo_de_endereco_recusado(politica, endereco)
     if motivo is not None:
+        if com_rotulo is not None:
+            raise PedidoRecusado(
+                "alvo_nao_permitido",
+                f"O alvo de {acao} não pode ser {com_rotulo}: o endereço desse rótulo {motivo}. O alvo é o "
+                "endereço de um dispositivo.",
+            )
         raise PedidoRecusado(
             "alvo_nao_permitido",
             f"O alvo de {acao} não pode ser {endereco}: {motivo}. O alvo é o endereço de um dispositivo.",
@@ -623,8 +663,10 @@ def _aplicar(estado, evento):
             estado.incidentes[dados.id] = dados
             _rotular(estado, dados)
         case "incidente_marcado_resolvido":
-            _citado(estado.incidentes, dados.incidente, "o incidente")
+            marcado = _citado(estado.incidentes, dados.incidente, "o incidente")
             _exigir(dados.incidente not in estado.resolvidos, f"o incidente {dados.incidente} já foi marcado como resolvido")
+            # A mesma regra de marcar_resolvido: só o incidente aberto recebe a marca.
+            _exigir(marcado.estado == "aberto", f"o incidente {dados.incidente} já está encerrado e não recebe a marca")
             estado.resolvidos[dados.incidente] = dados
         case "acao_proposta":
             _conferir_proposta_nova(estado, dados)
@@ -637,6 +679,11 @@ def _aplicar(estado, evento):
                 f"a proposta {proposta.id} não aguarda aprovação: está {proposta.estado}",
             )
             if evento.tipo == "acao_aprovada":
+                _exigir(
+                    proposta.incidente not in estado.resolvidos,
+                    f"o incidente {proposta.incidente} foi marcado como já resolvido, e a proposta {proposta.id} não "
+                    "pode mais ser aprovada",
+                )
                 estado.aprovadas.add(proposta.id)
             mudar_proposta(proposta.id, "liberada" if evento.tipo == "acao_aprovada" else "rejeitada")
         case "acao_executada":
@@ -694,13 +741,15 @@ def _aplicar(estado, evento):
                 and dados.acao.origem == "promovida",
                 f"a proposta {proposta.id} não é de uma ação nova aplicada, com o nome {nome}",
             )
-            # O que entra no catálogo é o que a pessoa aprovou, e não uma variação com o mesmo nome.
+            # O que entra no catálogo é o que a pessoa aprovou, e não uma variação com o mesmo nome. O
+            # filtro de endereços de agora vale para os dois lados: uma promoção gravada por uma versão
+            # do filtro que deixou passar um endereço continua válida.
             try:
                 aprovada = _acao_promovida(proposta)
             except ValidationError:
                 aprovada = None
             _exigir(
-                dados.acao == aprovada,
+                aprovada is not None and _sem_enderecos_nos_textos(dados.acao) == aprovada,
                 f"a ação promovida pela proposta {proposta.id} não é a que foi aprovada e aplicada",
             )
             estado.promovidas[nome] = dados.acao
@@ -934,23 +983,30 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa, s
     if not isinstance(acao, str):
         raise PedidoRecusado("argumentos_invalidos", f"O nome da ação precisa ser um texto. Veio {resumir(acao)}.")
 
+    # O tamanho e o tipo do alvo vêm antes de qualquer expressão regular: um alvo de megabytes não
+    # chega a ser lido, e a trava do log não fica presa por ele.
+    if not isinstance(alvo, str) or len(alvo) > _MAIOR_ALVO:
+        raise PedidoRecusado(
+            "alvo_malformado",
+            f"O alvo de {_nome_na_mensagem(acao)} é um texto de até {_MAIOR_ALVO} caracteres. Veio {resumir(alvo)}.",
+        )
     alvo_com_rotulo = None
-    if isinstance(alvo, str) and _ALVO_COM_ROTULO.fullmatch(alvo.strip()):
+    if _ALVO_COM_ROTULO.fullmatch(alvo.strip()):
         alvo_com_rotulo = alvo.strip()
         alvo = _resolver_rotulo(estado, incidente, alvo_com_rotulo)
-    elif so_rotulos and (acao in BASE or tem_endereco(alvo)):
+    elif so_rotulos and (acao in BASE or tem_endereco(alvo) or _PARECE_ROTULO.search(alvo)):
         # O nome só entra na mensagem quando é de uma ação de base: o de uma ação nova vem do agente.
         de_qual = f" de {acao}" if acao in BASE else ""
         raise PedidoRecusado(
             "alvo_malformado",
-            f"Na linha de decisão, o alvo{de_qual} é o rótulo neutro de um endereço do incidente, como origem-1, "
-            "destino-1 ou admin@destino-1, como vem em obter_resumo, e não um endereço. Uma ação nova também pode "
-            "descrever o alvo em texto, sem endereço.",
+            f"Na linha de decisão, o alvo{de_qual} é o rótulo neutro de um endereço do incidente, sozinho e escrito "
+            "como vem em obter_resumo, como origem-1, destino-1 ou admin@destino-1, e não um endereço. Uma ação "
+            "nova também pode descrever o alvo em texto, sem endereço e sem rótulo.",
         )
 
     if acao in BASE:
-        alvo = _alvo_de_base(acao, alvo)
-        _conferir_alvo_permitido(politica, acao, alvo)
+        alvo = _alvo_de_base(acao, alvo, alvo_com_rotulo)
+        _conferir_alvo_permitido(politica, acao, alvo, alvo_com_rotulo)
         parametros = _parametros_validos(acao, parametros)
     elif acao in estado.promovidas:
         # Os passos e a forma de desfazer são os do catálogo: a pessoa aprova o que foi promovido,
@@ -1004,6 +1060,14 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa, s
         estado="aguardando_aprovacao" if motivos else "liberada",
     )
     return proposta, [novo("acao_proposta", proposta, incidente)]
+
+
+def _nome_na_mensagem(acao):
+    """O nome da ação como entra numa mensagem: inteiro se é um nome válido, e cortado se não é."""
+    try:
+        return _NOME_DE_ACAO.validate_python(acao)
+    except ValidationError:
+        return resumir(acao, 30)
 
 
 def _conferir_fila_de_aprovacao(estado, politica, incidente):
@@ -1070,8 +1134,29 @@ def _endereco(texto):
         return None
 
 
-def _alvo_de_base(acao, alvo):
+def _alvo_de_base(acao, alvo, com_rotulo=None):
+    """O alvo de uma ação de base na forma canônica, ou a recusa.
+
+    Com `com_rotulo`, o alvo veio escrito com o rótulo neutro, e `alvo` já é o endereço em que o
+    servidor o trocou. A recusa então repete o que o agente escreveu, com o rótulo, e nunca o
+    endereço: nem inteiro, nem um pedaço dele.
+    """
     definicao = BASE[acao]
+    if com_rotulo is not None:
+        usuario, arroba, _ = com_rotulo.rpartition("@")
+        if definicao.tipo_de_alvo == "ip" and arroba:
+            raise PedidoRecusado(
+                "alvo_malformado",
+                f"O alvo de {acao} é o rótulo de um endereço do incidente, como origem-1, sem usuário: o formato "
+                f"usuario@rótulo é só de revogar_credencial. Veio {resumir(com_rotulo)}.",
+            )
+        if definicao.tipo_de_alvo == "credencial" and (not arroba or not _USUARIO.fullmatch(usuario)):
+            raise PedidoRecusado(
+                "alvo_malformado",
+                f"O alvo de {acao} precisa ter o formato usuario@rótulo, como admin@destino-1. O usuário usa letras "
+                f"sem acento, números, ponto, hífen e sublinhado, e não começa por ponto nem por hífen. Veio "
+                f"{resumir(com_rotulo)}.",
+            )
     if definicao.tipo_de_alvo == "ip":
         endereco = _endereco(alvo)
         if endereco is None:
@@ -1190,6 +1275,13 @@ def decidir(estado, id_proposta, aprovar, canal="terminal", motivo=None, usuario
             "liberada": "já foi aprovada" if proposta.exige_aprovacao else "é de risco baixo e não exige aprovação",
         }[proposta.estado]
         raise PedidoRecusado("argumentos_invalidos", f"A proposta {proposta.id} {situacao}.")
+    if aprovar and proposta.incidente in estado.resolvidos:
+        # A execução seria recusada: aprovar diria à pessoa que a ação vai ser aplicada, e não vai.
+        raise PedidoRecusado(
+            "incidente_ja_resolvido",
+            f"A proposta {proposta.id} é do incidente {proposta.incidente}, que foi marcado como já resolvido, e "
+            "nenhuma ação é aplicada nele. A proposta só pode ser rejeitada.",
+        )
     try:
         decisao = Decisao(
             proposta=proposta.id, canal=canal, usuario=usuario or usuario_do_sistema(), motivo=motivo or None
@@ -1342,6 +1434,20 @@ def promover(estado, id_proposta):
     return acao, [novo("catalogo_ampliado", Promocao(proposta=proposta.id, acao=acao), proposta.incidente)]
 
 
+def _sem_enderecos_nos_textos(acao):
+    """A ação do catálogo com o filtro de endereços aplicado aos textos que a promoção filtra."""
+    def mascarado(texto, maximo=TEXTO_LONGO):
+        return None if texto is None else mascarar_enderecos(texto)[:maximo]
+
+    return acao.model_copy(update={
+        "descricao": mascarado(acao.descricao),
+        "passos": [mascarado(passo) for passo in acao.passos],
+        "efeito_esperado": mascarado(acao.efeito_esperado),
+        "como_desfazer": mascarado(acao.como_desfazer),
+        "fonte": mascarado(acao.fonte, TEXTO_CURTO),
+    })
+
+
 def _acao_promovida(proposta):
     """A ação do catálogo que sai de uma proposta de ação nova: os passos aprovados, sempre de risco alto.
 
@@ -1350,19 +1456,15 @@ def _acao_promovida(proposta):
     marcador neutro.
     """
     detalhes = ParametrosDeAcaoNova.model_validate(proposta.parametros)
-
-    def generico(texto, maximo=TEXTO_LONGO):
-        return None if texto is None else mascarar_enderecos(texto)[:maximo]
-
-    return AcaoDoCatalogo(
+    return _sem_enderecos_nos_textos(AcaoDoCatalogo(
         nome=proposta.acao,
-        descricao=generico(detalhes.descricao),
+        descricao=detalhes.descricao,
         alvo=_ALVO_DA_PROMOVIDA,
         parametros=[],
         regra=_REGRA_DE_RISCO_ALTO,
         origem="promovida",
-        passos=[generico(passo) for passo in detalhes.passos],
-        efeito_esperado=generico(detalhes.efeito_esperado),
-        como_desfazer=generico(detalhes.como_desfazer),
-        fonte=generico(detalhes.fonte, TEXTO_CURTO),
-    )
+        passos=detalhes.passos,
+        efeito_esperado=detalhes.efeito_esperado,
+        como_desfazer=detalhes.como_desfazer,
+        fonte=detalhes.fonte,
+    ))

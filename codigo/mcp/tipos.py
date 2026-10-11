@@ -190,34 +190,55 @@ def endereco_canonico(texto):
 MARCADOR_DE_ENDERECO = "[endereço]"
 # Rótulo neutro de um endereço do incidente, na ordem em que o endereço apareceu nele.
 ROTULO = r"^(?:origem|destino)-[1-9][0-9]{0,5}$"
-# MAC com dois-pontos ou hífen (o mesmo nos cinco lugares) e o formato com pontos, de três grupos.
-_MAC_NO_TEXTO = re.compile(
-    r"(?<![0-9A-Fa-f:-])[0-9A-Fa-f]{2}([:-])[0-9A-Fa-f]{2}(?:\1[0-9A-Fa-f]{2}){4}(?![0-9A-Fa-f:-])"
-    r"|(?<![0-9A-Fa-f.])[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}(?![0-9A-Fa-f.])"
-)
-# Candidato a IPv6: dígitos hexadecimais, pontos e ao menos dois-pontos duas vezes, com a zona, se houver.
-_IPV6_NO_TEXTO = re.compile(r"(?<![0-9A-Za-z:.])[0-9A-Fa-f.]*:[0-9A-Fa-f.:]*:[0-9A-Fa-f.:]*(?:%[0-9A-Za-z_.-]+)?(?![0-9A-Za-z:])")
-# IPv4 em quatro grupos, inclusive com zero à esquerda ou fora da faixa: na dúvida, é endereço.
-_IPV4_NO_TEXTO = re.compile(r"(?<![0-9A-Za-z.])[0-9]{1,3}(?:\.[0-9]{1,3}){3}(?![0-9A-Za-z]|\.[0-9])")
+# As três buscas abaixo não retrocedem: cada uma lê o texto uma vez, e o custo é linear no tamanho
+# dele. O filtro roda com o log travado, e um texto montado de propósito não pode segurar a trava.
+# Nenhuma olha o que vem antes ou depois do endereço: colado a uma letra, depois de `src:` ou com
+# sufixo, ele vira o marcador do mesmo jeito.
+#
+# IPv6: cada trecho máximo só de dígitos hexadecimais, dois-pontos e pontos é conferido no código.
+_TRECHO_HEXADECIMAL = re.compile(r"[0-9A-Fa-f:.]+")
+# Dois dígitos hexadecimais separados por um ou dois dois-pontos: o que um IPv6 tem e uma pontuação não.
+_GRUPOS_SEPARADOS = re.compile(r"[0-9A-Fa-f]:{1,2}[0-9A-Fa-f]")
+# O maior IPv6 escrito por extenso, com um IPv4 no fim, tem 45 caracteres.
+_MAIOR_IPV6 = 45
+# MAC: seis grupos de um ou dois dígitos hexadecimais, com dois-pontos ou hífen (o `arp` do macOS
+# escreve sem o zero à esquerda), e o formato com pontos, de três grupos de quatro.
+_MAC_NO_TEXTO = re.compile(r"[0-9A-Fa-f]{1,2}(?:[:-][0-9A-Fa-f]{1,2}){5}|[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}")
+# IPv4 em quatro grupos de um a quatro dígitos, inclusive com zero à esquerda, octal ou fora da faixa.
+_IPV4_NO_TEXTO = re.compile(r"[0-9]{1,4}(?:\.[0-9]{1,4}){3}")
 
 
-def _e_ipv6(trecho):
-    """O candidato é um IPv6, ou quase: com `::` ou com seis ou mais dois-pontos, nenhum horário é."""
-    endereco = trecho.split("%")[0].strip(".")
-    if "::" in endereco or endereco.count(":") >= 6:
-        return True
+def _sem_ipv6(achado):
+    """O trecho hexadecimal, ou o marcador quando ele é um IPv6, ou quase.
+
+    Com `::` ou com seis ou mais dois-pontos, entre dígitos hexadecimais, nenhum horário nem razão
+    é. Os demais são conferidos com `ipaddress`. O trecho inteiro vira o marcador, inclusive a letra
+    hexadecimal que estiver colada ao endereço.
+    """
+    trecho = achado.group()
+    if trecho.count(":") < 2 or _GRUPOS_SEPARADOS.search(trecho) is None:
+        return trecho
+    if "::" in trecho or trecho.count(":") >= 6:
+        return MARCADOR_DE_ENDERECO
+    candidato = trecho.strip(".:")
+    if len(candidato) > _MAIOR_IPV6:
+        return trecho
     try:
-        ipaddress.IPv6Address(endereco)
+        ipaddress.IPv6Address(candidato)
     except ValueError:
-        return False
-    return True
+        return trecho
+    return MARCADOR_DE_ENDERECO
 
 
 def mascarar_enderecos(texto):
-    """O texto com todo endereço IPv4, IPv6 ou MAC trocado por `MARCADOR_DE_ENDERECO`."""
-    texto = _MAC_NO_TEXTO.sub(MARCADOR_DE_ENDERECO, texto)
-    texto = _IPV6_NO_TEXTO.sub(lambda achado: MARCADOR_DE_ENDERECO if _e_ipv6(achado.group()) else achado.group(), texto)
-    return _IPV4_NO_TEXTO.sub(MARCADOR_DE_ENDERECO, texto)
+    """O texto com todo endereço IPv4, IPv6 ou MAC trocado por `MARCADOR_DE_ENDERECO`.
+
+    O IPv6 vem primeiro, para que o IPv4 escrito dentro dele saia junto, e o IPv4, antes do MAC,
+    para que um IPv4 de octetos de quatro dígitos não seja tomado pelo MAC com pontos.
+    """
+    texto = _TRECHO_HEXADECIMAL.sub(_sem_ipv6, texto)
+    texto = _IPV4_NO_TEXTO.sub(MARCADOR_DE_ENDERECO, texto)
+    return _MAC_NO_TEXTO.sub(MARCADOR_DE_ENDERECO, texto)
 
 
 def tem_endereco(texto):
@@ -782,7 +803,7 @@ class _SemTituloDeCampo(GenerateJsonSchema):
 
 
 def contrato():
-    """O contrato em JSON Schema: as nove tools, o evento do log e as definições dos tipos.
+    """O contrato em JSON Schema: as dez tools, o evento do log e as definições dos tipos.
 
     Traz também a tabela dos motivos de risco alto, com a frase de cada código.
     """

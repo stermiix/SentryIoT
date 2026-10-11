@@ -142,17 +142,21 @@ prompt:
   `alvo`, com o endereço, e `alvo_com_rotulo`. Na resposta à linha de decisão, `alvo` volta com o
   rótulo. Da linha de decisão, alvo com endereço é recusado (`alvo_malformado`): o agente não
   conhece endereço, e o que vier com um foi copiado de texto de fora. A ação nova pode descrever
-  o alvo em texto, sem endereço;
+  o alvo em texto, sem endereço. O rótulo escrito de outro jeito (`DESTINO-1`, `destino-01`, "o
+  destino-1") também é recusado, porque não seria trocado pelo endereço;
 - o agente de execução, local, recebe o endereço real em `executar_acao`, e a tela de aprovação
   mostra o endereço de cada rótulo citado na proposta;
 - `verificar_efeito` não está na linha de decisão: ele grava o efeito e encerra ou atualiza o
   incidente. O agente de decisão lê o último efeito em `obter_resumo`;
-- toda resposta à linha de decisão, inclusive a mensagem de recusa, passa por um filtro que troca
-  qualquer IPv4, IPv6 ou MAC que tenha sobrado em texto livre (num documento da base, numa ação
-  promovida, no eco da consulta) por `[endereço]`. A busca é larga de propósito: um IPv4 com zero
-  à esquerda ou fora da faixa também vira o marcador. A falha é fechada: se a resposta filtrada
-  sai do contrato (um título que passa de 200 caracteres com o marcador, por exemplo), ela não é
-  entregue, e nada é gravado.
+- toda resposta à linha de decisão, inclusive a mensagem de recusa, inteira e antes do corte,
+  passa por um filtro que troca qualquer IPv4, IPv6 ou MAC que tenha sobrado em texto livre (num
+  documento da base, numa ação promovida, no eco da consulta) por `[endereço]`. A recusa de um alvo
+  escrito com rótulo repete o rótulo, e não o endereço. A busca é larga de propósito e não olha o que
+  vem antes ou depois do endereço: um IPv4 com zero à esquerda, octal ou fora da faixa, um IPv6
+  depois de `src:` ou colado a uma letra e o MAC sem zero à esquerda também viram o marcador. As
+  buscas não retrocedem, e o custo é linear no tamanho do texto. A falha é fechada: se a resposta
+  filtrada sai do contrato (um título que passa de 200 caracteres com o marcador, por exemplo),
+  ela não é entregue, e nada é gravado.
 
 Um teste (`test_seguranca.py`) percorre todas as tools da linha de decisão, em todos os
 cenários, pelo servidor MCP, com um documento da base cheio de endereços e uma ação promovida com
@@ -296,7 +300,7 @@ dispositivo atacado não é recusado: volta com `"risco": "alto"`, `"exige_aprov
 Da linha de decisão, o alvo com endereço e o rótulo que não existe são recusados:
 
 ```
-Na linha de decisão, o alvo de bloquear_ip é o rótulo neutro de um endereço do incidente, como origem-1, destino-1 ou admin@destino-1, como vem em obter_resumo, e não um endereço. Uma ação nova também pode descrever o alvo em texto, sem endereço.
+Na linha de decisão, o alvo de bloquear_ip é o rótulo neutro de um endereço do incidente, sozinho e escrito como vem em obter_resumo, como origem-1, destino-1 ou admin@destino-1, e não um endereço. Uma ação nova também pode descrever o alvo em texto, sem endereço e sem rótulo.
 O rótulo 'origem-9' não existe no incidente inc-0001. Os rótulos dele são: origem-1, origem-2, origem-3, origem-4, origem-5, destino-1.
 ```
 
@@ -408,8 +412,13 @@ bloquear uma origem da rede local é de risco alto (equivale a isolar um disposi
 endereços críticos são tratados como protegidos (um bloqueio forjado contra o DNS ou contra o
 host do modelo cortaria a rede ou os próprios agentes) e o teto de medidas de risco baixo vale
 também para o sistema todo (cada incidente forjado teria o seu teto). Um endereço IPv6 que leva
-dentro um IPv4 (compatível `::a.b.c.d`, SIIT `::ffff:0:a.b.c.d`, NAT64 `64:ff9b::/96` e 6to4
-`2002::/16`) conta como esse IPv4 na conferência de protegido, crítico e rede local.
+dentro um IPv4 (compatível `::a.b.c.d`, SIIT `::ffff:0:a.b.c.d`, NAT64 `64:ff9b::/96`, NAT64 de uso
+local `64:ff9b:1::/48` em qualquer das posições que o tamanho do prefixo permite, 6to4 `2002::/16`,
+ISATAP `...:5efe:a.b.c.d` e Teredo, o cliente e o servidor) conta como esse IPv4 na conferência de
+protegido, crítico e rede local. O IPv6 de ULA (`fc00::/7`) conta sempre como rede local; o prefixo
+IPv6 global da rede, se houver, vai em `redes_locais`. Um prefixo NAT64 próprio da rede, fora de
+`64:ff9b::/96` e de `64:ff9b:1::/48`, não é desembrulhado: o código não tem como saber onde está o
+IPv4 dentro dele.
 
 Quando alguma das condições falha, a proposta não é recusada: é registrada como de risco alto e
 fica aguardando a pessoa. As exceções, que são recusadas, estão na tabela de recusas: endereço
@@ -482,7 +491,9 @@ com `parametros` vazio: os passos e a forma de desfazer são os do catálogo, e 
 trouxer qualquer parâmetro é recusada. A ação promovida volta a todas as sessões do agente de
 decisão, em qualquer categoria, e por isso vai ao catálogo sem endereço: o `alvo` é genérico, e
 o endereço que estiver na descrição, nos passos, no efeito, na forma de desfazer ou na fonte vira
-`[endereço]`. A reconstrução do log confere que a ação promovida é exatamente essa.
+`[endereço]`. A reconstrução do log confere que a ação promovida é exatamente essa, aplicando o
+filtro de agora aos dois lados: uma promoção gravada por uma versão do filtro que deixou passar um
+endereço continua válida.
 
 No ambiente simulado, aplicar uma ação é gravar um evento. O prazo fica registrado, mas a
 medida não expira sozinha: ela vale até ser desfeita.
@@ -511,7 +522,10 @@ de aprovação, ao log e, pelos parâmetros de uma ação nova, ao agente de exe
   (`::ffff:192.168.137.1`) vira o IPv4. Em `revogar_credencial`, o usuário usa letras sem
   acento, números, ponto, hífen e sublinhado, tem até 64 caracteres e não começa por ponto nem
   por hífen.
-- A mensagem de recusa mostra no máximo um trecho escapado do que veio.
+- A mensagem de recusa mostra no máximo um trecho escapado do que veio. Os endereços desse trecho
+  viram o marcador antes do corte, para que nenhum pedaço de endereço sobre dele e para que a
+  contagem do corte não diga o tamanho de um endereço. Quando o alvo veio com o rótulo, a recusa
+  repete o que o agente escreveu, com o rótulo, e nunca o endereço em que o servidor o trocou.
 
 Os limites de texto não estão no esquema de entrada de `propor_acao`, só na descrição dos
 campos. É de propósito: quem confere é o servidor, e não o SDK, para que a tentativa fique
@@ -599,11 +613,12 @@ dos agentes (decisão de 2026-10-10). `--resolvido` marca o incidente como já r
 motivo opcional, e grava o evento `incidente_marcado_resolvido`, com o canal e o usuário do
 sistema. Mais adiante, o botão "Já resolvido" da interface grava o mesmo evento, com o canal
 `interface`. Daí em diante o servidor recusa qualquer proposta do incidente e a execução de
-qualquer proposta dele, inclusive a já aprovada (`incidente_ja_resolvido`); o que já estava
-aplicado pode ser desfeito. O agente de decisão vê a marca em `ja_resolvido`, no resumo, e só
+qualquer proposta dele, inclusive a já aprovada (`incidente_ja_resolvido`), e o comando recusa
+aprovar a proposta pendente do incidente, que só pode ser rejeitada; o que já estava aplicado pode
+ser desfeito. O agente de decisão vê a marca em `ja_resolvido`, no resumo, e só
 explica o incidente. A marca vale uma vez, em incidente aberto, e não é desfeita. Como rejeitar,
 ela não libera nada e não pede confirmação. A lista de pendentes avisa quando a proposta é de
-incidente marcado.
+incidente marcado e, para ela, só sugere a rejeição.
 
 O log é entrada, e o comando não confia nele para escrever na tela: tudo o que não é imprimível
 sai escapado. Uma sequência de terminal gravada em um parâmetro aparece como `\x1b[3A`, em vez
@@ -692,7 +707,8 @@ O estado das propostas, das aprovações e das medidas ativas sai do log:
 aparece:
 
 - identificador de proposta e de execução é único;
-- aprovação e rejeição só valem para proposta que aguarda aprovação, e ficam no incidente dela;
+- aprovação e rejeição só valem para proposta que aguarda aprovação, e ficam no incidente dela; a
+  aprovação não vale depois da marca de já resolvido;
 - execução só vale para proposta liberada ou aprovada, de incidente não marcado como já
   resolvido, e precisa ser a aplicação do que a proposta descreve;
 - nenhum evento cita proposta, execução ou incidente que não existe, e a recomendação só cita
@@ -705,7 +721,7 @@ aparece:
 - o efeito verificado é do incidente da execução, e a ação promovida é exatamente a que sai da
   proposta aprovada e aplicada;
 - o incidente abre uma vez e não volta a aberto depois de encerrado, e a marca de já resolvido
-  vale uma vez.
+  vale uma vez, em incidente aberto, como no comando.
 
 A violação levanta `LogInvalido` (um `ValueError`), com o arquivo e a linha, como em
 `eventos.jsonl, linha 14: acao_aprovada fora de lugar: a proposta prop-0001 não aguarda
@@ -810,9 +826,14 @@ O que mais fica de fora deste trabalho:
   os do momento da proposta, com a política e o incidente de então. Os tetos de propostas
   pendentes e liberadas valem na hora de propor, e a leitura do log não os confere.
 - **O filtro de endereços é uma rede de proteção, não a garantia.** A garantia é a linha de
-  decisão não ter tool que devolva endereço. O filtro pega IPv4 em quatro grupos, IPv6 com `::` ou
-  com seis ou mais dois-pontos e MAC com dois-pontos, hífen ou pontos. Não pega endereço escrito
-  como inteiro ou em hexadecimal, nome de host nem endereço por extenso em palavras.
+  decisão não ter tool que devolva endereço. O filtro pega IPv4 em quatro grupos de um a quatro
+  dígitos separados por ponto; IPv6 com `::`, com seis ou mais dois-pontos ou que `ipaddress`
+  reconhece, mesmo colado a letra ou depois de `nome:` (a letra hexadecimal colada vai junto para o
+  marcador); e MAC de seis grupos de um ou dois dígitos com dois-pontos ou hífen, ou de três grupos
+  de quatro com pontos. Não pega endereço escrito como inteiro ou em hexadecimal (`0xc0a88914`),
+  IPv4 com hífens (`ip-192-168-137-20`), MAC sem separador, nome de host nem endereço por extenso
+  em palavras. Como a busca é larga, troca também o que só parece endereço: uma versão em quatro
+  grupos (`1.2.3.4`) ou uma sequência de seis números separados por hífen.
 - **O texto da triagem e o orquestrador.** O veredito da triagem é texto livre escrito por um
   modelo local, e quem o entrega ao agente de decisão é o orquestrador, ainda não escrito. Ele
   precisa passar esse texto pelo mesmo filtro (`tipos.mascarar_enderecos`) antes de mandá-lo à
@@ -820,8 +841,9 @@ O que mais fica de fora deste trabalho:
   incidentes, e cada um custa chamadas.
 - **Rótulos em texto livre.** O agente de decisão pode citar rótulos nos passos de uma ação nova
   ("Ativar SYN cookies em destino-1"). O servidor só troca o rótulo que é o alvo inteiro; nos
-  passos, quem resolve é a pessoa, que vê o endereço de cada rótulo na tela de aprovação, e o
-  agente de execução, que recebe o alvo com o endereço.
+  passos, quem resolve é a pessoa, que vê o endereço de cada rótulo na tela de aprovação, também
+  quando ele vem em outra caixa ou com zero à esquerda, e o agente de execução, que recebe o alvo
+  com o endereço.
 - **Dependências transitivas.** O `requirements.txt` fixa as dependências diretas. As que elas
   trazem não estão fixadas nem conferidas por hash.
 - **Histórico do que já foi tentado.** O resumo traz o último efeito verificado, mas não há tool
