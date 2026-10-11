@@ -26,15 +26,19 @@ Ação do catálogo: bloquear_ip
 Texto da medida, em um ou mais parágrafos.
 ```
 
-- `Categorias:` usa os nomes das 8 categorias do classificador. Documento sem essa linha é
-  material de referência e só aparece em `pesquisar_solucoes`.
+- `Categorias:` usa os nomes das 8 categorias do contrato, as do campo `categoria`, com DDoS e
+  DoS separados. Documento sem essa linha é material de referência e só aparece em
+  `pesquisar_solucoes`.
 - `Ação do catálogo:` liga a medida a uma das ações de base (`limitar_taxa`, `bloquear_ip`,
   `isolar_dispositivo`, `revogar_credencial`). As medidas com essa linha são as que
   `consultar_mitigacoes` devolve para a categoria. As demais só são encontradas pela pesquisa, e
   o agente de decisão pode propô-las como ação nova.
 
 - O título de uma medida tem até 200 caracteres e o texto, até 2.000. Nenhum dos dois aceita
-  caractere de controle. São os limites dos textos do contrato.
+  caractere de controle nem caractere que não aparece na tela. São os limites dos textos do
+  contrato.
+- O texto da base chega ao agente de decisão. Endereço IP ou MAC escrito nele aparece para o
+  agente como `[endereço]`: o agente de decisão não recebe endereço da rede.
 
 A leitura e a busca estão em `codigo/mcp/base.py`. Documento fora do formato ou dos limites faz
 o stub parar na partida, com o nome do arquivo e o motivo.
