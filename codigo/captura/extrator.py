@@ -27,7 +27,7 @@ import os
 import socket
 import struct
 import sys
-import time
+import threading
 import warnings
 from collections import Counter, namedtuple
 
@@ -444,22 +444,48 @@ def _texto(valor):
 def gravar_csv(linhas, destino, a_cada=DESCARGA_LINHAS, segundos=DESCARGA_SEGUNDOS):
     """Grava as linhas no formato do CSV oficial e devolve quantas gravou.
 
-    Descarrega o arquivo a cada `a_cada` linhas, ou na primeira linha depois de `segundos` sem
-    descarregar, e no fim. Numa captura ao vivo lenta cada linha chega ao disco logo; num pcap
-    grande o arquivo não é descarregado a cada linha, o que custava tempo.
+    Descarrega o arquivo a cada `a_cada` linhas e no fim. Além disso, uma linha gravada não
+    espera mais que `segundos` para ir ao disco: numa captura ao vivo, a rede pode ficar quieta
+    depois de uma rajada, e a próxima linha demorar. Um fio à parte descarrega o que estiver
+    pendente a cada `segundos`, enquanto a leitura espera. Num pcap grande o arquivo não é
+    descarregado a cada linha, o que custava tempo. Com `segundos` zero, toda linha é descarregada.
     """
     escritor = csv.writer(destino, lineterminator="\n")
+    a_cada = 1 if segundos <= 0 else a_cada
+    trava = threading.Lock()
+    terminou = threading.Event()
+    pendente = True  # o cabeçalho
+
+    def descarregar_de_tempo_em_tempo():
+        nonlocal pendente
+        while not terminou.wait(segundos):
+            with trava:
+                if pendente:
+                    destino.flush()
+                    pendente = False
+
     escritor.writerow(COLUNAS)
+    relogio = None
+    if 0 < segundos < math.inf:
+        relogio = threading.Thread(target=descarregar_de_tempo_em_tempo, daemon=True)
+        relogio.start()
     total = 0
-    ultima_descarga = time.monotonic()
-    for linha in linhas:
-        escritor.writerow([_texto(linha[coluna]) for coluna in COLUNAS])
-        total += 1
-        agora = time.monotonic()
-        if total % a_cada == 0 or agora - ultima_descarga >= segundos:
-            destino.flush()
-            ultima_descarga = agora
-    destino.flush()
+    try:
+        # A leitura das linhas, que pode esperar a rede, fica fora da trava.
+        for linha in linhas:
+            campos = [_texto(linha[coluna]) for coluna in COLUNAS]
+            with trava:
+                escritor.writerow(campos)
+                total += 1
+                pendente = True
+                if total % a_cada == 0:
+                    destino.flush()
+                    pendente = False
+    finally:
+        terminou.set()
+        if relogio is not None:
+            relogio.join()
+        destino.flush()
     return total
 
 

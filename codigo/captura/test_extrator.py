@@ -1,6 +1,7 @@
 import io
 import math
 import struct
+import time
 import warnings
 from collections import Counter
 from decimal import Decimal
@@ -768,12 +769,14 @@ def test_ler_pcap_conta_os_registros_gravados_menores_que_o_original():
 
 
 class Destino(io.StringIO):
-    """Saída de texto que conta as descargas."""
+    """Saída de texto que conta as descargas e quantas linhas já tinham ido para o disco."""
 
     descargas = 0
+    linhas_descarregadas = 0
 
     def flush(self):
         self.descargas += 1
+        self.linhas_descarregadas = self.getvalue().count("\n")
         super().flush()
 
 
@@ -785,6 +788,22 @@ def test_gravar_csv_descarrega_a_cada_tantas_linhas_e_no_fim():
     destino = Destino()
     gravar_csv(extrair(quadros, janela=1), destino, a_cada=1000, segundos=0.0)
     assert destino.descargas == 26  # sem intervalo mínimo, toda linha é descarregada
+
+
+def test_gravar_csv_descarrega_por_tempo_mesmo_sem_linha_nova():
+    # Numa captura ao vivo, uma rajada fecha uma janela e a rede fica quieta: a linha não pode
+    # esperar a janela seguinte para ir ao disco.
+    destino, vistas = Destino(), []
+
+    def linhas():
+        yield from extrair([(0.0, quadro_tcp())], janela=1)
+        time.sleep(0.5)
+        vistas.append(destino.linhas_descarregadas)
+        yield from extrair([(1.0, quadro_tcp())], janela=1)
+
+    assert gravar_csv(linhas(), destino, a_cada=1000, segundos=0.05) == 2
+    assert vistas == [2]  # o cabeçalho e a primeira linha já estavam no disco durante a espera
+    assert destino.linhas_descarregadas == 3
 
 
 @pytest.mark.parametrize("janela,erro", [
