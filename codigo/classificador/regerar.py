@@ -35,7 +35,7 @@ Uso, a partir da raiz do repositório:
     python -m codigo.classificador.regerar --dataset /caminho/CICIoT2023 --janelas 10,100
     python -m codigo.classificador.regerar --processos 3
     python -m codigo.classificador.regerar --janelas 100 --preencher --limitar \
-        --destino dados/processed/regerado_no_fio --saida experimentos/resultados/regeracao_no_fio
+        --destino dados/processed/regerado_preenchido_limitado --saida experimentos/resultados/regeracao_preenchido_limitado
 """
 import argparse
 import csv
@@ -379,11 +379,13 @@ def main(argv=None):
     )
     analisador.add_argument(
         "--preencher", action="store_true",
-        help="mede o quadro menor que 60 bytes completado até 60, como no fio (opção do extrator, desligada por padrão)",
+        help="conta como 60 bytes o quadro menor que isso, o preenchimento da placa de rede (opção do extrator, desligada "
+             "por padrão)",
     )
     analisador.add_argument(
         "--limitar", action="store_true",
-        help="mede o quadro maior que 1.514 bytes como 1.514, como no fio (opção do extrator, desligada por padrão)",
+        help="conta como 1.514 bytes o quadro maior que isso, uma aproximação do quadro no fio (opção do extrator, "
+             "desligada por padrão)",
     )
     try:
         argumentos = analisador.parse_args(argv)

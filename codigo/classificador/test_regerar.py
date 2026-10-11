@@ -278,7 +278,7 @@ def test_varios_processos_dao_o_mesmo_resultado_da_leitura_em_sequencia(tmp_path
     assert executar(tmp_path, "--processos", "0") == 2
 
 
-def test_opcoes_do_extrator_medem_o_quadro_como_no_fio_e_ficam_no_manifesto(tmp_path, monkeypatch):
+def test_opcoes_do_extrator_preenchem_e_limitam_o_tamanho_do_quadro_e_ficam_no_manifesto(tmp_path, monkeypatch):
     import codigo.classificador.regerar as modulo
     from codigo.captura.test_extrator import eth, ipv4, tcp
 
@@ -291,22 +291,22 @@ def test_opcoes_do_extrator_medem_o_quadro_como_no_fio_e_ficam_no_manifesto(tmp_
     assert sem_opcao["Min"].tolist() == [54.0, 54.0]
     assert ler(tmp_path / "regerado" / "janela_2" / "BenignTraffic.csv.gz")["Max"].max() == 3054.0
     assert main([
-        "--dataset", str(pasta), "--saida", str(tmp_path / "no_fio"), "--destino", str(tmp_path / "regerado_no_fio"),
+        "--dataset", str(pasta), "--saida", str(tmp_path / "preenchido_limitado"), "--destino", str(tmp_path / "regerado_preenchido_limitado"),
         "--janelas", "2,5", "--preencher", "--limitar",
     ]) == 0
-    no_fio = ler(tmp_path / "regerado_no_fio" / "janela_2" / "Recon-PortScan.csv.gz")
-    assert no_fio["Min"].tolist() == [60.0, 60.0]
-    assert ler(tmp_path / "regerado_no_fio" / "janela_2" / "BenignTraffic.csv.gz")["Max"].max() == 1514.0
+    limitado = ler(tmp_path / "regerado_preenchido_limitado" / "janela_2" / "Recon-PortScan.csv.gz")
+    assert limitado["Min"].tolist() == [60.0, 60.0]
+    assert ler(tmp_path / "regerado_preenchido_limitado" / "janela_2" / "BenignTraffic.csv.gz")["Max"].max() == 1514.0
     # A opção só muda o tamanho: as mesmas janelas são mantidas, com os mesmos índices.
-    assert no_fio["indice"].tolist() == sem_opcao["indice"].tolist()
-    m = json.loads((tmp_path / "no_fio" / MANIFESTO).read_text(encoding="utf-8"))
+    assert limitado["indice"].tolist() == sem_opcao["indice"].tolist()
+    m = json.loads((tmp_path / "preenchido_limitado" / MANIFESTO).read_text(encoding="utf-8"))
     assert m["extrator"]["opcoes"] == {"limitar": True, "preencher": True}
     # Rodar de novo sem as opções, na mesma pasta, lê todos os pcaps de novo.
     lidos = []
     original = modulo.percorrer
     monkeypatch.setattr(modulo, "percorrer", lambda caminho, *a, **k: lidos.append(caminho) or original(caminho, *a, **k))
     assert main([
-        "--dataset", str(pasta), "--saida", str(tmp_path / "no_fio"), "--destino", str(tmp_path / "regerado_no_fio"),
+        "--dataset", str(pasta), "--saida", str(tmp_path / "preenchido_limitado"), "--destino", str(tmp_path / "regerado_preenchido_limitado"),
         "--janelas", "2,5",
     ]) == 0
     assert len(lidos) == 5
