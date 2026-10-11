@@ -983,6 +983,24 @@ def test_alvo_de_1_mb_e_recusado_sem_segurar_a_trava_do_log(registro, agente, ac
     assert "acao_proposta" not in tipos(stub)
 
 
+@pytest.mark.parametrize("nome,campo", [
+    ("propor_acao", "id"), ("propor_acao", "alvo"), ("executar_acao", "id_proposta"), ("obter_resumo", "id"),
+])
+def test_argumento_de_10_mb_e_recusado_sem_segurar_a_trava_do_log(registro, nome, campo):
+    agente = "execucao" if nome == "executar_acao" else "decisao"
+    stub = Stub(registro, agente=agente)
+    Stub(registro, agente="triagem").abrir_incidentes()
+    argumentos = {
+        "propor_acao": {"id": "inc-0001", "acao": "x", "alvo": "a", "parametros": {}, "justificativa": "j"},
+        "executar_acao": {"id_proposta": "prop-0001"},
+        "obter_resumo": {"id": "inc-0001"},
+    }[nome] | {campo: "1:2:3 " * (10_000_000 // 6)}
+    inicio = time.perf_counter()
+    with pytest.raises(PedidoRecusado):
+        stub.chamar(nome, **argumentos)
+    assert time.perf_counter() - inicio < 1.0
+
+
 def test_decisao_le_o_catalogo_com_os_alvos_escritos_por_rotulo(registro):
     _, decisao, _ = stubs_das_tres_linhas(registro)
     acoes = {acao.nome: acao for acao in chamar(decisao, "consultar_mitigacoes", categoria="DDoS").acoes}

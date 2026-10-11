@@ -89,6 +89,9 @@ _USUARIO = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._-]{0,63}")
 _MAIOR_ALVO = TEXTO_CURTO
 # Quanto de um valor recebido aparece em uma mensagem de recusa.
 _MAIOR_TRECHO = 60
+# Folga do primeiro corte de um valor grande, antes do filtro de endereços: maior que o maior
+# endereço escrito por extenso (45 caracteres).
+_FOLGA_DO_CORTE = 64
 _MAIS_NOMES = 5
 _REGRA_DE_RISCO_ALTO = "Risco alto: só com aprovação humana."
 
@@ -108,10 +111,17 @@ def resumir(valor, maximo=_MAIOR_TRECHO):
 
     A mensagem de recusa volta para o agente e vai para o log. Ela nunca devolve a entrada
     inteira nem repete sequência de terminal ou quebra de linha que veio nela. O filtro de
-    endereços vem antes do corte: nenhum pedaço de endereço sobra dele, e o tamanho contado é o
-    do texto já filtrado, que não diz o tamanho de endereço nenhum.
+    endereços vem antes do corte final: nenhum pedaço de endereço sobra dele.
+
+    O valor chega sem teto e a mensagem é montada com o log travado. Por isso o valor grande é
+    cortado primeiro com folga, maior que qualquer endereço, e só a janela passa pelo filtro, que
+    troca também o pedaço de endereço que o corte deixar no fim dela. O tamanho contado é o do valor
+    recebido, que é o texto do próprio agente: o endereço resolvido de um rótulo não passa por aqui.
     """
     if isinstance(valor, str):
+        if len(valor) > maximo + _FOLGA_DO_CORTE:
+            janela = mascarar_enderecos(valor[:maximo + _FOLGA_DO_CORTE], cortado_no_fim=True)
+            return f"{janela[:maximo]!r} (cortado: {_milhar(len(valor))} caracteres)"
         valor = mascarar_enderecos(valor)
         if len(valor) <= maximo:
             return repr(valor)

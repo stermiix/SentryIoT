@@ -1,4 +1,5 @@
 import ipaddress
+import time
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
@@ -1278,6 +1279,27 @@ def test_rotulo_escrito_de_outro_jeito_na_acao_nova_e_recusado_na_linha_de_decis
     mensagem = recusado("alvo_malformado", mundo.propor, "ativar_syn_cookies", alvo, ACAO_NOVA, so_rotulos=True)
     assert "rótulo" in mensagem and "destino-1" in mensagem
     assert mundo.estado.propostas == {}
+
+
+@pytest.mark.parametrize("padrao", ["1:2:3 ", "1.2.3.4 ", "a:b:c:d:e:f ", "a", "2001:db8::1 "], ids=ascii)
+def test_resumo_de_um_valor_enorme_custa_pouco(padrao):
+    # resumir() roda com o log travado, sobre argumentos que chegam sem teto: o filtro vê só uma janela.
+    valor = padrao * (10_000_000 // len(padrao))
+    inicio = time.perf_counter()
+    resumido = resumir(valor)
+    assert time.perf_counter() - inicio < 0.2
+    assert len(resumido) < 150 and f"{len(valor):,}".replace(",", ".") in resumido
+
+
+def test_corte_com_folga_nao_deixa_pedaco_de_endereco_no_fim_da_janela():
+    # Três IPv6 por extenso encolhem para o marcador, e o IPv4 cortado no fim da janela entra no trecho
+    # mostrado. O pedaço que o corte deixa é trocado pelo marcador também.
+    longos = "2001:0db8:0000:0000:0000:0000:0000:0007 " * 3
+    for deslocamento in range(12):
+        valor = "x" * deslocamento + longos + "203.0.113.7" + "y" * 1_000
+        resumido = resumir(valor)
+        assert "203" not in resumido and "113" not in resumido, resumido
+        assert MARCADOR_DE_ENDERECO in resumido
 
 
 def test_acao_nova_da_linha_de_decisao_aceita_alvo_em_texto_sem_endereco(mundo):
