@@ -17,6 +17,8 @@ from codigo.captura.calibrar_conjunto import (
     VARIANTES,
     amostra_sem_par,
     cabecalho_pcap,
+    classificar_sem_par,
+    construir_indice,
     contar_comuns,
     extrair_pcap,
     hashes,
@@ -215,20 +217,56 @@ def test_amostra_das_linhas_sem_par_e_fixa_e_na_ordem():
 # --- controle do vizinho ----------------------------------------------------------------------
 
 
-def test_vizinho_mais_proximo_aponta_as_colunas_que_diferem(tmp_path):
-    base = linha(Number=10.0, Tot_sum=600.0, Min=60.0, Max=60.0, Rate=100.0, IAT=0.01)
-    so_tempo = base.copy()
-    so_tempo[[I["Rate"], I["IAT"]]] = (250.0, 0.004)
-    outra = base.copy()
-    outra[[I["Rate"], I["Time_To_Live"], I["Header_Length"]]] = (7.0, 128.0, 32.0)
+def indice_de(tmp_path, linhas):
+    """Grava um MERGED_CSV com as linhas dadas, (valores, rótulo), e constrói o índice dele."""
     pasta = tmp_path / "MERGED_CSV"
     pasta.mkdir()
-    gravar_merged(pasta / "Merged01.csv", [(base, "XSS"), (outra, "XSS"), (base, "SqlInjection")])
-    sem_candidato = linha(Number=3.0, Tot_sum=9999.0, Protocol_Type=99.0)
-    resultado = vizinhos(pasta, {"XSS.pcap": ("XSS", np.array([so_tempo, sem_candidato]))})["XSS.pcap"]
-    assert resultado["examinadas"] == 2
-    assert (resultado["so_tempo"], resultado["sem_candidato"], resultado["tempo_e_outras"]) == (1, 1, 0)
-    assert resultado["colunas"] == {"Rate": 1, "IAT": 1}
+    gravar_merged(pasta / "Merged01.csv", linhas)
+    construir_indice(pasta, tmp_path / "indice")
+    return pasta, tmp_path / "indice"
+
+
+BASE = linha(Number=10.0, Tot_sum=600.0, Min=60.0, Max=60.0, Rate=100.0, IAT=0.01, Time_To_Live=64.0)
+
+
+def variacao(**valores):
+    nova = BASE.copy()
+    for argumento, valor in valores.items():
+        nova[I[_ARGUMENTO[argumento]]] = valor
+    return nova
+
+
+def test_linhas_sem_par_classificadas_pelo_que_o_merged_csv_tem_de_igual(tmp_path):
+    _, pasta_indice = indice_de(tmp_path, [(BASE, "XSS"), (variacao(Rate=5.0), "SqlInjection")])
+    linhas = np.array([
+        BASE,                                    # a mesma linha está lá: é repetida no pcap
+        variacao(Rate=250.0, IAT=0.004),         # igual fora as colunas de tempo
+        variacao(Min=54.0, Max=66.0),            # igual fora as colunas de tamanho
+        variacao(Time_To_Live=128.0),            # difere em outra coluna
+        variacao(Rate=5.0),                      # igual a uma linha de outro rótulo, que não conta
+    ])
+    classes = classificar_sem_par(quantizar(linhas), "XSS", pasta_indice)
+    assert classes.tolist() == ["repetida", "so_tempo", "so_tamanho", "outras", "so_tempo"]
+    assert classificar_sem_par(quantizar(linhas), "Recon-PingSweep", pasta_indice).tolist() == ["outras"] * 5
+
+
+def test_vizinho_mais_proximo_sem_limite_de_candidatas(tmp_path):
+    # 100 linhas com a mesma chave grossa: as 99 primeiras diferem do alvo em três colunas, e só a
+    # última, em uma. Com um limite de candidatas por chave, a última ficaria de fora.
+    longe = [variacao(Time_To_Live=128.0 + i, Header_Length=32.0, HTTPS=0.5) for i in range(99)]
+    perto = variacao(Time_To_Live=63.0)
+    tempo = variacao(Number=5.0, Tot_sum=300.0, Rate=1.0, Header_Length=20.0)
+    pasta, _ = indice_de(tmp_path, [*((l, "XSS") for l in longe), (perto, "XSS"), (tempo, "XSS")])
+    alvos = np.array([
+        BASE,
+        variacao(Number=5.0, Tot_sum=300.0),            # o vizinho difere em Rate e Header_Length
+        variacao(Number=3.0, Tot_sum=9999.0, Protocol_Type=99.0),  # nenhuma linha com a mesma chave grossa
+    ])
+    resultado = vizinhos(pasta, {"XSS.pcap": ("XSS", alvos)})["XSS.pcap"]
+    assert resultado["examinadas"] == 3
+    assert (resultado["outras_sem_tempo"], resultado["tempo_e_outras"], resultado["sem_candidato"]) == (1, 1, 1)
+    assert resultado["colunas"] == {"Time_To_Live": 1, "Rate": 1, "Header_Length": 1}
+    assert resultado["colunas_diferentes"] == {"1": 1, "2": 1}
 
 
 # --- cache -----------------------------------------------------------------------------------
@@ -295,7 +333,17 @@ def test_calibracao_de_conjunto_ponta_a_ponta(tmp_path, capsys):
     assert (int(flood["linhas"]), int(flood["com_par"])) == (n_flood, n_flood)
     assert (recon["janela"], flood["janela"]) == ("10", "100")
     assert recon["formato_do_instante"] == "microssegundos" and int(recon["registros_menores_que_o_original"]) == 8
-    assert int(recon["vizinho_examinadas"]) == 3
+    classes = [int(recon[f"sem_par_{c}"]) for c in ("repetidas", "so_tempo", "so_tamanho", "outras")]
+    assert sum(classes) == 3 and int(recon["vizinho_examinadas"]) == classes[-1]
+    # Linhas únicas: as que aparecem uma vez no pcap e no máximo uma vez no MERGED_CSV.
+    nossas, _ = como_os_autores(tmp_path / "ds" / "Recon-PingSweep.pcap", 10, 10_000_000)
+    h = hashes(quantizar(nossas))
+    deles = np.sort(hashes(quantizar(np.array([*nossas[3:], nossas[5], nossas[5]]))))
+    _, inverso, contagem = np.unique(h, return_inverse=True, return_counts=True)
+    unicas = (contagem[inverso] == 1) & (np.searchsorted(deles, h, "right") - np.searchsorted(deles, h, "left") <= 1)
+    com_par_unicas = int((unicas & presentes(h, deles)).sum())
+    assert 0 < com_par_unicas < unicas.sum() < n_recon
+    assert (int(recon["linhas_unicas"]), int(recon["com_par_unicas"])) == (unicas.sum(), com_par_unicas)
     rotulos = ler_tabela(tmp_path / "saida" / TABELA_ROTULOS)
     # A linha repetida no MERGED_CSV é coberta uma vez só, pela única cópia dela no pcap.
     assert int(rotulos["Recon-PingSweep"]["linhas_merged"]) == n_recon - 3 + 2
@@ -306,12 +354,17 @@ def test_calibracao_de_conjunto_ponta_a_ponta(tmp_path, capsys):
     arquivos = manifesto["merged_csv"]["arquivos"]
     assert [a["truncado"] for a in arquivos] == [False, True]
     assert all(len(a["sha256"]) == 64 for a in arquivos) and all(len(p["sha256"]) == 64 for p in manifesto["pcaps"])
+    # A calibração reproduz os autores: as opções do quadro no fio ficam desligadas, e isso fica registrado.
+    assert (manifesto["preencher"], manifesto["limitar"]) == (False, False)
     texto = (tmp_path / "saida" / RELATORIO).read_text(encoding="utf-8")
     for secao in ("## Resumo", "## Resultado por pcap", "## Cobertura por rótulo", "## Como ler os números",
                   "## Leitura contínua contra leitura fatiada", "## Linhas sem par", "## A captura de cada pcap",
                   "## Como refazer"):
         assert secao in texto
     assert "`Merged02.csv`" in texto and "2 pcaps em microssegundos" in texto
+    assert "par exato" not in texto and "cerca de 9 algarismos significativos" in texto
+    assert "15 algarismos" in texto and "abaixo de 100%" in texto
+    assert "`--preencher` e `--limitar` desligadas" in texto
     # Na segunda execução, o índice e as extrações são reaproveitados, e os números não mudam.
     capsys.readouterr()
     assert main(argumentos) == 0
