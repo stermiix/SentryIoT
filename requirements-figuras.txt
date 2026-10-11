@@ -1,0 +1,4 @@
+# Só para gerar as figuras do artigo (artigo/figuras/). Fora do requirements.txt para não entrar
+# no CI nem no pip-audit dos testes. Instalar junto: pip install -r requirements.txt -r requirements-figuras.txt
+matplotlib==3.11.2
+pillow==12.3.0

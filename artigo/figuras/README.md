@@ -3,7 +3,8 @@
 Cada figura fica aqui em PNG (300 dpi) e em PDF, ao lado da fonte editável que a gera. Os gráficos
 são scripts Python que leem os arquivos versionados em `experimentos/resultados/`, sem nenhum
 número escrito à mão; os diagramas são fontes Mermaid (`.mmd`). Todos os comandos são dados a
-partir da raiz do repositório, com o ambiente do `requirements.txt` ativo.
+partir da raiz do repositório, com o ambiente do `requirements.txt` e do `requirements-figuras.txt`
+ativo (`pip install -r requirements.txt -r requirements-figuras.txt`).
 
 | Figura | Script ou fonte | Dados usados | Comando para regerar |
 |---|---|---|---|
@@ -25,13 +26,16 @@ As capturas da interface ainda não têm número, porque o esqueleto não as cit
 Os números das capturas são ilustrativos, do roteiro do stub MCP, como a própria tela avisa, e não
 podem ser citados como resultado. As horas aparecem no fuso de quem abre a página.
 
-**A matriz de confusão é provisória.** O modelo final ainda não está fechado (proporção das
-classes no treino e mais sementes, ver `ROADMAP.md`). Quando `python -m
+**A matriz de confusão é provisória.** O modelo do sistema ainda pode mudar com as decisões em
+aberto de 11/10 no `ROADMAP.md` (fundo dos pcaps de ataque no treino e ponto de operação), e a
+legenda precisa trazer as ressalvas das rodadas de teste: a linha Benign é de um único pcap fora
+do treino, e o Spoofing depende de um artefato da captura. Quando `python -m
 codigo.classificador.treinar_regerado` regravar o CSV, basta rodar `matriz_confusao.py` de novo.
 
 ## Dependências
 
-- Gráficos: `matplotlib`, fixado no `requirements.txt`. `estilo.py` guarda o que as três figuras
+- Gráficos: `matplotlib` e `pillow`, fixados no `requirements-figuras.txt`, à parte do
+  `requirements.txt` para não entrar no CI nem no `pip-audit` dos testes. `estilo.py` guarda o que as três figuras
   têm em comum: fonte serifada (Times New Roman, ou DejaVu Serif onde ela não existir), 16 cm de
   largura, tons de cinza e hachuras para a leitura em preto e branco.
 - Diagramas: Node.js, para o `npx` rodar o mermaid-cli, com a versão fixada em `diagramas.py`.
