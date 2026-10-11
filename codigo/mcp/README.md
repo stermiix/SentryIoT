@@ -411,8 +411,13 @@ bloquear uma origem da rede local é de risco alto (equivale a isolar um disposi
 endereços críticos são tratados como protegidos (um bloqueio forjado contra o DNS ou contra o
 host do modelo cortaria a rede ou os próprios agentes) e o teto de medidas de risco baixo vale
 também para o sistema todo (cada incidente forjado teria o seu teto). Um endereço IPv6 que leva
-dentro um IPv4 (compatível `::a.b.c.d`, SIIT `::ffff:0:a.b.c.d`, NAT64 `64:ff9b::/96` e 6to4
-`2002::/16`) conta como esse IPv4 na conferência de protegido, crítico e rede local.
+dentro um IPv4 (compatível `::a.b.c.d`, SIIT `::ffff:0:a.b.c.d`, NAT64 `64:ff9b::/96`, NAT64 de uso
+local `64:ff9b:1::/48` em qualquer das posições que o tamanho do prefixo permite, 6to4 `2002::/16`,
+ISATAP `...:5efe:a.b.c.d` e Teredo, o cliente e o servidor) conta como esse IPv4 na conferência de
+protegido, crítico e rede local. O IPv6 de ULA (`fc00::/7`) conta sempre como rede local; o prefixo
+IPv6 global da rede, se houver, vai em `redes_locais`. Um prefixo NAT64 próprio da rede, fora de
+`64:ff9b::/96` e de `64:ff9b:1::/48`, não é desembrulhado: o código não tem como saber onde está o
+IPv4 dentro dele.
 
 Quando alguma das condições falha, a proposta não é recusada: é registrada como de risco alto e
 fica aguardando a pessoa. As exceções, que são recusadas, estão na tabela de recusas: endereço

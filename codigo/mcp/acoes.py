@@ -221,11 +221,20 @@ _REDE = "rede"
 _PROTEGIDOS = "enderecos_protegidos"
 _CRITICOS = "enderecos_criticos"
 _REDES_LOCAIS = "redes_locais"
-# Prefixos IPv6 que levam um IPv4 dentro deles: NAT64 (64:ff9b::/96) e SIIT (::ffff:0:0:0/96). O IPv4
-# compatível (::/96) e o 6to4 (2002::/16) são tratados à parte, em `_ipv4_embutido`.
+# Prefixos IPv6 que levam um IPv4 dentro deles: NAT64 (64:ff9b::/96), SIIT (::ffff:0:0:0/96) e o
+# IPv4 compatível (::/96), todos com o IPv4 nos últimos 32 bits. O NAT64 de uso local, o 6to4, o
+# ISATAP e o Teredo são tratados à parte, em `_ipv4_embutidos`.
 _NAT64 = ipaddress.ip_network("64:ff9b::/96")
 _SIIT = ipaddress.ip_network("::ffff:0:0:0/96")
 _COMPATIVEL = ipaddress.ip_network("::/96")
+# NAT64 de uso local (RFC 8215). A rede escolhe o tamanho do prefixo dentro do /48, e o IPv4 fica numa
+# posição diferente em cada tamanho (RFC 6052), pulando o octeto 8: os quatro tamanhos são conferidos.
+_NAT64_LOCAL = ipaddress.ip_network("64:ff9b:1::/48")
+_POSICOES_NO_NAT64_LOCAL = ((6, 7, 9, 10), (7, 9, 10, 11), (9, 10, 11, 12), (12, 13, 14, 15))
+# ISATAP: o identificador de interface é 0:5efe ou 200:5efe, seguido do IPv4.
+_ISATAP = (bytes.fromhex("00005efe"), bytes.fromhex("02005efe"))
+# ULA: a faixa de endereços IPv6 de uso local, que conta sempre como rede local.
+_ULA = ipaddress.ip_network("fc00::/7")
 # Alvo escrito com o rótulo neutro de um endereço do incidente: o rótulo só, ou usuario@rótulo.
 _ALVO_COM_ROTULO = re.compile(r"(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,63}@)?(?:origem|destino)-[1-9][0-9]{0,5}")
 # O alvo da ação promovida: genérico, sem o endereço da proposta que deu origem a ela.
@@ -434,28 +443,38 @@ def _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros):
     return [codigo for codigo in MOTIVOS_DE_RISCO_ALTO if codigo in valem]
 
 
-def _ipv4_embutido(endereco):
-    """O IPv4 que um endereço IPv6 leva dentro dele, ou None.
+def _ipv4_embutidos(endereco):
+    """Os IPv4 que um endereço IPv6 leva dentro dele, ou nenhum.
 
     São as formas em que um IPv6 chega ao mesmo dispositivo que um IPv4: o IPv4 compatível
-    (`::a.b.c.d`), o SIIT (`::ffff:0:a.b.c.d`), o NAT64 (`64:ff9b::a.b.c.d`) e o 6to4
-    (`2002:AABB:CCDD::`). O IPv4 escrito como IPv6 (`::ffff:a.b.c.d`) já vira o IPv4 na leitura.
+    (`::a.b.c.d`), o SIIT (`::ffff:0:a.b.c.d`), o NAT64 (`64:ff9b::a.b.c.d`), o NAT64 de uso local
+    (`64:ff9b:1::/48`, em qualquer das posições que o tamanho do prefixo permite), o 6to4
+    (`2002:AABB:CCDD::`), o ISATAP (`...:5efe:a.b.c.d`) e o Teredo (o servidor e o cliente). O IPv4
+    escrito como IPv6 (`::ffff:a.b.c.d`) já vira o IPv4 na leitura. Na dúvida sobre a posição,
+    valem todas: o endereço conta como protegido ou local se qualquer uma delas for.
     """
     ip = ipaddress.ip_address(endereco)
     if ip.version != 6:
-        return None
+        return ()
+    octetos = ip.packed
+    embutidos = []
     if ip.sixtofour is not None:
-        return str(ip.sixtofour)
+        embutidos.append(ip.sixtofour)
+    if ip.teredo is not None:
+        embutidos.extend(ip.teredo)
     # O compatível exclui :: e ::1, que são o endereço não especificado e o loopback do IPv6.
-    if ip in _NAT64 or ip in _SIIT or (ip in _COMPATIVEL and int(ip) > 1):
-        return str(ipaddress.IPv4Address(int(ip) & 0xFFFF_FFFF))
-    return None
+    if ip in _NAT64 or ip in _SIIT or (ip in _COMPATIVEL and int(ip) > 1) or octetos[8:12] in _ISATAP:
+        embutidos.append(ipaddress.IPv4Address(octetos[12:16]))
+    if ip in _NAT64_LOCAL:
+        embutidos.extend(
+            ipaddress.IPv4Address(bytes(octetos[posicao] for posicao in posicoes)) for posicoes in _POSICOES_NO_NAT64_LOCAL
+        )
+    return tuple(dict.fromkeys(str(embutido) for embutido in embutidos))
 
 
 def _formas(endereco):
     """O endereço e, quando ele é um IPv6 que leva um IPv4, também esse IPv4."""
-    embutido = _ipv4_embutido(endereco)
-    return (endereco,) if embutido is None else (endereco, embutido)
+    return (endereco, *_ipv4_embutidos(endereco))
 
 
 def _protegido(politica, endereco):
@@ -464,7 +483,9 @@ def _protegido(politica, endereco):
 
 
 def _na_rede_local(politica, endereco):
-    """O endereço está numa das redes locais, escrito direto ou dentro de um IPv6."""
+    """O endereço está numa das redes locais, escrito direto ou dentro de um IPv6, ou é um IPv6 de ULA."""
+    if ipaddress.ip_address(endereco) in _ULA:
+        return True
     return any(
         ipaddress.ip_address(forma) in rede for forma in _formas(endereco) for rede in politica.redes_locais
         if ipaddress.ip_address(forma).version == rede.version

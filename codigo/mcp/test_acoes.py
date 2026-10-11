@@ -1125,10 +1125,32 @@ def test_ipv6_que_embute_endereco_da_rede_local_conta_como_rede_local(embutido):
     assert motivos(mundo.propor("bloquear_ip", alvo, {"duracao": 10})) == ["alvo_na_rede_local"]
 
 
-def test_ipv6_comum_nao_vira_protegido_por_engano():
-    incidente = INCIDENTE_DA_ESPECIFICACAO | {"origens": [{"endereco": "2001:db8::c0a8:8901", "quadros": 9120}]}
+@pytest.mark.parametrize("origem,esperados", [
+    # ULA (fc00::/7) é, por definição, endereço de rede local.
+    ("fd00::50", ["alvo_na_rede_local"]),
+    ("fc12:3456::1", ["alvo_na_rede_local"]),
+    # NAT64 de uso local (64:ff9b:1::/48, RFC 8215): o IPv4 no fim, como num /96, e na posição do /48.
+    ("64:ff9b:1::c0a8:8932", ["alvo_na_rede_local"]),
+    ("64:ff9b:1:c0a8:89:3200::", ["alvo_na_rede_local"]),
+    ("64:ff9b:1:c0a8:89:100::", ["alvo_na_rede_local", "alvo_protegido"]),
+    # ISATAP: o IPv4 nos últimos 32 bits, depois de 0:5efe ou 200:5efe.
+    ("2001:db8::5efe:c0a8:8901", ["alvo_na_rede_local", "alvo_protegido"]),
+    ("2001:db8::200:5efe:c0a8:8932", ["alvo_na_rede_local"]),
+    # Teredo: o IPv4 do cliente, com os bits invertidos, e o do servidor.
+    ("2001:0:cb00:7105:0:0:3f57:76fe", ["alvo_na_rede_local", "alvo_protegido"]),
+], ids=ascii)
+def test_origem_ipv6_da_rede_local_ou_com_ipv4_dentro_nao_e_bloqueada_sem_aprovacao(origem, esperados):
+    incidente = INCIDENTE_DA_ESPECIFICACAO | {"origens": [{"endereco": origem, "quadros": 9120}]}
     mundo = Mundo(incidente=incidente)
-    assert motivos(mundo.propor("bloquear_ip", "2001:db8::c0a8:8901", {"duracao": 10})) == []
+    alvo = mundo.estado.incidentes["inc-0001"].origens[0].endereco
+    assert motivos(mundo.propor("bloquear_ip", alvo, {"duracao": 10})) == esperados
+
+
+def test_ipv6_comum_nao_vira_protegido_por_engano():
+    for comum in ("2001:db8::c0a8:8901", "2001:db8:1:2:3:4:c0a8:8901", "2606:4700::6810:84e5"):
+        incidente = INCIDENTE_DA_ESPECIFICACAO | {"origens": [{"endereco": comum, "quadros": 9120}]}
+        mundo = Mundo(incidente=incidente)
+        assert motivos(mundo.propor("bloquear_ip", comum, {"duracao": 10})) == []
 
 
 # --- rótulos neutros: o agente de decisão não conhece endereço --------------------------------

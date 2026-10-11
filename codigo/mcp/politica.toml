@@ -70,4 +70,6 @@ enderecos_protegidos = ["192.168.137.1", "192.168.137.2"]
 enderecos_criticos = ["192.168.137.3", "192.168.137.4", "192.0.2.53"]
 # Redes locais. O endereço de rede e o de broadcast de cada uma são recusados como alvo, junto
 # com loopback, endereço não especificado, multicast e link-local, que o código já reconhece.
+# Bloquear uma origem destas redes é de risco alto. O IPv6 de ULA (fc00::/7) conta sempre como rede
+# local; se a rede tiver um prefixo IPv6 global, ponha-o aqui também, como "2001:db8:137::/64".
 redes_locais = ["192.168.137.0/24"]
