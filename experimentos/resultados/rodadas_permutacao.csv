@@ -1,0 +1,196 @@
+alvo,feature,queda_media,desvio
+recall Web,Header_Length,0.006237,0.003780
+recall Web,Protocol Type,-0.001075,0.001443
+recall Web,Time_To_Live,0.201290,0.007646
+recall Web,Rate,0.199140,0.004103
+recall Web,fin_flag_number,0.000645,0.003731
+recall Web,syn_flag_number,0.033548,0.007080
+recall Web,rst_flag_number,0.002366,0.003109
+recall Web,psh_flag_number,0.000860,0.002917
+recall Web,ack_flag_number,0.010108,0.003971
+recall Web,ece_flag_number,0.000000,0.000000
+recall Web,cwr_flag_number,0.000000,0.000000
+recall Web,ack_count,0.006237,0.002957
+recall Web,syn_count,0.018495,0.008228
+recall Web,fin_count,-0.001290,0.002581
+recall Web,rst_count,0.002151,0.001666
+recall Web,HTTP,0.007742,0.004323
+recall Web,HTTPS,-0.015914,0.004923
+recall Web,DNS,0.030108,0.003468
+recall Web,Telnet,0.000000,0.000000
+recall Web,SMTP,0.000000,0.000000
+recall Web,SSH,0.004516,0.002029
+recall Web,IRC,0.000000,0.000000
+recall Web,TCP,0.017634,0.003942
+recall Web,UDP,0.010538,0.003527
+recall Web,DHCP,-0.004086,0.000645
+recall Web,ARP,0.001720,0.002686
+recall Web,ICMP,0.083011,0.007210
+recall Web,IGMP,0.000000,0.000000
+recall Web,IPv,-0.002581,0.001609
+recall Web,LLC,0.001290,0.001720
+recall Web,Tot sum,0.026022,0.005562
+recall Web,Min,0.008602,0.003725
+recall Web,Max,0.017419,0.004131
+recall Web,AVG,0.022796,0.005457
+recall Web,Std,0.026022,0.003393
+recall Web,Tot size,0.029677,0.003441
+recall Web,IAT,0.243656,0.006736
+recall Web,Number,0.000000,0.000000
+recall Web,Variance,0.022581,0.003366
+recall BruteForce,Header_Length,-0.000733,0.004272
+recall BruteForce,Protocol Type,0.000000,0.000000
+recall BruteForce,Time_To_Live,0.026007,0.005296
+recall BruteForce,Rate,0.022711,0.003945
+recall BruteForce,fin_flag_number,-0.002930,0.001465
+recall BruteForce,syn_flag_number,0.010989,0.004013
+recall BruteForce,rst_flag_number,0.009890,0.002861
+recall BruteForce,psh_flag_number,-0.002564,0.001679
+recall BruteForce,ack_flag_number,-0.007326,0.003276
+recall BruteForce,ece_flag_number,0.000000,0.000000
+recall BruteForce,cwr_flag_number,0.000000,0.000000
+recall BruteForce,ack_count,0.003663,0.000000
+recall BruteForce,syn_count,0.007692,0.003456
+recall BruteForce,fin_count,-0.001099,0.002345
+recall BruteForce,rst_count,0.006593,0.001465
+recall BruteForce,HTTP,0.010989,0.007856
+recall BruteForce,HTTPS,0.009524,0.007178
+recall BruteForce,DNS,-0.008059,0.002198
+recall BruteForce,Telnet,0.000000,0.000000
+recall BruteForce,SMTP,0.000000,0.000000
+recall BruteForce,SSH,0.339927,0.001465
+recall BruteForce,IRC,0.000000,0.000000
+recall BruteForce,TCP,-0.000733,0.003193
+recall BruteForce,UDP,0.004029,0.002564
+recall BruteForce,DHCP,0.000733,0.001465
+recall BruteForce,ARP,0.002198,0.001794
+recall BruteForce,ICMP,0.003297,0.001099
+recall BruteForce,IGMP,0.000000,0.000000
+recall BruteForce,IPv,0.003297,0.001099
+recall BruteForce,LLC,0.002564,0.001679
+recall BruteForce,Tot sum,0.001465,0.002930
+recall BruteForce,Min,0.007326,0.006754
+recall BruteForce,Max,0.002198,0.004691
+recall BruteForce,AVG,0.004029,0.003456
+recall BruteForce,Std,0.000733,0.003945
+recall BruteForce,Tot size,0.008425,0.002345
+recall BruteForce,IAT,0.018315,0.004633
+recall BruteForce,Number,0.000000,0.000000
+recall BruteForce,Variance,0.000000,0.002837
+recall Recon,Header_Length,0.006467,0.002400
+recall Recon,Protocol Type,0.000900,0.000955
+recall Recon,Time_To_Live,0.075700,0.002892
+recall Recon,Rate,0.029800,0.001343
+recall Recon,fin_flag_number,0.004467,0.001097
+recall Recon,syn_flag_number,0.042400,0.004582
+recall Recon,rst_flag_number,0.002033,0.000888
+recall Recon,psh_flag_number,0.002167,0.000671
+recall Recon,ack_flag_number,-0.003300,0.001552
+recall Recon,ece_flag_number,0.000067,0.000133
+recall Recon,cwr_flag_number,0.000033,0.000100
+recall Recon,ack_count,-0.004267,0.001775
+recall Recon,syn_count,0.035367,0.004288
+recall Recon,fin_count,0.005800,0.000792
+recall Recon,rst_count,0.003033,0.000640
+recall Recon,HTTP,0.009600,0.001794
+recall Recon,HTTPS,-0.038067,0.002577
+recall Recon,DNS,-0.025167,0.000582
+recall Recon,Telnet,0.000000,0.000000
+recall Recon,SMTP,0.000000,0.000000
+recall Recon,SSH,0.000700,0.000180
+recall Recon,IRC,0.000000,0.000000
+recall Recon,TCP,-0.006133,0.000872
+recall Recon,UDP,-0.004600,0.001009
+recall Recon,DHCP,0.000600,0.000249
+recall Recon,ARP,0.002900,0.001096
+recall Recon,ICMP,-0.015267,0.001948
+recall Recon,IGMP,0.000000,0.000000
+recall Recon,IPv,0.003800,0.000636
+recall Recon,LLC,0.004267,0.000359
+recall Recon,Tot sum,-0.004433,0.000943
+recall Recon,Min,0.016933,0.002351
+recall Recon,Max,0.005500,0.001558
+recall Recon,AVG,-0.005367,0.001224
+recall Recon,Std,0.009100,0.001023
+recall Recon,Tot size,-0.005967,0.001295
+recall Recon,IAT,0.029467,0.001551
+recall Recon,Number,0.000000,0.000000
+recall Recon,Variance,0.011600,0.001181
+recall Benign,Header_Length,0.005333,0.000856
+recall Benign,Protocol Type,0.000133,0.000306
+recall Benign,Time_To_Live,0.297800,0.004201
+recall Benign,Rate,0.038633,0.001312
+recall Benign,fin_flag_number,0.001833,0.000307
+recall Benign,syn_flag_number,0.014333,0.001506
+recall Benign,rst_flag_number,0.005333,0.001011
+recall Benign,psh_flag_number,0.002767,0.000473
+recall Benign,ack_flag_number,0.006033,0.000706
+recall Benign,ece_flag_number,0.000333,0.000000
+recall Benign,cwr_flag_number,0.000300,0.000100
+recall Benign,ack_count,0.006633,0.000407
+recall Benign,syn_count,0.014333,0.002499
+recall Benign,fin_count,0.001933,0.000389
+recall Benign,rst_count,0.007267,0.001925
+recall Benign,HTTP,0.063667,0.004134
+recall Benign,HTTPS,0.230700,0.003257
+recall Benign,DNS,0.002400,0.000442
+recall Benign,Telnet,0.000000,0.000000
+recall Benign,SMTP,0.000000,0.000000
+recall Benign,SSH,0.004233,0.000213
+recall Benign,IRC,0.000000,0.000000
+recall Benign,TCP,0.003267,0.000742
+recall Benign,UDP,0.007333,0.001483
+recall Benign,DHCP,0.000033,0.000100
+recall Benign,ARP,-0.001733,0.000490
+recall Benign,ICMP,0.001400,0.000291
+recall Benign,IGMP,0.000033,0.000100
+recall Benign,IPv,0.000067,0.000389
+recall Benign,LLC,-0.001067,0.000467
+recall Benign,Tot sum,0.005700,0.000960
+recall Benign,Min,0.007367,0.001494
+recall Benign,Max,0.030500,0.001176
+recall Benign,AVG,0.004333,0.000683
+recall Benign,Std,0.009367,0.000482
+recall Benign,Tot size,0.005167,0.000792
+recall Benign,IAT,0.041833,0.001014
+recall Benign,Number,0.000000,0.000000
+recall Benign,Variance,0.015800,0.000991
+macro-F1,Header_Length,0.004634,0.001644
+macro-F1,Protocol Type,0.001513,0.000175
+macro-F1,Time_To_Live,0.067150,0.003785
+macro-F1,Rate,0.028411,0.001481
+macro-F1,fin_flag_number,-0.000041,0.000354
+macro-F1,syn_flag_number,0.013217,0.002037
+macro-F1,rst_flag_number,0.001927,0.000277
+macro-F1,psh_flag_number,-0.000704,0.000671
+macro-F1,ack_flag_number,0.000624,0.000531
+macro-F1,ece_flag_number,0.000318,0.000029
+macro-F1,cwr_flag_number,0.000055,0.000019
+macro-F1,ack_count,0.000741,0.000555
+macro-F1,syn_count,0.010002,0.000608
+macro-F1,fin_count,0.000409,0.000902
+macro-F1,rst_count,0.002286,0.000180
+macro-F1,HTTP,0.021789,0.000969
+macro-F1,HTTPS,0.037025,0.001287
+macro-F1,DNS,-0.000117,0.000639
+macro-F1,Telnet,0.000049,0.000000
+macro-F1,SMTP,0.000000,0.000000
+macro-F1,SSH,0.072577,0.001558
+macro-F1,IRC,-0.000010,0.000020
+macro-F1,TCP,0.000796,0.000556
+macro-F1,UDP,0.001079,0.000577
+macro-F1,DHCP,-0.000832,0.000111
+macro-F1,ARP,-0.000157,0.000618
+macro-F1,ICMP,0.010688,0.001955
+macro-F1,IGMP,0.000002,0.000000
+macro-F1,IPv,-0.000415,0.000232
+macro-F1,LLC,0.000745,0.000841
+macro-F1,Tot sum,0.001207,0.000924
+macro-F1,Min,0.124518,0.003562
+macro-F1,Max,0.012117,0.001459
+macro-F1,AVG,-0.000005,0.000911
+macro-F1,Std,0.003783,0.001489
+macro-F1,Tot size,0.002231,0.001316
+macro-F1,IAT,0.033581,0.001161
+macro-F1,Number,0.000000,0.000000
+macro-F1,Variance,0.004073,0.002056
