@@ -82,6 +82,7 @@ MEDIAS = (
     "Header_Length", "Time_To_Live", *(nome for nome, _ in FLAGS), *INDICADORES, "Tot size", "IAT",
 )
 
+
 class Enderecos(namedtuple("Enderecos", ("macs_origem", "macs_destino", "conjunto_ips_origem",
                                          "conjunto_ips_destino", "ips_arp"), defaults=(frozenset(),))):
     """Os endereços de uma janela, cada campo um conjunto de textos.

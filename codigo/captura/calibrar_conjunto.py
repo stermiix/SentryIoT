@@ -434,7 +434,9 @@ def ks(a, b):
     if not len(a) or not len(b):
         return 0.0
     pontos = np.concatenate([a, b])
-    return float(np.max(np.abs(np.searchsorted(a, pontos, "right") / len(a) - np.searchsorted(b, pontos, "right") / len(b))))
+    acumulada_a = np.searchsorted(a, pontos, "right") / len(a)
+    acumulada_b = np.searchsorted(b, pontos, "right") / len(b)
+    return float(np.max(np.abs(acumulada_a - acumulada_b)))
 
 
 def casar_pcap(fatiada, pedacos, continua, rotulo, janela, indice, pasta_indice):
@@ -510,6 +512,8 @@ CHAVES_GROSSAS = {
     "protocolo": tuple(_I[c] for c in ("Number", "Protocol Type", "ack_count", "syn_count", "fin_count", "rst_count")),
 }
 CANDIDATOS_POR_CHAVE = 64
+# Desfechos da comparação com o vizinho mais próximo.
+DESFECHOS = ("so_tempo", "tempo_e_outras", "outras_sem_tempo", "sem_candidato", "igual")
 
 
 def colunas_diferentes(linha, candidatos):
@@ -578,7 +582,7 @@ def vizinhos(pasta_merged, amostras):
                 desfechos["outras_sem_tempo"] += 1
         resultado[arquivo] = {
             "examinadas": len(linhas),
-            **{chave: desfechos[chave] for chave in ("so_tempo", "tempo_e_outras", "outras_sem_tempo", "sem_candidato", "igual")},
+            **{chave: desfechos[chave] for chave in DESFECHOS},
             "colunas": dict(colunas.most_common()),
         }
     return resultado
@@ -628,7 +632,9 @@ def rodar(dataset, pasta_merged, trabalho, processos=3, vizinhos_por_pcap=200):
     )
     with ProcessPoolExecutor(max_workers=processos) as executor:
         tarefa_indice = None if resumo_indice else executor.submit(construir_indice, pasta_merged, destino_indice)
-        tarefas = {executor.submit(processar_pcap, caminho, rotulo, trabalho, versao): caminho for caminho, rotulo in pendentes}
+        tarefas = {
+            executor.submit(processar_pcap, caminho, rotulo, trabalho, versao): caminho for caminho, rotulo in pendentes
+        }
         for tarefa, caminho in tarefas.items():
             registro = tarefa.result()
             registros[caminho.name] = registro
@@ -652,7 +658,8 @@ def rodar(dataset, pasta_merged, trabalho, processos=3, vizinhos_por_pcap=200):
     por_vizinho = vizinhos(pasta_merged, amostras) if vizinhos_por_pcap else {}
     for resultado in resultados:
         resultado["vizinho"] = por_vizinho.get(resultado["arquivo"])
-    return montar_manifesto(resultados, rotulos, resumo_indice, dataset, vizinhos_por_pcap, time.perf_counter() - inicio)
+    segundos = time.perf_counter() - inicio
+    return montar_manifesto(resultados, rotulos, resumo_indice, dataset, vizinhos_por_pcap, segundos)
 
 
 def montar_manifesto(pcaps, rotulos, resumo_indice, dataset, vizinhos_por_pcap, segundos):
@@ -671,7 +678,9 @@ def montar_manifesto(pcaps, rotulos, resumo_indice, dataset, vizinhos_por_pcap, 
         "limite_do_pedaco": LIMITE_PEDACO,
         "chave": {
             "bits_mantidos": BITS_MANTIDOS,
-            "variantes": {nome: [COLUNAS[j] for j in colunas] for nome, colunas in VARIANTES.items() if nome != "todas"},
+            "variantes": {
+                nome: [COLUNAS[j] for j in colunas] for nome, colunas in VARIANTES.items() if nome != "todas"
+            },
         },
         "vizinhos_por_pcap": vizinhos_por_pcap,
         "merged_csv": {k: v for k, v in resumo_indice.items() if k not in ("versao", "segundos")},
@@ -962,7 +971,10 @@ def _resumo_da_captura(pcaps):
     limites = Counter(p["limite_de_captura"] for p in pcaps)
     cortados = [p for p in pcaps if p["registros_menores_que_o_original"]]
     return [
-        f"- Quadro menor que 60 bytes: {_nomes(curtos)}. Quadro maior que 1514 bytes: {len(longos)} dos {len(pcaps)} pcaps.",
+        (
+            f"- Quadro menor que 60 bytes: {_nomes(curtos)}. Quadro maior que 1514 bytes: {len(longos)} dos "
+            f"{len(pcaps)} pcaps."
+        ),
         "- Limite de captura declarado: "
         + "; ".join(f"{_milhar(limite)} bytes em {n} pcaps" for limite, n in limites.most_common()) + ".",
         (
@@ -981,7 +993,7 @@ def _secao_vizinho(m):
     total = Counter()
     colunas = Counter()
     for p in com:
-        for chave in ("examinadas", "so_tempo", "tempo_e_outras", "outras_sem_tempo", "sem_candidato", "igual"):
+        for chave in ("examinadas", *DESFECHOS):
             total[chave] += p["vizinho"][chave]
         colunas.update(p["vizinho"]["colunas"])
     mais = ", ".join(f"`{c}` ({_milhar(n)})" for c, n in colunas.most_common(8))
@@ -1064,7 +1076,9 @@ def gravar(manifesto, pasta):
             for p in manifesto["pcaps"]
         ],
     )
-    _gravar_csv(pasta / TABELA_ROTULOS, CAMPOS_ROTULOS, [[_campo(r[c]) for c in CAMPOS_ROTULOS] for r in manifesto["rotulos"]])
+    _gravar_csv(
+        pasta / TABELA_ROTULOS, CAMPOS_ROTULOS, [[_campo(r[c]) for c in CAMPOS_ROTULOS] for r in manifesto["rotulos"]],
+    )
 
 
 def main(argv=None):

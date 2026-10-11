@@ -155,7 +155,8 @@ def pcap_misto(caminho, quantos=300):
     partes = [pcap([])]
     for i in range(quantos):
         quadro = (quadro_tcp(flags=0x10), quadro_udp(), QUADRO_IPV6, quadro_tcp(dados=bytes(2000)))[i % 4]
-        partes.append(registro(1_700_000_000 + i // 7, (i * 137_001) % 1_000_000, quadro, 1454 if i % 50 == 0 else None))
+        original = 1454 if i % 50 == 0 else None
+        partes.append(registro(1_700_000_000 + i // 7, (i * 137_001) % 1_000_000, quadro, original))
     caminho.write_bytes(b"".join(partes))
     return caminho
 
@@ -252,7 +253,9 @@ def montar_dataset(pasta):
     todas += [(l, "DDoS-ICMP_Flood") for l in np.concatenate([outras] * 4)]
     meio = len(todas) // 2
     gravar_merged(pasta / "MERGED_CSV" / "Merged01.csv", todas[:meio])
-    gravar_merged(pasta / "MERGED_CSV" / "Merged02.csv", [*todas[meio:], (linhas_recon[0], "XSS")], cortar_a_ultima=True)
+    # A última linha do segundo arquivo fica cortada no meio, como nos arquivos truncados na fonte.
+    gravar_merged(pasta / "MERGED_CSV" / "Merged02.csv", [*todas[meio:], (linhas_recon[0], "XSS")],
+                  cortar_a_ultima=True)
     return len(linhas_recon), len(linhas_flood)
 
 
