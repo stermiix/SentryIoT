@@ -1,7 +1,8 @@
 # Dados — como montar o ambiente
 
-O dataset **não é versionado no git** (são ~17 GB). O repositório guarda o código e as decisões;
-os dados são uma dependência que se instala — mesma lógica do `node_modules`.
+O dataset **não é versionado no git**: o `MERGED_CSV` tem 8,7 GB, e os 38 pcaps usados na
+regeração somam cerca de 46 GB. O repositório guarda o código e as decisões; os dados são uma
+dependência que se instala, na mesma lógica do `node_modules`.
 
 Este arquivo é a receita. Seguindo ele, qualquer integrante chega ao mesmo ponto.
 
@@ -20,7 +21,7 @@ demais para manter lá. Cada pessoa baixa da fonte oficial só o que a sua taref
 | Rodar os testes (`pytest`) | Nada. Os testes que dependem do dataset são pulados | 0 |
 | Regerar os dados de treino e treinar o classificador | Os pcaps, ao menos um por classe (ver "Regeração dos dados de treino") | de 3 MB a 2 GB por pcap |
 | Treinar na amostra do `MERGED_CSV` (treino exploratório) | `MERGED_CSV/` | 8,7 GB |
-| Recalibrar o extrator (opcional) | O pcap do ataque e a pasta de CSV por ataque correspondente | de 39 MB a cerca de 0,6 GB por pcap |
+| Recalibrar o extrator (opcional) | O pcap do ataque e a pasta de CSV por ataque correspondente | de 39 MB a 1,5 GB por pcap |
 
 Não usar re-uploads de terceiros (Kaggle e afins): não dá para citar a origem no artigo e não há
 garantia de que o conteúdo bate com o oficial.
@@ -32,8 +33,8 @@ Já está no `.gitignore`.
 
 ```
 TCC/CICIoT2023/
-├── MERGED_CSV/                  <- o dataset oficial de treino (63 arquivos, 8,7 GB), usado no
-│                                   treino exploratório e na exploração
+├── MERGED_CSV/                  <- o conjunto oficial em CSV (63 arquivos, 8,7 GB), usado na
+│                                   exploração e no treino exploratório
 ├── <34 pastas, uma por ataque>/ <- CSVs por ataque, sem rótulo. OPCIONAIS: só servem para
 │                                   recalibrar o extrator (a calibração já foi feita)
 ├── *.pcap                       <- os pcaps, de um a três por classe, de onde os dados de treino
@@ -46,9 +47,11 @@ TCC/CICIoT2023/
 
 ---
 
-## O dataset de treino: `MERGED_CSV/`
+## O conjunto oficial em CSV: `MERGED_CSV/`
 
-**É este que se usa para treinar.** 63 arquivos, cerca de 45,0 milhões de linhas no total, 8,7 GB.
+**Desde 10/10/2026 não é a fonte do treino do sistema**, que usa os dados regerados dos pcaps (ver
+"Regeração dos dados de treino a partir dos pcaps"). O `MERGED_CSV` serve à exploração e ao
+treino exploratório. São 63 arquivos, cerca de 45,0 milhões de linhas no total, 8,7 GB.
 
 - **40 colunas: as 39 features + `Label`** (com L maiúsculo).
 - As 39 features são **idênticas** às dos CSVs por ataque e às que o `pcap2csv` produz,
@@ -57,7 +60,7 @@ TCC/CICIoT2023/
 - Já vem mesclado entre ataques e embaralhado: cada arquivo contém linhas de todas as 34 classes.
 
 **Por que 63 arquivos e não um só:** é saída do PySpark (cada trabalhador grava a sua parte), e
-8,7 GB num arquivo único seria inabrível. Cada pedaço tem ~137 MB e cabe na memória.
+8,7 GB num arquivo único seria inabrível. Cada pedaço tem cerca de 140 MB e cabe na memória.
 
 **Nove arquivos oficiais estão truncados** (`Merged42`, `Merged44` e `Merged46` a `Merged52`):
 terminam no meio de uma linha, e os dois últimos têm só 44 MB e 14 MB. A cópia tem 45.019.234 linhas
@@ -68,7 +71,8 @@ oficial: em 04/10/2026 os doze foram baixados de novo e vieram idênticos, byte 
 tínhamos. A linha incompleta de cada um fica fora das contagens e da amostra. Os números estão em
 `experimentos/resultados/exploracao.md`.
 
-**Cada arquivo é representativo do conjunto todo** (verificado em 05/09/2026):
+**Cada arquivo é representativo do conjunto todo** (contagem feita à mão em 05/09/2026, sem
+script versionado):
 
 | | Linhas | DDOS-ICMP | BENIGN | BruteForce | PortScan |
 |---|---|---|---|---|---|
@@ -76,16 +80,16 @@ tínhamos. A linha incompleta de cada um fica fora das contagens e da amostra. O
 | Merged32 | 704.067 | 15,24% | 2,34% | 193 | 1.205 |
 | Merged63 | 428.161 | 15,33% | 2,38% | 116 | 726 |
 
-### Como amostrar para treinar
+### Como amostrar para o treino exploratório
 
-8,7 GB não cabem na memória, e Random Forest precisa de tudo junto. A estratégia:
+8,7 GB não cabem na memória, e o treino exploratório precisa de tudo junto. A estratégia:
 
 **percorrer os 63 arquivos guardando TODAS as linhas das classes raras e só uma fatia das
 classes gigantes** (um teto de 50 mil por classe). Isso derruba de 45,0 milhões para 1.288.479
 linhas e ataca o desbalanceamento ao mesmo tempo.
 
 Nas classes raras, usar os 63 arquivos faz diferença real: `DICTIONARYBRUTEFORCE` sai de 204
-exemplos (1 arquivo) para ~12 mil (63 arquivos).
+exemplos (1 arquivo) para 12.522 (63 arquivos).
 
 ⚠ O script de amostragem **precisa ficar versionado, com semente fixa**, e a estratégia precisa
 ir para a metodologia do artigo. Sem isso o resultado não é reproduzível.
@@ -121,14 +125,19 @@ features; as 7 extras não saem do código publicado pelos autores, porque as li
 calculariam estão comentadas no `Feature_extraction.py`, linhas 132 e 171. Por isso ela foi
 descartada.)
 
-**Classificamos em 8 categorias, não em 34 variantes.** O F1 é bem melhor, e os agentes não
-precisam da variante exata — a mitigação de um `DDoS-ICMP_Flood` e de um `DDoS-UDP_Flood` é a
-mesma. Usar o `dict_7classes` do `example.ipynb` (célula 14) tal como está: agrupamento oficial
-dos autores, citável.
+**Classificamos em 7 categorias, não em 34 variantes** (decisão de 04/10/2026). O ponto de
+partida é o `dict_7classes` do `example.ipynb` (célula 14), o agrupamento oficial dos autores, que
+tem 8 categorias contando o tráfego benigno; aqui, DDoS e DoS viram uma categoria só. As 39
+features descrevem os pacotes, e não quantas máquinas atacam: 29,5% das linhas do `MERGED_CSV`
+têm o vetor igual ao de uma linha de outra categoria, quase sempre o mesmo flood rotulado como
+DDoS e como DoS. A separação entre os dois sai da quantidade de IPs de origem do incidente, fora
+do modelo. Os agentes não precisam da variante exata: a mitigação de um `DDoS-ICMP_Flood` e a de
+um `DDoS-UDP_Flood` são a mesma.
 
-**Não gastar semanas no classificador.** Os autores já publicaram o benchmark (RF entre os dois
-melhores, com a rede neural). Reproduzir e seguir — a contribuição do trabalho é a camada
-MCP + agentes.
+**Não gastar semanas no classificador.** O benchmark dos autores põe o RF entre os dois melhores
+modelos, com a rede neural. Seguimos essa escolha sem reproduzir o resultado deles, porque o
+código do treino do RF não foi publicado (ver a seção seguinte): a contribuição do trabalho é a
+camada MCP com os agentes.
 
 ---
 
@@ -160,8 +169,8 @@ com os CSVs oficiais e grava o resultado em `experimentos/resultados/calibracao.
 
     python -m codigo.captura.calibrar
 
-Como o CSV oficial é gerado (lido no código dos autores, confirmado nos dois pcaps e descrito no
-artigo do dataset):
+Como o CSV oficial é gerado (lido no código dos autores, confirmado nos cinco pcaps calibrados e
+descrito no artigo do dataset):
 
 1. O pcap é fatiado com `tcpdump`, em pedaços de 10 MB.
 2. Cada pedaço é processado sozinho. Só entram quadros Ethernet de tipo IPv4 ou ARP.
@@ -332,7 +341,7 @@ Tudo que existe hoje e tudo que vamos criar. Quem for começar numa frente, proc
 
 ```
 CICIoT2023/
-├── MERGED_CSV/                      63 arquivos, 8,7 GB — O DATASET DE TREINO
+├── MERGED_CSV/                      63 arquivos, 8,7 GB: referência, exploração e treino exploratório
 │   └── Merged01.csv … Merged63.csv  39 features + Label, embaralhado
 │
 ├── *.pcap                           De um a três pcaps por classe, baixados da fonte oficial.
