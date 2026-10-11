@@ -7,7 +7,7 @@ description: Escolhe e propõe a mitigação para um incidente já analisado, us
 
 Skill do agente de **decisão**, segunda metade do trabalho dele (a primeira é
 `analise-por-categoria`). O resultado desta skill é uma chamada a `propor_acao`; quem aplica a
-ação é o agente de **execução**, numa skill separada (ainda não escrita).
+ação é o agente de **execução**, na skill `execucao-da-acao`.
 
 ## Onde roda e o que esta skill não faz
 
