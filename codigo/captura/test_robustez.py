@@ -2,6 +2,7 @@
 
 Tudo é sorteado com semente fixa, então uma falha se repete igual em qualquer máquina.
 """
+import gc
 import io
 import math
 import random
@@ -274,6 +275,10 @@ def ler_tudo(fluxo):
     quadros, erro = [], None
     with warnings.catch_warnings(record=True) as avisos:
         warnings.simplefilter("always")
+        # O bloco grava os avisos do processo inteiro. Um arquivo esquecido aberto por outro teste
+        # pode ser fechado pelo coletor de lixo no meio da leitura, e o ResourceWarning dele não é
+        # da leitura.
+        warnings.simplefilter("ignore", ResourceWarning)
         try:
             for ts, quadro in ler_pcap(fluxo):
                 quadros.append((ts, quadro))
@@ -346,6 +351,30 @@ def test_fluxos_aleatorios_terminam_em_fim_aviso_ou_erro_de_valor(semente):
     for _ in range(200):
         conferir_leitura(sorteio.randbytes(sorteio.randrange(64)))
         conferir_leitura(sorteio.choice(MAGICOS) + sorteio.randbytes(sorteio.randrange(64)))
+
+
+class FluxoQueColetaLixo(io.BytesIO):
+    """Roda o coletor de lixo a cada leitura, como se ele passasse no meio do teste."""
+
+    def read(self, n=-1):
+        gc.collect()
+        return super().read(n)
+
+
+def test_aviso_de_arquivo_esquecido_por_outro_codigo_nao_entra_nos_avisos_da_leitura(tmp_path):
+    # Como o código dos autores no teste diferencial: o arquivo fica num ciclo de referências e só
+    # é fechado pelo coletor, com ResourceWarning, no momento em que ele passar.
+    caminho = tmp_path / "esquecido.pcap"
+    caminho.write_bytes(pcap([]))
+    coleta_automatica = gc.isenabled()
+    gc.disable()
+    try:
+        dpkt.pcap.Reader(open(caminho, "rb"))  # noqa: SIM115
+        quadros, avisos, erro = ler_tudo(FluxoQueColetaLixo(pcap([(1, 0, quadro_tcp())])))
+    finally:
+        if coleta_automatica:
+            gc.enable()
+    assert (len(quadros), avisos, erro) == (1, [], None)
 
 
 @pytest.mark.parametrize("magico", MAGICOS)

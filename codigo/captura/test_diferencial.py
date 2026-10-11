@@ -8,6 +8,7 @@ Cada caso grava um pcap, roda as duas implementações sobre ele e compara as 39
 tolerância do calibrador. As duas diferenças conhecidas ficam fora das entradas sorteadas e
 são conferidas à parte, no fim: quadro IPv4 com cabeçalho ilegível e instante igual a zero.
 """
+import gc
 import importlib
 import importlib.abc
 import importlib.util
@@ -18,6 +19,7 @@ import re
 import struct
 import sys
 import types
+import warnings
 from pathlib import Path
 
 import dpkt
@@ -76,6 +78,21 @@ def _modulos_substitutos():
     tqdm = types.ModuleType("tqdm")
     tqdm.tqdm = lambda iteravel, *args, **kwargs: iteravel
     return {"scapy": {"scapy": scapy, "scapy.all": scapy_all}, "tqdm": {"tqdm": tqdm}}
+
+
+@pytest.fixture(autouse=True)
+def fechar_arquivos_dos_autores():
+    """Fecha, ao fim de cada teste, o pcap que o código dos autores deixa aberto.
+
+    `pcap_evaluation` abre o pcap e não o fecha. O `dpkt.pcap.Reader` guarda um iterador de si
+    mesmo, o que forma um ciclo de referências, e o arquivo só é fechado quando o coletor de lixo
+    passa. Sem isso o coletor pode passar durante outro teste, e o ResourceWarning cai nos avisos
+    que aquele teste grava.
+    """
+    yield
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ResourceWarning)
+        gc.collect()
 
 
 @pytest.fixture(scope="module")
