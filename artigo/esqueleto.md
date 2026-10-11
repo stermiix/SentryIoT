@@ -74,11 +74,19 @@ sistema: serve para inspecionar capturas, e a gravação pode ser feita com `tcp
 também não é usado, porque a extração precisa repetir o cálculo dos autores, feito com `dpkt`. A
 captura ao vivo fica como um adaptador futuro sobre o mesmo extrator.
 
-O extrator (`codigo/captura/extrator.py`) foi calibrado contra os CSVs oficiais do CICIoT2023 em
-5 pcaps (um por família: DDoS, DoS, Mirai, Recon e BruteForce), somando 167.304 linhas. As 39
-colunas foram reproduzidas sem nenhuma divergência, com tolerância relativa de 1e-9 e desvio
-relativo máximo observado de 9,88e-13 — atribuível a arredondamento de ponto flutuante
-(`experimentos/resultados/calibracao.md`).
+O extrator (`codigo/captura/extrator.py`) foi calibrado em duas etapas. Na primeira, contra os
+CSVs oficiais de 5 pcaps, um por família (DDoS, DoS, Mirai, Recon e BruteForce), somando 167.304
+linhas, as 39 colunas foram reproduzidas sem nenhuma divergência, com tolerância relativa de 1e-9;
+o maior desvio relativo observado, de 9,88e-13, é da ordem do arredondamento de ponto flutuante
+(`experimentos/resultados/calibracao.md`). Na segunda, os 38 pcaps foram extraídos como os autores
+extraíram, em pedaços de 10 MB e com a janela da classe, e cada linha foi procurada entre as
+linhas do mesmo rótulo no `MERGED_CSV` inteiro, com os 39 valores iguais até cerca de 9 algarismos
+significativos. Em 15 rótulos, toda linha do `MERGED_CSV` tem par entre as nossas, o que não
+aconteceria se o cálculo divergisse em alguma janela; do nosso lado, entre 95,53% e 99,00% das
+linhas de cada pcap têm par, e o que falta vem dos arquivos do `MERGED_CSV` truncados na fonte
+oficial (`experimentos/resultados/calibracao_conjunto.md`). Na regeração e na operação, o pcap é
+lido de uma vez, sem o fatiamento de 10 MB; as distribuições das duas leituras são praticamente
+iguais, com distância de Kolmogorov-Smirnov de no máximo 0,0102 entre as 39 colunas.
 
 O sistema lê o pcap, e não registros NetFlow, outro ponto levantado pela banca do TCC I. Um
 registro NetFlow típico resume cada fluxo em poucos campos: endereços, portas, protocolo,
@@ -111,8 +119,8 @@ arquivo, `DDoS-SYN_Flood` e `DoS-SYN_Flood` com dois cada e `BenignTraffic` com 
 benigna toda janela é benigna, e numa captura de ataque a janela só recebe o rótulo do arquivo se
 contém um quadro de um dos sete Raspberry Pi atacantes documentados pelos autores, e é descartada
 caso contrário. A divisão treino/teste é por tempo dentro de cada pcap (os primeiros 70% das
-janelas para o treino) ou por arquivo inteiro quando o rótulo tem mais de um pcap, o que evita que
-janelas vizinhas caiam dos dois lados. O teto de 50.000 janelas por rótulo e a semente 42 são
+janelas para o treino) ou por arquivo inteiro quando o rótulo tem mais de um pcap (o último, pelo
+sufixo numérico do nome, fica no teste), o que evita que janelas vizinhas caiam dos dois lados. O teto de 50.000 janelas por rótulo e a semente 42 são
 mantidos (`codigo/classificador/regerar.py`, `experimentos/resultados/regeracao.md`).
 
 ### 3.3 Treino e avaliação do classificador
@@ -120,7 +128,10 @@ mantidos (`codigo/classificador/regerar.py`, `experimentos/resultados/regeracao.
 As métricas do classificador são a precisão, o recall e o F1 de cada categoria, o macro-F1 e a
 taxa de falso positivo, com destaque para o tráfego benigno classificado como ataque. A acurácia
 global não é a métrica principal: DDoS e DoS somam 89,5% das linhas do `MERGED_CSV`, e um modelo
-que respondesse DDoS para tudo acertaria 72,3%.
+que respondesse DDoS para tudo acertaria 72,3%. `[PENDENTE: a equipe ainda não escolheu qual
+medida do classificador do sistema é a principal no artigo: o corte por tempo, a rotação do pcap
+benigno de fora do treino ou o pcap inteiro fora do treino. Até lá, o corte por tempo vem
+primeiro, como no relatório da regeração, e os controles vêm em seguida, como resultados.]`
 
 Na fase exploratória, o Random Forest (scikit-learn, 100 árvores, parâmetros padrão) foi treinado
 e avaliado na amostra do `MERGED_CSV` descrita acima, com 80% das linhas para o treino e 20% para
@@ -152,16 +163,35 @@ semente 42 e a divisão por tempo e por arquivo descrita na seção 3.2. São 56
 treino e 273.566 de teste (`experimentos/resultados/regeracao.md`).
 
 Nos dados regerados, os dois modelos (janela de 10 e de 100) foram treinados e comparados, e a
-janela de 100 quadros ficou como a do sistema (decisão de 2026-10-10). Com janela de 100:
-macro-F1 de 82,3%, acurácia de 98,3%, DDoS+DoS com F1 de 99,3%, Mirai 99,6%, Spoofing 99,4%,
-Recon 87,3%; Web (47,1%) e BruteForce (51,8%) continuam fracos, com recall entre 35% e 37%,
-confundidos com Recon e com tráfego benigno. Num pcap benigno inteiro que o modelo não viu no
-treino, 1,9% das janelas são classificadas como ataque, contra 12,7% com janela de 10; nos três
-arquivos inteiros reservados para teste (`BenignTraffic2`, `DDoS-SYN_Flood1` e `DoS-SYN_Flood1`),
-que só têm tráfego benigno e floods de SYN, a acurácia é de 99,5%. A janela de 10 só tem recall
-maior em Recon e Mirai, por menos de um ponto, e F1 maior só em Mirai
-(`experimentos/resultados/regeracao.md`). Ficam em aberto a proporção das classes no treino e o
-limiar de operação para Web e BruteForce.
+janela de 100 quadros ficou como a do sistema (decisão de 2026-10-10). Com janela de 100, no corte
+por tempo: macro-F1 de 82,3%, acurácia de 98,3%, DDoS+DoS com F1 de 99,3%, Mirai 99,6%, Spoofing
+99,4%, Recon 87,3%; Web (47,1%) e BruteForce (51,8%) continuam fracos, com recall entre 35% e 37%,
+confundidos com Recon e com tráfego benigno. Nos três arquivos inteiros reservados para teste
+(`BenignTraffic2`, `DDoS-SYN_Flood1` e `DoS-SYN_Flood1`), que só têm tráfego benigno e floods de
+SYN, a acurácia é de 99,5%, e 1,9% das janelas benignas são classificadas como ataque, contra
+12,7% com janela de 10. A janela de 10 só tem recall maior em Recon e Mirai, por menos de um
+ponto, e F1 maior só em Mirai (`experimentos/resultados/regeracao.md`).
+
+O corte por tempo mede o reconhecimento de um trecho seguinte da mesma captura. Os controles a
+seguir medem o que ele não mostra (`experimentos/resultados/rodadas_de_teste.md`). Entre cinco
+sementes, o macro-F1 vai de 82,09% a 82,29%, e o tráfego benigno classificado como ataque, de
+1,60% a 1,86%. Com cada um dos três pcaps benignos fora do treino, um por vez, a fração
+classificada como ataque vai de 1,5% (`BenignTraffic1.pcap`) a 38,5% (`BenignTraffic.pcap`, em que
+32% das janelas viram Recon), e é de 15,4% somando os três: o 1,9% acima é o de uma das rotações.
+Com o pcap inteiro fora do treino, o recall de Recon cai de 87,7% para 31,5% e o de Web, de 37,1%
+para 31,3%; BruteForce tem um pcap só, e sem ele a categoria some do treino. As janelas de fundo
+dos pcaps de ataque, sem nenhum quadro do atacante, viram ataque em 72% dos casos na parte de
+teste. Como janelas vizinhas erram juntas, os intervalos de 95% foram calculados por blocos de
+janelas vizinhas: vão de 31,1% a 43,1% no recall de Web e de 19,2% a 52,0% no de BruteForce.
+
+O Spoofing de 99,4% depende da captura. 84% das janelas de Spoofing têm quadro menor que 60 bytes,
+gravado sem o preenchimento do Ethernet, o que nas demais categorias quase não acontece, e o fundo
+dos dois pcaps de spoofing, sem quadro do atacante, cai na categoria Spoofing em 97,7% e 99,5% das
+janelas. Com o quadro medido como no fio, o recall de Spoofing cai para 88,2% no corte por tempo e
+para 66% com o pcap fora do treino (`experimentos/resultados/rodadas_normalizadas.md`). Ficam em
+aberto o tratamento do tráfego de fundo no treino e o ponto de operação, por limiar sobre a
+probabilidade de benigno e por janelas seguidas, a escolher numa parte de validação (`ROADMAP.md`,
+decisões em aberto).
 
 ### 3.4 Justificativa do Random Forest
 
@@ -179,37 +209,58 @@ pcaps, então os números não se comparam diretamente com os do artigo do datas
 
 ### 3.5 Servidor MCP e sistema multiagente
 
-`[PENDENTE: ligar à implementação real do servidor, hoje em stub]` O contrato tem 9 tools MCP
-divididas entre os três agentes (triagem, decisão e execução) e grava cada passo num log de
-eventos em JSONL. A política de risco separa as ações de risco baixo, aplicadas sem aprovação,
-das de risco alto, que dependem de aprovação humana, e limita a 10 as propostas que aguardam
-aprovação em cada incidente, porque a fila é lida por uma pessoa e um agente enganado por
-conteúdo vindo da rede poderia enchê-la. O custo de tokens é contido de outra forma: os agentes
-recebem o resumo do incidente, e não as janelas, e o detalhe vem em fatias de até 20 janelas. Na
-PoC, a resposta é executada num ambiente simulado, com aprovação humana e possibilidade de
-desfazer (ver `codigo/mcp/README.md` e `codigo/mcp/politica.toml`).
+`[PENDENTE: ligar à implementação real do servidor, hoje em stub]` O contrato, na versão 0.3.0,
+tem 10 tools MCP divididas entre os três agentes (triagem, decisão e execução) e grava cada passo
+num log de eventos em JSONL. O incidente traz a categoria do modelo, que junta DDoS e DoS
+(`DDoS+DoS`), e a categoria depois da regra que separa os dois pela quantidade de origens. A
+política de risco separa as ações de risco baixo, aplicadas sem aprovação, das de risco alto, que
+dependem de aprovação humana, e limita a 10 as propostas que aguardam aprovação em cada incidente,
+porque a fila é lida por uma pessoa e um agente enganado por conteúdo vindo da rede poderia
+enchê-la. Como a origem de um flood UDP ou ICMP pode ser forjada, bloquear uma origem da rede
+local é de risco alto, os endereços críticos (o servidor MCP, o host do modelo local e o
+resolvedor DNS) são protegidos, e o teto de medidas de risco baixo ativas vale por incidente (5) e
+para o sistema todo (10). O custo de tokens é contido de outra forma: os agentes recebem o resumo
+do incidente, e não as janelas, e o detalhe vem em fatias de até 20 janelas. Na PoC, a resposta é
+executada num ambiente simulado, com aprovação humana e possibilidade de desfazer (ver
+`codigo/mcp/README.md` e `codigo/mcp/politica.toml`).
 
-Arquitetura híbrida (decisão de 2026-10-10): os agentes de triagem e de execução, e a verificação
-do efeito, rodam num modelo local, o Qwen3 8B servido pelo Ollama num computador do laboratório
-(GPU RTX 2070 Super); só o agente de decisão pode usar um modelo de fronteira pela nuvem, acessado
-pelo OpenRouter, e recebe apenas o resumo da triagem, com endereços e nomes de dispositivo
-trocados por rótulos neutros pelo orquestrador. O agente de execução, local, desfaz a troca e é o
-único com credenciais. O orquestrador aceita três configurações, tudo local, tudo na nuvem e
-híbrida, e a comparação entre elas em qualidade, custo e tempo é resultado do artigo. Isso
-responde ao ponto da banca sobre riscos de IA em nuvem e à alternativa on-premises.
+Arquitetura híbrida (decisões de 2026-10-10 e 2026-10-11): os agentes de triagem e de execução,
+e a verificação do efeito, rodam num modelo local, o Qwen3 8B servido pelo Ollama num computador
+do laboratório (GPU RTX 2070 Super); só o agente de decisão pode usar um modelo de fronteira pela
+nuvem, acessado pelo OpenRouter. A garantia de que nenhum endereço da rede chega a ele está no
+servidor, e não no prompt: o agente de decisão não tem as tools que devolvem endereços e lê o
+incidente por `obter_resumo`, montado pelo servidor com um rótulo neutro (`origem-1`,
+`destino-1`) no lugar de cada endereço. Ele propõe a ação com o rótulo; o servidor troca o rótulo
+pelo endereço e calcula o risco sobre o endereço real, e só o agente de execução, local e o único
+com credenciais, recebe o endereço. Toda resposta à linha de decisão passa ainda por um filtro
+que troca por um marcador qualquer endereço que tenha sobrado em texto livre. O veredito da
+triagem, texto livre escrito pelo modelo local, precisa passar pelo mesmo filtro antes de chegar
+ao agente de decisão `[a implementar no orquestrador]`. O orquestrador aceitará três
+configurações, tudo local, tudo na nuvem e híbrida, e a comparação entre elas em qualidade, custo
+e tempo é resultado do artigo. Isso responde ao ponto da banca sobre riscos de IA em nuvem e à
+alternativa on-premises.
 
 A busca na internet dos agentes fica desligada por padrão, e por isso nenhum dado da rede sai da
 máquina por ela; a comparação com a busca ligada fica como experimento. O custo em tokens é
 medido por chamada: cada chamada ao modelo grava no log o agente, o modelo e os tokens de entrada
 e de saída, e o contador da interface mostra quantas chamadas um incidente gerou. O risco de
-Denial of Wallet será tratado pela política de acionamento `[a escrever]`, que fará de um flood
-de centenas de janelas por segundo um único incidente, e não centenas de chamadas ao modelo.
+Denial of Wallet será tratado pela política de acionamento `[a escrever]`, no orquestrador, que
+agrupará os alertas do mesmo ataque e fará de um flood de centenas de janelas por segundo um único
+incidente, e não centenas de chamadas ao modelo. Hoje não há teto de incidentes enviados ao
+modelo da nuvem, e origens forjadas podem abrir vários incidentes: esse teto também cabe à
+política de acionamento.
 
-O classificador avisa a pessoa que opera a rede no instante em que o incidente abre, antes dos
-agentes. A interface tem o botão "Já resolvido": com ele marcado, o agente de execução não aplica
-remediação e o sistema só explica o incidente. O log grava o instante de cada etapa, da janela à
-verificação, o que permite medir o tempo entre detecção e remediação, com e sem intervenção
-humana.
+A pessoa que opera a rede será avisada no instante em que o incidente abrir, antes dos agentes
+`[a implementar no modo ao vivo da interface]`, e pode marcar o incidente como já resolvido. A
+marca é o evento `incidente_marcado_resolvido`, gravado hoje pelo comando de aprovação
+(`aprovar --resolvido`) e, mais adiante, pelo botão "Já resolvido" da interface, com o canal e o
+usuário. Daí em diante o servidor recusa qualquer proposta do incidente e a execução das propostas
+dele, inclusive as já aprovadas, e o comando de aprovação recusa aprovar as pendentes; o que já
+estava aplicado pode ser desfeito, e o agente de decisão, que vê a marca no resumo, só explica o
+incidente. O log grava o instante de cada etapa, da janela à verificação, o que permite medir o
+tempo entre detecção e remediação, com e sem intervenção humana. Do lado da detecção, a janela de
+100 quadros fecha, na mediana, em 5 ms em DDoS e DoS e entre 1,3 s e 2,5 s em Recon, BruteForce e
+Web, e a classificação de uma janela leva 1,6 ms (`experimentos/resultados/rodadas_de_teste.md`).
 
 ### 3.6 Avaliação da PoC e dos agentes
 
@@ -223,9 +274,9 @@ poisoning `[a escrever]`.
 
 ## 4. Resultados
 
-`[PENDENTE]` — consolidar aqui a versão final do classificador (os números da janela de 100 nos
-dados regerados estão na seção 3.3; falta fechar a proporção das classes e rodar mais sementes) e,
-quando disponíveis, as métricas dos agentes (qualidade da recomendação, custo em tokens, tempo
+`[PENDENTE]` Consolidar aqui a versão final do classificador (os números da janela de 100 nos
+dados regerados e os controles estão na seção 3.3; falta escolher a medida principal, o
+tratamento do tráfego de fundo e o ponto de operação) e, quando disponíveis, as métricas dos agentes (qualidade da recomendação, custo em tokens, tempo
 entre detecção e remediação) e a comparação entre as configurações local, nuvem e híbrida.
 
 ## 5. Limitações
@@ -234,19 +285,46 @@ Rascunho a partir do que já foi medido:
 - **Atalho da janela no dataset oficial**: o modelo treinado no `MERGED_CSV` aprende o tamanho da
   janela, não o comportamento do tráfego (seção 3.3). A regeração em janela única resolve isso ao
   custo de treinar só com os pcaps disponíveis, e os resultados valem para a janela de 100.
-- **Tráfego de fundo rotulado como ataque**: entre 33% e 87% das janelas de 10 dos pcaps de
-  varredura, força bruta, Web e spoofing não contêm nenhum quadro do atacante
-  (`experimentos/resultados/janelas_sem_atacante.md`); a regeração descarta essas janelas, e por
-  isso Web e BruteForce ficam com poucas janelas de treino e de teste.
-- **Web e BruteForce**: recall entre 35% e 37% nos dados regerados, confundidos com Recon e com
-  tráfego benigno. Os pcaps dessas classes são curtos, e o grupo não tem captura própria.
+- **Tráfego de fundo**: entre 33% e 87% das janelas de 10 dos pcaps de varredura, força bruta,
+  Web e spoofing não contêm nenhum quadro do atacante
+  (`experimentos/resultados/janelas_sem_atacante.md`). A regeração descarta essas janelas, e por
+  isso Web e BruteForce ficam com poucas janelas de treino e de teste. Classificadas pelo modelo,
+  72% delas viram ataque, e nos pcaps de spoofing e no `VulnerabilityScan.pcap` a maior parte cai
+  na categoria da própria captura. Parte do fundo pode conter efeito do ataque, e por isso essa
+  fração é uma estimativa pessimista do alarme falso durante um ataque.
+- **Web e BruteForce**: recall entre 35% e 37% no corte por tempo, confundidos com Recon e com
+  tráfego benigno, e com intervalos largos: por blocos, de 19,2% a 52,0% em BruteForce, que tem
+  um tamanho efetivo de 15 janelas de teste. Os pcaps dessas classes são curtos, e o grupo não tem
+  captura própria.
+- **Outra captura da mesma categoria**: com o pcap inteiro fora do treino, o recall de Recon cai
+  de 87,7% para 31,5% (5,8% no `VulnerabilityScan.pcap`), o de Mirai, de 99,2% para 55,3% (0% no
+  `Mirai-udpplain.pcap`), e o de Web, de 37,1% para 31,3%. Cada pcap de Recon e de Web é uma
+  técnica diferente, e tirar o pcap tira também a técnica do treino. BruteForce tem um pcap só.
+- **Alarme falso conforme o pcap benigno**: com cada pcap benigno fora do treino, a fração
+  classificada como ataque vai de 1,5% a 38,5%.
+- **Artefato de captura**: os pcaps não foram gravados todos do mesmo jeito. 84% das janelas de
+  Spoofing têm quadro menor que 60 bytes, sem o preenchimento do Ethernet, e 88% das janelas
+  benignas têm quadro maior que 1.514 bytes, que só existe com segmentação feita pela placa da
+  máquina que capturou; numa rede real, os tamanhos seriam outros. O TTL também pesa: é a feature
+  que mais derruba o recall do tráfego benigno quando permutada, e as janelas benignas com TTL
+  médio até 64 viram ataque em 9,3% dos casos, contra 1,4% acima de 90. Medir o quadro como no
+  fio foi testado e não adotado, porque piora as medidas com o pcap fora do treino sem melhorar o
+  alarme falso (seção 3.3).
 - **Cenários da PoC**: DDoS, port scan e brute force. O cenário de exfiltração foi retirado com o
   orientador (decisão de 2026-10-10): o CICIoT2023 não tem essa classe, e os datasets de referência
   também não a cobrem com dados rotulados suficientes. O dataset secundário foi dispensado pelo
   mesmo motivo; o trabalho usa só o CICIoT2023.
-- **Teste por arquivo inteiro**: só BenignTraffic, DDoS-SYN_Flood e DoS-SYN_Flood têm uma segunda
-  captura reservada ao teste; nas demais classes a divisão é por tempo dentro do mesmo pcap, o
-  que tende a superestimar o resultado.
+- **Teste por arquivo inteiro**: só BenignTraffic, DDoS-SYN_Flood e DoS-SYN_Flood têm mais de um
+  arquivo, e o último fica inteiro no teste. Os sete arquivos desses rótulos estão entre os 20
+  pcaps com cerca de 2.048.000.000 bytes, o tamanho em que o `tcpdump -C 2048` corta o arquivo:
+  são partes da mesma gravação, e não capturas independentes
+  (`experimentos/resultados/calibracao_conjunto.md`). Nas demais classes a divisão é por tempo
+  dentro do mesmo pcap, o que tende a superestimar o resultado.
+- **Separação entre DDoS e DoS**: por janela, as faixas de IPs de origem das duas categorias se
+  cruzam, e a contagem inclui os IPs da vítima e do tráfego de fundo
+  (`experimentos/resultados/regeracao.md`); a regra no nível do incidente ainda não foi medida.
+- **O atacante também gera tráfego comum**: 27,1% das janelas de 100 dos pcaps benignos têm ao
+  menos um quadro de um MAC atacante, e entram no treino como benignas.
 - **Modelo local**: os agentes de triagem e execução rodam num modelo de 8 bilhões de parâmetros,
   mais fraco que o de fronteira; a comparação entre as configurações mede esse custo.
 
