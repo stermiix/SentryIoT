@@ -231,6 +231,7 @@ h1, h2, h3 { font-family: "Space Grotesk", "DM Sans", sans-serif; }
 .risk-alto { color: #b75446; }
 .risk-baixo { color: #34876a; }
 .proposal-reasons { margin: 0; padding-left: 18px; color: #8a4a3f; font-size: 12px; line-height: 1.5; }
+.proposal-justification { margin: 0; color: #4b5669; font-size: 12px; line-height: 1.5; }
 .proposal-step { color: #4b5669; font-size: 12px; line-height: 1.6; }
 .actions-panel { margin-top: 14px; }
 

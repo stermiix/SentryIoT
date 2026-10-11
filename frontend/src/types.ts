@@ -1,49 +1,34 @@
-// Tipos do log de eventos, escritos à mão a partir de `codigo/mcp/contrato.json` (que sai de
-// `codigo/mcp/tipos.py`). Cada linha do log é um `Evento`, e o campo `tipo` diz o formato de
-// `dados`: a união abaixo é discriminada por ele. A conferência em tempo de execução, que dá
-// garantia a estes tipos, fica em `contrato.ts`.
-//
-// Duas coisas daqui ainda não estão no contrato e chegam em outro PR do MCP: o evento
-// `incidente_marcado_resolvido` e a categoria `DDoS+DoS` do modelo. A interface já as aceita, e
-// funciona igual com um log que não tem nenhuma das duas.
+import type {
+  AGENTES,
+  CANAIS,
+  CATEGORIAS,
+  CATEGORIAS_DO_MODELO,
+  CODIGOS_DE_RISCO_ALTO,
+  ESTADOS_DA_EXECUCAO,
+  ESTADOS_DA_PROPOSTA,
+  ESTADOS_DO_INCIDENTE,
+  MOTIVOS_DE_RECUSA,
+  ORIGENS_DE_ACAO,
+  RESULTADOS_DO_EFEITO,
+  RISCOS,
+} from "./listas";
 
-export type Categoria =
-  | "DDoS"
-  | "DoS"
-  | "DDoS+DoS"
-  | "Mirai"
-  | "Recon"
-  | "Spoofing"
-  | "Web"
-  | "BruteForce"
-  | "Benign";
-export type Agente = "triagem" | "decisao" | "execucao";
-export type Canal = "terminal" | "interface";
-export type Risco = "baixo" | "alto";
-export type EstadoDoIncidente = "aberto" | "encerrado";
-export type EstadoDaProposta = "aguardando_aprovacao" | "liberada" | "rejeitada" | "executada" | "desfeita";
-export type EstadoDaExecucao = "aplicada" | "desfeita";
-export type ResultadoDoEfeito = "cessou" | "diminuiu" | "persiste";
-export type CodigoDeRiscoAlto =
-  | "acao_sempre_de_risco_alto"
-  | "acao_nova"
-  | "prazo_acima_do_limite"
-  | "alvo_fora_do_incidente"
-  | "alvo_e_destino_do_incidente"
-  | "alvo_protegido"
-  | "orcamento_de_risco_baixo_esgotado";
-export type MotivoDeRecusa =
-  | "identificador_desconhecido"
-  | "argumentos_invalidos"
-  | "alvo_malformado"
-  | "alvo_nao_permitido"
-  | "incidente_encerrado"
-  | "limite_de_propostas_pendentes"
-  | "acao_nova_incompleta"
-  | "proposta_nao_liberada"
-  | "proposta_ja_executada"
-  | "acao_nao_aplicada"
-  | "tool_fora_da_linha";
+// Tipos do log de eventos, escritos a partir de `codigo/mcp/contrato.json` (contrato 0.3.0, que
+// sai de `codigo/mcp/tipos.py`). Cada linha do log é um `Evento`, e o campo `tipo` diz o formato de
+// `dados`: a união abaixo é discriminada por ele. Os valores fixos vêm de `listas.ts`, que um teste
+// confere contra o `contrato.json`, e a conferência em tempo de execução fica em `contrato.ts`.
+
+export type Categoria = (typeof CATEGORIAS)[number];
+export type CategoriaDoModelo = (typeof CATEGORIAS_DO_MODELO)[number];
+export type Agente = (typeof AGENTES)[number];
+export type Canal = (typeof CANAIS)[number];
+export type Risco = (typeof RISCOS)[number];
+export type EstadoDoIncidente = (typeof ESTADOS_DO_INCIDENTE)[number];
+export type EstadoDaProposta = (typeof ESTADOS_DA_PROPOSTA)[number];
+export type EstadoDaExecucao = (typeof ESTADOS_DA_EXECUCAO)[number];
+export type ResultadoDoEfeito = (typeof RESULTADOS_DO_EFEITO)[number];
+export type CodigoDeRiscoAlto = (typeof CODIGOS_DE_RISCO_ALTO)[number];
+export type MotivoDeRecusa = (typeof MOTIVOS_DE_RECUSA)[number];
 
 /** Objeto livre do contrato (`argumentos`, `resultado`, `parametros`). */
 export type Livre = Record<string, unknown>;
@@ -52,7 +37,7 @@ export type Livre = Record<string, unknown>;
 
 export interface LoteDeJanelas {
   janelas: number;
-  por_categoria: Partial<Record<Categoria, number>>;
+  por_categoria: Partial<Record<CategoriaDoModelo, number>>;
 }
 
 export interface EnderecoContado {
@@ -70,7 +55,7 @@ export interface Incidente {
   id: string;
   estado: EstadoDoIncidente;
   categoria: Categoria;
-  categoria_do_modelo: Categoria;
+  categoria_do_modelo: CategoriaDoModelo;
   confianca: number;
   inicio: string;
   fim: string;
@@ -80,6 +65,14 @@ export interface Incidente {
   origens: EnderecoContado[];
   destinos: EnderecoContado[];
   features_principais: FeaturePrincipal[];
+}
+
+/** A pessoa que opera a rede marcou o incidente como já resolvido. */
+export interface MarcaDeResolvido {
+  incidente: string;
+  canal: Canal;
+  usuario: string;
+  motivo: string | null;
 }
 
 export interface ChamadaDeLLM {
@@ -114,6 +107,8 @@ export interface Proposta {
   incidente: string;
   acao: string;
   alvo: string;
+  /** O alvo com o rótulo neutro (origem-1, admin@destino-1), quando o agente o escreveu assim. */
+  alvo_com_rotulo: string | null;
   parametros: Livre;
   justificativa: string;
   nova: boolean;
@@ -126,6 +121,7 @@ export interface Proposta {
 export interface Decisao {
   proposta: string;
   canal: Canal;
+  usuario: string;
   motivo: string | null;
 }
 
@@ -160,7 +156,7 @@ export interface AcaoDoCatalogo {
   alvo: string;
   parametros: ParametroDeAcao[];
   regra: string;
-  origem: "base" | "promovida";
+  origem: (typeof ORIGENS_DE_ACAO)[number];
   passos: string[];
   efeito_esperado: string | null;
   como_desfazer: string;
@@ -180,14 +176,6 @@ export interface Recusa {
   mensagem: string;
 }
 
-/** A pessoa marcou o incidente como já resolvido (evento que ainda vai entrar no contrato). */
-export interface MarcacaoDeResolvido {
-  incidente: string;
-  canal: Canal;
-  usuario: string;
-  motivo?: string | null;
-}
-
 // --- Os eventos ----------------------------------------------------------------------------
 
 interface Linha<T extends string, D> {
@@ -200,6 +188,7 @@ interface Linha<T extends string, D> {
 
 export type EventoDeJanelas = Linha<"janelas_classificadas", LoteDeJanelas>;
 export type EventoDeIncidente = Linha<"incidente_aberto" | "incidente_atualizado" | "incidente_encerrado", Incidente>;
+export type EventoDeMarca = Linha<"incidente_marcado_resolvido", MarcaDeResolvido>;
 export type EventoDeLLM = Linha<"llm_chamada", ChamadaDeLLM>;
 export type EventoDeTool = Linha<"tool_chamada", ChamadaDeTool>;
 export type EventoDeRecomendacao = Linha<"recomendacao_emitida", Recomendacao>;
@@ -209,11 +198,11 @@ export type EventoDeExecucao = Linha<"acao_executada" | "acao_desfeita", Execuca
 export type EventoDeEfeito = Linha<"efeito_verificado", Efeito>;
 export type EventoDeCatalogo = Linha<"catalogo_ampliado", Promocao>;
 export type EventoDeRecusa = Linha<"recusa", Recusa>;
-export type EventoDeMarcacao = Linha<"incidente_marcado_resolvido", MarcacaoDeResolvido>;
 
 export type Evento =
   | EventoDeJanelas
   | EventoDeIncidente
+  | EventoDeMarca
   | EventoDeLLM
   | EventoDeTool
   | EventoDeRecomendacao
@@ -222,8 +211,7 @@ export type Evento =
   | EventoDeExecucao
   | EventoDeEfeito
   | EventoDeCatalogo
-  | EventoDeRecusa
-  | EventoDeMarcacao;
+  | EventoDeRecusa;
 export type TipoDeEvento = Evento["tipo"];
 
 // --- O que a interface monta a partir dos eventos ------------------------------------------
@@ -240,19 +228,22 @@ export interface DecisaoView {
   tipo: EventoDeDecisao["tipo"];
   instante: string;
   canal: Canal;
+  usuario: string;
   motivo: string | null;
 }
 
-/** Estado de uma proposta depois dos eventos lidos, como o `reconstruir` de `codigo/mcp/acoes.py`. */
+/** Estado de uma proposta depois dos eventos lidos, com as regras do `reconstruir` de `codigo/mcp/acoes.py`. */
 export interface PropostaView {
   id: string;
   acao: string;
   alvo: string;
+  alvoComRotulo: string | null;
   justificativa: string;
   nova: boolean;
   risco: Risco;
   exigeAprovacao: boolean;
-  motivosDeRiscoAlto: MotivoDeRiscoAlto[];
+  /** Só os códigos: a frase mostrada é a do contrato (`MOTIVOS_DE_RISCO_ALTO`), e não a do log. */
+  motivosDeRiscoAlto: CodigoDeRiscoAlto[];
   estado: EstadoDaProposta;
   criadaEm: string;
   decisoes: DecisaoView[];
@@ -285,7 +276,7 @@ export interface ResumoGeral {
   totalIncidentes: number;
   chamadasLLM: number;
   tokens: number;
-  /** Eventos que citam um incidente sem `incidente_aberto` no log: ficam fora da fila. */
+  /** Eventos que citam um incidente que não estava aberto naquele ponto do log: ficam fora da fila. */
   eventosSemAbertura: number;
   incidentesSemAbertura: string[];
 }

@@ -7,28 +7,22 @@ import ResumoMetricas from "./components/ResumoMetricas";
 import { type Agregado, agregar, carregarLog } from "./log";
 import type { Evento } from "./types";
 
-export default function App() {
-  const [eventos, setEventos] = useState<Evento[]>([]);
-  const [avisos, setAvisos] = useState<string[]>([]);
-  const [passo, setPasso] = useState(0);
-  const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
-  const [carregando, setCarregando] = useState(true);
+export interface PropsDaPagina {
+  eventos: Evento[];
+  avisos: string[];
+  passo: number;
+  onMudarPasso: (passo: number) => void;
+  selecionadoId: string | null;
+  onSelecionar: (id: string) => void;
+  carregando: boolean;
+  erro: string | null;
+}
 
-  useEffect(() => {
-    carregarLog()
-      .then((lido) => {
-        // Os avisos valem para o log inteiro; o replay começa no estado final.
-        const final = agregar(lido.eventos);
-        setEventos(lido.eventos);
-        setAvisos([...lido.avisos, ...final.avisos]);
-        setPasso(lido.eventos.length);
-        setSelecionadoId(final.incidentes[0]?.id ?? null);
-      })
-      .catch((erroCarregado: Error) => setErro(erroCarregado.message))
-      .finally(() => setCarregando(false));
-  }, []);
-
+/**
+ * A página, desenhada a partir dos eventos e do passo do replay. Não guarda estado nem busca o
+ * log: isso fica no `App`, e esta parte pode ser desenhada nos testes em qualquer passo.
+ */
+export function Pagina({ eventos, avisos, passo, onMudarPasso, selecionadoId, onSelecionar, carregando, erro }: PropsDaPagina) {
   // O estado das telas é o dos eventos até o passo atual do replay.
   const agregado = useMemo((): { valor: Agregado } | { falha: string } => {
     try {
@@ -96,7 +90,7 @@ export default function App() {
             </div>
           )}
           {carregando && <div className="loading-state">Carregando execução demonstrativa…</div>}
-          {!carregando && !erro && eventos.length > 0 && <ControleDoReplay eventos={eventos} passo={passo} onMudar={setPasso} />}
+          {!carregando && !erro && eventos.length > 0 && <ControleDoReplay eventos={eventos} passo={passo} onMudar={onMudarPasso} />}
           {!carregando && !erro && resumo && (
             <>
               <ResumoMetricas resumo={resumo} incidentes={incidentes} />
@@ -105,7 +99,7 @@ export default function App() {
                 <span className="table-count">{incidentes.length} incidente{incidentes.length === 1 ? "" : "s"}</span>
               </div>
               <LimiteDeErro parte="a fila de incidentes" chave={String(passo)}>
-                <FilaDeIncidentes resumo={resumo} incidentes={incidentes} selecionadoId={selecionado?.id ?? null} onSelecionar={setSelecionadoId} />
+                <FilaDeIncidentes resumo={resumo} incidentes={incidentes} selecionadoId={selecionado?.id ?? null} onSelecionar={onSelecionar} />
               </LimiteDeErro>
             </>
           )}
@@ -119,5 +113,41 @@ export default function App() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  const [eventos, setEventos] = useState<Evento[]>([]);
+  const [avisos, setAvisos] = useState<string[]>([]);
+  const [passo, setPasso] = useState(0);
+  const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    carregarLog()
+      .then((lido) => {
+        // Os avisos valem para o log inteiro; o replay começa no estado final.
+        const final = agregar(lido.eventos);
+        setEventos(lido.eventos);
+        setAvisos([...lido.avisos, ...final.avisos]);
+        setPasso(lido.eventos.length);
+        setSelecionadoId(final.incidentes[0]?.id ?? null);
+      })
+      .catch((erroCarregado: Error) => setErro(erroCarregado.message))
+      .finally(() => setCarregando(false));
+  }, []);
+
+  return (
+    <Pagina
+      eventos={eventos}
+      avisos={avisos}
+      passo={passo}
+      onMudarPasso={setPasso}
+      selecionadoId={selecionadoId}
+      onSelecionar={setSelecionadoId}
+      carregando={carregando}
+      erro={erro}
+    />
   );
 }

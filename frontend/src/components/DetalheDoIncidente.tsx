@@ -1,7 +1,18 @@
 import { Fragment, useState } from "react";
 import { inteiro, numero } from "../formato";
-import { ESTADO_DA_PROPOSTA, NOME_DO_AGENTE, PELO_CANAL, RESULTADO_DO_EFEITO, ROTULO_DO_EVENTO, rotulo } from "../rotulos";
-import type { Agente, Evento, EventoDeLLM, EventoDeRecusa, EventoDeTool, IncidenteView, PropostaView, TipoDeEvento } from "../types";
+import { MOTIVOS_DE_RISCO_ALTO } from "../listas";
+import {
+  ESTADO_DA_PROPOSTA,
+  MOTIVO_DA_RECUSA,
+  NOME_DO_AGENTE,
+  PELO_CANAL,
+  RESULTADO_DO_EFEITO,
+  ROTULO_DO_EVENTO,
+  alvoNaTela,
+  aspas,
+  rotulo,
+} from "../rotulos";
+import type { Agente, Canal, Evento, EventoDeLLM, EventoDeRecusa, EventoDeTool, IncidenteView, PropostaView, TipoDeEvento } from "../types";
 import Instante from "./Instante";
 
 interface Props {
@@ -33,19 +44,28 @@ function idDaRecusa(evento: EventoDeRecusa): string {
   return typeof citado === "string" ? citado : evento.id;
 }
 
+/** Quem decidiu e por qual canal, com o motivo da pessoa entre aspas. */
+function quemDecidiu(canal: Canal, usuario: string, motivo: string | null): string {
+  return `${rotulo(PELO_CANAL, canal)}, por ${usuario}${motivo ? `: ${aspas(motivo)}` : ""}`;
+}
+
 // Cada linha do histórico diz de qual proposta ou execução está falando (o id), e o que aconteceu.
-// O que cada tipo traz em `dados` está na tabela do log em codigo/mcp/README.md.
+// O que cada tipo traz em `dados` está na tabela do log em codigo/mcp/README.md. Texto escrito por
+// um agente ou por uma pessoa vai entre aspas.
 function linhaDoHistorico(evento: Evento): { id: string; descricao: string } | null {
   switch (evento.tipo) {
     case "acao_proposta": {
       const { dados } = evento;
       const aprovacao = dados.exige_aprovacao ? "exige aprovação" : "sem aprovação";
-      return { id: dados.id, descricao: `${dados.acao} em ${dados.alvo} · risco ${dados.risco}, ${aprovacao}` };
+      return {
+        id: dados.id,
+        descricao: `${dados.acao} em ${alvoNaTela(dados.alvo, dados.alvo_com_rotulo)} · risco ${dados.risco}, ${aprovacao}`,
+      };
     }
     case "acao_aprovada":
     case "acao_rejeitada": {
       const { dados } = evento;
-      return { id: dados.proposta, descricao: `${rotulo(PELO_CANAL, dados.canal)}${dados.motivo ? ` · ${dados.motivo}` : ""}` };
+      return { id: dados.proposta, descricao: quemDecidiu(dados.canal, dados.usuario, dados.motivo) };
     }
     case "acao_executada":
     case "acao_desfeita":
@@ -58,13 +78,13 @@ function linhaDoHistorico(evento: Evento): { id: string; descricao: string } | n
     case "catalogo_ampliado":
       return { id: evento.dados.proposta, descricao: `a ação ${evento.dados.acao.nome} entra no catálogo` };
     case "recusa":
-      return { id: idDaRecusa(evento), descricao: `${evento.dados.tool} · ${evento.dados.mensagem}` };
+      return {
+        id: idDaRecusa(evento),
+        descricao: `${evento.dados.tool} · ${rotulo(MOTIVO_DA_RECUSA, evento.dados.motivo)} · ${aspas(evento.dados.mensagem)}`,
+      };
     case "incidente_marcado_resolvido": {
       const { dados } = evento;
-      return {
-        id: dados.incidente,
-        descricao: `por ${dados.usuario}, ${rotulo(PELO_CANAL, dados.canal)}${dados.motivo ? ` · ${dados.motivo}` : ""}`,
-      };
+      return { id: dados.incidente, descricao: quemDecidiu(dados.canal, dados.usuario, dados.motivo) };
     }
     default:
       return null;
@@ -77,7 +97,7 @@ function CartaoDaProposta({ proposta }: { proposta: PropostaView }) {
       <div className="proposal-head">
         <code className="event-id">{proposta.id}</code>
         <strong>{proposta.acao}</strong>
-        <span className="proposal-target">em {proposta.alvo}</span>
+        <span className="proposal-target">em {alvoNaTela(proposta.alvo, proposta.alvoComRotulo)}</span>
         <span className={`proposal-state proposal-${proposta.estado}`}>{rotulo(ESTADO_DA_PROPOSTA, proposta.estado)}</span>
       </div>
       <div className="proposal-meta">
@@ -89,13 +109,14 @@ function CartaoDaProposta({ proposta }: { proposta: PropostaView }) {
       </div>
       {proposta.motivosDeRiscoAlto.length > 0 && (
         <ul className="proposal-reasons" aria-label="Motivos do risco alto">
-          {proposta.motivosDeRiscoAlto.map((motivo) => <li key={motivo.codigo}>{motivo.descricao}</li>)}
+          {proposta.motivosDeRiscoAlto.map((codigo) => <li key={codigo}>{MOTIVOS_DE_RISCO_ALTO[codigo]}</li>)}
         </ul>
       )}
+      <p className="proposal-justification">Justificativa do agente: {aspas(proposta.justificativa)}</p>
       {proposta.decisoes.map((decisao) => (
         <div className="proposal-step" key={decisao.instante + decisao.tipo}>
-          <Instante valor={decisao.instante} /> {decisao.tipo === "acao_aprovada" ? "Aprovada" : "Rejeitada"} {rotulo(PELO_CANAL, decisao.canal)}
-          {decisao.motivo && <> · {decisao.motivo}</>}
+          <Instante valor={decisao.instante} /> {decisao.tipo === "acao_aprovada" ? "Aprovada" : "Rejeitada"}{" "}
+          {quemDecidiu(decisao.canal, decisao.usuario, decisao.motivo)}
         </div>
       ))}
       {proposta.execucoes.map((execucao) => (
@@ -143,8 +164,8 @@ export default function DetalheDoIncidente({ incidente: view }: Props) {
         <div className="resolved-notice" role="status">
           <span>✓</span>
           <p>
-            <strong>Marcado como já resolvido</strong> às <Instante valor={marcacao.instante} />, por {marcacao.usuario}, {rotulo(PELO_CANAL, marcacao.canal)}
-            {marcacao.motivo && <> · {marcacao.motivo}</>}
+            <strong>Marcado como já resolvido</strong> às <Instante valor={marcacao.instante} />,{" "}
+            {quemDecidiu(marcacao.canal, marcacao.usuario, marcacao.motivo)}. Daqui em diante, o servidor recusa proposta e execução neste incidente.
           </p>
         </div>
       )}
@@ -206,7 +227,7 @@ export default function DetalheDoIncidente({ incidente: view }: Props) {
               {view.recomendacoes.map((evento) => (
                 <li key={evento.id}>
                   <div className="recommendation-meta"><Instante valor={evento.instante} /> · Agente de {rotulo(NOME_DO_AGENTE, evento.dados.agente).toLowerCase()}</div>
-                  <p className="recommendation-copy">“{evento.dados.texto}”</p>
+                  <p className="recommendation-copy">{aspas(evento.dados.texto)}</p>
                   {evento.dados.propostas.length > 0 && (
                     <ul className="recommendation-proposals" aria-label="Propostas ligadas à recomendação">
                       {evento.dados.propostas.map((id) => {
@@ -214,7 +235,9 @@ export default function DetalheDoIncidente({ incidente: view }: Props) {
                         return (
                           <li key={id}>
                             <code className="event-id">{id}</code>
-                            {proposta ? ` ${proposta.acao} em ${proposta.alvo} · ${rotulo(ESTADO_DA_PROPOSTA, proposta.estado)}` : " proposta não encontrada neste incidente"}
+                            {proposta
+                              ? ` ${proposta.acao} em ${alvoNaTela(proposta.alvo, proposta.alvoComRotulo)} · ${rotulo(ESTADO_DA_PROPOSTA, proposta.estado)}`
+                              : " proposta não encontrada neste incidente"}
                           </li>
                         );
                       })}

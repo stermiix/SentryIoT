@@ -1,10 +1,12 @@
 import { conferirEvento } from "./contrato";
+import { ACOES_DE_BASE, MOTIVOS_DE_RISCO_ALTO, SEMPRE_DE_RISCO_ALTO } from "./listas";
 import type {
   Evento,
+  Execucao,
   ExecucaoView,
   Incidente,
   IncidenteView,
-  MarcacaoView,
+  MarcaDeResolvido,
   PropostaView,
   ResumoGeral,
 } from "./types";
@@ -12,8 +14,15 @@ import type {
 // O log de exemplo, servido de `public/dados/`. O BASE_URL mantém o caminho certo quando o app é
 // servido em um subcaminho.
 export const CAMINHO_DO_LOG = `${import.meta.env.BASE_URL}dados/incidente_flood.jsonl`;
-// Quantas linhas um aviso cita pelo número antes de resumir o resto.
-const LINHAS_POR_AVISO = 8;
+// Quantas linhas ou eventos um aviso cita antes de resumir o resto.
+const CITADOS_POR_AVISO = 8;
+// Um valor que veio do log aparece nos avisos entre aspas e cortado: é dado, e não texto do sistema.
+const MAIOR_CITACAO = 40;
+
+export function citar(valor: string): string {
+  const letras = Array.from(valor);
+  return `“${letras.length > MAIOR_CITACAO ? `${letras.slice(0, MAIOR_CITACAO).join("")}…` : valor}”`;
+}
 
 export interface LogLido {
   /** Eventos válidos, sem repetição, na ordem do `id`. */
@@ -22,9 +31,18 @@ export interface LogLido {
   avisos: string[];
 }
 
-function citarLinhas(linhas: number[]): string {
-  const citadas = linhas.slice(0, LINHAS_POR_AVISO).join(", ");
-  return linhas.length > LINHAS_POR_AVISO ? `${citadas} e mais ${linhas.length - LINHAS_POR_AVISO}` : citadas;
+export interface OpcoesDeLeitura {
+  /**
+   * Ignora a última linha quando ela não termina em quebra de linha. Serve para o modo ao vivo, em
+   * que essa linha pode estar sendo gravada. No replay, o arquivo está completo e a linha é lida,
+   * como faz o leitor do Python.
+   */
+  ignorarUltimaIncompleta?: boolean;
+}
+
+function citarLista(itens: string[]): string {
+  const citados = itens.slice(0, CITADOS_POR_AVISO).join(", ");
+  return itens.length > CITADOS_POR_AVISO ? `${citados} e mais ${itens.length - CITADOS_POR_AVISO}` : citados;
 }
 
 /**
@@ -38,24 +56,21 @@ function posicaoDoId(id: string): number {
 
 /**
  * Lê o texto do log (uma linha, um evento). Cada linha é conferida contra o contrato, e a que não
- * serve é descartada, com o número dela num aviso: uma linha ruim não derruba a tela.
- *
- * A última linha sem quebra de linha no fim é ignorada: no modo ao vivo, ela pode estar sendo
- * gravada. Evento com `id` repetido fica só na primeira vez em que aparece. Os eventos voltam em
- * ordem de `id`, que é a ordem em que foram gravados, e não a das linhas do arquivo.
+ * serve é descartada, com o número dela num aviso: uma linha ruim não derruba a tela. Evento com
+ * `id` repetido fica só na primeira vez em que aparece. Os eventos voltam em ordem de `id`, que é a
+ * ordem em que foram gravados, e não a das linhas do arquivo.
  */
-export function lerLog(texto: string): LogLido {
+export function lerLog(texto: string, opcoes: OpcoesDeLeitura = {}): LogLido {
   const linhas = texto.split("\n");
   const avisos: string[] = [];
-  const ultima = linhas.pop() ?? "";
-  if (ultima.trim().length > 0) {
-    avisos.push(
-      `A linha ${linhas.length + 1} não termina em quebra de linha e foi ignorada: pode estar sendo gravada.`,
-    );
+  const ultima = linhas[linhas.length - 1];
+  if (ultima.trim().length > 0 && opcoes.ignorarUltimaIncompleta) {
+    linhas.pop();
+    avisos.push(`A linha ${linhas.length + 1} não termina em quebra de linha e foi ignorada: pode estar sendo gravada.`);
   }
 
   const descartadas: string[] = [];
-  const repetidas: number[] = [];
+  const repetidas: string[] = [];
   const vistos = new Set<string>();
   const lidos: Evento[] = [];
   linhas.forEach((linha, indice) => {
@@ -76,7 +91,7 @@ export function lerLog(texto: string): LogLido {
       return;
     }
     if (vistos.has(conferido.evento.id)) {
-      repetidas.push(numero);
+      repetidas.push(String(numero));
       return;
     }
     vistos.add(conferido.evento.id);
@@ -84,12 +99,10 @@ export function lerLog(texto: string): LogLido {
   });
 
   if (descartadas.length > 0) {
-    const citadas = descartadas.slice(0, LINHAS_POR_AVISO).join("; ");
-    const resto = descartadas.length > LINHAS_POR_AVISO ? `; e mais ${descartadas.length - LINHAS_POR_AVISO}` : "";
-    avisos.push(`Linhas fora do contrato, descartadas: ${citadas}${resto}.`);
+    avisos.push(`Linhas fora do contrato, descartadas: ${citarLista(descartadas).replace(/\), /g, "); ")}.`);
   }
   if (repetidas.length > 0) {
-    avisos.push(`Linhas com id de evento repetido, descartadas: ${citarLinhas(repetidas)}.`);
+    avisos.push(`Linhas com id de evento repetido, descartadas: ${citarLista(repetidas)}.`);
   }
 
   // O sort é estável: eventos com a mesma posição ficam na ordem do arquivo.
@@ -101,7 +114,7 @@ export function lerLog(texto: string): LogLido {
 }
 
 /** Busca o log no caminho estático servido pelo Vite e o lê com `lerLog`. */
-export async function carregarLog(caminho = CAMINHO_DO_LOG): Promise<LogLido> {
+export async function carregarLog(caminho = CAMINHO_DO_LOG, opcoes: OpcoesDeLeitura = {}): Promise<LogLido> {
   const resposta = await fetch(caminho);
   if (!resposta.ok) {
     throw new Error(
@@ -109,7 +122,7 @@ export async function carregarLog(caminho = CAMINHO_DO_LOG): Promise<LogLido> {
         "Confira se public/dados/incidente_flood.jsonl existe (npm run sync:log copia o exemplo de codigo/mcp/exemplos/).",
     );
   }
-  return lerLog(await resposta.text());
+  return lerLog(await resposta.text(), opcoes);
 }
 
 export interface Agregado {
@@ -119,29 +132,330 @@ export interface Agregado {
   avisos: string[];
 }
 
-interface Montagem extends Omit<IncidenteView, "incidente" | "abertoEm"> {
-  incidente: Incidente | null;
-  abertoEm: string;
+// --- Reconstrução do estado ----------------------------------------------------------------
+
+const BASE = new Set<string>(ACOES_DE_BASE);
+const SEMPRE_ALTO = new Set<string>(SEMPRE_DE_RISCO_ALTO);
+// O alvo com rótulo neutro: `origem-1`, `destino-2` ou `conta@destino-1` (`_ALVO_COM_ROTULO`, em acoes.py).
+export const ALVO_COM_ROTULO = /^(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,63}@)?(?:origem|destino)-[1-9][0-9]{0,5}$/;
+const PAPEIS = [
+  ["origem", "origens"],
+  ["destino", "destinos"],
+] as const;
+
+/** O estado que os eventos deixam, como o `Estado` de `codigo/mcp/acoes.py`, mais o que a tela mostra. */
+interface Estado {
+  incidentes: Map<string, Incidente>;
+  /** Para cada incidente, o endereço de cada rótulo neutro (origem-1, destino-1). */
+  rotulos: Map<string, Map<string, string>>;
+  resolvidos: Map<string, MarcaDeResolvido>;
+  propostas: Map<string, { incidente: string; parametros: unknown; view: PropostaView }>;
+  execucoes: Map<string, { dados: Execucao; view: ExecucaoView }>;
+  promovidas: Set<string>;
+}
+
+/** Igualdade de valores JSON, sem depender da ordem das chaves. */
+function iguais(a: unknown, b: unknown): boolean {
+  if (a === b) {
+    return true;
+  }
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null || Array.isArray(a) !== Array.isArray(b)) {
+    return false;
+  }
+  const chavesA = Object.keys(a);
+  const chavesB = Object.keys(b);
+  return (
+    chavesA.length === chavesB.length &&
+    chavesA.every((chave) => Object.prototype.hasOwnProperty.call(b, chave) && iguais((a as Record<string, unknown>)[chave], (b as Record<string, unknown>)[chave]))
+  );
+}
+
+/** Dá um rótulo neutro a cada endereço novo do incidente, na ordem em que ele aparece (`_rotular`). */
+function rotular(estado: Estado, incidente: Incidente) {
+  let rotulos = estado.rotulos.get(incidente.id);
+  if (!rotulos) {
+    rotulos = new Map();
+    estado.rotulos.set(incidente.id, rotulos);
+  }
+  for (const [papel, campo] of PAPEIS) {
+    const doPapel = Array.from(rotulos).filter(([rotulo]) => rotulo.startsWith(`${papel}-`)).map(([, endereco]) => endereco);
+    for (const item of incidente[campo]) {
+      if (!doPapel.includes(item.endereco)) {
+        doPapel.push(item.endereco);
+        rotulos.set(`${papel}-${doPapel.length}`, item.endereco);
+      }
+    }
+  }
+}
+
+/** O alvo com o rótulo trocado pelo endereço, ou null se o rótulo não existe no incidente. */
+function resolverRotulo(estado: Estado, incidente: string, alvo: string): string | null {
+  const arroba = alvo.lastIndexOf("@");
+  const endereco = estado.rotulos.get(incidente)?.get(alvo.slice(arroba + 1));
+  return endereco === undefined ? null : `${alvo.slice(0, arroba + 1)}${endereco}`;
 }
 
 /**
- * Agrupa os eventos por incidente, soma os contadores globais e reconstrói o estado de cada
- * proposta, seguindo as regras do `reconstruir` de `codigo/mcp/acoes.py`. Espera os eventos
- * na ordem do `id`, como saem de `lerLog`.
+ * Confere se o evento cabe no estado e, se couber, aplica o que ele diz. Devolve o problema, ou
+ * null. As regras são as de `_aplicar`, em `codigo/mcp/acoes.py`; o que fica de fora está no
+ * README do frontend. Um evento que não cabe não muda nada.
+ */
+function aplicar(estado: Estado, evento: Evento): string | null {
+  switch (evento.tipo) {
+    case "incidente_aberto": {
+      const dados = evento.dados;
+      if (estado.incidentes.has(dados.id)) {
+        return `o incidente ${citar(dados.id)} já foi aberto`;
+      }
+      estado.incidentes.set(dados.id, dados);
+      rotular(estado, dados);
+      return null;
+    }
+    case "incidente_atualizado":
+    case "incidente_encerrado": {
+      const dados = evento.dados;
+      const atual = estado.incidentes.get(dados.id);
+      if (!atual) {
+        return `o incidente ${citar(dados.id)} não foi aberto até este ponto`;
+      }
+      if (atual.estado !== "aberto") {
+        return `o incidente ${citar(dados.id)} já está encerrado`;
+      }
+      estado.incidentes.set(dados.id, dados);
+      rotular(estado, dados);
+      return null;
+    }
+    case "incidente_marcado_resolvido": {
+      const dados = evento.dados;
+      if (!estado.incidentes.has(dados.incidente)) {
+        return `o incidente ${citar(dados.incidente)} não existe até este ponto`;
+      }
+      if (estado.resolvidos.has(dados.incidente)) {
+        return `o incidente ${citar(dados.incidente)} já foi marcado como resolvido`;
+      }
+      estado.resolvidos.set(dados.incidente, dados);
+      return null;
+    }
+    case "acao_proposta":
+      return aplicarProposta(estado, evento);
+    case "acao_aprovada":
+    case "acao_rejeitada": {
+      const dados = evento.dados;
+      const proposta = estado.propostas.get(dados.proposta);
+      if (!proposta) {
+        return `a proposta ${citar(dados.proposta)} não existe até este ponto`;
+      }
+      if (evento.incidente !== proposta.incidente) {
+        return `a proposta ${citar(dados.proposta)} é de outro incidente`;
+      }
+      if (proposta.view.estado !== "aguardando_aprovacao") {
+        return `a proposta ${citar(dados.proposta)} não aguarda aprovação (está ${proposta.view.estado})`;
+      }
+      proposta.view.estado = evento.tipo === "acao_aprovada" ? "liberada" : "rejeitada";
+      proposta.view.decisoes.push({
+        tipo: evento.tipo,
+        instante: evento.instante,
+        canal: dados.canal,
+        usuario: dados.usuario,
+        motivo: dados.motivo,
+      });
+      return null;
+    }
+    case "acao_executada": {
+      const dados = evento.dados;
+      const proposta = estado.propostas.get(dados.proposta);
+      if (!proposta) {
+        return `a proposta ${citar(dados.proposta)} não existe até este ponto`;
+      }
+      if (estado.execucoes.has(dados.id)) {
+        return `a execução ${citar(dados.id)} já existe`;
+      }
+      if (proposta.view.estado !== "liberada") {
+        return `a proposta ${citar(dados.proposta)} não está liberada nem aprovada (está ${proposta.view.estado})`;
+      }
+      if (estado.resolvidos.has(proposta.incidente)) {
+        return `o incidente ${citar(proposta.incidente)} foi marcado como já resolvido, e nenhuma ação é aplicada nele`;
+      }
+      if (
+        dados.incidente !== proposta.incidente ||
+        dados.acao !== proposta.view.acao ||
+        dados.alvo !== proposta.view.alvo ||
+        !iguais(dados.parametros, proposta.parametros) ||
+        dados.estado !== "aplicada"
+      ) {
+        return `a execução ${citar(dados.id)} não é a aplicação do que a proposta ${citar(dados.proposta)} descreve`;
+      }
+      const view: ExecucaoView = { id: dados.id, estado: "aplicada", aplicadaEm: dados.aplicada_em, desfeitaEm: null, efeitos: [] };
+      estado.execucoes.set(dados.id, { dados, view });
+      proposta.view.execucoes.push(view);
+      proposta.view.estado = "executada";
+      return null;
+    }
+    case "acao_desfeita": {
+      const dados = evento.dados;
+      const aplicada = estado.execucoes.get(dados.id);
+      if (!aplicada) {
+        return `a execução ${citar(dados.id)} não existe até este ponto`;
+      }
+      if (aplicada.dados.estado !== "aplicada") {
+        return `a execução ${citar(dados.id)} já foi desfeita`;
+      }
+      if (dados.desfeita_em === null || !iguais(dados, { ...aplicada.dados, estado: "desfeita", desfeita_em: dados.desfeita_em })) {
+        return `a execução ${citar(dados.id)} desfeita não é a mesma que foi aplicada`;
+      }
+      aplicada.dados = dados;
+      aplicada.view.estado = "desfeita";
+      aplicada.view.desfeitaEm = dados.desfeita_em;
+      const proposta = estado.propostas.get(dados.proposta);
+      if (proposta) {
+        proposta.view.estado = "desfeita";
+      }
+      return null;
+    }
+    case "efeito_verificado": {
+      const dados = evento.dados;
+      const execucao = estado.execucoes.get(dados.execucao);
+      if (!execucao) {
+        return `a execução ${citar(dados.execucao)} não existe até este ponto`;
+      }
+      if (dados.incidente !== execucao.dados.incidente) {
+        return `o efeito é de outro incidente que o da execução ${citar(dados.execucao)}`;
+      }
+      execucao.view.efeitos.push({ instante: evento.instante, resultado: dados.resultado, observacao: dados.observacao });
+      return null;
+    }
+    case "recomendacao_emitida":
+      for (const citada of evento.dados.propostas) {
+        const proposta = estado.propostas.get(citada);
+        if (!proposta) {
+          return `cita a proposta ${citar(citada)}, que não existe até este ponto`;
+        }
+        if (proposta.incidente !== evento.incidente) {
+          return `cita a proposta ${citar(citada)}, que é de outro incidente`;
+        }
+      }
+      return null;
+    case "catalogo_ampliado": {
+      const dados = evento.dados;
+      const proposta = estado.propostas.get(dados.proposta);
+      if (!proposta) {
+        return `a proposta ${citar(dados.proposta)} não existe até este ponto`;
+      }
+      if (evento.incidente !== proposta.incidente) {
+        return `a proposta ${citar(dados.proposta)} é de outro incidente`;
+      }
+      const nome = dados.acao.nome;
+      if (BASE.has(nome) || estado.promovidas.has(nome)) {
+        return `a ação ${citar(nome)} já está no catálogo`;
+      }
+      const view = proposta.view;
+      if (!view.nova || view.estado !== "executada" || nome !== view.acao || dados.acao.origem !== "promovida") {
+        return `a proposta ${citar(dados.proposta)} não é de uma ação nova aplicada, com o mesmo nome`;
+      }
+      estado.promovidas.add(nome);
+      view.promovida = true;
+      return null;
+    }
+    default:
+      return null;
+  }
+}
+
+/** Uma proposta só entra no estado como o servidor a teria criado (`_conferir_proposta_nova`). */
+function aplicarProposta(estado: Estado, evento: Extract<Evento, { tipo: "acao_proposta" }>): string | null {
+  const dados = evento.dados;
+  const id = citar(dados.id);
+  if (estado.propostas.has(dados.id)) {
+    return `a proposta ${id} já existe`;
+  }
+  if (!estado.incidentes.has(dados.incidente)) {
+    return `a proposta ${id} cita um incidente que não existe até este ponto`;
+  }
+  if (estado.resolvidos.has(dados.incidente)) {
+    return `a proposta ${id} é de incidente marcado como já resolvido, que não recebe proposta`;
+  }
+  const deRiscoAlto = dados.risco === "alto";
+  if (dados.exige_aprovacao !== deRiscoAlto) {
+    return `a proposta ${id} tem risco ${dados.risco} e exige_aprovacao ${dados.exige_aprovacao}`;
+  }
+  const inicial = deRiscoAlto ? "aguardando_aprovacao" : "liberada";
+  if (dados.estado !== inicial) {
+    return `a proposta ${id}, de risco ${dados.risco}, nasce como ${inicial}, e não como ${dados.estado}`;
+  }
+  if (!deRiscoAlto && (!BASE.has(dados.acao) || SEMPRE_ALTO.has(dados.acao))) {
+    return `a proposta ${id} vem como de risco baixo, e a ação dela é sempre de risco alto`;
+  }
+  if (dados.nova !== (!BASE.has(dados.acao) && !estado.promovidas.has(dados.acao))) {
+    return `a proposta ${id} vem com nova = ${dados.nova}, o que não confere com o catálogo`;
+  }
+  if (
+    dados.alvo_com_rotulo !== null &&
+    (!ALVO_COM_ROTULO.test(dados.alvo_com_rotulo) || resolverRotulo(estado, dados.incidente, dados.alvo_com_rotulo) !== dados.alvo)
+  ) {
+    return `a proposta ${id} traz um rótulo que não dá o alvo dela no incidente`;
+  }
+  // Os motivos são texto do sistema na tela de aprovação: existem se e só se o risco é alto, não se
+  // repetem e trazem a frase do contrato, e não outra.
+  const codigos = dados.motivos_de_risco_alto.map((motivo) => motivo.codigo);
+  if ((codigos.length > 0) !== deRiscoAlto) {
+    return `a proposta ${id} é de risco ${dados.risco} e ${codigos.length > 0 ? "traz" : "não traz"} motivo de risco alto`;
+  }
+  if (new Set(codigos).size !== codigos.length) {
+    return `a proposta ${id} repete um motivo de risco alto`;
+  }
+  if (dados.motivos_de_risco_alto.some((motivo) => motivo.descricao !== MOTIVOS_DE_RISCO_ALTO[motivo.codigo])) {
+    return `a proposta ${id} traz um motivo de risco alto com uma frase que não é a do contrato`;
+  }
+  estado.propostas.set(dados.id, {
+    incidente: dados.incidente,
+    parametros: dados.parametros,
+    view: {
+      id: dados.id,
+      acao: dados.acao,
+      alvo: dados.alvo,
+      alvoComRotulo: dados.alvo_com_rotulo,
+      justificativa: dados.justificativa,
+      nova: dados.nova,
+      risco: dados.risco,
+      exigeAprovacao: dados.exige_aprovacao,
+      motivosDeRiscoAlto: codigos,
+      estado: inicial,
+      criadaEm: evento.instante,
+      decisoes: [],
+      execucoes: [],
+      promovida: false,
+    },
+  });
+  return null;
+}
+
+interface Montagem extends Omit<IncidenteView, "incidente"> {
+  incidente: Incidente;
+}
+
+/**
+ * Reconstrói o estado com as regras do `reconstruir` de `codigo/mcp/acoes.py`, agrupa os eventos
+ * por incidente e soma os contadores globais. Espera os eventos na ordem do `id`, como saem de
+ * `lerLog`.
  *
- * Um incidente só entra na fila se o log tem o evento de abertura dele. Eventos que citam outro
- * incidente ficam contados à parte (`eventosSemAbertura`). Um evento que não cabe no estado em
- * que aparece não muda esse estado e gera um aviso, mas continua no histórico.
+ * O Python recusa o log inteiro no primeiro evento fora de lugar. A interface mostra o que dá: o
+ * evento que não cabe no estado em que aparece não muda nada, não entra no histórico e gera um
+ * aviso com o id dele. Um evento cujo incidente não estava aberto naquele ponto fica fora da fila,
+ * contado à parte. As regras de estado valem para todo evento; o campo `incidente` só diz em que
+ * linha da fila ele aparece.
  */
 export function agregar(eventos: Evento[]): Agregado {
   const avisos: string[] = [];
-  const abertos = new Set(
-    eventos.filter((evento) => evento.tipo === "incidente_aberto").map((evento) => evento.incidente as string),
-  );
+  const estado: Estado = {
+    incidentes: new Map(),
+    rotulos: new Map(),
+    resolvidos: new Map(),
+    propostas: new Map(),
+    execucoes: new Map(),
+    promovidas: new Set(),
+  };
   const montagens = new Map<string, Montagem>();
-  const propostas = new Map<string, PropostaView>();
-  const execucoes = new Map<string, ExecucaoView>();
-  const semAbertura = new Map<string, number>();
+  const semAbertura = new Map<string, string[]>();
   let janelasClassificadas = 0;
   let chamadasLLM = 0;
   let tokens = 0;
@@ -156,11 +470,18 @@ export function agregar(eventos: Evento[]): Agregado {
       chamadasLLM += 1;
       tokens += evento.dados.tokens_entrada + evento.dados.tokens_saida;
     }
+
+    const problema = aplicar(estado, evento);
+    if (problema) {
+      avisos.push(`Evento ${citar(evento.id)} (${evento.tipo}) ignorado: ${problema}.`);
+      continue;
+    }
     if (evento.incidente === null) {
       continue;
     }
-    if (!abertos.has(evento.incidente)) {
-      semAbertura.set(evento.incidente, (semAbertura.get(evento.incidente) ?? 0) + 1);
+    const incidente = estado.incidentes.get(evento.incidente);
+    if (!incidente) {
+      semAbertura.set(evento.incidente, [...(semAbertura.get(evento.incidente) ?? []), evento.id]);
       continue;
     }
 
@@ -168,8 +489,8 @@ export function agregar(eventos: Evento[]): Agregado {
     if (!montagem) {
       montagem = {
         id: evento.incidente,
-        incidente: null,
-        abertoEm: "",
+        incidente,
+        abertoEm: evento.instante,
         eventos: [],
         chamadasLLM: 0,
         tokensEntrada: 0,
@@ -180,199 +501,51 @@ export function agregar(eventos: Evento[]): Agregado {
       };
       montagens.set(evento.incidente, montagem);
     }
+    montagem.incidente = incidente;
     montagem.eventos.push(evento);
-    const onde = `${evento.id} (${evento.tipo})`;
-
     switch (evento.tipo) {
-      case "incidente_aberto":
-        if (montagem.incidente) {
-          avisos.push(`${onde}: o incidente ${montagem.id} já tinha sido aberto. O evento foi ignorado.`);
-        } else {
-          montagem.incidente = evento.dados;
-          montagem.abertoEm = evento.instante;
-        }
-        break;
-      case "incidente_atualizado":
-      case "incidente_encerrado":
-        if (!montagem.incidente) {
-          avisos.push(`${onde}: vem antes da abertura do incidente ${montagem.id}. O evento foi ignorado.`);
-        } else if (montagem.incidente.estado === "encerrado") {
-          avisos.push(`${onde}: o incidente ${montagem.id} já estava encerrado. O evento foi ignorado.`);
-        } else {
-          montagem.incidente = evento.dados;
-        }
-        break;
       case "llm_chamada":
         montagem.chamadasLLM += 1;
         montagem.tokensEntrada += evento.dados.tokens_entrada;
         montagem.tokensSaida += evento.dados.tokens_saida;
         break;
-      case "recomendacao_emitida": {
+      case "recomendacao_emitida":
         montagem.recomendacoes.push(evento);
-        const desconhecidas = evento.dados.propostas.filter((id) => !propostas.has(id));
-        if (desconhecidas.length > 0) {
-          avisos.push(`${onde}: cita proposta que não existe até este ponto (${desconhecidas.join(", ")}).`);
-        }
         break;
-      }
-      case "acao_proposta": {
-        const dados = evento.dados;
-        if (propostas.has(dados.id)) {
-          avisos.push(`${onde}: a proposta ${dados.id} já existe. O evento foi ignorado.`);
-          break;
-        }
-        // Como no `reconstruir`, o estado gravado não é aceito como veio: a proposta nasce
-        // aguardando aprovação se é de risco alto, e liberada se é de risco baixo. Se o que veio
-        // não confere, ela fica aguardando aprovação, que é o lado seguro.
-        const deRiscoAlto = dados.risco === "alto";
-        const confere =
-          dados.exige_aprovacao === deRiscoAlto &&
-          dados.estado === (deRiscoAlto ? "aguardando_aprovacao" : "liberada") &&
-          (dados.motivos_de_risco_alto.length > 0) === deRiscoAlto;
-        if (!confere) {
-          avisos.push(`${onde}: a proposta ${dados.id} não confere com o próprio risco. Ela fica aguardando aprovação.`);
-        }
-        const proposta: PropostaView = {
-          id: dados.id,
-          acao: dados.acao,
-          alvo: dados.alvo,
-          justificativa: dados.justificativa,
-          nova: dados.nova,
-          risco: dados.risco,
-          exigeAprovacao: dados.exige_aprovacao || !confere,
-          motivosDeRiscoAlto: dados.motivos_de_risco_alto,
-          estado: confere && !deRiscoAlto ? "liberada" : "aguardando_aprovacao",
-          criadaEm: evento.instante,
-          decisoes: [],
-          execucoes: [],
-          promovida: false,
-        };
-        propostas.set(proposta.id, proposta);
-        montagem.propostas.push(proposta);
+      case "acao_proposta":
+        montagem.propostas.push(estado.propostas.get(evento.dados.id)!.view);
         break;
-      }
-      case "acao_aprovada":
-      case "acao_rejeitada": {
-        const proposta = propostas.get(evento.dados.proposta);
-        if (!proposta) {
-          avisos.push(`${onde}: a proposta ${evento.dados.proposta} não existe até este ponto.`);
-        } else if (proposta.estado !== "aguardando_aprovacao") {
-          avisos.push(`${onde}: a proposta ${proposta.id} não aguarda aprovação (está ${proposta.estado}).`);
-        } else {
-          proposta.estado = evento.tipo === "acao_aprovada" ? "liberada" : "rejeitada";
-          proposta.decisoes.push({
-            tipo: evento.tipo,
-            instante: evento.instante,
-            canal: evento.dados.canal,
-            motivo: evento.dados.motivo,
-          });
-        }
-        break;
-      }
-      case "acao_executada": {
-        const dados = evento.dados;
-        const proposta = propostas.get(dados.proposta);
-        if (!proposta) {
-          avisos.push(`${onde}: a proposta ${dados.proposta} não existe até este ponto.`);
-        } else if (execucoes.has(dados.id)) {
-          avisos.push(`${onde}: a execução ${dados.id} já existe.`);
-        } else if (proposta.estado !== "liberada") {
-          avisos.push(`${onde}: a proposta ${proposta.id} não está liberada (está ${proposta.estado}).`);
-        } else if (dados.acao !== proposta.acao || dados.alvo !== proposta.alvo || dados.estado !== "aplicada") {
-          avisos.push(`${onde}: a execução ${dados.id} não aplica o que a proposta ${proposta.id} descreve.`);
-        } else {
-          const execucao: ExecucaoView = {
-            id: dados.id,
-            estado: "aplicada",
-            aplicadaEm: dados.aplicada_em,
-            desfeitaEm: null,
-            efeitos: [],
-          };
-          execucoes.set(execucao.id, execucao);
-          proposta.execucoes.push(execucao);
-          proposta.estado = "executada";
-        }
-        break;
-      }
-      case "acao_desfeita": {
-        const execucao = execucoes.get(evento.dados.id);
-        if (!execucao) {
-          avisos.push(`${onde}: a execução ${evento.dados.id} não existe até este ponto.`);
-        } else if (execucao.estado !== "aplicada" || evento.dados.desfeita_em === null) {
-          avisos.push(`${onde}: a execução ${execucao.id} já foi desfeita ou vem sem o instante.`);
-        } else {
-          execucao.estado = "desfeita";
-          execucao.desfeitaEm = evento.dados.desfeita_em;
-          const proposta = propostas.get(evento.dados.proposta);
-          if (proposta) {
-            proposta.estado = "desfeita";
-          }
-        }
-        break;
-      }
-      case "efeito_verificado": {
-        const execucao = execucoes.get(evento.dados.execucao);
-        if (!execucao) {
-          avisos.push(`${onde}: a execução ${evento.dados.execucao} não existe até este ponto.`);
-        } else {
-          execucao.efeitos.push({
-            instante: evento.instante,
-            resultado: evento.dados.resultado,
-            observacao: evento.dados.observacao,
-          });
-        }
-        break;
-      }
-      case "catalogo_ampliado": {
-        const proposta = propostas.get(evento.dados.proposta);
-        if (!proposta) {
-          avisos.push(`${onde}: a proposta ${evento.dados.proposta} não existe até este ponto.`);
-        } else if (!proposta.nova || proposta.estado !== "executada") {
-          avisos.push(`${onde}: a proposta ${proposta.id} não é de uma ação nova aplicada.`);
-        } else {
-          proposta.promovida = true;
-        }
-        break;
-      }
-      case "incidente_marcado_resolvido": {
-        const marcacao: MarcacaoView = {
+      case "incidente_marcado_resolvido":
+        montagem.marcacao = {
           instante: evento.instante,
           canal: evento.dados.canal,
           usuario: evento.dados.usuario,
-          motivo: evento.dados.motivo ?? null,
+          motivo: evento.dados.motivo,
         };
-        // Vale a primeira marca. Uma segunda fica só no histórico.
-        montagem.marcacao ??= marcacao;
         break;
-      }
       default:
         break;
     }
   }
 
-  const incidentes: IncidenteView[] = [];
-  for (const montagem of montagens.values()) {
-    // Todo incidente que chega aqui tem abertura no log; a checagem só satisfaz os tipos.
-    if (montagem.incidente) {
-      incidentes.push({ ...montagem, incidente: montagem.incidente });
-    }
-  }
-  const eventosSemAbertura = Array.from(semAbertura.values()).reduce((soma, quantos) => soma + quantos, 0);
+  const eventosSemAbertura = Array.from(semAbertura.values()).flat();
   const incidentesSemAbertura = Array.from(semAbertura.keys());
-  if (eventosSemAbertura > 0) {
+  if (eventosSemAbertura.length > 0) {
     avisos.push(
-      `${eventosSemAbertura} evento(s) de incidente sem abertura no log ` +
-        `(${incidentesSemAbertura.slice(0, LINHAS_POR_AVISO).join(", ")}): ficam fora da fila e não contam como incidente.`,
+      `${eventosSemAbertura.length} evento(s) citam incidente que não estava aberto naquele ponto do log ` +
+        `(${citarLista(incidentesSemAbertura.map(citar))}; eventos ${citarLista(eventosSemAbertura.map(citar))}). ` +
+        "Ficam fora da fila e não contam como incidente.",
     );
   }
 
+  const incidentes = Array.from(montagens.values());
   return {
     resumo: {
       janelasClassificadas,
       totalIncidentes: incidentes.length,
       chamadasLLM,
       tokens,
-      eventosSemAbertura,
+      eventosSemAbertura: eventosSemAbertura.length,
       incidentesSemAbertura,
     },
     incidentes,
