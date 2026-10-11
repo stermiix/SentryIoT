@@ -19,13 +19,16 @@ O que o comando faz:
    captura, quadros fora do filtro por tipo e tamanhos de quadro fora do que passa no fio.
 3. Correspondência. (a) A fração das linhas de cada pcap que têm par no rótulo dele, por
    multiconjunto: cada linha do `MERGED_CSV` serve de par a uma linha nossa só. (b) A fração das
-   linhas de cada rótulo no `MERGED_CSV` cobertas pelos pcaps daquele rótulo. Para as linhas sem
-   par, se casariam ignorando as colunas de tempo ou as de tamanho; os pedaços de 10 MB com menos
-   da metade das linhas com par; e o rótulo em que as linhas do pcap mais aparecem fora do próprio.
-4. Controle do vizinho mais próximo. Uma amostra das linhas sem par de cada pcap é comparada,
-   coluna a coluna, com a linha mais parecida do mesmo rótulo no `MERGED_CSV`. Se o vizinho difere
-   em `Rate` e `IAT` e em geral em outras colunas, a linha sem par é outra janela, que falta no
-   `MERGED_CSV`, e não uma janela calculada de outro jeito.
+   linhas de cada rótulo no `MERGED_CSV` cobertas pelos pcaps daquele rótulo. A cobertura (b) de
+   100% nos rótulos de que temos todas as capturas é a prova de que o cálculo é o dos autores: uma
+   divergência em qualquer janela deixaria uma linha do `MERGED_CSV` sem par. Também: a fração (a)
+   nas linhas únicas, sem a ajuda das linhas repetidas dos floods; o que o `MERGED_CSV` tem de igual
+   a cada linha sem par (a mesma linha, uma igual fora as colunas de tempo ou fora as de tamanho);
+   os pedaços de 10 MB com menos da metade das linhas com par; e o rótulo em que as linhas do pcap
+   mais aparecem fora do próprio.
+4. Controle do vizinho mais próximo. Uma amostra das linhas sem par que nenhuma daquelas
+   igualdades explica é comparada, coluna a coluna, com a linha mais parecida do mesmo rótulo no
+   `MERGED_CSV`, procurada entre todas as linhas com a mesma chave grossa. Só ilustra.
 5. Leitura contínua contra fatiada: quantas linhas da leitura contínua têm par no `MERGED_CSV` e
    quanto as distribuições das 39 colunas se afastam (estatística de Kolmogorov-Smirnov).
 
@@ -36,7 +39,7 @@ e mistura os 39 valores num hash de 64 bits. O `MERGED_CSV` escreve os números 
 por isso a chave é sobre o valor numérico, e não sobre o texto.
 
 Os dados intermediários ficam em `--trabalho`, fora do git, e são reaproveitados numa execução
-seguinte enquanto os arquivos e o código do extrator não mudarem. A saída, em `--saida`, é o
+seguinte enquanto os arquivos e o código que gera cada um não mudarem. A saída, em `--saida`, é o
 relatório `calibracao_conjunto.md`, as tabelas por pcap e por rótulo e o manifesto, com o
 SHA-256 de cada pcap e de cada arquivo do `MERGED_CSV`.
 
@@ -49,6 +52,7 @@ import array
 import csv
 import datetime
 import hashlib
+import inspect
 import io
 import json
 import platform
@@ -77,6 +81,7 @@ from codigo.captura.extrator import (
     nome_do_tipo,
     tipo_ethernet,
 )
+from codigo.classificador import mapeamento
 from codigo.classificador.atacantes import rotulo_do_pcap
 from codigo.classificador.mapeamento import CATEGORIA_DO_ROTULO, normalizar
 
@@ -85,7 +90,8 @@ TABELA_PCAPS = "calibracao_conjunto_pcaps.csv"
 TABELA_ROTULOS = "calibracao_conjunto_rotulos.csv"
 MANIFESTO = "manifesto_calibracao_conjunto.json"
 TRABALHO = "dados/processed/calibracao_conjunto"
-# Muda quando a forma de extrair muda, para invalidar as extrações guardadas em --trabalho.
+# Entram no resumo do código que invalida o que está guardado em --trabalho (versao_da_extracao e
+# versao_do_indice), junto com o texto das funções que geram cada dado.
 VERSAO_EXTRACAO = 1
 VERSAO_INDICE = 1
 
@@ -235,7 +241,8 @@ def construir_indice(pasta_merged, destino):
             np.save(destino / f"{rotulo}__{variante}.npy", np.sort(np.concatenate(pedacos)))
         rotulos.clear()
     resumo = {
-        "versao": VERSAO_INDICE, "bits_mantidos": BITS_MANTIDOS, "pasta": Path(pasta_merged).as_posix(),
+        "versao_do_codigo": versao_do_indice(), "bits_mantidos": BITS_MANTIDOS,
+        "pasta": Path(pasta_merged).as_posix(),
         "arquivos": arquivos, "linhas": sum(por_rotulo.values()), "por_rotulo": dict(sorted(por_rotulo.items())),
         "segundos": round(time.perf_counter() - inicio, 1),
     }
@@ -251,7 +258,7 @@ def indice_valido(pasta_merged, destino):
         return None
     atuais = [{"arquivo": c.name, **_identidade(c)} for c in _arquivos_merged(pasta_merged)]
     guardados = [{chave: a[chave] for chave in ("arquivo", "bytes", "modificado_ns")} for a in resumo["arquivos"]]
-    if (resumo.get("versao"), resumo.get("bits_mantidos")) != (VERSAO_INDICE, BITS_MANTIDOS) or atuais != guardados:
+    if resumo.get("versao_do_codigo") != versao_do_indice() or atuais != guardados:
         return None
     return resumo
 
@@ -376,12 +383,36 @@ def extrair_pcap(caminho, janela, limite=LIMITE_PEDACO):
     return fatiada, np.frombuffer(pedacos_das_linhas, dtype=np.int32).copy(), continua, registro
 
 
-def versao_do_codigo():
-    """SHA-256 do código que decide os números extraídos, para invalidar as extrações guardadas."""
-    sha = hashlib.sha256(str(VERSAO_EXTRACAO).encode())
-    for modulo in (extrator, calibrar):
-        sha.update(Path(modulo.__file__).read_bytes())
+def _resumo_do_codigo(*partes):
+    """SHA-256 de textos, arquivos de código e do código-fonte de funções e classes."""
+    sha = hashlib.sha256()
+    for parte in partes:
+        if isinstance(parte, Path):
+            sha.update(parte.read_bytes())
+        elif isinstance(parte, str):
+            sha.update(parte.encode())
+        else:
+            sha.update(inspect.getsource(parte).encode())
     return sha.hexdigest()
+
+
+def versao_da_extracao():
+    """Resumo do código que decide os números extraídos de um pcap: o extrator, o fatiamento, a
+    janela da classe e o rótulo do pcap. Muda quando algum deles muda, e a extração é refeita."""
+    return _resumo_do_codigo(
+        str(VERSAO_EXTRACAO), Path(extrator.__file__), Path(calibrar.__file__), Path(mapeamento.__file__),
+        extrair_pcap, _guardar, _matriz, _LeituraComHash, cabecalho_pcap, janela_da_classe, processar_pcap,
+        rotulo_do_pcap,
+    )
+
+
+def versao_do_indice():
+    """Resumo do código que decide os hashes do índice: a leitura do MERGED_CSV, a normalização dos
+    rótulos e a chave. Muda quando algum deles muda, e o índice é refeito."""
+    return _resumo_do_codigo(
+        str(VERSAO_INDICE), str(BITS_MANTIDOS), repr(VARIANTES), _CONSTANTES.tobytes().hex(),
+        Path(mapeamento.__file__), ler_merged, quantizar, _misturar, hashes, construir_indice,
+    )
 
 
 def _arquivos_da_extracao(trabalho, caminho):
@@ -434,19 +465,30 @@ def ks(a, b):
     if not len(a) or not len(b):
         return 0.0
     pontos = np.concatenate([a, b])
-    return float(np.max(np.abs(np.searchsorted(a, pontos, "right") / len(a) - np.searchsorted(b, pontos, "right") / len(b))))
+    acumulada_a = np.searchsorted(a, pontos, "right") / len(a)
+    acumulada_b = np.searchsorted(b, pontos, "right") / len(b)
+    return float(np.max(np.abs(acumulada_a - acumulada_b)))
 
 
 def casar_pcap(fatiada, pedacos, continua, rotulo, janela, indice, pasta_indice):
     """Mede o pcap contra o índice. `indice` traz, por rótulo, os hashes ordenados de todas as colunas.
 
-    Devolve as medidas do pcap e a máscara das linhas fatiadas que têm par.
+    Devolve as medidas do pcap, a máscara das linhas fatiadas que têm par e a das linhas sem par
+    da classe "outras" (`classificar_sem_par`).
     """
     quantizados = quantizar(fatiada)
     h = hashes(quantizados)
     deles = indice.get(rotulo, np.empty(0, dtype=np.uint64))
     com_par, mascara = contar_comuns(h, deles)
     sem = ~mascara
+    classes = classificar_sem_par(quantizados[sem], rotulo, pasta_indice)
+    outras = np.zeros(len(h), dtype=bool)
+    outras[np.flatnonzero(sem)[classes == "outras"]] = True
+    # Linha única: aparece uma vez no pcap e no máximo uma vez no MERGED_CSV. Nela, a fração com
+    # par não ganha nada das linhas repetidas dos floods.
+    _, inverso, nossas = np.unique(h, return_inverse=True, return_counts=True)
+    no_merged = np.searchsorted(deles, h, "right") - np.searchsorted(deles, h, "left")
+    unicas = (nossas[inverso] == 1) & (no_merged <= 1)
     casam = {}
     for variante in ("sem_tempo", "sem_tamanho"):
         if sem.any():
@@ -474,6 +516,8 @@ def casar_pcap(fatiada, pedacos, continua, rotulo, janela, indice, pasta_indice)
         "linhas": n, "com_par": com_par, "fracao_com_par": com_par / n if n else None, "sem_par": int(sem.sum()),
         "sem_par_incompletas": int((sem & incompletas).sum()), "linhas_incompletas": int(incompletas.sum()),
         "sem_par_casam_sem_tempo": casam["sem_tempo"], "sem_par_casam_sem_tamanho": casam["sem_tamanho"],
+        **{campo: int((classes == classe).sum()) for classe, campo in CAMPO_DA_CLASSE.items()},
+        "linhas_unicas": int(unicas.sum()), "com_par_unicas": int((unicas & mascara).sum()),
         "outro_rotulo": melhor, "fracao_no_outro_rotulo": melhor_fracao,
         "pedacos_com_menos_da_metade": ruins,
         "continua": {
@@ -484,7 +528,7 @@ def casar_pcap(fatiada, pedacos, continua, rotulo, janela, indice, pasta_indice)
             "maior_ks": maior_ks, "coluna_do_maior_ks": coluna_ks,
         },
     }
-    return medidas, mascara
+    return medidas, mascara, outras
 
 
 def cobertura(hashes_por_rotulo, indice, linhas_por_rotulo):
@@ -501,91 +545,101 @@ def cobertura(hashes_por_rotulo, indice, linhas_por_rotulo):
     return resultado
 
 
-# --- controle do vizinho mais próximo ---------------------------------------------------------
+# --- linhas sem par e controle do vizinho mais próximo ---------------------------------------
+
+# Classes das linhas sem par, pelo que o MERGED_CSV do rótulo tem de igual a elas, na ordem em que
+# são testadas: a mesma linha (que já serviu de par a outra linha nossa igual), uma linha igual
+# fora as colunas de tempo, uma igual fora as de tamanho, ou nada disso.
+CLASSES_SEM_PAR = ("repetida", "so_tempo", "so_tamanho", "outras")
+CAMPO_DA_CLASSE = {
+    "repetida": "sem_par_repetidas", "so_tempo": "sem_par_so_tempo", "so_tamanho": "sem_par_so_tamanho",
+    "outras": "sem_par_outras",
+}
+
+
+def classificar_sem_par(quantizadas, rotulo, pasta_indice):
+    """A classe de cada linha sem par, entre CLASSES_SEM_PAR, pela presença no índice do rótulo."""
+    classes = np.full(len(quantizadas), "outras", dtype=object)
+    livres = np.ones(len(quantizadas), dtype=bool)
+    for classe, variante in (("repetida", "todas"), ("so_tempo", "sem_tempo"), ("so_tamanho", "sem_tamanho")):
+        if not livres.any():
+            break
+        ordenado = carregar_indice(pasta_indice, rotulo, variante)
+        achadas = livres & presentes(hashes(quantizadas, VARIANTES[variante]), ordenado)
+        classes[achadas] = classe
+        livres &= ~achadas
+    return classes
+
 
 _I = {coluna: j for j, coluna in enumerate(COLUNAS)}
-# Duas chaves grossas para achar candidatos: tamanhos e Number, ou protocolo, contagens e Number.
+# Duas chaves grossas para achar candidatas: tamanhos e Number, ou protocolo, contagens e Number.
 CHAVES_GROSSAS = {
     "tamanhos": tuple(_I[c] for c in ("Number", "Tot sum", "Min", "Max")),
     "protocolo": tuple(_I[c] for c in ("Number", "Protocol Type", "ack_count", "syn_count", "fin_count", "rst_count")),
 }
-CANDIDATOS_POR_CHAVE = 64
-
-
-def colunas_diferentes(linha, candidatos):
-    """Máscara (k, 39) das colunas em que cada candidato difere da linha, com a tolerância do calibrador."""
-    iguais = np.isclose(candidatos, linha[None, :], rtol=calibrar.TOLERANCIA, atol=calibrar.TOLERANCIA_ABSOLUTA,
-                        equal_nan=True)
-    return ~iguais
+# Desfechos da comparação com o vizinho mais próximo.
+DESFECHOS = ("tempo_e_outras", "outras_sem_tempo", "sem_candidato")
+_TEMPO = np.array([coluna in TEMPO for coluna in COLUNAS])
 
 
 def vizinhos(pasta_merged, amostras):
-    """Compara cada linha sem par com a linha mais parecida do mesmo rótulo no MERGED_CSV.
+    """Compara cada linha com a linha mais parecida do mesmo rótulo no MERGED_CSV.
 
-    `amostras` é {arquivo: (rótulo, matriz das linhas sem par)}. Percorre o MERGED_CSV uma vez,
-    guardando até CANDIDATOS_POR_CHAVE linhas por chave grossa. Devolve, por arquivo, a contagem
-    das linhas por desfecho e das colunas que diferem no vizinho mais próximo.
+    `amostras` é {arquivo: (rótulo, matriz de linhas)}, em geral linhas sem par da classe "outras".
+    As candidatas são todas as linhas do rótulo com a mesma chave grossa, sem limite; a mais
+    parecida é a que difere em menos colunas, comparando os valores arredondados da chave (cerca
+    de 9 algarismos). O MERGED_CSV é percorrido uma vez, e de cada linha procurada só se guarda a
+    melhor candidata até ali. Devolve, por arquivo, os desfechos, as colunas que diferem no vizinho
+    mais próximo e quantas colunas diferem.
     """
-    procura = defaultdict(lambda: defaultdict(set))  # rótulo -> chave -> hashes procurados
-    for rotulo, linhas in amostras.values():
+    procuradas = defaultdict(list)  # rótulo -> [(arquivo, quantizadas, chaves por nome)]
+    melhores = {}
+    for arquivo, (rotulo, linhas) in amostras.items():
+        quantizadas = quantizar(linhas) if len(linhas) else np.empty((0, len(COLUNAS)), dtype=np.uint64)
+        chaves = {nome: hashes(quantizadas, colunas) for nome, colunas in CHAVES_GROSSAS.items()}
+        melhores[arquivo] = (np.full(len(linhas), len(COLUNAS) + 1), np.zeros((len(linhas), len(COLUNAS)), bool))
         if len(linhas):
-            quantizadas = quantizar(linhas)
-            for nome, colunas in CHAVES_GROSSAS.items():
-                procura[rotulo][nome].update(int(x) for x in hashes(quantizadas, colunas))
-    candidatos = defaultdict(list)
-    alvos = {
-        rotulo: {nome: np.array(sorted(chaves), dtype=np.uint64) for nome, chaves in por_chave.items()}
-        for rotulo, por_chave in procura.items()
-    }
-    if alvos:
+            procuradas[rotulo].append((arquivo, quantizadas, chaves))
+    if procuradas:
         for caminho in _arquivos_merged(pasta_merged):
             valores, rotulos, *_ = ler_merged(caminho)
-            for rotulo, por_chave in alvos.items():
-                do_rotulo = valores[rotulos == rotulo]
-                quantizadas = quantizar(do_rotulo)
+            for rotulo, itens in procuradas.items():
+                deles = quantizar(valores[rotulos == rotulo])
+                if not len(deles):
+                    continue
                 for nome, colunas in CHAVES_GROSSAS.items():
-                    alvo = por_chave[nome]
-                    h = hashes(quantizadas, colunas)
-                    for j in np.flatnonzero(np.isin(h, alvo)):
-                        lista = candidatos[rotulo, nome, int(h[j])]
-                        if len(lista) < CANDIDATOS_POR_CHAVE:
-                            lista.append(do_rotulo[j].copy())
+                    h = hashes(deles, colunas)
+                    ordem = np.argsort(h, kind="stable")
+                    ordenado = h[ordem]
+                    for arquivo, quantizadas, chaves in itens:
+                        contagem, mascaras = melhores[arquivo]
+                        inicio = np.searchsorted(ordenado, chaves[nome], "left")
+                        fim = np.searchsorted(ordenado, chaves[nome], "right")
+                        for i in np.flatnonzero(fim > inicio):
+                            diferentes = deles[ordem[inicio[i] : fim[i]]] != quantizadas[i]
+                            quantas = diferentes.sum(axis=1)
+                            j = int(np.argmin(quantas))
+                            if quantas[j] < contagem[i]:
+                                contagem[i] = quantas[j]
+                                mascaras[i] = diferentes[j]
             print(f"vizinhos: {caminho.name}", file=sys.stderr, flush=True)
     resultado = {}
-    tempo = np.array([c in TEMPO for c in COLUNAS])
-    for arquivo, (rotulo, linhas) in amostras.items():
-        desfechos, colunas = Counter(), Counter()
-        quantizadas = quantizar(linhas) if len(linhas) else None
-        for i, linha in enumerate(linhas):
-            achados = [
-                candidatos.get((rotulo, nome, int(hashes(quantizadas[i : i + 1], cols)[0])), [])
-                for nome, cols in CHAVES_GROSSAS.items()
-            ]
-            achados = [c for lista in achados for c in lista]
-            if not achados:
-                desfechos["sem_candidato"] += 1
-                continue
-            diferentes = colunas_diferentes(linha, np.array(achados))
-            melhor = diferentes[np.argmin(diferentes.sum(axis=1))]
-            colunas.update(c for c, d in zip(COLUNAS, melhor) if d)
-            if not melhor.any():
-                desfechos["igual"] += 1
-            elif not (melhor & ~tempo).any():
-                desfechos["so_tempo"] += 1
-            elif (melhor & tempo).any():
-                desfechos["tempo_e_outras"] += 1
-            else:
-                desfechos["outras_sem_tempo"] += 1
+    for arquivo, (contagem, mascaras) in melhores.items():
+        achado = contagem <= len(COLUNAS)
+        com_tempo = (mascaras & _TEMPO).any(axis=1)
         resultado[arquivo] = {
-            "examinadas": len(linhas),
-            **{chave: desfechos[chave] for chave in ("so_tempo", "tempo_e_outras", "outras_sem_tempo", "sem_candidato", "igual")},
-            "colunas": dict(colunas.most_common()),
+            "examinadas": len(contagem),
+            "tempo_e_outras": int((achado & com_tempo).sum()),
+            "outras_sem_tempo": int((achado & ~com_tempo).sum()),
+            "sem_candidato": int((~achado).sum()),
+            "colunas": dict(Counter({c: int(n) for c, n in zip(COLUNAS, mascaras[achado].sum(axis=0)) if n}).most_common()),
+            "colunas_diferentes": {str(n): int(q) for n, q in zip(*np.unique(contagem[achado], return_counts=True))},
         }
     return resultado
 
 
 def amostra_sem_par(fatiada, mascara, quantas, semente=0):
-    """Até `quantas` linhas sem par, sorteadas com semente fixa e na ordem do arquivo."""
+    """Até `quantas` linhas em que a máscara é falsa, sorteadas com semente fixa e na ordem do arquivo."""
     sem = np.flatnonzero(~mascara)
     if sem.size > quantas:
         sem = np.sort(np.random.default_rng(semente).choice(sem, quantas, replace=False))
@@ -608,7 +662,7 @@ def rodar(dataset, pasta_merged, trabalho, processos=3, vizinhos_por_pcap=200):
     trabalho = Path(trabalho)
     pcaps = listar_pcaps(dataset)
     _arquivos_merged(pasta_merged)  # sem o MERGED_CSV, nada é extraído
-    versao = versao_do_codigo()
+    versao = versao_da_extracao()
     destino_indice = trabalho / "indice"
     resumo_indice = indice_valido(pasta_merged, destino_indice)
     registros = {}
@@ -628,7 +682,9 @@ def rodar(dataset, pasta_merged, trabalho, processos=3, vizinhos_por_pcap=200):
     )
     with ProcessPoolExecutor(max_workers=processos) as executor:
         tarefa_indice = None if resumo_indice else executor.submit(construir_indice, pasta_merged, destino_indice)
-        tarefas = {executor.submit(processar_pcap, caminho, rotulo, trabalho, versao): caminho for caminho, rotulo in pendentes}
+        tarefas = {
+            executor.submit(processar_pcap, caminho, rotulo, trabalho, versao): caminho for caminho, rotulo in pendentes
+        }
         for tarefa, caminho in tarefas.items():
             registro = tarefa.result()
             registros[caminho.name] = registro
@@ -642,9 +698,12 @@ def rodar(dataset, pasta_merged, trabalho, processos=3, vizinhos_por_pcap=200):
     for caminho, rotulo in pcaps:
         registro = registros[caminho.name]
         fatiada, pedacos, continua = carregar_extracao(trabalho, caminho)
-        medidas, mascara = casar_pcap(fatiada, pedacos, continua, rotulo, registro["janela"], indice, destino_indice)
+        medidas, _, outras = casar_pcap(
+            fatiada, pedacos, continua, rotulo, registro["janela"], indice, destino_indice,
+        )
         hashes_por_rotulo[rotulo].append(hashes(quantizar(fatiada)))
-        amostras[caminho.name] = (rotulo, amostra_sem_par(fatiada, mascara, vizinhos_por_pcap))
+        # O vizinho só é procurado para as linhas sem par que o MERGED_CSV não explica por presença.
+        amostras[caminho.name] = (rotulo, amostra_sem_par(fatiada, ~outras, vizinhos_por_pcap))
         resultados.append({**{k: v for k, v in registro.items() if k != "versao_do_codigo"}, **medidas})
         print(f"casado: {caminho.name}, {_pct(medidas['fracao_com_par'])} com par", file=sys.stderr, flush=True)
     rotulos = cobertura(hashes_por_rotulo, indice, resumo_indice["por_rotulo"])
@@ -652,7 +711,8 @@ def rodar(dataset, pasta_merged, trabalho, processos=3, vizinhos_por_pcap=200):
     por_vizinho = vizinhos(pasta_merged, amostras) if vizinhos_por_pcap else {}
     for resultado in resultados:
         resultado["vizinho"] = por_vizinho.get(resultado["arquivo"])
-    return montar_manifesto(resultados, rotulos, resumo_indice, dataset, vizinhos_por_pcap, time.perf_counter() - inicio)
+    segundos = time.perf_counter() - inicio
+    return montar_manifesto(resultados, rotulos, resumo_indice, dataset, vizinhos_por_pcap, segundos)
 
 
 def montar_manifesto(pcaps, rotulos, resumo_indice, dataset, vizinhos_por_pcap, segundos):
@@ -671,10 +731,15 @@ def montar_manifesto(pcaps, rotulos, resumo_indice, dataset, vizinhos_por_pcap, 
         "limite_do_pedaco": LIMITE_PEDACO,
         "chave": {
             "bits_mantidos": BITS_MANTIDOS,
-            "variantes": {nome: [COLUNAS[j] for j in colunas] for nome, colunas in VARIANTES.items() if nome != "todas"},
+            "variantes": {
+                nome: [COLUNAS[j] for j in colunas] for nome, colunas in VARIANTES.items() if nome != "todas"
+            },
         },
         "vizinhos_por_pcap": vizinhos_por_pcap,
-        "merged_csv": {k: v for k, v in resumo_indice.items() if k not in ("versao", "segundos")},
+        # A calibração reproduz o código dos autores: as opções do quadro no fio ficam desligadas.
+        "preencher": False,
+        "limitar": False,
+        "merged_csv": {k: v for k, v in resumo_indice.items() if k not in ("versao_do_codigo", "segundos")},
         "pcaps": pcaps,
         "rotulos": rotulos,
         "segundos": round(segundos, 1),
@@ -761,6 +826,12 @@ def montar_relatorio(m):
     de_2048 = [p for p in pcaps if 2_048_000_000 <= p["bytes"] < 2_048_100_000]
     maior_ks = max((p["continua"]["maior_ks"] for p in pcaps), default=0.0)
     mais_lento = max((p["segundos"] for p in pcaps), default=0.0)
+    unicas = [p["com_par_unicas"] / p["linhas_unicas"] for p in pcaps if p["linhas_unicas"]]
+    estado = "ligada" if m["preencher"] else "desligada"
+    opcoes = (
+        "`--preencher` e `--limitar` desligadas" if not (m["preencher"] or m["limitar"]) else
+        f"`--preencher` {estado}, `--limitar` {'ligada' if m['limitar'] else 'desligada'}"
+    )
     linhas = [
         "# Calibração de conjunto do extrator",
         "",
@@ -782,15 +853,19 @@ def montar_relatorio(m):
             f"{len(merged['arquivos'])} arquivos do `MERGED_CSV`."
         ),
         (
-            f"- Em todos os pcaps, entre {_faixa([p['fracao_com_par'] for p in pcaps])} das nossas linhas têm par "
-            "exato, nas 39 colunas, entre as linhas do mesmo rótulo. "
-            + ("Nenhum pedaço de 10 MB fica com menos da metade das linhas com par." if not ruins else
-               f"Pcaps com pedaço de 10 MB com menos da metade das linhas com par: {', '.join(ruins)}.")
+            f"- Em {len(completos)} rótulos os nossos pcaps cobrem todas as linhas do `MERGED_CSV`: cada linha desses "
+            "rótulos tem par entre as nossas, e uma divergência do extrator em qualquer janela deles deixaria essa "
+            "cobertura abaixo de 100%. É a prova de que o cálculo é o dos autores. Do nosso lado, o `MERGED_CSV` "
+            f"traz {_pct(com_par_completos / linhas_completos if linhas_completos else None)} das nossas linhas "
+            "nesses rótulos; o que falta é a perda dos arquivos truncados na fonte oficial."
         ),
         (
-            f"- Em {len(completos)} rótulos os nossos pcaps cobrem todas as linhas do `MERGED_CSV`. Nesses, o "
-            f"`MERGED_CSV` traz {_pct(com_par_completos / linhas_completos if linhas_completos else None)} das nossas "
-            "linhas: o que falta é a perda dos arquivos truncados na fonte oficial (ver \"Como ler os números\")."
+            f"- Em todos os pcaps, entre {_faixa([p['fracao_com_par'] for p in pcaps])} das nossas linhas têm par "
+            "entre as linhas do mesmo rótulo: uma linha do `MERGED_CSV` com os 39 valores iguais aos nossos até "
+            "cerca de 9 algarismos significativos. Nas linhas únicas (uma vez no pcap e no máximo uma no "
+            f"`MERGED_CSV`), entre {_faixa(unicas)}. "
+            + ("Nenhum pedaço de 10 MB fica com menos da metade das linhas com par." if not ruins else
+               f"Pcaps com pedaço de 10 MB com menos da metade das linhas com par: {', '.join(ruins)}.")
         ),
         (
             f"- No total, os pcaps cobrem {_milhar(cobertas_total)} das {_milhar(merged['linhas'])} linhas do "
@@ -811,16 +886,23 @@ def montar_relatorio(m):
         "   relativo de até cerca de 4,7e-10, perto de 9 algarismos), deixa o infinito como está, põe todo NaN num",
         "   padrão só e mistura os valores num hash de 64 bits. O `MERGED_CSV` escreve os números no formato do",
         "   Java (`3.861904144287109E-5`), o infinito como texto e o NaN como campo vazio, então a chave é sobre o",
-        "   valor numérico, e não sobre o texto.",
+        "   valor numérico, e não sobre o texto. Também não é uma comparação bit a bit: o `MERGED_CSV` grava o `IAT`",
+        "   com 15 algarismos significativos (`0.0417121887207031`, contra `0.041712188720703126` no extrator), e",
+        "   `Rate`, `Std` e `Variance` às vezes diferem no último bit, de um jeito de somar ou de imprimir para",
+        "   outro. Em quatro rótulos pequenos conferidos à parte, o maior desvio relativo entre valores que casam",
+        "   foi de 9,5e-13, muito abaixo do arredondamento da chave. Par, aqui, quer dizer os 39 valores iguais",
+        "   até cerca de 9 algarismos significativos.",
         "3. A extração de cada pcap é a dos autores: pedaços de 10.000.000 de bytes, como o `tcpdump -C 10`",
         "   (`calibrar.fatiar`), um extrator novo por pedaço e a janela da classe, 100 em DDoS, DoS e Mirai e 10",
         "   nas demais. Na mesma leitura sai a extração contínua, a da operação e da regeração dos dados de treino.",
         "4. (a) Fração das nossas linhas com par no rótulo do pcap, por multiconjunto: cada linha do `MERGED_CSV`",
         "   serve de par a uma linha nossa só. (b) Fração das linhas de cada rótulo no `MERGED_CSV` cobertas pelos",
-        "   pcaps daquele rótulo. Para as linhas sem par, se casariam ignorando as colunas de tempo (`Rate`,",
-        "   `IAT`) ou as de tamanho, e em que outro rótulo as linhas do pcap mais aparecem.",
-        f"5. Controle do vizinho mais próximo: até {m['vizinhos_por_pcap']} linhas sem par de cada pcap, sorteadas,",
-        "   comparadas coluna a coluna com a linha mais parecida do mesmo rótulo no `MERGED_CSV`.",
+        "   pcaps daquele rótulo. Para as linhas sem par, o que o `MERGED_CSV` do rótulo tem de igual a elas: a",
+        "   mesma linha, uma linha igual fora as colunas de tempo (`Rate`, `IAT`) ou fora as de tamanho. E em que",
+        "   outro rótulo as linhas do pcap mais aparecem.",
+        f"5. Controle do vizinho mais próximo: até {m['vizinhos_por_pcap']} linhas sem par de cada pcap, sorteadas",
+        "   entre as que nenhuma dessas igualdades explica, comparadas coluna a coluna com a linha mais parecida do",
+        "   mesmo rótulo no `MERGED_CSV`, procurada entre todas as que têm a mesma chave grossa.",
         "6. Leitura contínua contra fatiada, em todos os pcaps.",
         "",
         "## Resultado por pcap",
@@ -854,6 +936,13 @@ def montar_relatorio(m):
         "",
         "## Como ler os números",
         "",
+        (
+            f"- **A prova de que o cálculo é o dos autores é a cobertura (b) de 100% nos {len(completos)} rótulos"
+            " completos.** Neles, toda linha do `MERGED_CSV` tem par entre as nossas. Uma divergência do extrator ou"
+        ),
+        "  da emulação do fatiamento em qualquer janela desses rótulos deixaria uma linha deles sem par, e (b)",
+        "  abaixo de 100%. A fração (a), sozinha, não basta: uma divergência numa coluna ou num protocolo raro",
+        "  moveria (a) em décimos de ponto, dentro da perda dos arquivos truncados.",
         "- **A cobertura (b) baixa nos floods e no benigno não indica erro.** O `MERGED_CSV` vem de todas as",
         (
             "  capturas dos autores, e temos uma ou duas partes de cada rótulo. "
@@ -869,19 +958,15 @@ def montar_relatorio(m):
         ),
         f"  (entre {_faixa(faixa_completos)} por pcap). Os arquivos truncados na fonte oficial perderam as linhas",
         "  que viriam depois do corte, e como o conjunto é embaralhado a perda cai em todas as classes em",
-        "  proporção parecida: o `exploracao.md` mede 4,26% de linhas a menos contra os CSVs por ataque. As linhas",
-        "  sem par são essas, e o controle do vizinho mostra que são outras janelas, e não janelas calculadas de",
-        "  outro jeito.",
+        "  proporção parecida: o `exploracao.md` mede 4,26% de linhas a menos contra os CSVs por ataque.",
         (
             "- **Acima dessa faixa, o excesso vem das linhas repetidas dos floods** "
             f"({len(acima)} pcaps). Uma linha nossa que se"
         ),
-        "  perdeu no `MERGED_CSV` ainda acha par numa linha idêntica vinda de outra parte da mesma captura.",
+        "  perdeu no `MERGED_CSV` ainda acha par numa linha idêntica vinda de outra parte da mesma captura. Nas",
+        f"  linhas únicas, que não têm essa ajuda, (a) fica entre {_faixa(unicas)} em todos os pcaps.",
         "- **A fração em outro rótulo** mostra a sobreposição já conhecida entre DDoS e DoS (`ROADMAP.md`,",
         "  04/10/2026): as mesmas janelas aparecem com os dois rótulos.",
-        "- **Se o extrator divergisse** em alguma coluna ou protocolo, ou a emulação do fatiamento estivesse",
-        "  errada, a fração (a) cairia para perto do que a leitura contínua consegue (seção seguinte), e não",
-        "  ficaria na faixa da perda dos arquivos truncados.",
         "",
         "## Leitura contínua contra leitura fatiada",
         "",
@@ -906,15 +991,16 @@ def montar_relatorio(m):
         "",
         f"Maior distância entre todos os pcaps e colunas: {_decimal(maior_ks, 4)}.",
         "",
-        *_secao_vizinho(m),
+        *_secao_sem_par(m),
         "## A captura de cada pcap",
         "",
         "O que o cabeçalho e os quadros de cada pcap dizem da captura. O instante em nanossegundos seria truncado",
         "para microssegundos, como o `tcpdump -r ... -w` do fatiamento dos autores grava. Quadro menor que 60",
         "bytes não passa assim no fio (falta o preenchimento) e quadro maior que 1514 bytes só existe com",
         "offload de segmentação na máquina que capturou. As opções `--preencher` e `--limitar` do extrator",
-        "medem o quadro como no fio; desligadas, como aqui, ele reproduz os autores.",
+        f"medem o quadro como no fio. Nesta calibração, que reproduz os autores, ficaram {opcoes}.",
         "",
+        *_resumo_da_captura(pcaps),
         *_tabela(
             ["pcap", "instante", "limite de captura", "gravados menores que o original", "quadros < 60 B",
              "quadros > 1514 B", "quadros fora do filtro"],
@@ -932,13 +1018,13 @@ def montar_relatorio(m):
         "",
         "    python -m codigo.captura.calibrar_conjunto --dataset CICIoT2023 --processos 3",
         "",
-        "- O comando constrói o índice do `MERGED_CSV` (cerca de 2 GB de memória), extrai os pcaps em paralelo,",
-        "  casa as linhas, roda o controle do vizinho e grava este relatório, `calibracao_conjunto_pcaps.csv`,",
-        "  `calibracao_conjunto_rotulos.csv` e `manifesto_calibracao_conjunto.json`. O manifesto traz o SHA-256 de",
-        "  cada pcap e de cada arquivo do `MERGED_CSV`.",
-        f"- Os dados intermediários ficam em `{TRABALHO}`, fora do git. Numa execução seguinte, o índice e",
-        "  as extrações são reaproveitados enquanto os arquivos e o código do extrator não mudarem; para refazer",
-        "  tudo, apague a pasta.",
+        "- O comando constrói o índice do `MERGED_CSV` (o processo do índice chega a cerca de 4,3 GB de memória),",
+        "  extrai os pcaps em paralelo, casa as linhas, roda o controle do vizinho e grava este relatório,",
+        "  `calibracao_conjunto_pcaps.csv`, `calibracao_conjunto_rotulos.csv` e `manifesto_calibracao_conjunto.json`.",
+        "  O manifesto traz o SHA-256 de cada pcap e de cada arquivo do `MERGED_CSV`.",
+        f"- Os dados intermediários ficam em `{TRABALHO}`, fora do git. Numa execução seguinte,",
+        "  o índice e as extrações são reaproveitados enquanto os arquivos e o código que gera cada um não",
+        "  mudarem; para refazer tudo, apague a pasta.",
         (
             f"- Tempo total desta execução: {_decimal(m['segundos'] / 60)} min; o pcap mais demorado levou "
             f"{_decimal(mais_lento / 60)} min. Os tempos das extrações reaproveitadas são os da execução em que"
@@ -950,60 +1036,144 @@ def montar_relatorio(m):
     return "\n".join(linhas)
 
 
-def _secao_vizinho(m):
-    com = [p for p in m["pcaps"] if p.get("vizinho")]
-    if not com:
-        return []
-    total = Counter()
-    colunas = Counter()
-    for p in com:
-        for chave in ("examinadas", "so_tempo", "tempo_e_outras", "outras_sem_tempo", "sem_candidato", "igual"):
-            total[chave] += p["vizinho"][chave]
-        colunas.update(p["vizinho"]["colunas"])
-    mais = ", ".join(f"`{c}` ({_milhar(n)})" for c, n in colunas.most_common(8))
+def _nomes(pcaps):
+    return ", ".join(f"`{p['arquivo']}`" for p in pcaps) or "nenhum"
+
+
+def _resumo_da_captura(pcaps):
+    """O que a tabela da captura mostra, em frases: quadros curtos, longos e limite de captura."""
+    curtos = [p for p in pcaps if p["quadros_menores_que_60"]]
+    longos = [p for p in pcaps if p["quadros_maiores_que_1514"]]
+    limites = Counter(p["limite_de_captura"] for p in pcaps)
+    cortados = [p for p in pcaps if p["registros_menores_que_o_original"]]
     return [
-        "## Linhas sem par: o vizinho mais próximo",
-        "",
         (
-            f"Foram examinadas {_milhar(total['examinadas'])} linhas sem par, até {m['vizinhos_por_pcap']} por pcap. "
-            "Para cada uma, o `MERGED_CSV` foi percorrido em busca das linhas do mesmo rótulo com o mesmo `Number` e os"
-            " mesmos tamanhos, ou o mesmo protocolo e as mesmas contagens de flags, e a mais parecida foi comparada"
-            " coluna a coluna, com a tolerância do calibrador."
+            f"- Quadro menor que 60 bytes: {_nomes(curtos)}. Quadro maior que 1514 bytes: {len(longos)} dos "
+            f"{len(pcaps)} pcaps."
         ),
-        "",
-        *_tabela(
-            ["desfecho", "linhas"],
-            [
-                ["o vizinho difere só em `Rate` ou `IAT`", _milhar(total["so_tempo"])],
-                ["difere em `Rate` ou `IAT` e em outras colunas", _milhar(total["tempo_e_outras"])],
-                ["difere em outras colunas, com `Rate` e `IAT` iguais", _milhar(total["outras_sem_tempo"])],
-                ["igual em todas as colunas", _milhar(total["igual"])],
-                ["nenhum candidato com a mesma chave grossa", _milhar(total["sem_candidato"])],
-            ],
-        ),
-        "",
-        f"Colunas que mais diferem no vizinho mais próximo: {mais}.",
-        "",
+        "- Limite de captura declarado: "
+        + "; ".join(f"{_milhar(limite)} bytes em {n} pcaps" for limite, n in limites.most_common()) + ".",
         (
-            "Uma linha calculada de outro jeito acharia um vizinho igual em quase tudo e diferente sempre na mesma"
-            " coluna. O que aparece é o contrário: o vizinho difere nos instantes e em geral em várias outras"
-            " colunas, ou nem existe. As linhas sem par são janelas que faltam no `MERGED_CSV`. Por pcap, os"
-            " desfechos estão no manifesto, em `vizinho`."
+            f"- Registro gravado com menos bytes que o quadro original (limite de captura curto): {_nomes(cortados)}."
+            if cortados else
+            "- Nenhum pcap tem registro gravado com menos bytes que o quadro original (limite de captura curto)."
         ),
         "",
     ]
 
 
+def _mediana_do_histograma(histograma):
+    """Mediana de um histograma {valor em texto: quantas vezes}."""
+    pares = sorted((int(valor), quantas) for valor, quantas in histograma.items())
+    total, acumulado = sum(quantas for _, quantas in pares), 0
+    for valor, quantas in pares:
+        acumulado += quantas
+        if 2 * acumulado >= total:
+            return valor
+    return None
+
+
+def _secao_sem_par(m):
+    """As linhas sem par: o que o MERGED_CSV tem de igual a elas e, nas demais, o vizinho mais próximo."""
+    pcaps = m["pcaps"]
+    sem_par = sum(p["sem_par"] for p in pcaps)
+    if not sem_par:
+        return []
+    classes = {campo: sum(p[campo] for p in pcaps) for campo in CAMPO_DA_CLASSE.values()}
+    linhas = [
+        "## Linhas sem par",
+        "",
+        (
+            f"São {_milhar(sem_par)} linhas sem par nos {len(pcaps)} pcaps. Para cada uma, o índice diz o que o "
+            "`MERGED_CSV` do rótulo tem de igual a ela, na ordem da tabela: a primeira classe que se aplica é a da "
+            "linha."
+        ),
+        "",
+        *_tabela(
+            ["o que o `MERGED_CSV` tem", "linhas sem par", "fração"],
+            [
+                ["a mesma linha, que já serviu de par a outra linha nossa igual",
+                 _milhar(classes["sem_par_repetidas"]), _pct(classes["sem_par_repetidas"] / sem_par)],
+                ["uma linha igual fora `Rate` e `IAT`", _milhar(classes["sem_par_so_tempo"]),
+                 _pct(classes["sem_par_so_tempo"] / sem_par)],
+                ["uma linha igual fora as colunas de tamanho", _milhar(classes["sem_par_so_tamanho"]),
+                 _pct(classes["sem_par_so_tamanho"] / sem_par)],
+                ["nada disso", _milhar(classes["sem_par_outras"]), _pct(classes["sem_par_outras"] / sem_par)],
+            ],
+        ),
+        "",
+        (
+            "A primeira classe vem da correspondência por multiconjunto: cada linha do `MERGED_CSV` serve de par a "
+            "uma linha nossa só, e uma linha que se repete mais no pcap do que lá fica com a sobra sem par. A segunda "
+            "é comum em tráfego repetitivo, em que muitas janelas têm os mesmos quadros e só os instantes mudam; ela "
+            "não separa uma janela que falta no `MERGED_CSV` de uma calculada com outro instante, e por isso não prova "
+            "nada sozinha."
+        ),
+        "",
+    ]
+    com = [p for p in pcaps if p.get("vizinho")]
+    if not com:
+        return linhas
+    total, colunas, quantas = Counter(), Counter(), Counter()
+    for p in com:
+        for chave in ("examinadas", *DESFECHOS):
+            total[chave] += p["vizinho"][chave]
+        colunas.update(p["vizinho"]["colunas"])
+        quantas.update(p["vizinho"]["colunas_diferentes"])
+    achados = total["tempo_e_outras"] + total["outras_sem_tempo"]
+    mais = ", ".join(f"`{c}` ({_milhar(n)})" for c, n in colunas.most_common(8)) or "nenhuma"
+    mediana = _mediana_do_histograma(quantas)
+    linhas += [
+        "### O vizinho mais próximo das linhas da última classe",
+        "",
+        (
+            f"Foram examinadas {_milhar(total['examinadas'])} linhas da última classe, até {m['vizinhos_por_pcap']} "
+            "por pcap. Para cada uma, o `MERGED_CSV` foi percorrido e todas as linhas do mesmo rótulo com o mesmo "
+            "`Number` e os mesmos tamanhos, ou com o mesmo protocolo e as mesmas contagens de flags, foram comparadas "
+            "com ela, sem limite de candidatas, pelos valores arredondados da chave. O vizinho é a que difere em "
+            "menos colunas."
+        ),
+        "",
+        *_tabela(
+            ["desfecho", "linhas"],
+            [
+                ["o vizinho difere em `Rate` ou `IAT` e em outras colunas", _milhar(total["tempo_e_outras"])],
+                ["o vizinho difere só em outras colunas", _milhar(total["outras_sem_tempo"])],
+                ["nenhuma linha com a mesma chave grossa", _milhar(total["sem_candidato"])],
+            ],
+        ),
+        "",
+        "Colunas que diferem no vizinho mais próximo, por quantidade de linhas:",
+        "",
+        *_tabela(
+            ["colunas diferentes", "linhas"],
+            [[n, _milhar(q)] for n, q in sorted(((int(n), q) for n, q in quantas.items()))],
+        ),
+        "",
+        (
+            f"O que a tabela mostra: das {_milhar(total['examinadas'])} linhas, {_milhar(achados)} têm vizinho, que "
+            f"difere delas em {mediana if mediana is not None else 'nenhuma'} colunas na mediana, e "
+            f"{_milhar(total['sem_candidato'])} não têm nenhuma linha com a mesma chave grossa. As colunas que mais "
+            f"diferem são {mais}. O vizinho só ilustra o que falta no `MERGED_CSV`; a prova de que as linhas sem par "
+            "não vêm de um cálculo diferente é a cobertura (b) de 100% nos rótulos completos. Por pcap, os "
+            "desfechos estão no manifesto, em `vizinho`."
+        ),
+        "",
+    ]
+    return linhas
+
+
 CAMPOS_PCAPS = (
     "arquivo", "rotulo", "janela", "bytes", "sha256", "formato_do_instante", "limite_de_captura", "pacotes",
     "quadros_mantidos", "pedacos", "linhas", "com_par", "fracao_com_par", "sem_par", "sem_par_incompletas",
-    "linhas_incompletas", "sem_par_casam_sem_tempo", "sem_par_casam_sem_tamanho", "outro_rotulo",
+    "linhas_incompletas", "sem_par_casam_sem_tempo", "sem_par_casam_sem_tamanho", *CAMPO_DA_CLASSE.values(),
+    "linhas_unicas", "com_par_unicas", "outro_rotulo",
     "fracao_no_outro_rotulo", "pedacos_com_menos_da_metade", "registros_menores_que_o_original",
     "quadros_menores_que_60", "quadros_maiores_que_1514", "segundos",
 )
 CAMPOS_CONTINUA = ("linhas", "incompletas", "com_par", "fracao_com_par", "fracao_igual_a_fatiada", "maior_ks",
                    "coluna_do_maior_ks")
-CAMPOS_VIZINHO = ("examinadas", "so_tempo", "tempo_e_outras", "outras_sem_tempo", "sem_candidato")
+CAMPOS_VIZINHO = ("examinadas", *DESFECHOS)
 CAMPOS_ROTULOS = ("rotulo", "pcaps", "linhas_merged", "linhas_nossas", "linhas_merged_cobertas", "fracao_coberta")
 
 
@@ -1037,7 +1207,9 @@ def gravar(manifesto, pasta):
             for p in manifesto["pcaps"]
         ],
     )
-    _gravar_csv(pasta / TABELA_ROTULOS, CAMPOS_ROTULOS, [[_campo(r[c]) for c in CAMPOS_ROTULOS] for r in manifesto["rotulos"]])
+    _gravar_csv(
+        pasta / TABELA_ROTULOS, CAMPOS_ROTULOS, [[_campo(r[c]) for c in CAMPOS_ROTULOS] for r in manifesto["rotulos"]],
+    )
 
 
 def main(argv=None):

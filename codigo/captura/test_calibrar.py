@@ -139,6 +139,8 @@ def test_relatorio_sem_divergencias(tmp_path):
     assert "limite de captura declarado" in texto
     # O pcap em nanossegundos é lido como o tcpdump do fatiamento o grava, e não é diferença.
     assert "truncado para microssegundos" in texto and "Não há referência dos autores" not in texto
+    # O relatório por pcap aponta a conferência de todos os pcaps, contra o MERGED_CSV.
+    assert "`calibracao_conjunto.md`" in texto
 
 
 @pytest.mark.skipif(

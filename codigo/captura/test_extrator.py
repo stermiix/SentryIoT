@@ -1,6 +1,7 @@
 import io
 import math
 import struct
+import time
 import warnings
 from collections import Counter
 from decimal import Decimal
@@ -13,14 +14,15 @@ from codigo.captura.extrator import (
     CapturaIncompleta,
     Enderecos,
     Extrator,
+    QuadroCortado,
     agregar,
-    como_no_fio,
     enderecos,
     extrair,
     gravar_csv,
     ler_pcap,
     main,
     medir_quadro,
+    tamanho_no_fio,
 )
 
 CABECALHO_OFICIAL = (
@@ -656,7 +658,7 @@ TAMANHOS = ("Tot sum", "Min", "Max", "AVG", "Std", "Tot size", "Variance")
 def test_sem_as_opcoes_o_quadro_fica_como_foi_capturado():
     assert len(QUADRO_ARP_SEM_PREENCHIMENTO) == 42 and len(QUADRO_AGREGADO) == 2962
     for quadro in (QUADRO_ARP_SEM_PREENCHIMENTO, quadro_tcp(), QUADRO_AGREGADO, b"\x00" * 10):
-        assert como_no_fio(quadro) is quadro
+        assert tamanho_no_fio(quadro) == len(quadro)
     assert medir_quadro(0.0, QUADRO_ARP_SEM_PREENCHIMENTO)["Tot size"] == 42
     assert medir_quadro(0.0, QUADRO_AGREGADO)["Tot size"] == 2962
     quadros = [(float(i), q) for i, q in enumerate([QUADRO_ARP_SEM_PREENCHIMENTO, quadro_tcp(), QUADRO_AGREGADO] * 10)]
@@ -665,7 +667,7 @@ def test_sem_as_opcoes_o_quadro_fica_como_foi_capturado():
 
 
 def test_preencher_conta_o_quadro_de_42_bytes_como_60():
-    assert como_no_fio(QUADRO_ARP_SEM_PREENCHIMENTO, preencher=True) == QUADRO_ARP_SEM_PREENCHIMENTO + bytes(18)
+    assert tamanho_no_fio(QUADRO_ARP_SEM_PREENCHIMENTO, preencher=True) == 60
     original = medir_quadro(0.0, QUADRO_ARP_SEM_PREENCHIMENTO)
     preenchido = medir_quadro(0.0, QUADRO_ARP_SEM_PREENCHIMENTO, preencher=True)
     assert preenchido["Tot size"] == 60
@@ -676,10 +678,10 @@ def test_preencher_conta_o_quadro_de_42_bytes_como_60():
     tcp_curto = medir_quadro(0.0, quadro_tcp(opcoes=b"\x02\x04\x05\xb4"), preencher=True)
     assert (tcp_curto["Tot size"], tcp_curto["Header_Length"], tcp_curto["syn_flag_number"]) == (60, 24, 1)
     # Quadro de 60 bytes ou mais e quadro grande ficam como estão.
-    assert como_no_fio(quadro_udp(dados=bytes(20)), preencher=True) == quadro_udp(dados=bytes(20))
-    assert como_no_fio(QUADRO_AGREGADO, preencher=True) == QUADRO_AGREGADO
-    # Menos de 14 bytes não é quadro Ethernet: nada é inventado.
-    assert como_no_fio(b"\x08\x00", preencher=True) == b"\x08\x00"
+    assert tamanho_no_fio(quadro_udp(dados=bytes(20)), preencher=True) == len(quadro_udp(dados=bytes(20))) == 62
+    assert tamanho_no_fio(QUADRO_AGREGADO, preencher=True) == 2962
+    # O quadro cortado pela captura não é completado: o tamanho dele no fio era outro.
+    assert tamanho_no_fio(QuadroCortado(QUADRO_ARP_SEM_PREENCHIMENTO), preencher=True) == 42
 
 
 def test_limitar_conta_o_quadro_agregado_como_1514():
@@ -689,8 +691,9 @@ def test_limitar_conta_o_quadro_agregado_como_1514():
     assert {k: v for k, v in limitado.items() if k != "Tot size"} == {
         k: v for k, v in original.items() if k != "Tot size"
     }
-    assert como_no_fio(QUADRO_ARP_SEM_PREENCHIMENTO, limitar=True) == QUADRO_ARP_SEM_PREENCHIMENTO
-    assert len(como_no_fio(quadro_tcp(dados=bytes(1460)), limitar=True)) == 1514
+    assert tamanho_no_fio(QUADRO_ARP_SEM_PREENCHIMENTO, limitar=True) == 42
+    assert tamanho_no_fio(quadro_tcp(dados=bytes(1460)), limitar=True) == 1514
+    assert tamanho_no_fio(QuadroCortado(QUADRO_AGREGADO), limitar=True) == 1514
 
 
 def test_as_duas_opcoes_juntas_so_mudam_as_colunas_de_tamanho():
@@ -766,12 +769,14 @@ def test_ler_pcap_conta_os_registros_gravados_menores_que_o_original():
 
 
 class Destino(io.StringIO):
-    """Saída de texto que conta as descargas."""
+    """Saída de texto que conta as descargas e quantas linhas já tinham ido para o disco."""
 
     descargas = 0
+    linhas_descarregadas = 0
 
     def flush(self):
         self.descargas += 1
+        self.linhas_descarregadas = self.getvalue().count("\n")
         super().flush()
 
 
@@ -783,6 +788,22 @@ def test_gravar_csv_descarrega_a_cada_tantas_linhas_e_no_fim():
     destino = Destino()
     gravar_csv(extrair(quadros, janela=1), destino, a_cada=1000, segundos=0.0)
     assert destino.descargas == 26  # sem intervalo mínimo, toda linha é descarregada
+
+
+def test_gravar_csv_descarrega_por_tempo_mesmo_sem_linha_nova():
+    # Numa captura ao vivo, uma rajada fecha uma janela e a rede fica quieta: a linha não pode
+    # esperar a janela seguinte para ir ao disco.
+    destino, vistas = Destino(), []
+
+    def linhas():
+        yield from extrair([(0.0, quadro_tcp())], janela=1)
+        time.sleep(0.5)
+        vistas.append(destino.linhas_descarregadas)
+        yield from extrair([(1.0, quadro_tcp())], janela=1)
+
+    assert gravar_csv(linhas(), destino, a_cada=1000, segundos=0.05) == 2
+    assert vistas == [2]  # o cabeçalho e a primeira linha já estavam no disco durante a espera
+    assert destino.linhas_descarregadas == 3
 
 
 @pytest.mark.parametrize("janela,erro", [
@@ -868,3 +889,67 @@ def test_main_avisa_registro_gravado_menor_que_o_quadro_original(tmp_path, capsy
     assert main([str(entrada), str(saida)]) == 0
     erro = capsys.readouterr().err
     assert "aviso: 2 pacotes foram gravados com menos bytes que o quadro original" in erro and "-s 0" in erro
+
+
+# --- preenchimento só de quadro inteiro ----------------------------------------------------------
+
+
+def pcap_com_limite(limite, registros):
+    """Pcap com o limite de captura dado. `registros`: (segundos, quadro gravado, tamanho original)."""
+    dados = cabecalho_pcap(limite)
+    for segundos, quadro, original in registros:
+        dados += struct.pack("<IIII", segundos, 0, len(quadro), original) + quadro
+    return dados
+
+
+@pytest.mark.parametrize("corte,mantidos,menor", [(30, 1, 60), (50, 4, 50)])
+def test_preencher_nao_inventa_bytes_no_quadro_cortado_pela_captura(corte, mantidos, menor):
+    # TCP de 1454 bytes gravado com um limite de captura curto: só os primeiros bytes ficaram no
+    # arquivo. Completar com zeros inventaria o resto do cabeçalho IP (corte em 30) ou do TCP (em 50).
+    inteiro = quadro_tcp(flags=0x18, dados=bytes(1400))
+    ultimo = (9, quadro_tcp(), 54)  # TCP inteiro de 54 bytes: este é completado até 60
+    gravado = pcap_com_limite(65535, [(i, inteiro[:corte], len(inteiro)) for i in range(1, 4)] + [ultimo])
+    (sem,) = extrair(ler_pcap(io.BytesIO(gravado)))
+    (com,) = extrair(ler_pcap(io.BytesIO(gravado)), preencher=True)
+    assert com["Number"] == sem["Number"] == mantidos
+    assert [c for c in COLUNAS if c not in TAMANHOS and com[c] != sem[c]] == []
+    assert (com["Min"], com["Max"]) == (menor, 60)
+    # Registro inteiro no arquivo, cortado pelo leitor no limite declarado: também não é completado.
+    cortado_pelo_limite = pcap_com_limite(corte, [(i, inteiro, len(inteiro)) for i in range(1, 5)])
+    sem = list(extrair(ler_pcap(io.BytesIO(cortado_pelo_limite)), janela=4))
+    com = list(extrair(ler_pcap(io.BytesIO(cortado_pelo_limite)), janela=4, preencher=True))
+    assert com == sem and len(sem) == (corte == 50)
+    assert all(isinstance(quadro, QuadroCortado) for _, quadro in ler_pcap(io.BytesIO(cortado_pelo_limite)))
+
+
+def test_so_o_quadro_entregue_com_menos_bytes_que_o_original_e_cortado():
+    a = quadro_tcp()
+    dados = pcap_com_limite(65535, [(1, a, len(a)), (2, a, len(a) + 1), (3, a, len(a) - 1)])
+    tipos = [type(quadro) for _, quadro in ler_pcap(io.BytesIO(dados))]
+    assert tipos == [bytes, QuadroCortado, bytes]
+    assert [quadro for _, quadro in ler_pcap(io.BytesIO(dados))] == [a, a, a]
+
+
+def test_main_diz_quando_as_opcoes_do_quadro_estao_ligadas(tmp_path, capsys):
+    entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
+    entrada.write_bytes(pcap([(i, 0, QUADRO_ARP_SEM_PREENCHIMENTO) for i in range(10)]))
+    assert main([str(entrada), str(saida)]) == 0
+    assert "como no fio" not in capsys.readouterr().err
+    for opcoes, trechos in (
+        (["--preencher"], ["--preencher"]), (["--limitar"], ["--limitar"]),
+        (["--preencher", "--limitar"], ["--preencher", "--limitar"]),
+    ):
+        assert main([*opcoes, str(entrada), str(saida)]) == 0
+        erro = capsys.readouterr().err
+        assert "tamanho do quadro medido como no fio" in erro and all(trecho in erro for trecho in trechos)
+        assert ("--limitar" in erro) == ("--limitar" in opcoes) and ("--preencher" in erro) == ("--preencher" in opcoes)
+
+
+def test_main_junta_os_quadros_802_3_de_varios_comprimentos_num_nome_so(tmp_path, capsys):
+    entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
+    llc = [eth(comprimento, b"\x42\x42\x03" + bytes(40)) for comprimento in (0x0026, 0x0027, 0x0100, 0x0026)]
+    entrada.write_bytes(pcap([(i, 0, q) for i, q in enumerate([*llc, quadro_tcp()])]))
+    assert main([str(entrada), str(saida)]) == 0
+    erro = capsys.readouterr().err
+    assert "4 quadros ficaram fora" in erro
+    assert erro.count("IEEE 802.3 com LLC") == 1 and "IEEE 802.3 com LLC (STP e afins): 4" in erro

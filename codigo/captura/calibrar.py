@@ -214,6 +214,9 @@ def montar_relatorio(resultados):
         "O extrator (`codigo/captura/extrator.py`) foi executado sobre pcaps do CICIoT2023 e a saída",
         "foi comparada, coluna a coluna, com os CSVs publicados pelos autores do dataset.",
         "",
+        "A conferência de todos os pcaps do dataset, contra o `MERGED_CSV`, está em `calibracao_conjunto.md`",
+        "(`python -m codigo.captura.calibrar_conjunto`).",
+        "",
         "## Escopo",
         "",
         (
