@@ -124,7 +124,10 @@ def test_relatorio_e_saida_do_main(tmp_path, capsys):
 
 def test_main_sem_dataset(tmp_path, capsys):
     assert main(["--dataset", str(tmp_path / "ausente"), "--saida", str(tmp_path / "r.md")]) == 2
-    assert "nenhum pcap" in capsys.readouterr().err
+    erro = capsys.readouterr().err
+    assert "nenhum pcap" in erro
+    # Sem os CSVs por ataque, a mensagem aponta a calibração de conjunto, contra o MERGED_CSV.
+    assert "python -m codigo.captura.calibrar_conjunto" in erro
     (tmp_path / "Solto.pcap").write_bytes(pcap([(1, 0, quadro_tcp())]))  # pcap sem CSV oficial
     assert main(["--dataset", str(tmp_path), "--saida", str(tmp_path / "r.md")]) == 2
 
@@ -134,6 +137,8 @@ def test_relatorio_sem_divergencias(tmp_path):
     texto = montar_relatorio([calibrar_pcap(caminho_pcap, caminho_csv, limite=1000)])
     assert "Nenhuma divergência" in texto
     assert "limite de captura declarado" in texto
+    # O pcap em nanossegundos é lido como o tcpdump do fatiamento o grava, e não é diferença.
+    assert "truncado para microssegundos" in texto and "Não há referência dos autores" not in texto
 
 
 @pytest.mark.skipif(
