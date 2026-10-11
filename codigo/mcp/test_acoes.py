@@ -1510,6 +1510,20 @@ def test_decisao_promocao_e_efeito_ficam_no_incidente_da_proposta(mundo):
         violacao(outro, "inc-0002", "inc-0001")
 
 
+def test_evento_de_incidente_que_nao_existe_e_erro(mundo):
+    chamada = {"agente": "decisao", "modelo": "m", "tokens_entrada": 10**9, "tokens_saida": 1, "duracao_ms": 1.0}
+    mundo.aplicar([novo("llm_chamada", chamada, "inc-9999")])
+    violacao(mundo, "llm_chamada", "inc-9999")
+
+
+def test_recomendacao_no_log_so_cita_proposta_do_proprio_incidente(mundo):
+    mundo.aplicar([novo("incidente_aberto", INCIDENTE_DA_ESPECIFICACAO | {"id": "inc-0002"}, "inc-0002")])
+    mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    recomendacao = {"agente": "decisao", "texto": "Bloquear.", "propostas": ["prop-0001"]}
+    mundo.aplicar([novo("recomendacao_emitida", recomendacao, "inc-0002")])
+    violacao(mundo, "recomendacao_emitida", "prop-0001", "inc-0001")
+
+
 def test_acao_promovida_no_log_e_a_que_foi_aprovada(mundo):
     mundo.propor("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA)
     mundo.decidir("prop-0001")

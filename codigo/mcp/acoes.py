@@ -552,7 +552,12 @@ def _aplicar(estado, evento):
             estado.efeitos[dados.execucao] = dados
         case "recomendacao_emitida":
             for citada in dados.propostas:
-                _citado(estado.propostas, citada, "a proposta")
+                proposta = _citado(estado.propostas, citada, "a proposta")
+                _exigir(
+                    proposta.incidente == evento.incidente,
+                    f"a recomendação está no incidente {evento.incidente} e cita a proposta {proposta.id}, que é do "
+                    f"incidente {proposta.incidente}",
+                )
         case "catalogo_ampliado":
             proposta = _citado(estado.propostas, dados.proposta, "a proposta")
             _no_incidente_da_proposta(evento, proposta)
@@ -573,6 +578,12 @@ def _aplicar(estado, evento):
                 f"a ação promovida pela proposta {proposta.id} não é a que foi aprovada e aplicada",
             )
             estado.promovidas[nome] = dados.acao
+    # O evento que diz ser de um incidente está no rastro de um incidente que existe: é por esse campo
+    # que a interface monta o rastro e o custo de cada incidente.
+    _exigir(
+        evento.incidente is None or evento.incidente in estado.incidentes,
+        f"o incidente {evento.incidente} não existe no log até este ponto",
+    )
 
 
 def _no_incidente_da_proposta(evento, proposta):

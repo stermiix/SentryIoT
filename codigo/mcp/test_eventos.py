@@ -407,6 +407,7 @@ def gravador(registro):
 def test_gravador_do_agente_grava_chamada_ao_modelo_e_recomendacao(gravador, registro):
     assert TIPOS_DO_AGENTE == ("llm_chamada", "recomendacao_emitida")
     assert (gravador.agente, gravador.caminho) == ("decisao", registro.caminho)
+    registro.gravar(novo("incidente_aberto", INCIDENTE, "inc-0001"))
     chamada = CHAMADA | {"agente": "decisao"}
     recomendacao = {"agente": "decisao", "texto": "Bloquear a origem.\n\nSe não resolver, limitar a taxa.", "propostas": []}
     gravados = gravador.gravar(novo("llm_chamada", chamada, "inc-0001"))
@@ -415,9 +416,11 @@ def test_gravador_do_agente_grava_chamada_ao_modelo_e_recomendacao(gravador, reg
         novo("llm_chamada", ChamadaDeLLM.model_validate(chamada), "inc-0001"),
     )
     assert [(evento.id, evento.tipo) for evento in gravados] == [
-        ("ev-000001", "llm_chamada"), ("ev-000002", "recomendacao_emitida"), ("ev-000003", "llm_chamada"),
+        ("ev-000002", "llm_chamada"), ("ev-000003", "recomendacao_emitida"), ("ev-000004", "llm_chamada"),
     ]
-    assert gravados == registro.ler()
+    assert gravados == registro.ler()[1:]
+    # A chamada ao modelo fora de um incidente não precisa de incidente.
+    assert gravador.gravar(novo("llm_chamada", chamada))[0].incidente is None
 
 
 @pytest.mark.parametrize("tipo", [tipo for tipo in TIPOS_DE_EVENTO if tipo not in ("llm_chamada", "recomendacao_emitida")])
@@ -427,7 +430,7 @@ def test_gravador_do_agente_recusa_todos_os_outros_eventos(gravador, registro, t
         gravador.gravar(novo(tipo, DADOS_POR_TIPO[tipo], "inc-0001"))
     # Um evento permitido no mesmo lote também não entra.
     with pytest.raises(ValueError, match=tipo):
-        gravador.gravar(novo("llm_chamada", CHAMADA | {"agente": "decisao"}, "inc-0001"), novo(tipo, DADOS_POR_TIPO[tipo]))
+        gravador.gravar(novo("llm_chamada", CHAMADA | {"agente": "decisao"}), novo(tipo, DADOS_POR_TIPO[tipo]))
     assert registro.ler() == []
 
 
@@ -439,6 +442,31 @@ def test_gravador_so_grava_em_nome_do_proprio_agente(gravador, registro):
     with pytest.raises(ValueError, match="agente desconhecido"):
         GravadorDoAgente("detector", registro.caminho)
     assert registro.ler() == []
+
+
+def test_gravador_nao_grava_em_incidente_que_nao_existe(gravador, registro):
+    # O custo por incidente sai destes eventos: um incidente inventado distorceria a medida.
+    registro.gravar(novo("incidente_aberto", INCIDENTE, "inc-0001"))
+    chamada = CHAMADA | {"agente": "decisao", "tokens_entrada": 10**9}
+    recomendacao = {"agente": "decisao", "texto": "Bloquear a origem.", "propostas": []}
+    for rascunho in (novo("llm_chamada", chamada, "inc-9999"), novo("recomendacao_emitida", recomendacao, "inc-9999")):
+        with pytest.raises(ValueError, match="inc-9999"):
+            gravador.gravar(rascunho)
+    assert [evento.tipo for evento in registro.ler()] == ["incidente_aberto"]
+
+
+def test_recomendacao_so_cita_proposta_do_proprio_incidente(gravador, registro):
+    registro.gravar(
+        novo("incidente_aberto", INCIDENTE, "inc-0001"),
+        novo("incidente_aberto", INCIDENTE | {"id": "inc-0002"}, "inc-0002"),
+        novo("acao_proposta", DADOS_POR_TIPO["acao_proposta"], "inc-0001"),
+    )
+    recomendacao = {"agente": "decisao", "texto": "Bloquear a origem.", "propostas": ["prop-0001"]}
+    for incidente in ("inc-0002", None):
+        with pytest.raises(ValueError, match="prop-0001.*inc-0001"):
+            gravador.gravar(novo("recomendacao_emitida", recomendacao, incidente))
+    gravador.gravar(novo("recomendacao_emitida", recomendacao, "inc-0001"))
+    assert registro.ler()[-1].tipo == "recomendacao_emitida"
 
 
 def test_recomendacao_so_cita_proposta_que_existe_no_log(gravador, registro):

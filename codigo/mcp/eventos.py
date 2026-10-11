@@ -273,9 +273,10 @@ def _linha(evento):
 class GravadorDoAgente:
     """O que o código de um agente recebe para gravar no log: só o que é dele.
 
-    Aceita `llm_chamada` e `recomendacao_emitida`, sempre em nome do próprio agente, e a
-    recomendação só cita proposta que existe no log. Proposta, aprovação, execução e os demais
-    eventos são gravados pelo servidor e pelo comando de aprovação, nunca pelo agente.
+    Aceita `llm_chamada` e `recomendacao_emitida`, sempre em nome do próprio agente, num incidente
+    que existe no log (ou sem incidente), e a recomendação só cita proposta que existe e é do mesmo
+    incidente. Proposta, aprovação, execução e os demais eventos são gravados pelo servidor e pelo
+    comando de aprovação, nunca pelo agente.
 
     É uma restrição de interface, e não do sistema operacional: um processo que consegue escrever
     no arquivo consegue escrever qualquer linha. Esse limite do stub está declarado no README.
@@ -301,14 +302,15 @@ class GravadorDoAgente:
         Se algum rascunho não for do agente, nenhum é gravado.
         """
         def decidir(eventos):
-            propostas = {evento.dados.id for evento in eventos if evento.tipo == "acao_proposta"}
+            incidentes = {evento.dados.id for evento in eventos if evento.tipo == "incidente_aberto"}
+            propostas = {evento.dados.id: evento.dados.incidente for evento in eventos if evento.tipo == "acao_proposta"}
             for rascunho in rascunhos:
-                self._conferir(rascunho, propostas)
+                self._conferir(rascunho, incidentes, propostas)
             return None, rascunhos
 
         return self._registro.atualizar(decidir)[1]
 
-    def _conferir(self, rascunho, propostas):
+    def _conferir(self, rascunho, incidentes, propostas):
         tipo = rascunho.get("tipo") if isinstance(rascunho, dict) else None
         if tipo not in _DADOS_DO_AGENTE:
             raise ValueError(
@@ -325,9 +327,19 @@ class GravadorDoAgente:
             raise ValueError(
                 f"este gravador é do agente de {self._agente} e não grava {tipo} em nome do agente de {dados.agente}"
             )
-        desconhecidas = [proposta for proposta in getattr(dados, "propostas", ()) if proposta not in propostas]
+        incidente = rascunho.get("incidente")
+        if incidente is not None and incidente not in incidentes:
+            raise ValueError(f"o incidente {visivel(repr(incidente))[:80]} não existe no log")
+        citadas = getattr(dados, "propostas", ())
+        desconhecidas = [proposta for proposta in citadas if proposta not in propostas]
         if desconhecidas:
             raise ValueError(
                 f"a recomendação cita proposta que não existe no log: {visivel(', '.join(desconhecidas))[:200]}"
+            )
+        de_outro = [f"{proposta}, do incidente {propostas[proposta]}" for proposta in citadas if propostas[proposta] != incidente]
+        if de_outro:
+            raise ValueError(
+                f"a recomendação, no incidente {visivel(incidente)}, cita proposta de outro incidente: "
+                f"{visivel('; '.join(de_outro))[:200]}"
             )
 
