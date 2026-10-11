@@ -510,6 +510,7 @@ def _aplicar(estado, evento):
             estado.propostas[dados.id] = dados
         case "acao_aprovada" | "acao_rejeitada":
             proposta = _citado(estado.propostas, dados.proposta, "a proposta")
+            _no_incidente_da_proposta(evento, proposta)
             _exigir(
                 proposta.estado == "aguardando_aprovacao",
                 f"a proposta {proposta.id} não aguarda aprovação: está {proposta.estado}",
@@ -542,13 +543,19 @@ def _aplicar(estado, evento):
             estado.execucoes[dados.id] = dados
             mudar_proposta(dados.proposta, "desfeita")
         case "efeito_verificado":
-            _citado(estado.execucoes, dados.execucao, "a execução")
+            execucao = _citado(estado.execucoes, dados.execucao, "a execução")
+            _exigir(
+                dados.incidente == execucao.incidente,
+                f"o efeito diz que é do incidente {dados.incidente}, e a execução {execucao.id} é do incidente "
+                f"{execucao.incidente}",
+            )
             estado.efeitos[dados.execucao] = dados
         case "recomendacao_emitida":
             for citada in dados.propostas:
                 _citado(estado.propostas, citada, "a proposta")
         case "catalogo_ampliado":
             proposta = _citado(estado.propostas, dados.proposta, "a proposta")
+            _no_incidente_da_proposta(evento, proposta)
             nome = dados.acao.nome
             _exigir(nome not in BASE and nome not in estado.promovidas, f"a ação {nome} já está no catálogo")
             _exigir(
@@ -556,7 +563,25 @@ def _aplicar(estado, evento):
                 and dados.acao.origem == "promovida",
                 f"a proposta {proposta.id} não é de uma ação nova aplicada, com o nome {nome}",
             )
+            # O que entra no catálogo é o que a pessoa aprovou, e não uma variação com o mesmo nome.
+            try:
+                aprovada = _acao_promovida(proposta)
+            except ValidationError:
+                aprovada = None
+            _exigir(
+                dados.acao == aprovada,
+                f"a ação promovida pela proposta {proposta.id} não é a que foi aprovada e aplicada",
+            )
             estado.promovidas[nome] = dados.acao
+
+
+def _no_incidente_da_proposta(evento, proposta):
+    """A decisão e a promoção ficam no rastro do incidente da proposta, e não no de outro."""
+    _exigir(
+        evento.incidente == proposta.incidente,
+        f"o evento diz que é do incidente {evento.incidente}, e a proposta {proposta.id} é do incidente "
+        f"{proposta.incidente}",
+    )
 
 
 def _conferir_proposta_nova(estado, proposta):
@@ -993,8 +1018,14 @@ def promover(estado, id_proposta):
             f"A proposta {proposta.id} só pode ser promovida depois de aprovada e aplicada, e enquanto a ação "
             "não for desfeita.",
         )
+    acao = _acao_promovida(proposta)
+    return acao, [novo("catalogo_ampliado", Promocao(proposta=proposta.id, acao=acao), proposta.incidente)]
+
+
+def _acao_promovida(proposta):
+    """A ação do catálogo que sai de uma proposta de ação nova: os passos aprovados, sempre de risco alto."""
     detalhes = ParametrosDeAcaoNova.model_validate(proposta.parametros)
-    acao = AcaoDoCatalogo(
+    return AcaoDoCatalogo(
         nome=proposta.acao,
         descricao=detalhes.descricao,
         alvo=f"O mesmo tipo de alvo da proposta que deu origem à ação, como {proposta.alvo}",
@@ -1006,4 +1037,3 @@ def promover(estado, id_proposta):
         como_desfazer=detalhes.como_desfazer,
         fonte=detalhes.fonte,
     )
-    return acao, [novo("catalogo_ampliado", Promocao(proposta=proposta.id, acao=acao), proposta.incidente)]

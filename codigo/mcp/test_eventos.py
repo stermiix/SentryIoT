@@ -263,6 +263,106 @@ def test_cada_evento_ocupa_uma_linha_para_qualquer_leitor(registro):
     assert registro.ler()[0].dados.argumentos == {"x": texto}
 
 
+# --- o log é conferido como sequência ---------------------------------------------------------
+
+INCIDENTE = DADOS_POR_TIPO["incidente_aberto"]
+
+
+def linhas_de(registro):
+    return registro.caminho.read_text(encoding="utf-8").splitlines(keepends=True)
+
+
+def regravar(registro, linhas):
+    registro.caminho.write_text("".join(linhas), encoding="utf-8")
+
+
+def com(linha, **trocas):
+    return json.dumps(json.loads(linha) | trocas, ensure_ascii=False) + "\n"
+
+
+def gravar_tres(registro):
+    registro.gravar(novo("janelas_classificadas", LOTE))
+    registro.gravar(novo("incidente_aberto", INCIDENTE, "inc-0001"))
+    registro.gravar(novo("llm_chamada", CHAMADA, "inc-0001"))
+    return linhas_de(registro)
+
+
+@pytest.mark.parametrize("mexer,linha,trecho", [
+    # Uma linha apagada no meio: a seguinte fica com o identificador fora da posição.
+    (lambda linhas: [linhas[0], linhas[2]], 2, "ev-000003"),
+    # Duas linhas trocadas de lugar.
+    (lambda linhas: [linhas[0], linhas[2], linhas[1]], 2, "ev-000003"),
+    # A mesma linha duas vezes.
+    (lambda linhas: [*linhas, linhas[2]], 4, "ev-000003"),
+    # Identificador que pula um número.
+    (lambda linhas: [*linhas[:2], com(linhas[2], id="ev-000004")], 3, "ev-000004"),
+    (lambda linhas: [*linhas[:2], com(linhas[2], id="evento-3")], 3, "evento-3"),
+], ids=["linha apagada", "linhas fora de ordem", "linha repetida", "identificador que pula", "identificador fora do formato"])
+def test_identificador_do_evento_e_a_posicao_dele_no_arquivo(registro, mexer, linha, trecho):
+    regravar(registro, mexer(gravar_tres(registro)))
+    with pytest.raises(LogInvalido) as captura:
+        registro.ler()
+    mensagem = str(captura.value)
+    assert f"eventos.jsonl, linha {linha}: " in mensagem and trecho in mensagem and "identificador" in mensagem
+    # Com o arquivo assim, nada novo é gravado.
+    antes = registro.caminho.read_bytes()
+    with pytest.raises(LogInvalido):
+        registro.gravar(novo("janelas_classificadas", LOTE))
+    assert registro.caminho.read_bytes() == antes
+
+
+def test_instante_do_evento_nao_volta_no_tempo(registro):
+    linhas = gravar_tres(registro)
+    regravar(registro, [*linhas[:2], com(linhas[2], instante="2026-10-20T14:03:40Z")])
+    with pytest.raises(LogInvalido, match=r"linha 3: .*instante"):
+        registro.ler()
+    # Instante igual ao anterior vale: eventos gravados juntos têm o mesmo instante.
+    regravar(registro, [*linhas[:2], com(linhas[2], instante=json.loads(linhas[1])["instante"])])
+    assert len(registro.ler()) == 3
+
+
+def test_relogio_que_volta_no_tempo_nao_estraga_o_log(tmp_path):
+    instantes = iter([INICIO, INICIO + timedelta(minutes=5), INICIO - timedelta(hours=1)])
+    registro = Registro(tmp_path / "eventos.jsonl", relogio=lambda: next(instantes))
+    for _ in range(3):
+        registro.gravar(novo("janelas_classificadas", LOTE))
+    # O relógio da máquina pode ser acertado para trás. O evento novo fica com o instante do anterior.
+    depois = INICIO + timedelta(minutes=5)
+    assert [evento.instante for evento in registro.ler()] == [INICIO, depois, depois]
+
+
+@pytest.mark.parametrize("tipo,dados", [
+    ("incidente_aberto", INCIDENTE),
+    ("incidente_atualizado", INCIDENTE),
+    ("incidente_encerrado", DADOS_POR_TIPO["incidente_encerrado"]),
+    ("acao_proposta", DADOS_POR_TIPO["acao_proposta"]),
+    ("acao_executada", DADOS_POR_TIPO["acao_executada"]),
+    ("acao_desfeita", DADOS_POR_TIPO["acao_desfeita"]),
+    ("efeito_verificado", DADOS_POR_TIPO["efeito_verificado"]),
+])
+def test_incidente_do_evento_e_o_mesmo_dos_dados(registro, tipo, dados):
+    # O campo incidente do evento é o que a interface usa para montar o rastro de cada incidente.
+    registro.gravar(novo(tipo, dados, "inc-0001"))
+    antes = registro.caminho.read_bytes()
+    for outro in ("inc-0002", None):
+        # O gravador não grava o evento que o leitor recusaria.
+        with pytest.raises(ValueError, match="não pode ser gravado"):
+            registro.gravar(novo(tipo, dados, outro))
+        assert registro.caminho.read_bytes() == antes
+    # Escrito por fora, o evento deixa o log inválido.
+    linha = linhas_de(registro)[0]
+    regravar(registro, [linha, com(linha, id="ev-000002", incidente="inc-0002")])
+    with pytest.raises(LogInvalido, match=r"linha 2: .*inc-0002.*inc-0001"):
+        registro.ler()
+
+
+def test_a_numeracao_segue_o_ultimo_identificador_do_arquivo(registro):
+    registro.gravar(novo("janelas_classificadas", LOTE))
+    with open(registro.caminho, "a", encoding="utf-8") as arquivo:
+        arquivo.write("\n\n")
+    assert [evento.id for evento in registro.gravar(novo("janelas_classificadas", LOTE))] == ["ev-000002"]
+
+
 # --- o que o código dos agentes grava --------------------------------------------------------
 
 

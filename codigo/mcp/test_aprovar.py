@@ -224,11 +224,12 @@ def test_log_estragado_da_erro_com_a_linha(stub, capsys):
 ])
 def test_log_com_evento_fora_de_lugar_da_erro_com_a_linha_e_sem_traceback(stub, capsys, argumentos):
     propor_isolamento(stub)
+    ultimo = stub.registro.ler()[-1]
     with open(stub.registro.caminho, "a", encoding="utf-8") as arquivo:
-        arquivo.write(
-            '{"id":"qualquer","instante":"1999-01-01T00:00:00Z","tipo":"acao_aprovada","incidente":null,'
-            '"dados":{"proposta":"prop-0007","canal":"interface","motivo":null}}\n'
-        )
+        arquivo.write(json.dumps({
+            "id": "ev-000011", "instante": ultimo.instante.isoformat(), "tipo": "acao_aprovada", "incidente": None,
+            "dados": {"proposta": "prop-0007", "canal": "interface", "motivo": None},
+        }) + "\n")
     antes = stub.registro.caminho.read_bytes()
     assert aprovar(stub, *argumentos) == 1
     saida = capsys.readouterr()
@@ -420,7 +421,11 @@ def acrescentar_proposta(stub, **trocas):
         ],
         "exige_aprovacao": True, "estado": "aguardando_aprovacao",
     } | trocas
-    linha = {"id": "ev-000009", "instante": "2026-10-20T18:00:00Z", "tipo": "acao_proposta", "incidente": "inc-0001", "dados": proposta}
+    anteriores = stub.registro.ler()
+    linha = {
+        "id": f"ev-{len(anteriores) + 1:06d}", "instante": anteriores[-1].instante.isoformat(), "tipo": "acao_proposta",
+        "incidente": "inc-0001", "dados": proposta,
+    }
     with open(stub.registro.caminho, "a", encoding="utf-8") as arquivo:
         arquivo.write(json.dumps(linha) + "\n")
 

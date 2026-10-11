@@ -41,6 +41,13 @@ TIPOS_DO_AGENTE = tuple(_DADOS_DO_AGENTE)
 # Caracteres que o JSON deixa passar crus dentro de um texto e que alguns leitores tratam como fim
 # de linha (`str.splitlines`, por exemplo). No arquivo eles vão escapados: um evento, uma linha.
 _FIM_DE_LINHA_PARA_ALGUNS = {0x85: "\\u0085", 0x2028: "\\u2028", 0x2029: "\\u2029"}
+# Onde está o incidente dentro de `dados`, nos tipos de evento que o trazem sem depender do estado.
+# Nos demais (aprovação, promoção, recomendação), quem confere é a reconstrução (`acoes.reconstruir`).
+_INCIDENTE_DOS_DADOS = {
+    "incidente_aberto": "id", "incidente_atualizado": "id", "incidente_encerrado": "id",
+    "acao_proposta": "incidente", "acao_executada": "incidente", "acao_desfeita": "incidente",
+    "efeito_verificado": "incidente",
+}
 
 
 class LogInvalido(ValueError):
@@ -87,12 +94,45 @@ def _ler_linhas(arquivo, caminho):
         if not linha.strip():
             continue
         try:
-            eventos.append(validar_evento(json.loads(linha)))
+            evento = validar_evento(json.loads(linha))
         except ValueError as erro:
             detalhe = _resumo_do_erro(erro)
             raise LogInvalido(f"{caminho}, linha {numero}: evento fora do contrato ({detalhe})") from None
+        problema = _fora_de_sequencia(evento, eventos[-1] if eventos else None, len(eventos) + 1)
+        if problema is not None:
+            raise LogInvalido(f"{caminho}, linha {numero}: {problema}")
+        eventos.append(evento)
         eventos.linhas.append(numero)
     return eventos
+
+
+def identificador(numero):
+    """O identificador do evento de posição `numero` no arquivo, a partir de 1."""
+    return f"ev-{numero:06d}"
+
+
+def _fora_de_sequencia(evento, anterior, posicao):
+    """O que impede o evento de estar nesta posição do arquivo, ou None se ele cabe.
+
+    O identificador é a posição do evento, o instante não volta no tempo e o campo `incidente` é o
+    mesmo que vem dentro de `dados`. Assim, uma linha apagada no meio, linhas trocadas de lugar ou
+    repetidas e um evento posto no rastro de outro incidente aparecem na leitura. Apagar as últimas
+    linhas do arquivo não aparece: o README registra esse limite.
+    """
+    if evento.id != identificador(posicao):
+        return (
+            f"o evento traz o identificador {visivel(evento.id)[:40]}, e o desta posição é {identificador(posicao)}: "
+            "há linha apagada, repetida ou fora de ordem"
+        )
+    if anterior is not None and evento.instante < anterior.instante:
+        return f"o instante do evento {evento.id} é anterior ao do evento {anterior.id}"
+    campo = _INCIDENTE_DOS_DADOS.get(evento.tipo)
+    if campo is not None and evento.incidente != getattr(evento.dados, campo):
+        return (
+            f"o evento {evento.id} diz que é do incidente {evento.incidente}, e os dados são do incidente "
+            f"{getattr(evento.dados, campo)}"
+        )
+    return None
 
 
 def _resumo_do_erro(erro, maximo=3):
@@ -160,11 +200,21 @@ class Registro:
             arquivo.seek(0)
             eventos = _ler_linhas(arquivo, self.caminho)
             resultado, rascunhos = decidir(eventos)
-            instante = self.relogio()
+            # O relógio da máquina pode ser acertado para trás. O log não volta: o evento novo fica, no
+            # mínimo, com o instante do último.
+            instante = max(self.relogio(), eventos[-1].instante) if eventos else self.relogio()
+            # A numeração continua do último identificador do arquivo, que a leitura já conferiu.
+            primeiro = int(eventos[-1].id.removeprefix("ev-")) + 1 if eventos else 1
             gravados = [
-                validar_evento({"id": f"ev-{numero:06d}", "instante": instante, **rascunho})
-                for numero, rascunho in enumerate(rascunhos, start=len(eventos) + 1)
+                validar_evento({"id": identificador(numero), "instante": instante, **rascunho})
+                for numero, rascunho in enumerate(rascunhos, start=primeiro)
             ]
+            anterior = eventos[-1] if eventos else None
+            for numero, evento in enumerate(gravados, start=primeiro):
+                problema = _fora_de_sequencia(evento, anterior, numero)
+                if problema is not None:
+                    raise ValueError(f"o evento {evento.id}, do tipo {evento.tipo}, não pode ser gravado: {problema}")
+                anterior = evento
             linhas = [_linha(evento) for evento in gravados]
             if linhas:
                 # Arquivo que não termina em quebra de linha (cortado, ou editado à mão) ganha a

@@ -1485,6 +1485,56 @@ def test_promocao_no_log_so_vale_para_acao_nova_aplicada(mundo):
     violacao(outro, "catalogo_ampliado", "bloquear_ip")
 
 
+def test_decisao_promocao_e_efeito_ficam_no_incidente_da_proposta(mundo):
+    mundo.aplicar([novo("incidente_aberto", INCIDENTE_DA_ESPECIFICACAO | {"id": "inc-0002"}, "inc-0002")])
+    mundo.propor("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA)
+    casos = [
+        lambda outro: outro.aplicar([novo("acao_aprovada", APROVACAO, "inc-0002")]),
+        lambda outro: outro.aplicar([novo("acao_rejeitada", APROVACAO, "inc-0002")]),
+        lambda outro: (outro.decidir("prop-0001"), outro.executar("prop-0001"), outro.aplicar([
+            novo("efeito_verificado", EFEITO | {"incidente": "inc-0002"}, "inc-0002"),
+        ])),
+        lambda outro: (outro.decidir("prop-0001"), outro.executar("prop-0001"), outro.promover("prop-0001"),
+                       outro.eventos.pop(), outro.aplicar([novo("catalogo_ampliado", promocao, "inc-0002")])),
+    ]
+    referencia = Mundo()
+    referencia.propor("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA)
+    referencia.decidir("prop-0001")
+    referencia.executar("prop-0001")
+    referencia.promover("prop-0001")
+    promocao = dados_de(referencia, "catalogo_ampliado")
+    for caso in casos:
+        outro = Mundo()
+        outro.eventos = list(mundo.eventos)
+        caso(outro)
+        violacao(outro, "inc-0002", "inc-0001")
+
+
+def test_acao_promovida_no_log_e_a_que_foi_aprovada(mundo):
+    mundo.propor("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA)
+    mundo.decidir("prop-0001")
+    mundo.executar("prop-0001")
+    referencia = Mundo()
+    referencia.eventos = list(mundo.eventos)
+    referencia.promover("prop-0001")
+    promocao = dados_de(referencia, "catalogo_ampliado")
+    for trocas in (
+        {"passos": ["Desligar o firewall do gateway."]},
+        {"como_desfazer": "Não há como desfazer."},
+        {"descricao": "Outra coisa."},
+        {"efeito_esperado": "Nenhum."},
+        {"fonte": "Outra fonte."},
+        {"regra": "Risco baixo: aplicar sem aprovação."},
+        {"parametros": [{"nome": "duracao", "descricao": "Prazo.", "obrigatorio": False}]},
+    ):
+        outro = Mundo()
+        outro.eventos = list(mundo.eventos)
+        outro.aplicar([novo("catalogo_ampliado", promocao | {"acao": promocao["acao"] | trocas}, "inc-0001")])
+        violacao(outro, "catalogo_ampliado", "prop-0001", "aprovad")
+    mundo.aplicar([novo("catalogo_ampliado", promocao, "inc-0001")])
+    assert list(mundo.estado.promovidas) == ["ativar_syn_cookies"]
+
+
 def test_caractere_invisivel_nem_entra_no_log_e_por_isso_nao_chega_a_mensagem(mundo):
     # O contrato recusa o caractere invisível na própria linha, antes da conferência da sequência.
     with pytest.raises(ValidationError):

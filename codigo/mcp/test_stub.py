@@ -734,16 +734,33 @@ def test_nome_de_argumento_que_veio_de_fora_entra_escapado_na_mensagem(stub):
 
 
 def acrescentar(stub, tipo, dados, incidente="inc-0001"):
-    """Escreve uma linha no arquivo do log por fora do sistema, como um `echo >>` faria."""
-    linha = {"id": "ev-999999", "instante": "1999-01-01T00:00:00Z", "tipo": tipo, "incidente": incidente, "dados": dados}
+    """Escreve uma linha no arquivo do log por fora do sistema, como um `echo >>` faria.
+
+    A linha vem bem formada: com o identificador seguinte e o instante do último evento, como faria
+    quem conhece o formato e quer que ela passe pela conferência da sequência.
+    """
+    anteriores = stub.registro.ler()
+    linha = {
+        "id": f"ev-{len(anteriores) + 1:06d}", "instante": anteriores[-1].instante.isoformat(), "tipo": tipo,
+        "incidente": incidente, "dados": dados,
+    }
     with open(stub.registro.caminho, "a", encoding="utf-8") as arquivo:
         arquivo.write(json.dumps(linha, ensure_ascii=False) + "\n")
 
 
 def repetir_linha(stub, tipo):
-    linhas = stub.registro.caminho.read_text(encoding="utf-8").splitlines()
+    """Escreve de novo, no fim do arquivo, o primeiro evento do tipo, com o identificador seguinte."""
+    evento = next(evento for evento in stub.registro.ler() if evento.tipo == tipo)
+    acrescentar(stub, tipo, evento.dados.model_dump(mode="json"), evento.incidente)
+
+
+def test_linha_repetida_como_estava_e_pega_pelo_identificador(stub):
+    proposta = chamar(stub, "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO)
+    chamar(stub, "executar_acao", id_proposta=proposta.id)
+    linhas = stub.registro.caminho.read_text(encoding="utf-8").splitlines(keepends=True)
     with open(stub.registro.caminho, "a", encoding="utf-8") as arquivo:
-        arquivo.write(next(linha for linha in linhas if f'"tipo":"{tipo}"' in linha) + "\n")
+        arquivo.write(next(linha for linha in linhas if '"tipo":"acao_proposta"' in linha))
+    log_invalido(stub, "identificador")
 
 
 def log_invalido(stub, *trechos):
