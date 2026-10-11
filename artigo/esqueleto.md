@@ -127,7 +127,7 @@ JSONL; política de risco gradua ações em baixo risco (execução automática)
 humana obrigatória), com teto de propostas pendentes por incidente para conter o custo de tokens
 (ver `codigo/mcp/README.md` e `codigo/mcp/politica.toml`).
 
-Arquitetura híbrida (decisão de 2026-10-10): os agentes de triagem e de execução, e a verificação
+Arquitetura híbrida (decisão de 2026-10-10; Figura 1): os agentes de triagem e de execução, e a verificação
 do efeito, rodam num modelo local (Ollama, no laboratório do grupo); só o agente de decisão pode
 usar um modelo de fronteira pela nuvem, e recebe apenas o resumo da triagem, com endereços e
 nomes de dispositivo trocados por rótulos neutros pelo orquestrador. O agente de execução, local,
@@ -138,12 +138,12 @@ artigo. Isso responde ao ponto da banca sobre riscos de IA em nuvem e à alterna
 O classificador avisa a pessoa que opera a rede no instante em que o incidente abre, antes dos
 agentes. A interface tem o botão "Já resolvido": com ele marcado, o agente de execução não aplica
 remediação e o sistema só explica o incidente. O log grava o instante de cada etapa, da janela à
-verificação, o que permite medir o tempo entre detecção e remediação, com e sem intervenção
+verificação (Figura 2), o que permite medir o tempo entre detecção e remediação, com e sem intervenção
 humana.
 
 ## 4. Resultados
 
-`[PENDENTE]` — consolidar aqui a versão final do classificador (os números da janela de 100 nos
+`[PENDENTE]` — consolidar aqui a versão final do classificador (Figura 3; os números da janela de 100 nos
 dados regerados estão na seção 3.3; falta fechar a proporção das classes e rodar mais sementes) e,
 quando disponíveis, as métricas dos agentes (qualidade da recomendação, custo em tokens, tempo
 entre detecção e remediação) e a comparação entre as configurações local, nuvem e híbrida.
@@ -152,11 +152,11 @@ entre detecção e remediação) e a comparação entre as configurações local
 
 Rascunho a partir do que já foi medido:
 - **Atalho da janela no dataset oficial**: o modelo treinado no `MERGED_CSV` aprende o tamanho da
-  janela, não o comportamento do tráfego (seção 3.3). A regeração em janela única resolve isso ao
+  janela, não o comportamento do tráfego (seção 3.3; Figura 4). A regeração em janela única resolve isso ao
   custo de treinar só com os pcaps disponíveis, e os resultados valem para a janela de 100.
 - **Tráfego de fundo rotulado como ataque**: entre 33% e 87% das janelas de 10 dos pcaps de
   varredura, força bruta, Web e spoofing não contêm nenhum quadro do atacante
-  (`experimentos/resultados/janelas_sem_atacante.md`); a regeração descarta essas janelas, e por
+  (`experimentos/resultados/janelas_sem_atacante.md`; Figura 5); a regeração descarta essas janelas, e por
   isso Web e BruteForce ficam com poucas janelas de treino e de teste.
 - **Web e BruteForce**: recall entre 35% e 37% nos dados regerados, confundidos com Recon e com
   tráfego benigno. Os pcaps dessas classes são curtos, e o grupo não tem captura própria.

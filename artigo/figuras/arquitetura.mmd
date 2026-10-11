@@ -1,0 +1,34 @@
+%% Arquitetura do SentryIoT. Componentes descritos no ROADMAP.md e em codigo/mcp/README.md.
+%% Regerar o PNG e o PDF: python -m artigo.figuras.diagramas arquitetura
+%%{init: {"theme": "neutral", "themeVariables": {"fontFamily": "Times New Roman, Times, serif", "fontSize": "15px"}, "flowchart": {"nodeSpacing": 22, "rankSpacing": 42, "wrappingWidth": 420}}}%%
+flowchart TB
+    subgraph deteccao["<b>Detecção</b>"]
+        direction LR
+        rede(["Rede IoT"]) --> captura["<b>Captura</b><br/>arquivo pcap"]
+        captura --> extrator["<b>Extrator</b> (dpkt)<br/>39 features por janela<br/>de 100 quadros"]
+        extrator --> rf["<b>Classificador</b><br/>Random Forest, 7 categorias,<br/>+ regra DDoS/DoS pelas origens"]
+    end
+
+    mcp["<b>Servidor MCP</b><br/>10 tools, separadas por agente · política de risco<br/>(baixo: executa; alto: exige aprovação humana)<br/>log de eventos JSONL · ambiente simulado, com desfazer"]
+
+    subgraph local["<b>Modelo local</b> (Ollama, Qwen3 8B)"]
+        direction LR
+        triagem["<b>Agente de triagem</b><br/>lê o incidente e as janelas,<br/>com os endereços"]
+        execucao["<b>Agente de execução</b><br/>aplica, verifica o efeito e desfaz;<br/>único com credenciais"]
+    end
+
+    subgraph nuvem["<b>Modelo de fronteira na nuvem</b>"]
+        decisao["<b>Agente de decisão</b><br/>lê o resumo com rótulos neutros<br/>(origem-1, destino-1), sem endereços,<br/>e propõe a ação"]
+    end
+
+    pessoa(["<b>Pessoa que opera a rede</b><br/>aprova ou rejeita a proposta de risco alto<br/>e pode marcar o incidente como já resolvido"])
+    interface["<b>Interface web</b><br/>fila de incidentes e detalhe,<br/>ao vivo ou em replay do log"]
+
+    deteccao -- "abre o incidente" --> mcp
+    mcp <--> triagem
+    mcp <-- "só dados anonimizados" --> decisao
+    mcp <--> execucao
+    mcp -- "aviso ao abrir o incidente" --> pessoa
+    mcp -- "log de eventos" --> interface
+    interface --> pessoa
+    pessoa -- "aprovação e 'já resolvido'" --> mcp
