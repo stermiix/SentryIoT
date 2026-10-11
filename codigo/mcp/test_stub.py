@@ -685,6 +685,33 @@ def test_acao_nova_enorme_e_recusada_e_fica_resumida_no_log(stub):
     assert len(gravado["parametros"]) == 21
 
 
+def test_argumentos_no_log_tem_teto_em_bytes_no_total(stub):
+    # Cada item cabe no corte por item (2.000 caracteres, 20 itens, 4 níveis), mas o total passava de 16 MB.
+    enorme = {f"chave_{i}": {f"sub_{j}": ["x" * 2_000] * 20 for j in range(20)} for i in range(20)}
+    antes = stub.registro.caminho.stat().st_size
+    _, gravado = recusa_resumida(
+        stub, "argumentos_invalidos", "propor_acao", id="inc-0001", acao="bloquear_ip", alvo="203.0.113.7",
+        parametros=enorme, justificativa="j",
+    )
+    assert stub.registro.caminho.stat().st_size - antes < 10_000
+    assert len(json.dumps(gravado, ensure_ascii=False).encode()) <= 8 * 1024
+    # O que cabe fica como veio; o que não cabe vira a marca, com o tamanho cortado.
+    assert (gravado["id"], gravado["acao"], gravado["alvo"], gravado["justificativa"]) == (
+        "inc-0001", "bloquear_ip", "203.0.113.7", "j",
+    )
+    assert gravado["parametros"].startswith("[cortado: ") and gravado["parametros"].endswith(" bytes]")
+
+
+def test_chamada_atendida_com_argumentos_grandes_fica_inteira_na_proposta(stub):
+    longa = ACAO_NOVA | {"passos": ["P" * 2_000] * 20}
+    proposta = chamar(stub, "propor_acao", id="inc-0001", acao="ativar_syn_cookies", alvo="192.168.137.20",
+                      parametros=longa, justificativa="O bloqueio não resolveu.")
+    chamada, gravada = stub.registro.ler()[-2:]
+    assert len(json.dumps(chamada.dados.argumentos, ensure_ascii=False).encode()) <= 8 * 1024
+    assert "cortado" in chamada.dados.argumentos["parametros"]
+    assert gravada.dados == proposta and proposta.parametros["passos"] == longa["passos"]
+
+
 def aninhado(niveis):
     valor = atual = {}
     for _ in range(niveis):

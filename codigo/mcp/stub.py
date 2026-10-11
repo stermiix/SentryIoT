@@ -16,6 +16,7 @@ Uso, a partir da raiz do repositório (transporte stdio). O agente é obrigatór
 """
 import argparse
 import inspect
+import json
 import math
 import sys
 from typing import Annotated
@@ -62,6 +63,9 @@ _CONSULTA = TypeAdapter(Consulta)
 # Até onde uma lista, um objeto ou uma estrutura aninhada de um argumento vai para o log.
 _MAIS_ITENS = 20
 _MAIS_NIVEIS = 4
+# Teto, em bytes de JSON, dos argumentos de uma chamada no log. O corte item a item não basta: 20
+# objetos de 20 listas de 20 textos de 2.000 caracteres cabem nele e somam 16 MB.
+MAIOR_REGISTRO_DE_ARGUMENTOS = 8 * 1024
 
 
 def _milhar(numero):
@@ -105,6 +109,37 @@ def _para_o_log(valor, nivel=0):
             resumo.append(f"[cortado: {_milhar(len(valor))} itens]")
         return resumo
     return f"[valor do tipo {type(valor).__name__}]"
+
+
+def _bytes(valor):
+    return len(json.dumps(valor, ensure_ascii=False).encode("utf-8"))
+
+
+def _argumentos_para_o_log(argumentos):
+    """Os argumentos como vão para o log: cortados item a item e, depois, com teto no total.
+
+    Os argumentos entram na ordem em que vieram enquanto cabem no teto. O que não cabe vira a marca
+    `[cortado: N bytes]`, com o tamanho do que ficou de fora. Os nomes dos argumentos ficam todos, e
+    são no máximo 20, de até 200 caracteres.
+    """
+    resumo = _para_o_log(argumentos)
+    if _bytes(resumo) <= MAIOR_REGISTRO_DE_ARGUMENTOS:
+        return resumo
+    # Cada argumento ocupa, no pior caso, o tamanho da marca. O que sobra do teto vai para os que
+    # cabem inteiros, na ordem em que vieram.
+    marca = "[cortado: 000.000.000 bytes]"
+    livre = MAIOR_REGISTRO_DE_ARGUMENTOS - sum(_bytes({nome: marca}) for nome in resumo)
+    cabem = {}
+    for nome, valor in resumo.items():
+        a_mais = _bytes({nome: valor}) - _bytes({nome: marca})
+        if a_mais <= livre:
+            cabem[nome] = valor
+            livre -= max(a_mais, 0)
+        else:
+            cabem[nome] = f"[cortado: {_milhar(_bytes(valor))} bytes]"
+    return cabem
+
+
 _OBSERVACOES = {
     "cessou": "O tráfego do incidente cessou depois da ação.",
     "diminuiu": "O tráfego do incidente diminuiu depois da ação, mas não cessou.",
@@ -177,7 +212,7 @@ class Stub:
             raise ValueError(f"tool desconhecida: {nome}")
         inicio = self.registro.relogio()
         # Para o log vai o resumo dos argumentos: igual a eles, a não ser quando são grandes demais.
-        para_o_log = _para_o_log(argumentos)
+        para_o_log = _argumentos_para_o_log(argumentos)
 
         def decidir(eventos):
             estado = reconstruir(eventos)
