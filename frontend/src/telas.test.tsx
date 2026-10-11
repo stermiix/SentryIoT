@@ -50,8 +50,18 @@ describe("telas 1 e 2", () => {
     const linhas = historico.split("<li").slice(1);
     expect(linhas.length).toBeGreaterThan(0);
     for (const linha of linhas) {
-      expect(linha).toMatch(/class="event-id">(prop|exec)-\d+</);
+      expect(linha).toMatch(/class="event-id">(prop|exec|ev)-\d+</);
     }
+  });
+
+  it("dão à recusa sem proposta nem execução citada o id do próprio evento", () => {
+    const eventos = variacao((evento) => {
+      if (evento.tipo === "recusa") {
+        evento.dados.argumentos = {};
+      }
+    });
+    const recusa = eventos.find((evento) => evento.tipo === "recusa");
+    expect(telas(eventos)).toContain(`class="event-id">${recusa!.id}</code>`);
   });
 
   it("listam cada proposta com risco, aprovação e estado", () => {

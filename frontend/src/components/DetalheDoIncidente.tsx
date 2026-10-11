@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 import { inteiro, numero } from "../formato";
 import { ESTADO_DA_PROPOSTA, NOME_DO_AGENTE, PELO_CANAL, RESULTADO_DO_EFEITO, ROTULO_DO_EVENTO, rotulo } from "../rotulos";
-import type { Agente, Evento, EventoDeLLM, EventoDeTool, IncidenteView, PropostaView, TipoDeEvento } from "../types";
+import type { Agente, Evento, EventoDeLLM, EventoDeRecusa, EventoDeTool, IncidenteView, PropostaView, TipoDeEvento } from "../types";
 import Instante from "./Instante";
 
 interface Props {
@@ -27,10 +27,10 @@ function nomeDoAgente(agente: Agente | null): string {
   return agente === null ? "Agente não identificado" : rotulo(NOME_DO_AGENTE, agente);
 }
 
-/** A proposta ou a execução de que a recusa fala, quando os argumentos da tool dizem. */
-function idDaRecusa(argumentos: Record<string, unknown>): string {
-  const citado = argumentos.id_proposta ?? argumentos.id_execucao;
-  return typeof citado === "string" ? citado : "sem id";
+/** A proposta ou a execução de que a recusa fala, quando os argumentos da tool dizem; senão, o id do evento. */
+function idDaRecusa(evento: EventoDeRecusa): string {
+  const citado = evento.dados.argumentos.id_proposta ?? evento.dados.argumentos.id_execucao;
+  return typeof citado === "string" ? citado : evento.id;
 }
 
 // Cada linha do histórico diz de qual proposta ou execução está falando (o id), e o que aconteceu.
@@ -58,7 +58,7 @@ function linhaDoHistorico(evento: Evento): { id: string; descricao: string } | n
     case "catalogo_ampliado":
       return { id: evento.dados.proposta, descricao: `a ação ${evento.dados.acao.nome} entra no catálogo` };
     case "recusa":
-      return { id: idDaRecusa(evento.dados.argumentos), descricao: `${evento.dados.tool} · ${evento.dados.mensagem}` };
+      return { id: idDaRecusa(evento), descricao: `${evento.dados.tool} · ${evento.dados.mensagem}` };
     case "incidente_marcado_resolvido": {
       const { dados } = evento;
       return {
