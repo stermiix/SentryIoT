@@ -274,21 +274,49 @@ def test_os_numeros_sao_os_mesmos_em_outra_execucao(treino):
     antes = ler_manifesto(treino)
     assert executar(treino, "--teto", "30") == 0
     depois = ler_manifesto(treino)
-    # A rodada anterior fica registrada como referência; fora isso, nada muda.
-    assert len(depois["rodadas_anteriores"]) == len(antes["rodadas_anteriores"]) + 1
-    resumo = depois["rodadas_anteriores"][-1]
+    # Com os mesmos pcaps, a execução anterior não vira rodada anterior, e nada muda.
+    assert depois["rodadas_anteriores"] == antes["rodadas_anteriores"] == []
+    assert depois.pop("memoria_pico_bytes") > 0 and antes.pop("memoria_pico_bytes") > 0
+    assert sem_variaveis(depois) == sem_variaveis(antes)
+    texto = (treino / "resultados" / RELATORIO).read_text(encoding="utf-8")
+    assert "## Rodadas anteriores, como referência" not in texto
+    assert "Pico de memória do processo" in texto
+
+
+def test_a_rodada_anterior_fica_registrada_quando_os_pcaps_mudam(tmp_path):
+    pasta = preparar_regeracao(tmp_path)
+    assert executar(pasta, "--teto", "30") == 0
+    antes = ler_manifesto(pasta)
+    caminho = pasta / "resultados" / MANIFESTO_DA_REGERACAO
+    regeracao = json.loads(caminho.read_text(encoding="utf-8"))
+    regeracao["pcaps"][0]["sha256"] = "1" * 64  # um pcap trocado por outro com o mesmo nome
+    caminho.write_text(json.dumps(regeracao, ensure_ascii=False), encoding="utf-8")
+    assert executar(pasta, "--teto", "30") == 0
+    depois = ler_manifesto(pasta)
+    assert len(depois["rodadas_anteriores"]) == 1
+    resumo = depois["rodadas_anteriores"][0]
     assert resumo["pcaps"] == 9 and len(resumo["rotulos"]) == 8 and resumo["rotulos_sem_pcap"] == 26
     assert resumo["janelas"][0]["macro_f1"] == antes["janelas"][0]["avaliacao"]["amostra"]["macro_f1"]
     assert set(resumo["janelas"][0]["por_classe"]) == set(ALVOS[ALVO].classes)
-    rodadas = len(depois["rodadas_anteriores"])
-    depois.pop("rodadas_anteriores"), antes.pop("rodadas_anteriores")
-    assert sem_variaveis(depois) == sem_variaveis(antes)
-    texto = (treino / "resultados" / RELATORIO).read_text(encoding="utf-8")
+    texto = (pasta / "resultados" / RELATORIO).read_text(encoding="utf-8")
     assert "## Rodadas anteriores, como referência" in texto
     assert "Nenhum rótulo entrou" in texto and "Pcaps: de 9 para 9" in texto
     # Refazer o relatório não acrescenta rodada.
-    assert executar(treino, "--refazer-relatorio") == 0
-    assert len(ler_manifesto(treino)["rodadas_anteriores"]) == rodadas
+    assert executar(pasta, "--refazer-relatorio") == 0
+    assert len(ler_manifesto(pasta)["rodadas_anteriores"]) == 1
+
+
+def test_ler_janela_em_pedacos_da_o_mesmo_que_ler_tudo(tmp_path, monkeypatch):
+    import codigo.classificador.treinar_regerado as modulo
+
+    pasta = preparar_regeracao(tmp_path)
+    inteiro, resumo_inteiro = ler_janela(pasta / "regerado", 2, teto=30, semente=7)
+    # Pedaços de 7 linhas: cortam os rótulos e os arquivos em lugares quaisquer.
+    monkeypatch.setattr(modulo, "PEDACO", 7)
+    em_pedacos, resumo = ler_janela(pasta / "regerado", 2, teto=30, semente=7)
+    assert em_pedacos.equals(inteiro) and resumo == resumo_inteiro
+    assert list(em_pedacos.dtypes[list(COLUNAS)].unique()) == [np.float64]
+    assert em_pedacos["indice"].dtype == np.int64
 
 
 def test_avaliacao_nos_arquivos_inteiros_de_teste(treino):

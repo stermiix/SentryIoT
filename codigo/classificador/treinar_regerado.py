@@ -32,6 +32,7 @@ import argparse
 import datetime
 import json
 import platform
+import resource
 import sys
 import time
 from pathlib import Path
@@ -58,7 +59,12 @@ from codigo.classificador.experimento import (
     _pp,
     _tabela,
 )
-from codigo.classificador.mapeamento import CATEGORIA_DO_ROTULO, CATEGORIAS, ROTULOS
+from codigo.classificador.mapeamento import (
+    CATEGORIA_DO_ROTULO,
+    CATEGORIAS,
+    ROTULOS,
+    normalizar,
+)
 from codigo.classificador.preparar import (
     ALVOS,
     FEATURES_39,
@@ -66,7 +72,6 @@ from codigo.classificador.preparar import (
     SEMENTE,
     agrupar,
     alvo,
-    carregar,
     dividir_por_tempo,
     impressao_digital,
     matriz,
@@ -100,6 +105,8 @@ CLASSES = tuple(ALVOS[ALVO].classes)
 EXTRAS = ("indice", "ips_origem", "ips_destino", "atacante")
 # Colunas que os CSVs regerados a partir da versão 2 da regra trazem e os anteriores não trazem.
 EXTRAS_OPCIONAIS = ("quadros_atacante", "macs_atacante")
+# Linhas lidas por vez de cada CSV regerado: o rótulo maior da janela de 10 tem 5,3 milhões.
+PEDACO = 200_000
 # Quantas features o relatório lista, das mais importantes.
 FEATURES_LISTADAS = 10
 
@@ -119,20 +126,55 @@ def ler_janela(destino, janela, teto=None, semente=SEMENTE):
     gerador = np.random.default_rng(semente)
     partes, resumo = [], {"regeradas": {}, "ips_de_origem": []}
     for arquivo in arquivos:
-        parte, _ = carregar(arquivo)
-        faltam = [coluna for coluna in ("arquivo", *EXTRAS) if coluna not in parte.columns]
-        if faltam:
-            raise ValueError(f"{arquivo.name}: faltam as colunas {', '.join(faltam)}")
-        for coluna in (*EXTRAS, *(c for c in EXTRAS_OPCIONAIS if c in parte.columns)):
-            parte[coluna] = parte[coluna].astype(np.int64)
-        for rotulo, quantas in parte["Label"].value_counts().items():
-            resumo["regeradas"][rotulo] = resumo["regeradas"].get(rotulo, 0) + int(quantas)
-        resumo["ips_de_origem"] += ips_de_origem(parte)
-        partes.append(parte if teto is None else limitar(parte, teto, gerador))
+        partes.append(_ler_limitado(arquivo, teto, gerador, resumo))
     quadro = pd.concat(partes, ignore_index=True)
     resumo["regeradas"] = {rotulo: resumo["regeradas"][rotulo] for rotulo in ROTULOS if rotulo in resumo["regeradas"]}
     resumo["ips_de_origem"].sort(key=lambda r: ROTULOS.index(r["rotulo"]))
     return quadro.sort_values(["arquivo", "indice"], kind="stable").reset_index(drop=True), resumo
+
+
+def _canonicos(rotulos):
+    """Os rótulos na grafia canônica, normalizando cada grafia uma vez, como `carregar` faz."""
+    return rotulos.map({grafia: normalizar(grafia) for grafia in rotulos.unique()})
+
+
+def _ler_limitado(arquivo, teto, gerador, resumo):
+    """Um CSV regerado com no máximo `teto` linhas por rótulo, lido em pedaços.
+
+    A primeira leitura passa só pelo rótulo e pelos IPs de origem, para contar as linhas e resumir
+    os IPs; o sorteio é o de `limitar`, sobre as posições das linhas de cada rótulo; a segunda
+    leitura guarda só as linhas sorteadas, com os tipos de `preparar.ler`. Assim o arquivo nunca
+    fica inteiro na memória, e o resultado é o de ler tudo e chamar `limitar`.
+    """
+    colunas = pd.read_csv(arquivo, nrows=0).columns.tolist()
+    faltam = [coluna for coluna in (*FEATURES_39, "Label", "arquivo", *EXTRAS) if coluna not in colunas]
+    if faltam:
+        raise ValueError(f"{arquivo.name}: faltam as colunas {', '.join(faltam)}")
+    rotulos, ips = [], []
+    for pedaco in pd.read_csv(arquivo, usecols=["Label", "ips_origem"], dtype={"Label": object}, chunksize=PEDACO):
+        rotulos.append(_canonicos(pedaco["Label"]).to_numpy(dtype=object))
+        ips.append(pedaco["ips_origem"].to_numpy(dtype=np.int64))
+    rotulos, ips = np.concatenate(rotulos), np.concatenate(ips)
+    manter = np.zeros(len(rotulos), dtype=bool)
+    for rotulo in sorted(np.unique(rotulos).tolist()):
+        posicoes = np.flatnonzero(rotulos == rotulo)
+        resumo["regeradas"][rotulo] = resumo["regeradas"].get(rotulo, 0) + len(posicoes)
+        if teto is not None and len(posicoes) > teto:
+            posicoes = gerador.choice(posicoes, teto, replace=False)
+        manter[posicoes] = True
+    resumo["ips_de_origem"] += ips_de_origem(pd.DataFrame({"Label": rotulos, "ips_origem": ips}))
+    del rotulos, ips
+    tipos = {coluna: np.float64 if coluna in FEATURES_39 else object for coluna in colunas}
+    partes, inicio = [], 0
+    for pedaco in pd.read_csv(arquivo, dtype=tipos, float_precision="round_trip", chunksize=PEDACO):
+        fim = inicio + len(pedaco)
+        partes.append(pedaco[manter[inicio:fim]])
+        inicio = fim
+    parte = pd.concat(partes, ignore_index=True)
+    parte["Label"] = _canonicos(parte["Label"])
+    for coluna in (*EXTRAS, *(c for c in EXTRAS_OPCIONAIS if c in parte.columns)):
+        parte[coluna] = parte[coluna].astype(np.int64)
+    return parte
 
 
 def limitar(quadro, teto=TETO, semente=SEMENTE):
@@ -274,6 +316,11 @@ def treinar_janela(regeracao, destino, janela, semente=SEMENTE, arvores=ARVORES,
     }
 
 
+def memoria_pico():
+    """O pico de memória residente do processo até agora, em bytes (o macOS dá em bytes; o Linux, em KiB)."""
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (1 if sys.platform == "darwin" else 1024)
+
+
 def rodar(regeracao, destino, semente=SEMENTE, arvores=ARVORES, nucleos=TODOS_OS_NUCLEOS, teto=TETO,
           modelos=MODELOS, ao_terminar=None):
     inicio = time.perf_counter()
@@ -283,7 +330,7 @@ def rodar(regeracao, destino, semente=SEMENTE, arvores=ARVORES, nucleos=TODOS_OS
         janelas.append(registro)
         if ao_terminar is not None:
             ao_terminar(registro)
-    return {"janelas": janelas, "duracao_segundos": time.perf_counter() - inicio}
+    return {"janelas": janelas, "duracao_segundos": time.perf_counter() - inicio, "memoria_pico_bytes": memoria_pico()}
 
 
 def resumir_rodada(m):
@@ -310,13 +357,23 @@ def resumir_rodada(m):
     }
 
 
-def rodadas_anteriores(caminho):
-    """As rodadas registradas no manifesto que está em `caminho`, mais ele próprio resumido."""
+def _pcaps(regeracao):
+    return [(p["arquivo"], p.get("sha256")) for p in regeracao["pcaps"]]
+
+
+def rodadas_anteriores(caminho, regeracao=None):
+    """As rodadas registradas no manifesto que está em `caminho`, mais ele próprio resumido.
+
+    O manifesto anterior só vira rodada anterior quando os pcaps mudaram: com os mesmos pcaps, a
+    mesma regeração dá os mesmos números, e repeti-la como rodada só alongaria o relatório.
+    """
     try:
         anterior = json.loads(Path(caminho).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
     try:
+        if regeracao is not None and _pcaps(anterior["regeracao"]) == _pcaps(regeracao):
+            return anterior.get("rodadas_anteriores", [])
         return [*anterior.get("rodadas_anteriores", []), resumir_rodada(anterior)]
     except KeyError:
         return anterior.get("rodadas_anteriores", [])
@@ -359,6 +416,8 @@ def montar_manifesto(registro, regeracao, caminho_da_regeracao, destino, semente
             "dataset": regeracao["dataset"],
             "destino": str(destino),
             "regra": regeracao["regra"],
+            "versao_da_regra": regeracao.get("versao_da_regra"),
+            "extrator": regeracao.get("extrator"),
             "pcaps": regeracao["pcaps"],
             "rotulos": regeracao["rotulos"],
         },
@@ -367,6 +426,7 @@ def montar_manifesto(registro, regeracao, caminho_da_regeracao, destino, semente
         "rotulos_sem_pcap": len(ROTULOS) - len(presentes),
         "janelas": registro["janelas"],
         "duracao_segundos": registro["duracao_segundos"],
+        "memoria_pico_bytes": registro.get("memoria_pico_bytes"),
         "rodadas_anteriores": list(anteriores),
     }
 
@@ -927,7 +987,11 @@ def _como_foram_obtidos(m):
         (
             f"- Dados: `{r['destino']}/janela_<W>/<rotulo>.csv.gz`, registrados em `{Path(r['manifesto']).name}` "
             f"(gerado em {datetime.date.fromisoformat(r['gerado_em']).strftime('%d/%m/%Y')}, pcaps em "
-            f"`{r['dataset']}`), com o SHA-256 de cada pcap."
+            f"`{r['dataset']}`), com o SHA-256 de cada pcap"
+            + (
+                f", a versão {r['versao_da_regra']} da regra e o extrator de SHA-256 `{r['extrator']['sha256']}`."
+                if r.get("extrator") else "."
+            )
         ),
         "- Modelos: um por janela, em `modelos/`, fora do git: "
         + _enumerar(f"`{j['modelo']['arquivo']}` ({_decimal(j['modelo']['bytes'] / 1e6)} MB)" for j in m["janelas"])
@@ -939,7 +1003,9 @@ def _como_foram_obtidos(m):
             f"`{MATRIZES}/regerado_janela_<W>.csv` é a matriz de confusão e `_por_rotulo.csv` abre a classe real nos "
             "34 rótulos."
         ),
-        f"- Tempo total, na máquina em que rodou: {_decimal(m['duracao_segundos'])} s.",
+        f"- Tempo total, na máquina em que rodou: {_decimal(m['duracao_segundos'])} s."
+        + (f" Pico de memória do processo: {_decimal(m['memoria_pico_bytes'] / 1e9)} GB, que é o necessário para"
+           " reproduzir." if m.get("memoria_pico_bytes") else ""),
         "- Com os mesmos CSVs regerados e a mesma semente, os números saem iguais. Só mudam a data e os tempos.",
     ]
 
@@ -1002,7 +1068,7 @@ def main(argv=None):
                 raise ValueError(f"{caminho} não existe: rode python -m codigo.classificador.regerar antes")
             regeracao = json.loads(caminho.read_text(encoding="utf-8"))
             destino = argumentos.destino or regeracao["destino"]
-            anteriores = rodadas_anteriores(saida / MANIFESTO)
+            anteriores = rodadas_anteriores(saida / MANIFESTO, regeracao)
             registro = rodar(
                 regeracao, destino, argumentos.semente, argumentos.arvores, argumentos.nucleos, argumentos.teto,
                 argumentos.modelos, ao_terminar=_relatar,
