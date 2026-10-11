@@ -17,6 +17,7 @@ from codigo.classificador.preparar import (
     FEATURES_33,
     FEATURES_39,
     FRACAO_DE_TESTE,
+    FRACAO_DE_TESTE_POR_TEMPO,
     FUSAO,
     SEMENTE,
     agrupar,
@@ -25,6 +26,7 @@ from codigo.classificador.preparar import (
     dividir,
     dividir_estratificada,
     dividir_por_grupos,
+    dividir_por_tempo,
     impressao_digital,
     ler,
     matriz,
@@ -304,7 +306,7 @@ def test_dividir_escolhe_o_metodo_pelo_nome_e_agrupa_pelas_33_features():
     copia["Tot sum"] = copia["AVG"] * copia["Number"]
     quadro = pd.concat([quadro, copia], ignore_index=True)
     rotulos = quadro["Label"].to_numpy()
-    assert DIVISOES == ("estratificada", "grupos")
+    assert DIVISOES == ("estratificada", "grupos", "tempo")
     treino, teste = dividir(quadro, "estratificada", semente=5)
     esperado = dividir_estratificada(rotulos, semente=5)
     assert np.array_equal(treino, esperado[0]) and np.array_equal(teste, esperado[1])
@@ -420,3 +422,80 @@ def test_amostra_real_e_a_do_manifesto_e_a_divisao_por_grupos_nao_repete_vetor()
     # O sorteio de linhas deixa parte do teste com vetor que também está no treino.
     treino_e, teste_e = dividir_estratificada(rotulos)
     assert np.isin(grupos39[teste_e], grupos39[treino_e]).mean() > 0.01
+
+
+# --- divisão por tempo, para os dados regerados dos pcaps --------------------------------------
+
+
+def quadro_regerado(por_arquivo):
+    """Linhas como as dos CSVs regerados: cada rótulo com os seus arquivos e o índice da janela em cada um."""
+    partes = []
+    for rotulo, arquivos in por_arquivo.items():
+        for arquivo, indices in arquivos.items():
+            parte = pd.DataFrame(1.0, index=range(len(indices)), columns=list(COLUNAS))
+            parte["Label"], parte["arquivo"], parte["indice"] = rotulo, arquivo, [str(i) for i in indices]
+            partes.append(parte)
+    return pd.concat(partes, ignore_index=True)
+
+
+def test_divisao_por_tempo_deixa_os_primeiros_70_por_cento_de_cada_arquivo_no_treino():
+    assert FRACAO_DE_TESTE_POR_TEMPO == 0.3 and "tempo" in DIVISOES
+    quadro = quadro_regerado({
+        "Recon-PortScan": {"Recon-PortScan.pcap": range(10)},
+        "DictionaryBruteForce": {"DictionaryBruteForce.pcap": range(7)},
+    })
+    treino, teste = dividir_por_tempo(quadro)
+    assert sorted(treino.tolist()) + sorted(teste.tolist()) and not set(treino) & set(teste)
+    assert len(treino) + len(teste) == 17
+    recon = quadro["Label"] == "Recon-PortScan"
+    assert quadro.loc[teste][recon].loc[:, "indice"].astype(int).tolist() == [7, 8, 9]
+    assert quadro.loc[treino][recon].loc[:, "indice"].astype(int).tolist() == [0, 1, 2, 3, 4, 5, 6]
+    forca = quadro["Label"] == "DictionaryBruteForce"
+    assert quadro.loc[teste][forca].loc[:, "indice"].astype(int).tolist() == [5, 6]
+
+
+def test_divisao_por_tempo_usa_o_total_de_janelas_do_arquivo_quando_e_dado():
+    # Só parte das janelas está no quadro (as com atacante, ou uma amostra), mas o corte é no arquivo inteiro.
+    quadro = quadro_regerado({"Recon-PortScan": {"Recon-PortScan.pcap": [1, 3, 8, 15, 16, 19]}})
+    treino, teste = dividir_por_tempo(quadro, janelas_por_arquivo={"Recon-PortScan.pcap": 20})
+    assert quadro.loc[treino, "indice"].astype(int).tolist() == [1, 3, 8]
+    assert quadro.loc[teste, "indice"].astype(int).tolist() == [15, 16, 19]
+    # Sem o total, vale o maior índice presente mais um.
+    treino, teste = dividir_por_tempo(quadro)
+    assert quadro.loc[teste, "indice"].astype(int).tolist() == [15, 16, 19]
+
+
+def test_divisao_por_tempo_poe_um_arquivo_inteiro_no_teste_quando_o_rotulo_tem_mais_de_um():
+    quadro = quadro_regerado({
+        "BenignTraffic": {"BenignTraffic.pcap": range(6), "BenignTraffic1.pcap": range(4)},
+        "Recon-PortScan": {"Recon-PortScan.pcap": range(10)},
+    })
+    treino, teste = dividir_por_tempo(quadro)
+    benigno = quadro["Label"] == "BenignTraffic"
+    assert quadro.loc[teste][benigno].loc[:, "arquivo"].unique().tolist() == ["BenignTraffic1.pcap"]
+    assert quadro.loc[treino][benigno].loc[:, "arquivo"].unique().tolist() == ["BenignTraffic.pcap"]
+    assert len(quadro.loc[teste][benigno]) == 4 and len(quadro.loc[treino][benigno]) == 6
+    # O último arquivo em ordem de nome vai para o teste, qualquer que seja a ordem das linhas.
+    invertido = quadro.iloc[::-1].reset_index(drop=True)
+    treino, teste = dividir_por_tempo(invertido)
+    assert invertido.loc[teste][invertido["Label"] == "BenignTraffic"].loc[:, "arquivo"].unique().tolist() == [
+        "BenignTraffic1.pcap"
+    ]
+
+
+def test_divisao_por_tempo_aceita_outra_fracao_e_exige_as_colunas():
+    quadro = quadro_regerado({"Recon-PortScan": {"Recon-PortScan.pcap": range(10)}})
+    _, teste = dividir_por_tempo(quadro, fracao=0.5)
+    assert quadro.loc[teste, "indice"].astype(int).tolist() == [5, 6, 7, 8, 9]
+    with pytest.raises(ValueError, match="arquivo"):
+        dividir_por_tempo(quadro.drop(columns=["arquivo"]))
+    with pytest.raises(ValueError, match="indice"):
+        dividir_por_tempo(quadro.drop(columns=["indice"]))
+
+
+def test_dividir_despacha_a_divisao_por_tempo_com_a_fracao_dela():
+    quadro = quadro_regerado({"Recon-PortScan": {"Recon-PortScan.pcap": range(10)}})
+    treino, teste = dividir(quadro, "tempo")
+    assert len(teste) == 3 and len(treino) == 7
+    _, estratificada = dividir(quadro_sintetico(por_classe=10), "estratificada")
+    assert len(estratificada) == 18  # 20% de 90 linhas: a fração padrão das outras divisões não muda

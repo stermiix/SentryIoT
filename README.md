@@ -21,12 +21,15 @@ alertas com vulnerabilidades conhecidas e devolve recomendações de mitigação
 além da detecção, para a resposta.
 
 - **Dataset primário:** CICIoT2023 (confirmado). Ver `dados/README.md`.
-- **Dataset secundário:** em definição, e possivelmente desnecessário — depende da decisão sobre
-  o 4º cenário. Ver `ROADMAP.md`.
+- **Dataset secundário:** dispensado em 10/10/2026, com o orientador. O trabalho segue só com o
+  CICIoT2023, que cobre os três cenários da PoC. Ver `ROADMAP.md`.
 - **Stack:** Python, Pandas, scikit-learn, dpkt, servidor MCP, agentes LLM.
-- **Cenários da PoC:** DDoS, port scan e brute force. O 4º cenário (exfiltração) está pendente de
-  decisão com o orientador — o CICIoT2023 não tem essa classe, e os datasets de referência da área
-  também não cobrem esse vetor com dados rotulados suficientes.
+- **Agentes:** três papéis (triagem, decisão e execução), em arquitetura híbrida: triagem e
+  execução no modelo local, e só a decisão pode usar um modelo de fronteira na nuvem, recebendo
+  um resumo sem endereços nem nomes de dispositivo. Ver `ROADMAP.md`.
+- **Cenários da PoC:** DDoS, port scan e brute force. O cenário de exfiltração foi retirado em
+  10/10/2026, em decisão com o orientador: o CICIoT2023 não tem essa classe, e os datasets de
+  referência da área também não cobrem esse vetor com dados rotulados suficientes.
 - **Métricas:** recall por classe, precisão, F1-score e taxa de falso positivo. Acurácia global
   **não** é métrica principal: 89,5% do dataset é DDoS e DoS, então ela engana.
 
@@ -92,7 +95,7 @@ agrupa as tarefas concluídas por semana e por responsável.
 |---|---|
 | `artigo/` | texto do artigo (10–20 pág, template do Oriente) e `figuras/` |
 | `codigo/captura/` | extrator de features: pacotes → 39 números |
-| `codigo/classificador/` | amostragem, preparação, treino e avaliação do Random Forest |
+| `codigo/classificador/` | regeração dos dados de treino a partir dos pcaps, preparação, treino e avaliação do Random Forest |
 | `codigo/mcp/` | contrato da tool e servidor MCP que expõe as predições |
 | `codigo/agente/` | sistema multiagente (triagem, decisão e execução), prompts e política de acionamento |
 | `frontend/` | interface web do sistema: fila de incidentes, detalhe, comparações e replay (ver `frontend/README.md`) |

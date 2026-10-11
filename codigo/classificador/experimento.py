@@ -71,7 +71,7 @@ from codigo.classificador.preparar import (
     ALVOS,
     CONJUNTOS_DE_FEATURES,
     DEPENDENTES_DA_JANELA,
-    DIVISOES,
+    DIVISOES_POR_SORTEIO,
     FRACAO_DE_TESTE,
     FUSAO,
     SEMENTE,
@@ -143,7 +143,7 @@ class Execucao:
 
 GRADE = tuple(
     Execucao(features, divisao, classes)
-    for features in ("39", "33") for divisao in DIVISOES for classes in ("8", "7")
+    for features in ("39", "33") for divisao in DIVISOES_POR_SORTEIO for classes in ("8", "7")
 )
 # As combinações do sorteio estratificado, treinadas com a proporção natural das classes.
 GRADE_NATURAL = tuple(
@@ -181,7 +181,7 @@ def rodar(quadro, populacao, execucoes=(*GRADE, *GRADE_NATURAL, *REFERENCIAS), s
     rotulos = quadro["Label"].to_numpy()
     matrizes = {nome: matriz(quadro, features) for nome, features in CONJUNTOS_DE_FEATURES.items()}
     grupos = {nome: agrupar(X) for nome, X in matrizes.items()}
-    divisoes = {nome: dividir(quadro, nome, semente) for nome in DIVISOES}
+    divisoes = {nome: dividir(quadro, nome, semente) for nome in DIVISOES_POR_SORTEIO}
     desconhecidas = sorted({execucao.priori for execucao in execucoes} - set(PRIORIS))
     if desconhecidas:
         raise ValueError(

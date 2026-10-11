@@ -9,8 +9,10 @@ import pytest
 
 from codigo.captura.extrator import (
     COLUNAS,
+    Enderecos,
     Extrator,
     agregar,
+    enderecos,
     extrair,
     gravar_csv,
     ler_pcap,
@@ -30,17 +32,18 @@ def test_colunas_na_ordem_do_csv_oficial():
     assert len(COLUNAS) == 39
     assert ",".join(COLUNAS) == CABECALHO_OFICIAL
 
-MACS = b"\x02\x00\x00\x00\x00\x02" + b"\x02\x00\x00\x00\x00\x01"
+MAC_DESTINO = b"\x02\x00\x00\x00\x00\x02"
+MAC_ORIGEM = b"\x02\x00\x00\x00\x00\x01"
+MACS = MAC_DESTINO + MAC_ORIGEM
 
 
-def eth(tipo, carga):
-    return MACS + struct.pack(">H", tipo) + carga
+def eth(tipo, carga, origem=MAC_ORIGEM, destino=MAC_DESTINO):
+    return destino + origem + struct.pack(">H", tipo) + carga
 
 
-def ipv4(protocolo, carga, ttl=64, fragmento=0):
+def ipv4(protocolo, carga, ttl=64, fragmento=0, origem=bytes([10, 0, 0, 1]), destino=bytes([10, 0, 0, 2])):
     cabecalho = struct.pack(
-        ">BBHHHBBH4s4s", 0x45, 0, 20 + len(carga), 1, fragmento, ttl, protocolo, 0,
-        bytes([10, 0, 0, 1]), bytes([10, 0, 0, 2]),
+        ">BBHHHBBH4s4s", 0x45, 0, 20 + len(carga), 1, fragmento, ttl, protocolo, 0, origem, destino,
     )
     return cabecalho + carga
 
@@ -529,3 +532,87 @@ def test_instante_precisa_ser_um_numero_finito():
         with pytest.raises(ValueError, match="instante"):
             Extrator().alimentar(instante, quadro_tcp())
     assert Extrator(janela=1).alimentar(Decimal("1.5"), quadro_tcp())["Number"] == 1
+
+
+# --- endereços de cada janela ----------------------------------------------------------------
+
+
+def quadro_de(mac_origem, mac_destino, ip_origem=(10, 0, 0, 1), ip_destino=(10, 0, 0, 2)):
+    """Quadro TCP com os endereços pedidos. Os MACs vêm como texto, na grafia do Wireshark."""
+    return eth(
+        0x0800, ipv4(6, tcp(40000, 80, 0x02), origem=bytes(ip_origem), destino=bytes(ip_destino)),
+        origem=bytes.fromhex(mac_origem.replace(":", "")), destino=bytes.fromhex(mac_destino.replace(":", "")),
+    )
+
+
+def test_medir_quadro_registra_os_enderecos_do_quadro():
+    m = medir_quadro(0.0, quadro_de("DC:A6:32:DC:27:D5", "3c:18:a0:41:c3:a0", (192, 168, 1, 7), (8, 8, 8, 8)))
+    assert (m["mac_origem"], m["mac_destino"]) == ("dc:a6:32:dc:27:d5", "3c:18:a0:41:c3:a0")
+    assert (m["ip_origem"], m["ip_destino"]) == (bytes([192, 168, 1, 7]), bytes([8, 8, 8, 8]))
+
+
+def test_quadro_arp_tem_macs_e_nao_tem_ip():
+    m = medir_quadro(0.0, eth(0x0806, b"\x00" * 28))
+    assert (m["mac_origem"], m["mac_destino"]) == ("02:00:00:00:00:01", "02:00:00:00:00:02")
+    assert (m["ip_origem"], m["ip_destino"]) == (None, None)
+
+
+def test_enderecos_da_janela_sao_conjuntos_de_macs_e_contagens_de_ips():
+    medidas = [
+        medir_quadro(0.0, quadro_de("aa:00:00:00:00:01", "aa:00:00:00:00:02", (10, 0, 0, 1), (10, 0, 0, 9))),
+        medir_quadro(1.0, quadro_de("aa:00:00:00:00:03", "aa:00:00:00:00:02", (10, 0, 0, 2), (10, 0, 0, 9)), 0.0),
+        medir_quadro(2.0, quadro_de("aa:00:00:00:00:01", "aa:00:00:00:00:04", (10, 0, 0, 1), (10, 0, 0, 8)), 1.0),
+        medir_quadro(3.0, eth(0x0806, b"\x00" * 28), 2.0),
+    ]
+    e = enderecos(medidas)
+    assert isinstance(e, Enderecos)
+    assert e.macs_origem == frozenset({"aa:00:00:00:00:01", "aa:00:00:00:00:03", "02:00:00:00:00:01"})
+    assert e.macs_destino == frozenset({"aa:00:00:00:00:02", "aa:00:00:00:00:04", "02:00:00:00:00:02"})
+    # O ARP não tem cabeçalho IPv4, então não entra na contagem de IPs.
+    assert (e.ips_origem, e.ips_destino) == (2, 2)
+    # A agregação das 39 colunas não muda com os endereços registrados.
+    assert list(agregar(medidas)) == list(COLUNAS)
+
+
+def test_extrator_com_enderecos_devolve_a_linha_e_os_enderecos():
+    extrator = Extrator(janela=2, enderecos=True)
+    assert extrator.alimentar(0.0, quadro_de("aa:00:00:00:00:01", "aa:00:00:00:00:02")) is None
+    linha, e = extrator.alimentar(1.0, quadro_de("aa:00:00:00:00:03", "aa:00:00:00:00:02"))
+    assert list(linha) == list(COLUNAS) and linha["Number"] == 2
+    assert e == Enderecos(
+        frozenset({"aa:00:00:00:00:01", "aa:00:00:00:00:03"}), frozenset({"aa:00:00:00:00:02"}), 1, 1,
+    )
+    assert extrator.finalizar() is None
+    extrator.alimentar(2.0, quadro_de("aa:00:00:00:00:05", "aa:00:00:00:00:06"))
+    linha, e = extrator.finalizar()
+    assert linha["Number"] == 1 and e.macs_origem == frozenset({"aa:00:00:00:00:05"})
+
+
+def test_sem_a_opcao_a_saida_do_extrator_continua_igual():
+    quadros = [(float(i), quadro_de("aa:00:00:00:00:01", "aa:00:00:00:00:02")) for i in range(4)]
+    so_linhas = list(extrair(quadros, janela=2))
+    com_enderecos = list(extrair(quadros, janela=2, enderecos=True))
+    assert len(so_linhas) == len(com_enderecos) == 2
+    assert all(isinstance(linha, dict) and list(linha) == list(COLUNAS) for linha in so_linhas)
+    assert [linha for linha, _ in com_enderecos] == so_linhas
+    assert all(isinstance(e, Enderecos) for _, e in com_enderecos)
+
+
+def test_acumular_recebe_um_quadro_ja_medido():
+    # Uma medida serve a vários extratores: quem lê um pcap com duas janelas mede cada quadro uma vez.
+    de_dois, de_tres = Extrator(janela=2), Extrator(janela=3)
+    ts_anterior = None
+    saidas = []
+    for i in range(6):
+        medida = medir_quadro(float(i), quadro_tcp(), ts_anterior)
+        ts_anterior = medida["ts"]
+        saidas.append((de_dois.acumular(medida), de_tres.acumular(medida)))
+    assert [i for i, (linha, _) in enumerate(saidas) if linha is not None] == [1, 3, 5]
+    assert [i for i, (_, linha) in enumerate(saidas) if linha is not None] == [2, 5]
+    assert saidas[5][0]["Number"] == 2 and saidas[5][1]["Number"] == 3
+    assert saidas[5][0]["IAT"] == 1.0
+    assert de_dois.finalizar() is None and de_tres.finalizar() is None
+    # `alimentar` é medir e acumular.
+    um = Extrator(janela=1)
+    assert um.alimentar(7.0, quadro_tcp())["Number"] == 1
+    assert um.acumular(None) is None and um.ignorados == 1

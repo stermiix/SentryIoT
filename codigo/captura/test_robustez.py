@@ -46,7 +46,9 @@ INDICADORES = (
 SO_EM_TCP = (*FLAGS, "HTTP", "HTTPS", "Telnet", "SMTP", "SSH", "IRC")
 # Colunas que só existem na linha da janela. O resto, mais o instante, vem de cada quadro.
 SO_NA_JANELA = ("Rate", *CONTAGENS, "Tot sum", "Min", "Max", "AVG", "Std", "Number", "Variance")
-CHAVES_DA_MEDIDA = {*(c for c in COLUNAS if c not in SO_NA_JANELA), "ts"}
+CHAVES_DA_MEDIDA = {
+    *(c for c in COLUNAS if c not in SO_NA_JANELA), "ts", "mac_origem", "mac_destino", "ip_origem", "ip_destino",
+}
 
 PCAP_NANO_BE = b"\xa1\xb2\x3c\x4d"
 MAGICOS = (PCAP_LE, PCAP_BE, PCAP_NANO, PCAP_NANO_BE)

@@ -13,7 +13,10 @@ Alvo. As 34 classes, as 8 categorias dos autores, 7 categorias com DDoS e DoS fu
 ataque e benigno.
 
 Divisão. Sorteio estratificado de linhas ou divisão por grupos, em que todas as linhas com o
-mesmo vetor de features ficam do mesmo lado. Nas duas, 20% das linhas vão para o teste.
+mesmo vetor de features ficam do mesmo lado. Nas duas, 20% das linhas vão para o teste. Para os
+dados regerados dos pcaps há a divisão por tempo: dentro de cada arquivo, as primeiras janelas
+vão para o treino e as últimas para o teste, e um rótulo com mais de um arquivo tem um arquivo
+inteiro no teste.
 
 Valores vazios e infinitos. A amostra traz `Std` e `Variance` vazios nas janelas de um só quadro
 e `Rate` infinito nas janelas sem duração. As linhas são mantidas, porque o extrator produz os
@@ -41,6 +44,7 @@ from codigo.classificador.mapeamento import (
 
 SEMENTE = 42
 FRACAO_DE_TESTE = 0.2
+FRACAO_DE_TESTE_POR_TEMPO = 0.3
 
 FEATURES_39 = COLUNAS
 # `Number` é a quantidade de quadros da janela, e as outras cinco são o produto de uma coluna
@@ -48,7 +52,9 @@ FEATURES_39 = COLUNAS
 DEPENDENTES_DA_JANELA = ("Number", "Tot sum", "ack_count", "syn_count", "fin_count", "rst_count")
 FEATURES_33 = tuple(coluna for coluna in COLUNAS if coluna not in DEPENDENTES_DA_JANELA)
 CONJUNTOS_DE_FEATURES = {"39": FEATURES_39, "33": FEATURES_33}
-DIVISOES = ("estratificada", "grupos")
+# As divisões por sorteio valem para a amostra do MERGED_CSV; a por tempo, para os dados regerados.
+DIVISOES_POR_SORTEIO = ("estratificada", "grupos")
+DIVISOES = (*DIVISOES_POR_SORTEIO, "tempo")
 
 FUSAO = "DDoS+DoS"
 
@@ -218,18 +224,51 @@ def dividir_por_grupos(grupos, rotulos, semente=SEMENTE, fracao=FRACAO_DE_TESTE)
     return np.flatnonzero(~no_teste), np.flatnonzero(no_teste)
 
 
-def dividir(quadro, divisao, semente=SEMENTE, fracao=FRACAO_DE_TESTE):
-    """Divide a amostra pelo método pedido, "estratificada" ou "grupos". Devolve (treino, teste).
+def dividir_por_tempo(quadro, fracao=FRACAO_DE_TESTE_POR_TEMPO, janelas_por_arquivo=None):
+    """Divisão por tempo dos dados regerados dos pcaps. Devolve (treino, teste).
+
+    Exige as colunas `Label`, `arquivo` e `indice` dos CSVs regerados. Num rótulo com um só
+    arquivo, as janelas de índice menor que (1 - fração) do total de janelas do arquivo vão para o
+    treino, e as demais para o teste: janelas vizinhas não ficam dos dois lados, a não ser o par
+    na fronteira. O total é o de `janelas_por_arquivo`, quando dado, e senão o maior índice
+    presente mais um. Num rótulo com mais de um arquivo, o último em ordem de nome vai inteiro
+    para o teste, e os outros para o treino.
+    """
+    _faltantes("", quadro.columns, ("Label", "arquivo", "indice"))
+    rotulos = quadro["Label"].to_numpy()
+    arquivos = quadro["arquivo"].to_numpy()
+    indices = quadro["indice"].to_numpy().astype(np.int64)
+    janelas_por_arquivo = janelas_por_arquivo or {}
+    no_teste = np.zeros(len(quadro), dtype=bool)
+    for rotulo in np.unique(rotulos):
+        do_rotulo = rotulos == rotulo
+        nomes = sorted(np.unique(arquivos[do_rotulo]).tolist())
+        if len(nomes) > 1:
+            no_teste[do_rotulo & (arquivos == nomes[-1])] = True
+            continue
+        do_arquivo = do_rotulo & (arquivos == nomes[0])
+        total = janelas_por_arquivo.get(nomes[0], int(indices[do_arquivo].max()) + 1)
+        corte = int((1 - fracao) * total + 0.5)
+        no_teste[do_arquivo & (indices >= corte)] = True
+    return np.flatnonzero(~no_teste), np.flatnonzero(no_teste)
+
+
+def dividir(quadro, divisao, semente=SEMENTE, fracao=None):
+    """Divide a amostra pelo método pedido, "estratificada", "grupos" ou "tempo". Devolve (treino, teste).
 
     Os grupos são os vetores idênticos nas 33 features. Linhas iguais nas 39 também são iguais
     nas 33, então a mesma divisão serve aos dois conjuntos de features sem deixar vetor repetido
-    entre treino e teste, e as execuções são comparadas nas mesmas linhas.
+    entre treino e teste, e as execuções são comparadas nas mesmas linhas. Sem `fracao`, vale a
+    fração padrão da divisão: 20% nos sorteios e 30% na divisão por tempo, que não usa a semente.
     """
     rotulos = quadro["Label"].to_numpy()
     if divisao == "estratificada":
-        return dividir_estratificada(rotulos, semente, fracao)
+        return dividir_estratificada(rotulos, semente, FRACAO_DE_TESTE if fracao is None else fracao)
     if divisao == "grupos":
-        return dividir_por_grupos(agrupar(matriz(quadro, FEATURES_33)), rotulos, semente, fracao)
+        grupos = agrupar(matriz(quadro, FEATURES_33))
+        return dividir_por_grupos(grupos, rotulos, semente, FRACAO_DE_TESTE if fracao is None else fracao)
+    if divisao == "tempo":
+        return dividir_por_tempo(quadro, FRACAO_DE_TESTE_POR_TEMPO if fracao is None else fracao)
     raise ValueError(f"divisão desconhecida: {divisao!r} (as divisões são {', '.join(DIVISOES)})")
 
 

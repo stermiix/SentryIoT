@@ -136,7 +136,11 @@ def test_relatorio_sem_divergencias(tmp_path):
     assert "limite de captura declarado" in texto
 
 
-@pytest.mark.skipif(not (DATASET / "DictionaryBruteForce.pcap").exists(), reason="dataset ausente")
+@pytest.mark.skipif(
+    not (DATASET / "DictionaryBruteForce.pcap").exists()
+    or not (DATASET / "DictionaryBruteForce" / "DictionaryBruteForce.pcap.csv").exists(),
+    reason="dataset ausente: o pcap e o CSV oficial por ataque, que é opcional, são os dois necessários",
+)
 def test_dictionary_brute_force_reproduz_o_oficial():
     r = calibrar_pcap(
         DATASET / "DictionaryBruteForce.pcap",

@@ -37,4 +37,4 @@ frontend/dist/
 .DS_Store
 
 # Dataset oficial CICIoT2023 (8.4 GB) — baixado do cicresearch.ca, nao versionar
-CICIoT2023/
+CICIoT2023
