@@ -22,7 +22,7 @@ As diferenças entre duas condições (uma configuração e a de referência, o 
 - f. Janelas com quadro menor que 60 bytes: DDoS+DoS 0,0%, Mirai 1,4%, Recon 0,0%, Spoofing 84,2%, Web 0,0%, BruteForce 0,0%, Benign 0,0%; com quadro maior que 1.514 bytes: DDoS+DoS 1,4%, Mirai 0,6%, Recon 27,9%, Spoofing 0,0%, Web 38,7%, BruteForce 32,9%, Benign 87,8%.
 - g. Pontos candidatos do limiar, escolhidos no próprio teste (a escolha final precisa de uma parte de validação): t = 0,60 com 2,00% de benigno como ataque e 98,94% de recall de ataque; t = 0,75 com 0,75% de benigno como ataque e 98,19% de recall de ataque; t = 0,80 com 0,46% de benigno como ataque e 97,64% de recall de ataque.
 - h. Recall com o intervalo por blocos: Web 37,0% (31,1% a 43,1%); BruteForce 35,2% (19,2% a 52,0%); Recon 87,7% (86,6% a 88,7%); Spoofing 99,4% (99,0% a 99,7%).
-- i. Uma janela leva 1,63 ms para ser classificada sozinha e 0,015 ms num lote de 1.000; o modelo tem 184,5 MB.
+- i. Uma janela leva 1,59 ms para ser classificada sozinha e 0,013 ms num lote de 1.000; o modelo tem 184,5 MB.
 
 ## a. Reprodução do modelo publicado
 
@@ -170,14 +170,14 @@ Somando os pcaps de cada categoria, nas janelas de teste:
 
 | Categoria | Pcaps | Recall dentro da captura | Recall com o pcap fora | Diferença |
 |---|---|---|---|---|
-| DDoS+DoS | 4 | 95,45% (95,41% a 95,47%) | 77,09% (76,91% a 77,38%) | sem valor |
-| Mirai | 3 | 99,24% (99,24% a 99,25%) | 55,34% (55,33% a 55,34%) | sem valor |
-| Recon | 5 | 87,70% (87,65% a 87,77%) | 31,53% (31,42% a 31,68%) | sem valor |
-| Spoofing | 2 | 99,42% (99,41% a 99,44%) | 96,95% (96,46% a 97,25%) | sem valor |
-| Web | 6 | 37,06% (36,99% a 37,20%) | 31,25% (30,54% a 32,47%) | sem valor |
-| BruteForce | 1 | 34,80% (34,43% a 35,16%) | 0,00% (0,00% a 0,00%) | sem valor |
+| DDoS+DoS | 4 | 95,45% (95,41% a 95,47%) | 77,09% (76,91% a 77,38%) | -18,36 p.p. (de -19,00 a -17,72), diferente de zero |
+| Mirai | 3 | 99,24% (99,24% a 99,25%) | 55,34% (55,33% a 55,34%) | -43,91 p.p. (de -44,24 a -43,57), diferente de zero |
+| Recon | 5 | 87,70% (87,65% a 87,77%) | 31,53% (31,42% a 31,68%) | -56,17 p.p. (de -57,85 a -54,49), diferente de zero |
+| Spoofing | 2 | 99,42% (99,41% a 99,44%) | 96,95% (96,46% a 97,25%) | -2,47 p.p. (de -3,20 a -1,75), diferente de zero |
+| Web | 6 | 37,06% (36,99% a 37,20%) | 31,25% (30,54% a 32,47%) | -5,81 p.p. (de -9,09 a -2,52), diferente de zero |
+| BruteForce | 1 | 34,80% (34,43% a 35,16%) | 0,00% (0,00% a 0,00%) | -34,80 p.p. (de -50,13 a -19,47), diferente de zero |
 
-**O que os números mostram.** O recall dentro da captura mede o reconhecimento de um trecho seguinte da mesma captura; o recall com o pcap fora mede o reconhecimento de uma captura que o modelo não viu. A distância entre os dois, por categoria, está na última coluna.
+**O que os números mostram.** O recall dentro da captura mede o reconhecimento de um trecho seguinte da mesma captura; o recall com o pcap fora mede o reconhecimento de uma captura que o modelo não viu. A distância entre os dois, por categoria, está na última coluna. Fora BruteForce, as maiores quedas por pcap que contam são em `Mirai-udpplain.pcap` (-98,32 p.p.), `VulnerabilityScan.pcap` (-81,98 p.p.), `Recon-HostDiscovery.pcap` (-54,69 p.p.) e `DoS-UDP_Flood.pcap` (-43,07 p.p.).
 
 O recall de Spoofing com o pcap fora não mostra que o Spoofing é reconhecido numa captura nova: os dois pcaps de spoofing têm quadros menores que 60 bytes na maior parte das janelas (rodada f). Com o quadro menor que 60 bytes contado como 60, ele vai de 96,95% para 63,95% (configuração 1 de `rodadas_normalizadas.md`).
 
@@ -214,15 +214,15 @@ Os pcaps com algum quadro menor que 60 bytes, e os benignos:
 
 | Medida | 39 features | Sem `Time_To_Live` | Diferença |
 |---|---|---|---|
-| Macro-F1 | 82,20% (82,09% a 82,27%) | 81,91% (81,82% a 82,01%) | sem valor |
-| Benigno classificado como ataque | 1,72% (1,62% a 1,86%) | 1,86% (1,70% a 1,97%) | sem valor |
-| Recall DDoS+DoS | 98,87% (98,85% a 98,88%) | 98,71% (98,66% a 98,78%) | sem valor |
-| Recall Mirai | 99,24% (99,24% a 99,25%) | 99,23% (99,22% a 99,24%) | sem valor |
-| Recall Recon | 87,70% (87,65% a 87,77%) | 86,39% (86,22% a 86,55%) | sem valor |
-| Recall Spoofing | 99,42% (99,41% a 99,44%) | 99,43% (99,40% a 99,47%) | sem valor |
-| Recall Web | 37,06% (36,99% a 37,20%) | 37,49% (36,56% a 38,49%) | sem valor |
-| Recall BruteForce | 34,80% (34,43% a 35,16%) | 34,68% (34,43% a 34,80%) | sem valor |
-| Pcap benigno de fora (`BenignTraffic2.pcap`) como ataque | 1,73% (1,65% a 1,87%) | 1,85% (1,79% a 1,89%) | sem valor |
+| Macro-F1 | 82,20% (82,09% a 82,27%) | 81,91% (81,82% a 82,01%) | -0,29 p.p. (de -0,72 a +0,14), sem diferença |
+| Benigno classificado como ataque | 1,72% (1,62% a 1,86%) | 1,86% (1,70% a 1,97%) | +0,15 p.p. (de -0,07 a +0,36), sem diferença |
+| Recall DDoS+DoS | 98,87% (98,85% a 98,88%) | 98,71% (98,66% a 98,78%) | -0,16 p.p. (de -0,23 a -0,09), diferente de zero |
+| Recall Mirai | 99,24% (99,24% a 99,25%) | 99,23% (99,22% a 99,24%) | -0,02 p.p. (de -0,05 a +0,01), sem diferença |
+| Recall Recon | 87,70% (87,65% a 87,77%) | 86,39% (86,22% a 86,55%) | -1,31 p.p. (de -1,79 a -0,83), diferente de zero |
+| Recall Spoofing | 99,42% (99,41% a 99,44%) | 99,43% (99,40% a 99,47%) | +0,01 p.p. (de -0,09 a +0,11), sem diferença |
+| Recall Web | 37,06% (36,99% a 37,20%) | 37,49% (36,56% a 38,49%) | +0,43 p.p. (de -1,96 a +2,82), sem diferença |
+| Recall BruteForce | 34,80% (34,43% a 35,16%) | 34,68% (34,43% a 34,80%) | -0,12 p.p. (de -1,26 a +1,01), sem diferença |
+| Pcap benigno de fora (`BenignTraffic2.pcap`) como ataque | 1,73% (1,65% a 1,87%) | 1,85% (1,79% a 1,89%) | +0,12 p.p. (de -0,05 a +0,28), sem diferença |
 
 **Janelas benignas de TTL baixo.** As janelas de `BenignTraffic2.pcap`, que o modelo da divisão publicada não viu, pelo TTL médio da janela, e as mesmas janelas com o TTL trocado por um valor fixo:
 
@@ -308,10 +308,10 @@ O argmax de hoje não é t = 0,5: ele dá Benign sempre que Benign é a classe m
 
 | Categoria | Janelas de teste | Recall | Wilson | Por blocos | Autocorrelação | n efetivo | Precisão (previstas) | Wilson da precisão | Recall entre as sementes |
 |---|---|---|---|---|---|---|---|---|---|
-| Web | 465 | 37,0% | 32,7% a 41,5% | 31,1% a 43,1% | 0,42 | 190 | 64,7% (266) | 58,7% a 70,2% | 37,0% a 37,2% |
+| Web | 465 | 37,0% | 32,7% a 41,5% | 31,1% a 43,1% | 0,15 | 347 | 64,7% (266) | 58,7% a 70,2% | 37,0% a 37,2% |
 | BruteForce | 273 | 35,2% | 29,7% a 41,0% | 19,2% a 52,0% | 0,90 | 15 | 98,0% (98) | 92,9% a 99,4% | 34,4% a 35,2% |
-| Recon | 10.982 | 87,7% | 87,0% a 88,3% | 86,6% a 88,7% | 0,32 | 5.693 | 86,9% (11.079) | 86,2% a 87,5% | 87,4% a 87,8% |
-| Spoofing | 7.007 | 99,4% | 99,2% a 99,6% | 99,0% a 99,7% | 0,46 | 2.590 | 99,5% (7.004) | 99,3% a 99,6% | 99,4% a 99,4% |
+| Recon | 10.982 | 87,7% | 87,0% a 88,3% | 86,6% a 88,7% | 0,30 | 5.936 | 86,9% (11.079) | 86,2% a 87,5% | 87,4% a 87,8% |
+| Spoofing | 7.007 | 99,4% | 99,2% a 99,6% | 99,0% a 99,7% | 0,46 | 2.602 | 99,5% (7.004) | 99,3% a 99,6% | 99,4% a 99,4% |
 
 Recall de Web por pcap, com o intervalo de Wilson: `Backdoor_Malware.pcap` 55,3% de 76 (44,1% a 65,9%); `BrowserHijacking.pcap` 13,6% de 81 (7,8% a 22,7%); `CommandInjection.pcap` 36,4% de 77 (26,5% a 47,5%); `SqlInjection.pcap` 1,0% de 102 (0,2% a 5,3%); `Uploading_Attack.pcap` 74,2% de 31 (56,8% a 86,3%); `XSS.pcap` 68,4% de 98 (58,6% a 76,7%).
 
@@ -324,13 +324,13 @@ Recall de Web por pcap, com o intervalo de Wilson: `Backdoor_Malware.pcap` 55,3%
 | Medida | Valor |
 |---|---|
 | Arquivo do modelo | 184,5 MB, 1.537.434 nós, profundidade média 44,9 e máxima 53 |
-| Importar o scikit-learn e o joblib, num processo novo | 0,66 s |
+| Importar o scikit-learn e o joblib, num processo novo | 0,62 s |
 | Ler o modelo | 0,07 s, com o arquivo no cache do sistema |
-| Memória do processo | 160 MB antes de ler o modelo e 534 MB depois |
-| Uma janela, `predict`, um núcleo | mediana 1,63 ms, p95 1,73 ms, p99 1,80 ms |
-| Uma janela, `predict_proba` | mediana 1,63 ms, p95 1,77 ms, p99 1,89 ms |
-| Lote de 1.000 janelas | 15,4 ms |
-| Extrator de janela de 100 em `Recon-PortScan.pcap` | 831.856 pacotes em 5,0 s: 167.199 pacotes/s e 1.654 janelas/s |
+| Memória do processo | 160 MB antes de ler o modelo e 533 MB depois |
+| Uma janela, `predict`, um núcleo | mediana 1,59 ms, p95 1,66 ms, p99 1,69 ms |
+| Uma janela, `predict_proba` | mediana 1,59 ms, p95 1,66 ms, p99 1,68 ms |
+| Lote de 1.000 janelas | 12,6 ms |
+| Extrator de janela de 100 em `Recon-PortScan.pcap` | 831.856 pacotes em 5,1 s: 162.190 pacotes/s e 1.604 janelas/s |
 
 Quanto tempo uma janela de 100 quadros leva para fechar (`Number` / `Rate`), em segundos, na amostra da semente principal:
 
@@ -348,17 +348,19 @@ O Random Forest de 50 árvores, na mesma divisão e na mesma semente:
 
 | Variante | Arquivo | Nós | Latência (mediana) | Lote de 1.000 | Macro-F1 | Benigno como ataque | Recall Recon | Recall Web | Recall BruteForce | Pcap benigno de fora nas rotações: como ataque |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 100 árvores (o do sistema) | 184,5 MB | 1.537.434 | 1,63 ms | 15,4 ms | 82,27% | 1,86% | 87,65% | 36,99% | 35,16% | 38,21%; 1,56% |
+| 100 árvores (o do sistema) | 184,5 MB | 1.537.434 | 1,59 ms | 12,6 ms | 82,27% | 1,86% | 87,65% | 36,99% | 35,16% | 38,21%; 1,56% |
 | 50 árvores | 92,4 MB | 769.780 | 0,83 ms | 6,1 ms | 82,35% | 1,92% | 87,30% | 37,42% | 35,53% | 37,73%; 1,52% |
 
 ## Como os números foram obtidos
 
 - Comando: `python -m codigo.classificador.rodadas --nucleos 4`, a partir da raiz do repositório, depois de `python -m codigo.classificador.regerar`.
-- Dados: `dados/processed/regerado/janela_100/`, 72 arquivos (os CSVs de rótulo e as partes de `descartadas/`), com o SHA-256 de cada um em `manifesto_rodadas.json`. Manifesto da regeração `experimentos/resultados/manifesto_regeracao.json`, SHA-256 `750f7b95ac998784f8fea98139a189a319069bdbcfe791aec51579e7b88713bf`; extrator com SHA-256 `d3c32142f46c9202bcc439ca49bb45238425004ebacec384bbd51deb82bade7d` e opções nenhuma.
+- Dados: `dados/processed/regerado/janela_100/`, 72 arquivos (os CSVs de rótulo e as partes de `descartadas/`), com o SHA-256 de cada um em `manifesto_rodadas.json`. Manifesto da regeração `experimentos/resultados/manifesto_regeracao.json`, SHA-256 `2d8ed9c489f21f2e8ed0b8f1e312e974c820013ae020eaaf6b7ff4996dfbf7c3`; extrator com SHA-256 `8bd38fb392d5bec5a318699b2cef4a67a7c0c43461ecd01ce20be5b7db0b4a65` e opções nenhuma.
 - Modelo salvo: `rf_regerado_janela_100.joblib`, SHA-256 `b67e9013e67acbc680c2d9312550b5e792f81665b4c755052ae84ecf23aa3986`.
 - Treinos: `RandomForestClassifier` do scikit-learn com 100 árvores e os demais parâmetros padrão, 4 núcleos (o modelo não depende disso), teto de 50.000 linhas por rótulo e corte de 70% das janelas de cada pcap, as mesmas funções de `treinar_regerado`. Predição com um núcleo, em ordem fixa.
 - Os números das tabelas são arredondados; os valores completos, com as contagens, estão no manifesto, e as
   tabelas em CSV começam com `rodadas_`.
-- Tempo desta execução, na máquina em que rodou: 14,8 s. Os treinos já guardados em `dados/processed/rodadas/` são reaproveitados e não entram nessa conta; somados, os treinos de que os números saem levaram 890,8 s.
+- Tempo desta execução, na máquina em que rodou: 1.017,7 s. Os treinos já guardados em `dados/processed/rodadas/` são reaproveitados e não entram nessa conta; somados, os treinos de que os números saem levaram 825,0 s.
+- Código: o SHA-256 de cada módulo de que os números saem (`rodadas.py`, `preparar.py`, `treinar.py`, `avaliar.py`, `treinar_regerado.py`, `regerar.py`, `mapeamento.py` e `extrator.py`) está no manifesto e entra na chave dos treinos guardados; commit `67f694a33e01`.
+- Memória: pico de 3,9 GB no processo, o necessário para reproduzir com a mesma quantidade de núcleos.
 - Com as mesmas entradas, o mesmo código e as mesmas sementes, os números saem iguais. Só mudam a data e os
   tempos.

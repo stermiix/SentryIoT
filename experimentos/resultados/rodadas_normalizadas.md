@@ -147,12 +147,7 @@ para conferir o que as opções do extrator fizeram:
 
 ## Quais diferenças contam
 
-Nas medidas da tabela-resumo, a diferença para a configuração 0, com o intervalo de 95% entre parênteses:
-
-- Configuração 1: nenhuma diferença conta.
-- Configuração 2: nenhuma diferença conta.
-- Configuração 3: nenhuma diferença conta.
-- Configuração 4: nenhuma diferença conta.
+Este manifesto não traz as diferenças pareadas: ele foi gravado antes de o critério existir, e as tabelas não marcam nenhuma diferença. As médias e as faixas das sementes valem; para saber quais diferenças contam, é preciso rodar a comparação de novo.
 
 ## Tabela-resumo
 
