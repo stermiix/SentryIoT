@@ -24,6 +24,7 @@ Uso, a partir da raiz do repositório:
 """
 import argparse
 import json
+import re
 import shlex
 import sys
 from pathlib import Path
@@ -41,6 +42,8 @@ from codigo.mcp.eventos import CAMINHO_PADRAO, Registro
 from codigo.mcp.tipos import visivel
 
 _COMANDO = "python -m codigo.mcp.aprovar"
+# Rótulo neutro de um endereço, como o agente de decisão o escreve na proposta.
+_ROTULO_NO_TEXTO = re.compile(r"\b(?:origem|destino)-[1-9][0-9]{0,5}\b")
 _CONFIRMAM = ("s", "sim")
 
 
@@ -48,10 +51,12 @@ class _SemConfirmacao(Exception):
     """A pessoa não confirmou, ou não havia como perguntar."""
 
 
-def descrever(proposta):
+def descrever(proposta, rotulos=None):
     """Texto com tudo o que a pessoa precisa ver antes de decidir: o que será feito, onde e por quê.
 
-    Nenhum campo fica de fora, e todo valor passa por `visivel`.
+    Nenhum campo fica de fora, e todo valor passa por `visivel`. O agente de decisão escreve com os
+    rótulos neutros do incidente: com `rotulos` (rótulo -> endereço), a tela diz o endereço de cada
+    rótulo citado.
     """
     if proposta.nova:
         origem = "nova, fora do catálogo"
@@ -66,7 +71,10 @@ def descrever(proposta):
         )
     linhas += [
         f"  ação: {visivel(proposta.acao)} ({origem})",
-        f"  alvo: {visivel(proposta.alvo)}",
+        f"  alvo: {visivel(proposta.alvo)}" + (
+            f" ({visivel(proposta.alvo_com_rotulo)}, como o agente de decisão escreveu)"
+            if proposta.alvo_com_rotulo is not None else ""
+        ),
         f"  justificativa: {visivel(proposta.justificativa)}",
     ]
     parametros = dict(proposta.parametros)
@@ -91,6 +99,10 @@ def descrever(proposta):
         linhas.append(f"  duracao: {prazo}")
     # O que sobrar aparece como está gravado. Nenhum parâmetro fica fora da tela.
     linhas.extend(f"  {visivel(nome)}: {_valor(valor)}" for nome, valor in parametros.items())
+    escrito = _valor([proposta.alvo_com_rotulo or "", proposta.justificativa, proposta.parametros])
+    citados = [rotulo for rotulo in dict.fromkeys(_ROTULO_NO_TEXTO.findall(escrito)) if rotulo in (rotulos or {})]
+    if citados:
+        linhas.append("  rótulos citados: " + ", ".join(f"{rotulo} = {visivel(rotulos[rotulo])}" for rotulo in citados))
     return "\n".join(linhas)
 
 
@@ -116,7 +128,7 @@ def _listar(registro):
         # O identificador vem do log: vai entre aspas se tiver algo que o terminal interprete.
         identificador = shlex.quote(visivel(proposta.id))
         print()
-        print(descrever(proposta))
+        print(descrever(proposta, estado.rotulos.get(proposta.incidente)))
         if proposta.incidente in estado.resolvidos:
             print("  o incidente foi marcado como já resolvido: a ação não será aplicada, mesmo que aprovada")
         print(f"  para aprovar:  {_COMANDO} {identificador}")
@@ -148,7 +160,7 @@ def _decidir_com_confirmacao(registro, id_proposta, sem_perguntar, pergunta, fun
     # O pedido que não cabe (proposta que não existe, que já foi decidida) é recusado antes da pergunta.
     funcao(estado)
     mostrada = estado.propostas[id_proposta]
-    print(descrever(mostrada))
+    print(descrever(mostrada, estado.rotulos.get(mostrada.incidente)))
     if not sem_perguntar:
         _confirmar(pergunta(mostrada))
 
@@ -241,7 +253,7 @@ def main(argv=None):
                     reconstruir(eventos), argumentos.proposta, False, motivo=argumentos.motivo, usuario=usuario,
                 )
             )
-            print(descrever(proposta))
+            print(descrever(proposta, reconstruir(registro.ler()).rotulos.get(proposta.incidente)))
             print(f"{visivel(proposta.id)} rejeitada. A ação não será aplicada.")
         else:
             proposta = _decidir_com_confirmacao(

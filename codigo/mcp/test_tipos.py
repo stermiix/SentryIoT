@@ -1,5 +1,7 @@
+import ipaddress
 import json
 import math
+import re
 from datetime import UTC, datetime
 
 import pytest
@@ -13,6 +15,7 @@ from codigo.mcp.tipos import (
     CATEGORIAS_DO_MODELO,
     LIMITE_DE_JANELAS,
     MAIOR_NOME_DE_ACAO,
+    MARCADOR_DE_ENDERECO,
     MAXIMO_DE_PASSOS,
     MOTIVOS_DE_RISCO_ALTO,
     TEXTO_CURTO,
@@ -27,11 +30,14 @@ from codigo.mcp.tipos import (
     Janela,
     ParametrosDeAcaoNova,
     Proposta,
+    ResumoDoIncidente,
     Solucoes,
     Trecho,
     contrato,
     endereco_canonico,
     invisivel,
+    mascarar_enderecos,
+    tem_endereco,
     texto_do_contrato,
     tools_do_agente,
     validar_evento,
@@ -78,6 +84,7 @@ PROPOSTA = {
     "incidente": "inc-0001",
     "acao": "bloquear_ip",
     "alvo": "203.0.113.7",
+    "alvo_com_rotulo": None,
     "parametros": {"duracao": 10},
     "justificativa": "Origem com mais quadros no incidente.",
     "nova": False,
@@ -181,10 +188,10 @@ def test_texto_do_contrato_e_json_com_as_chaves_do_contrato():
     assert list(documento["motivos_de_risco_alto"]) == list(MOTIVOS_DE_RISCO_ALTO)
 
 
-def test_sao_as_nove_tools_da_especificacao_na_ordem_da_tabela():
+def test_sao_as_dez_tools_da_especificacao_na_ordem_da_tabela():
     assert [tool.nome for tool in TOOLS] == [
-        "obter_incidente", "obter_janelas", "consultar_mitigacoes", "pesquisar_solucoes", "propor_acao",
-        "verificar_efeito", "executar_acao", "desfazer_acao", "consultar_estado",
+        "obter_incidente", "obter_janelas", "obter_resumo", "consultar_mitigacoes", "pesquisar_solucoes",
+        "propor_acao", "verificar_efeito", "executar_acao", "desfazer_acao", "consultar_estado",
     ]
     assert all(tool.descricao.strip() for tool in TOOLS)
 
@@ -192,9 +199,9 @@ def test_sao_as_nove_tools_da_especificacao_na_ordem_da_tabela():
 def test_cada_agente_so_enxerga_as_tools_da_sua_linha():
     assert AGENTES == ("triagem", "decisao", "execucao")
     assert tools_do_agente("triagem") == ("obter_incidente", "obter_janelas")
-    assert tools_do_agente("decisao") == (
-        "obter_incidente", "consultar_mitigacoes", "pesquisar_solucoes", "propor_acao", "verificar_efeito",
-    )
+    # O agente de decisão pode estar num modelo de nuvem: lê o resumo montado pelo servidor, sem endereço,
+    # e não tem verificar_efeito, que muda o incidente.
+    assert tools_do_agente("decisao") == ("obter_resumo", "consultar_mitigacoes", "pesquisar_solucoes", "propor_acao")
     assert tools_do_agente("execucao") == (
         "verificar_efeito", "executar_acao", "desfazer_acao", "consultar_estado",
     )
@@ -209,6 +216,7 @@ def test_argumentos_das_tools_sao_os_da_especificacao():
     assert argumentos == {
         "obter_incidente": ("id",),
         "obter_janelas": ("id", "limite"),
+        "obter_resumo": ("id",),
         "consultar_mitigacoes": ("categoria",),
         "pesquisar_solucoes": ("consulta",),
         "propor_acao": ("id", "acao", "alvo", "parametros", "justificativa"),
@@ -232,6 +240,69 @@ def test_contrato_descreve_entrada_e_saida_de_cada_tool():
             assert definicoes[nome]["type"] == "object"
     assert documento["evento"] == {"$ref": "#/$defs/Evento"}
     assert "ParametrosDeAcaoNova" in definicoes
+
+
+def test_nenhuma_saida_da_linha_de_decisao_tem_campo_de_endereco():
+    # A arquitetura híbrida: o que volta ao agente de decisão não tem campo que seja endereço IP.
+    definicoes = contrato()["$defs"]
+
+    def alcancaveis(nome, vistos):
+        if nome in vistos:
+            return vistos
+        vistos.add(nome)
+        for referencia in re.findall(r'"\$ref": "#/\$defs/(\w+)"', json.dumps(definicoes[nome])):
+            alcancaveis(referencia, vistos)
+        return vistos
+
+    for tool in TOOLS:
+        if "decisao" in tool.agentes:
+            for nome in alcancaveis(tool.saida.__name__, set()):
+                assert '"ipv4"' not in json.dumps(definicoes[nome]), (tool.nome, nome)
+    assert "Incidente" not in alcancaveis("ResumoDoIncidente", set())
+
+
+def test_resumo_traz_rotulos_e_nao_enderecos():
+    resumo = {
+        "id": "inc-0001", "estado": "aberto", "ja_resolvido": False, "categoria": "DDoS", "categoria_do_modelo": "DDoS+DoS",
+        "confianca": 0.97, "duracao_s": 30.0, "janelas": 412, "origens_distintas": 37, "distribuido": True,
+        "origens": [{"rotulo": "origem-1", "quadros": 9120, "protegido": False}],
+        "destinos": [{"rotulo": "destino-1", "quadros": 41200, "protegido": False}],
+        "features_principais": INCIDENTE_DA_ESPECIFICACAO["features_principais"],
+        "ultimo_efeito": None,
+    }
+    assert ResumoDoIncidente.model_validate(resumo).model_dump(mode="json") == resumo
+    for rotulo in ("203.0.113.7", "origem", "origem-0", "origem-01", "vitima-1", "destino-1 e mais", "Origem-1"):
+        recusado_pelo_contrato(
+            ResumoDoIncidente, resumo | {"origens": [{"rotulo": rotulo, "quadros": 1, "protegido": False}]}
+        )
+    assert contrato()["$defs"]["EnderecoRotulado"]["properties"]["rotulo"]["pattern"]
+
+
+@pytest.mark.parametrize("texto", [
+    "Bloquear 203.0.113.7 agora.", "origem 192.168.137.020 com zero à esquerda", "rede 192.168.137.0/24",
+    "IPv6 2001:db8::7 e fe80::1%eth0", "mapeado ::ffff:192.168.137.1", "nat64 64:ff9b::c0a8:8901.",
+    "completo 2001:0db8:0000:0000:0000:0000:0000:0007", "MAC aa:bb:cc:dd:ee:ff e AA-BB-CC-DD-EE-01",
+    "Cisco 0011.2233.4455", "[2001:db8::1]:443", "300.300.300.300 fora da faixa também",
+], ids=ascii)
+def test_filtro_troca_todo_endereco_por_um_marcador(texto):
+    mascarado = mascarar_enderecos(texto)
+    assert MARCADOR_DE_ENDERECO in mascarado and tem_endereco(texto)
+    for trecho in re.findall(r"[0-9A-Fa-f:.%]{7,}", mascarado):
+        with pytest.raises(ValueError):
+            ipaddress.ip_address(trecho.strip(".:").split("%")[0])
+    assert not re.search(r"(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}", mascarado)
+    assert not tem_endereco(mascarado)
+
+
+@pytest.mark.parametrize("texto", [
+    "Flood de SYN contra destino-1, vindo de 37 origens (origem-1 a origem-5).",
+    "Início às 14:03:11, fim às 14:03:41.250000; Rate de 35778.4 e IAT de 0.000028.",
+    "Versão 1.2.3 do serviço, 61.240 quadros, 2026-10-20T14:03:11Z, prop-0001, exec-0002.",
+    "C++ usa std::vector; razão 3:2:1.", "",
+], ids=ascii)
+def test_filtro_nao_mexe_em_texto_sem_endereco(texto):
+    assert mascarar_enderecos(texto) == texto
+    assert not tem_endereco(texto)
 
 
 def test_incidente_da_especificacao_e_valido():
@@ -330,6 +401,9 @@ def test_fatia_tem_no_maximo_20_janelas():
 
 def test_proposta_e_execucao_validas():
     assert Proposta.model_validate(PROPOSTA).exige_aprovacao is False
+    # Da linha de decisão, a proposta guarda também o alvo como o agente o escreveu, com o rótulo neutro.
+    assert Proposta.model_validate(PROPOSTA | {"alvo_com_rotulo": "origem-1"}).alvo_com_rotulo == "origem-1"
+    assert "alvo_com_rotulo" in contrato()["$defs"]["Proposta"]["required"]
     assert Execucao.model_validate(EXECUCAO).desfeita_em is None
     for trocas in ({"risco": "medio"}, {"estado": "aprovada"}, {"justificativa": ""}):
         with pytest.raises(ValidationError):

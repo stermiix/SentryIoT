@@ -53,6 +53,7 @@ from codigo.mcp.tipos import (
     AcaoDoCatalogo,
     Ambiente,
     Decisao,
+    EnderecoRotulado,
     Execucao,
     MarcaDeResolvido,
     MotivoDeRiscoAlto,
@@ -61,9 +62,12 @@ from codigo.mcp.tipos import (
     ParametrosDeAcaoNova,
     Promocao,
     Proposta,
+    ResumoDoIncidente,
     TextoLongo,
     endereco_canonico,
     invisivel,
+    mascarar_enderecos,
+    tem_endereco,
     visivel,
 )
 
@@ -137,6 +141,8 @@ class PedidoRecusado(Exception):
 class _AcaoDeBase:
     descricao: str
     alvo: str
+    # Como o alvo é escrito na linha de decisão, que só conhece os rótulos neutros do incidente.
+    alvo_com_rotulo: str
     # "ip" ou "credencial": o formato que o alvo precisa ter.
     tipo_de_alvo: str
     # "obrigatoria", "opcional" ou None, quando a ação não aceita prazo.
@@ -150,6 +156,7 @@ BASE = {
     "limitar_taxa": _AcaoDeBase(
         descricao="Limita, por um prazo, a taxa de pacotes aceitos de um endereço ou para ele.",
         alvo="Endereço IP do dispositivo atacado ou da origem, como 192.168.137.20",
+        alvo_com_rotulo="Rótulo de uma origem ou de um destino do incidente, como origem-1 ou destino-1",
         tipo_de_alvo="ip",
         duracao="obrigatoria",
         grupo="limites",
@@ -158,6 +165,7 @@ BASE = {
     "bloquear_ip": _AcaoDeBase(
         descricao="Bloqueia o tráfego vindo de um endereço de origem.",
         alvo="Endereço IP de origem, como 203.0.113.7",
+        alvo_com_rotulo="Rótulo de uma origem do incidente, como origem-1",
         tipo_de_alvo="ip",
         duracao="opcional",
         grupo="bloqueios",
@@ -166,6 +174,7 @@ BASE = {
     "isolar_dispositivo": _AcaoDeBase(
         descricao="Isola um dispositivo do restante da rede.",
         alvo="Endereço IP do dispositivo, como 192.168.137.20",
+        alvo_com_rotulo="Rótulo do dispositivo no incidente, como destino-1",
         tipo_de_alvo="ip",
         duracao=None,
         grupo="isolamentos",
@@ -174,6 +183,7 @@ BASE = {
     "revogar_credencial": _AcaoDeBase(
         descricao="Revoga a credencial de uma conta em um dispositivo.",
         alvo="Conta e dispositivo, no formato usuario@endereco, como admin@192.168.137.31",
+        alvo_com_rotulo="Conta e dispositivo, no formato usuario@rotulo, como admin@destino-1",
         tipo_de_alvo="credencial",
         duracao=None,
         grupo="credenciais_revogadas",
@@ -205,6 +215,13 @@ _REDES_LOCAIS = "redes_locais"
 _NAT64 = ipaddress.ip_network("64:ff9b::/96")
 _SIIT = ipaddress.ip_network("::ffff:0:0:0/96")
 _COMPATIVEL = ipaddress.ip_network("::/96")
+# Alvo escrito com o rótulo neutro de um endereço do incidente: o rótulo só, ou usuario@rótulo.
+_ALVO_COM_ROTULO = re.compile(r"(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,63}@)?(?:origem|destino)-[1-9][0-9]{0,5}")
+# O alvo da ação promovida: genérico, sem o endereço da proposta que deu origem a ela.
+_ALVO_DA_PROMOVIDA = (
+    "Texto de uma linha que diga sobre o que a ação age. Um endereço do incidente vai com o rótulo neutro, "
+    "como destino-1."
+)
 
 
 # --- política de risco -----------------------------------------------------------------------
@@ -535,6 +552,10 @@ class Estado:
     aprovadas: set = field(default_factory=set)
     # Incidentes que a pessoa marcou como já resolvidos, com a marca.
     resolvidos: dict = field(default_factory=dict)
+    # Rótulos neutros dos endereços de cada incidente: rótulo -> endereço, na ordem em que apareceram.
+    rotulos: dict = field(default_factory=dict)
+    # Último efeito verificado em cada incidente, na ordem do log.
+    ultimos_efeitos: dict = field(default_factory=dict)
 
 
 class _Violacao(Exception):
@@ -588,12 +609,14 @@ def _aplicar(estado, evento):
             _exigir(dados.id not in estado.incidentes, f"o incidente {dados.id} já foi aberto")
             _exigir(dados.estado == "aberto", f"o incidente {dados.id} é aberto com o estado {dados.estado}")
             estado.incidentes[dados.id] = dados
+            _rotular(estado, dados)
         case "incidente_atualizado" | "incidente_encerrado":
             _exigir(dados.id in estado.incidentes, f"o incidente {dados.id} não foi aberto")
             _exigir(estado.incidentes[dados.id].estado == "aberto", f"o incidente {dados.id} já está encerrado")
             esperado = "encerrado" if evento.tipo == "incidente_encerrado" else "aberto"
             _exigir(dados.estado == esperado, f"o incidente {dados.id} vem com o estado {dados.estado}")
             estado.incidentes[dados.id] = dados
+            _rotular(estado, dados)
         case "incidente_marcado_resolvido":
             _citado(estado.incidentes, dados.incidente, "o incidente")
             _exigir(dados.incidente not in estado.resolvidos, f"o incidente {dados.incidente} já foi marcado como resolvido")
@@ -647,6 +670,7 @@ def _aplicar(estado, evento):
                 f"{execucao.incidente}",
             )
             estado.efeitos[dados.execucao] = dados
+            estado.ultimos_efeitos[dados.incidente] = dados
         case "recomendacao_emitida":
             for citada in dados.propostas:
                 proposta = _citado(estado.propostas, citada, "a proposta")
@@ -681,6 +705,35 @@ def _aplicar(estado, evento):
         evento.incidente is None or evento.incidente in estado.incidentes,
         f"o incidente {evento.incidente} não existe no log até este ponto",
     )
+
+
+def _rotular(estado, incidente):
+    """Dá um rótulo neutro a cada endereço novo do incidente, na ordem em que ele aparece.
+
+    O rótulo de um endereço não muda quando o incidente é atualizado e a lista é reordenada: o
+    agente de decisão que propôs sobre origem-2 continua falando do mesmo dispositivo. O papel
+    (origem ou destino) faz parte do rótulo, e o endereço que aparece nos dois ganha um de cada.
+    """
+    rotulos = estado.rotulos.setdefault(incidente.id, {})
+    for papel, lista in (("origem", incidente.origens), ("destino", incidente.destinos)):
+        do_papel = [endereco for rotulo, endereco in rotulos.items() if rotulo.startswith(f"{papel}-")]
+        for item in lista:
+            if item.endereco not in do_papel:
+                do_papel.append(item.endereco)
+                rotulos[f"{papel}-{len(do_papel)}"] = item.endereco
+
+
+def _resolver_rotulo(estado, incidente, alvo):
+    """O alvo com o rótulo trocado pelo endereço que ele representa no incidente."""
+    usuario, arroba, rotulo = alvo.rpartition("@")
+    rotulos = estado.rotulos.get(incidente, {})
+    if rotulo not in rotulos:
+        raise PedidoRecusado(
+            "alvo_malformado",
+            f"O rótulo {resumir(rotulo, 30)} não existe no incidente {incidente}. Os rótulos dele são: "
+            f"{', '.join(rotulos) or 'nenhum'}.",
+        )
+    return f"{usuario}{arroba}{rotulos[rotulo]}"
 
 
 def _no_incidente_da_proposta(evento, proposta):
@@ -725,6 +778,16 @@ def _conferir_proposta_nova(estado, proposta):
         proposta.nova == (proposta.acao not in BASE and proposta.acao not in estado.promovidas),
         f"a proposta {proposta.id} vem com nova = {proposta.nova}, o que não confere com o catálogo",
     )
+    if proposta.alvo_com_rotulo is not None:
+        # O rótulo gravado é o que o servidor resolveu: com ele, o incidente dá o mesmo alvo.
+        try:
+            resolvido = _resolver_rotulo(estado, proposta.incidente, proposta.alvo_com_rotulo)
+        except PedidoRecusado:
+            resolvido = None
+        _exigir(
+            _ALVO_COM_ROTULO.fullmatch(proposta.alvo_com_rotulo) is not None and resolvido == proposta.alvo,
+            f"a proposta {proposta.id} traz um rótulo que não dá o alvo dela no incidente {proposta.incidente}",
+        )
     # Os motivos são texto do sistema na tela de aprovação: existem se e só se o risco é alto, não se
     # repetem e trazem a frase do contrato, e não outra.
     codigos = [motivo.codigo for motivo in proposta.motivos_de_risco_alto]
@@ -740,13 +803,17 @@ def _conferir_proposta_nova(estado, proposta):
     )
 
 
-def catalogo(estado, politica):
-    """As ações que o agente pode propor: as quatro de base e as promovidas, nessa ordem."""
+def catalogo(estado, politica, com_rotulos=False):
+    """As ações que o agente pode propor: as quatro de base e as promovidas, nessa ordem.
+
+    Com `com_rotulos`, o alvo de cada ação de base é descrito com os rótulos neutros, como a
+    linha de decisão o escreve.
+    """
     de_base = [
         AcaoDoCatalogo(
             nome=nome,
             descricao=definicao.descricao,
-            alvo=definicao.alvo,
+            alvo=definicao.alvo_com_rotulo if com_rotulos else definicao.alvo,
             parametros=_parametros_de_base(definicao),
             regra=_regra(politica, nome),
             origem="base",
@@ -772,6 +839,43 @@ def _parametros_de_base(definicao):
     ]
 
 
+def resumo_do_incidente(estado, politica, identificador):
+    """O incidente como o agente de decisão o vê: montado aqui, sem endereço nenhum.
+
+    O agente de decisão pode estar num modelo de nuvem (arquitetura híbrida, decisão de
+    2026-10-10). Em vez dos endereços, o resumo traz os rótulos neutros, com a contagem de
+    quadros e se o endereço é protegido pela política. Traz também o último efeito verificado e a
+    marca de já resolvido, para o agente saber o que já foi tentado e quando só deve explicar.
+    """
+    incidente = estado.incidentes[identificador]
+    rotulo_de = {(rotulo.partition("-")[0], endereco): rotulo for rotulo, endereco in estado.rotulos[identificador].items()}
+
+    def rotulados(lista, papel):
+        return [
+            EnderecoRotulado(
+                rotulo=rotulo_de[(papel, item.endereco)], quadros=item.quadros, protegido=_protegido(politica, item.endereco),
+            )
+            for item in lista
+        ]
+
+    return ResumoDoIncidente(
+        id=incidente.id,
+        estado=incidente.estado,
+        ja_resolvido=identificador in estado.resolvidos,
+        categoria=incidente.categoria,
+        categoria_do_modelo=incidente.categoria_do_modelo,
+        confianca=incidente.confianca,
+        duracao_s=max(0.0, (incidente.fim - incidente.inicio).total_seconds()),
+        janelas=incidente.janelas,
+        origens_distintas=incidente.origens_distintas,
+        distribuido=incidente.distribuido,
+        origens=rotulados(incidente.origens, "origem"),
+        destinos=rotulados(incidente.destinos, "destino"),
+        features_principais=incidente.features_principais,
+        ultimo_efeito=estado.ultimos_efeitos.get(identificador),
+    )
+
+
 def ambiente(estado):
     """As medidas ativas no ambiente simulado. Ação desfeita não aparece."""
     grupos = {nome: [] for nome in Ambiente.model_fields}
@@ -785,13 +889,19 @@ def ambiente(estado):
 # --- propor ----------------------------------------------------------------------------------
 
 
-def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
+def propor(estado, politica, incidente, acao, alvo, parametros, justificativa, so_rotulos=False):
     """Registra a proposta de uma ação do catálogo ou de uma ação nova.
 
     Devolve a proposta, com o nível de risco, os motivos quando o risco é alto e se ela exige
     aprovação, e o rascunho do evento `acao_proposta`. Não aplica nada: proposta de risco baixo
     já nasce liberada para o agente de execução, e a de risco alto fica aguardando a decisão de
     uma pessoa.
+
+    O alvo pode vir com o rótulo neutro de um endereço do incidente (`origem-1`, `destino-1`,
+    `admin@destino-1`). O rótulo é trocado aqui pelo endereço, o risco é calculado sobre o
+    endereço, e a proposta guarda os dois. Com `so_rotulos`, que é o caso da linha de decisão, o
+    alvo de uma ação de base só pode vir com o rótulo, e nenhum alvo pode trazer endereço: o
+    agente de decisão não conhece endereço, e o que vier com um foi copiado de texto de fora.
 
     Alvo que não consta do incidente, endereço protegido e limite de medidas atingido não são
     motivo de recusa: a proposta é registrada como de risco alto, e quem decide é a pessoa.
@@ -818,6 +928,18 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
         raise PedidoRecusado("argumentos_invalidos", "O campo parametros precisa ser um objeto.")
     if not isinstance(acao, str):
         raise PedidoRecusado("argumentos_invalidos", f"O nome da ação precisa ser um texto. Veio {resumir(acao)}.")
+
+    alvo_com_rotulo = None
+    if isinstance(alvo, str) and _ALVO_COM_ROTULO.fullmatch(alvo.strip()):
+        alvo_com_rotulo = alvo.strip()
+        alvo = _resolver_rotulo(estado, incidente, alvo_com_rotulo)
+    elif so_rotulos and (acao in BASE or tem_endereco(alvo)):
+        raise PedidoRecusado(
+            "alvo_malformado",
+            f"Na linha de decisão, o alvo de {acao} é o rótulo neutro de um endereço do incidente, como origem-1, "
+            "destino-1 ou admin@destino-1, como vem em obter_resumo, e não um endereço. Uma ação nova também pode "
+            "descrever o alvo em texto, sem endereço.",
+        )
 
     if acao in BASE:
         alvo = _alvo_de_base(acao, alvo)
@@ -863,6 +985,7 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
         incidente=incidente,
         acao=acao,
         alvo=alvo,
+        alvo_com_rotulo=alvo_com_rotulo,
         parametros=parametros,
         justificativa=justificativa,
         nova=acao not in BASE and acao not in estado.promovidas,
@@ -1213,17 +1336,26 @@ def promover(estado, id_proposta):
 
 
 def _acao_promovida(proposta):
-    """A ação do catálogo que sai de uma proposta de ação nova: os passos aprovados, sempre de risco alto."""
+    """A ação do catálogo que sai de uma proposta de ação nova: os passos aprovados, sempre de risco alto.
+
+    A ação promovida volta a todas as sessões do agente de decisão, em qualquer categoria. Por isso
+    ela vai sem endereço: o alvo é genérico, e o endereço que estiver nos textos aprovados vira o
+    marcador neutro.
+    """
     detalhes = ParametrosDeAcaoNova.model_validate(proposta.parametros)
+
+    def generico(texto, maximo=TEXTO_LONGO):
+        return None if texto is None else mascarar_enderecos(texto)[:maximo]
+
     return AcaoDoCatalogo(
         nome=proposta.acao,
-        descricao=detalhes.descricao,
-        alvo=f"O mesmo tipo de alvo da proposta que deu origem à ação, como {proposta.alvo}",
+        descricao=generico(detalhes.descricao),
+        alvo=_ALVO_DA_PROMOVIDA,
         parametros=[],
         regra=_REGRA_DE_RISCO_ALTO,
         origem="promovida",
-        passos=detalhes.passos,
-        efeito_esperado=detalhes.efeito_esperado,
-        como_desfazer=detalhes.como_desfazer,
-        fonte=detalhes.fonte,
+        passos=[generico(passo) for passo in detalhes.passos],
+        efeito_esperado=generico(detalhes.efeito_esperado),
+        como_desfazer=generico(detalhes.como_desfazer),
+        fonte=generico(detalhes.fonte, TEXTO_CURTO),
     )

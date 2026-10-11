@@ -1,6 +1,6 @@
 """Servidor MCP de mentira (stub) do SentryIoT.
 
-Responde às nove tools do contrato com os incidentes de `cenarios.py`, sem classificador
+Responde às dez tools do contrato com os incidentes de `cenarios.py`, sem classificador
 treinado e sem rede. Serve para a frente dos agentes trabalhar em paralelo: quem escreve as
 skills chama as tools, percorre um incidente do começo ao fim e obtém o log de eventos que a
 interface web vai ler.
@@ -9,10 +9,15 @@ O servidor não guarda estado na memória. A cada chamada ele lê o log, decide 
 aconteceu. Por isso o comando de aprovação, que é outro processo, vale na chamada seguinte, e
 cada agente pode ter o seu próprio processo sobre o mesmo log.
 
+A linha de decisão não recebe endereço nenhum (arquitetura híbrida, decisão de 2026-10-10): ela
+lê o resumo com rótulos neutros, escreve o alvo com o rótulo, e toda resposta a ela passa por um
+filtro que troca o endereço que sobrar em texto livre por um marcador. Se o filtro não consegue
+entregar a resposta dentro do contrato, ela não é entregue.
+
 Uso, a partir da raiz do repositório (transporte stdio). O agente é obrigatório:
     python -m codigo.mcp.stub --agente triagem
     python -m codigo.mcp.stub --agente decisao --log outro/caminho.jsonl
-    python -m codigo.mcp.stub --agente todos       as nove tools de uma vez, só para desenvolvimento
+    python -m codigo.mcp.stub --agente todos       todas as tools de uma vez, só para desenvolvimento
 """
 import argparse
 import inspect
@@ -42,8 +47,10 @@ from codigo.mcp.tipos import (
     Efeito,
     FatiaDeJanelas,
     Mitigacoes,
+    Proposta,
     Recusa,
     Solucoes,
+    mascarar_enderecos,
     tools_do_agente,
 )
 
@@ -51,8 +58,11 @@ INSTRUCOES = (
     "Servidor de mentira (stub) do SentryIoT. Responde com incidentes de exemplo, de números ilustrativos, "
     "e aplica as ações só em um ambiente simulado. Os incidentes são inc-0001 (flood), inc-0002 (força "
     "bruta), inc-0003 (varredura de portas) e inc-0004. Ação de risco alto e ação nova, fora do catálogo, "
-    "só são executadas depois que uma pessoa aprova."
+    "só são executadas depois que uma pessoa aprova. Na linha de decisão, os endereços do incidente são "
+    "rótulos neutros, como origem-1 e destino-1."
 )
+# A linha que não recebe endereço nenhum: a do agente que pode estar num modelo de nuvem.
+LINHA_SEM_ENDERECOS = "decisao"
 _LOG_INVALIDO = (
     "O log de eventos do servidor está inconsistente, e nenhuma tool é atendida até que ele seja corrigido. "
     "O detalhe está na saída de erro do servidor."
@@ -149,6 +159,10 @@ _RESUMOS = {
     "obter_incidente": lambda r: {
         "estado": r.estado, "categoria": r.categoria, "confianca": r.confianca, "janelas": r.janelas,
     },
+    "obter_resumo": lambda r: {
+        "estado": r.estado, "categoria": r.categoria, "confianca": r.confianca, "janelas": r.janelas,
+        "ja_resolvido": r.ja_resolvido,
+    },
     "obter_janelas": lambda r: {"janelas": len(r.janelas), "total": r.total},
     "consultar_mitigacoes": lambda r: {"mitigacoes": len(r.mitigacoes), "acoes": len(r.acoes)},
     "pesquisar_solucoes": lambda r: {"trechos": [f"{trecho.origem}: {trecho.titulo}" for trecho in r.trechos]},
@@ -222,6 +236,9 @@ class Stub:
             try:
                 resultado, rascunhos = self._atender(nome, estado, argumentos, inicio)
             except PedidoRecusado as recusa:
+                if self.agente == LINHA_SEM_ENDERECOS:
+                    # A mensagem pode repetir um endereço: o de um rótulo resolvido, ou o que veio no pedido.
+                    recusa = PedidoRecusado(recusa.motivo, mascarar_enderecos(recusa.mensagem))
                 dados = Recusa(
                     agente=self.agente, tool=nome, argumentos=para_o_log, motivo=recusa.motivo,
                     mensagem=recusa.mensagem,
@@ -232,6 +249,9 @@ class Stub:
                 agente=self.agente, nome=nome, argumentos=para_o_log, resultado=_RESUMOS[nome](resultado),
                 duracao_ms=round(duracao, 3),
             )
+            if self.agente == LINHA_SEM_ENDERECOS:
+                # Dentro da gravação: se a resposta não pode ser entregue sem endereço, nada é gravado.
+                resultado = _sem_enderecos(resultado)
             return resultado, [novo("tool_chamada", chamada, incidente), *rascunhos]
 
         resultado, _ = self.registro.atualizar(decidir)
@@ -290,11 +310,15 @@ class Stub:
         fatia = janelas(self._cenarios[id], incidente, min(limite, LIMITE_DE_JANELAS))
         return FatiaDeJanelas(incidente=id, total=incidente.janelas, janelas=fatia), []
 
+    def _obter_resumo(self, estado, _inicio, id):
+        self._incidente(estado, id)
+        return acoes.resumo_do_incidente(estado, self._politica, id), []
+
     def _consultar_mitigacoes(self, estado, _inicio, categoria):
         return Mitigacoes(
             categoria=categoria,
             mitigacoes=mitigacoes(self._secoes, categoria),
-            acoes=acoes.catalogo(estado, self._politica),
+            acoes=acoes.catalogo(estado, self._politica, com_rotulos=self.agente == LINHA_SEM_ENDERECOS),
         ), []
 
     def _pesquisar_solucoes(self, _estado, _inicio, consulta):
@@ -310,7 +334,10 @@ class Stub:
 
     def _propor_acao(self, estado, _inicio, id, acao, alvo, parametros, justificativa):
         self._incidente(estado, id)
-        return acoes.propor(estado, self._politica, id, acao, alvo, parametros, justificativa)
+        return acoes.propor(
+            estado, self._politica, id, acao, alvo, parametros, justificativa,
+            so_rotulos=self.agente == LINHA_SEM_ENDERECOS,
+        )
 
     def _executar_acao(self, estado, inicio, id_proposta):
         return acoes.executar(estado, self._politica, id_proposta, inicio)
@@ -347,6 +374,35 @@ class Stub:
             tipo = "incidente_encerrado" if resultado == "cessou" else "incidente_atualizado"
             rascunhos.append(novo(tipo, evoluir(cenario, incidente, resultado, execucao.aplicada_em), incidente.id))
         return verificado, rascunhos
+
+
+def _limpar(valor):
+    if isinstance(valor, str):
+        return mascarar_enderecos(valor)
+    if isinstance(valor, list):
+        return [_limpar(item) for item in valor]
+    if isinstance(valor, dict):
+        return {_limpar(chave): _limpar(item) for chave, item in valor.items()}
+    return valor
+
+
+def _sem_enderecos(resultado):
+    """A resposta como vai para a linha de decisão: sem endereço nenhum.
+
+    A proposta volta com o alvo escrito com o rótulo, como o agente o escreveu. Depois, todo texto
+    da resposta passa pelo filtro que troca IPv4, IPv6 e MAC por um marcador: é a rede de proteção
+    para o endereço que sobrou em texto livre, como num documento da base ou numa ação promovida.
+    A falha é fechada: se a resposta filtrada não cabe no contrato, ela não é entregue.
+    """
+    if isinstance(resultado, Proposta) and resultado.alvo_com_rotulo is not None:
+        resultado = resultado.model_copy(update={"alvo": resultado.alvo_com_rotulo})
+    try:
+        return type(resultado).model_validate(_limpar(resultado.model_dump(mode="json")))
+    except ValidationError:
+        raise ValueError(
+            f"a resposta do tipo {type(resultado).__name__} não pôde ser entregue à linha de decisão sem endereço: "
+            "com o marcador no lugar, ela sai do contrato"
+        ) from None
 
 
 def _funcao_da_tool(stub, tool):
@@ -400,7 +456,7 @@ def main(argv=None):
         "--agente", required=True, choices=(*AGENTES, TODOS),
         help=(
             "obrigatório. Com triagem, decisao ou execucao, expõe só as tools da linha desse agente e registra o "
-            f"nome dele no log. Com {TODOS}, expõe as nove tools em um processo só, o que serve apenas para "
+            f"nome dele no log. Com {TODOS}, expõe todas as tools em um processo só, o que serve apenas para "
             "desenvolvimento: um mesmo cliente consegue propor e executar"
         ),
     )

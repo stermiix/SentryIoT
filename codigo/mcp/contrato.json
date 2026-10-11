@@ -16,10 +16,9 @@
   },
   "tools": {
     "obter_incidente": {
-      "descricao": "Devolve o resumo do incidente: categoria, confiança do classificador, período, quantidade de janelas, origens, destinos e as features que mais pesaram.",
+      "descricao": "Devolve o incidente: categoria, confiança do classificador, período, quantidade de janelas, origens, destinos e as features que mais pesaram.",
       "agentes": [
-        "triagem",
-        "decisao"
+        "triagem"
       ],
       "entrada": {
         "$ref": "#/$defs/EntradaObterIncidente"
@@ -38,6 +37,18 @@
       },
       "saida": {
         "$ref": "#/$defs/FatiaDeJanelas"
+      }
+    },
+    "obter_resumo": {
+      "descricao": "Devolve o resumo do incidente montado pelo servidor, sem endereço nenhum: categorias, confiança, contagens, features com a referência do tráfego benigno, estado, último efeito verificado, a marca de já resolvido e os rótulos neutros das origens e dos destinos (origem-1, destino-1), que são o que propor_acao aceita como alvo.",
+      "agentes": [
+        "decisao"
+      ],
+      "entrada": {
+        "$ref": "#/$defs/EntradaObterResumo"
+      },
+      "saida": {
+        "$ref": "#/$defs/ResumoDoIncidente"
       }
     },
     "consultar_mitigacoes": {
@@ -65,7 +76,7 @@
       }
     },
     "propor_acao": {
-      "descricao": "Registra a proposta de uma ação do catálogo ou de uma ação nova e devolve o nível de risco e se ela exige aprovação humana. Ação nova é sempre de risco alto e precisa trazer em `parametros` a descrição, os passos, o efeito esperado e como desfazer.",
+      "descricao": "Registra a proposta de uma ação do catálogo ou de uma ação nova e devolve o nível de risco e se ela exige aprovação humana. O alvo usa o rótulo neutro do resumo, como origem-1: o servidor o troca pelo endereço e calcula o risco sobre ele. Ação nova é sempre de risco alto e precisa trazer em `parametros` a descrição, os passos, o efeito esperado e como desfazer. Incidente marcado como já resolvido não recebe proposta.",
       "agentes": [
         "decisao"
       ],
@@ -79,7 +90,6 @@
     "verificar_efeito": {
       "descricao": "Diz se o incidente cessou, diminuiu ou persiste depois de uma ação aplicada.",
       "agentes": [
-        "decisao",
         "execucao"
       ],
       "entrada": {
@@ -481,6 +491,32 @@
       "title": "EnderecoContado",
       "type": "object"
     },
+    "EnderecoRotulado": {
+      "additionalProperties": false,
+      "properties": {
+        "rotulo": {
+          "description": "Rótulo neutro do endereço no incidente, como origem-1 ou destino-1",
+          "pattern": "^(?:origem|destino)-[1-9][0-9]{0,5}$",
+          "type": "string"
+        },
+        "quadros": {
+          "description": "Quadros desse endereço no incidente",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "protegido": {
+          "description": "Verdadeiro quando o endereço é protegido pela política, como o gateway",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rotulo",
+        "quadros",
+        "protegido"
+      ],
+      "title": "EnderecoRotulado",
+      "type": "object"
+    },
     "EntradaConsultarEstado": {
       "additionalProperties": false,
       "properties": {},
@@ -573,6 +609,20 @@
       "title": "EntradaObterJanelas",
       "type": "object"
     },
+    "EntradaObterResumo": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do incidente, como inc-0001",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "EntradaObterResumo",
+      "type": "object"
+    },
     "EntradaPesquisarSolucoes": {
       "additionalProperties": false,
       "properties": {
@@ -600,7 +650,7 @@
           "type": "string"
         },
         "alvo": {
-          "description": "Sobre o que a ação age, em até 200 caracteres. O formato depende da ação",
+          "description": "Sobre o que a ação age, em até 200 caracteres. O formato depende da ação. Um endereço do incidente é escrito com o rótulo neutro do resumo, como origem-1, destino-1 ou admin@destino-1; o agente de decisão não escreve endereço",
           "type": "string"
         },
         "parametros": {
@@ -2336,10 +2386,25 @@
           "type": "string"
         },
         "alvo": {
+          "description": "Sobre o que a ação age. Na resposta à linha de decisão, com o rótulo neutro",
           "maxLength": 200,
           "minLength": 1,
           "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
           "type": "string"
+        },
+        "alvo_com_rotulo": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "O alvo escrito com o rótulo neutro, como origem-1 ou admin@destino-1, quando veio assim: o servidor o trocou pelo endereço em alvo. Nulo quando o alvo veio sem rótulo"
         },
         "parametros": {
           "additionalProperties": true,
@@ -2389,6 +2454,7 @@
         "incidente",
         "acao",
         "alvo",
+        "alvo_com_rotulo",
         "parametros",
         "justificativa",
         "nova",
@@ -2498,6 +2564,131 @@
         "mensagem"
       ],
       "title": "Recusa",
+      "type": "object"
+    },
+    "ResumoDoIncidente": {
+      "additionalProperties": false,
+      "description": "O incidente como o agente de decisão o vê: montado pelo servidor, sem endereço nenhum.\n\nO agente de decisão pode estar num modelo de nuvem (arquitetura híbrida, decisão de\n2026-10-10). Os endereços chegam a ele como rótulos neutros, na ordem em que apareceram no\nincidente, e o rótulo de um endereço não muda quando o incidente é atualizado. `propor_acao`\naceita o rótulo como alvo, e o servidor o troca pelo endereço.",
+      "properties": {
+        "id": {
+          "description": "Identificador do incidente, como inc-0001",
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "estado": {
+          "enum": [
+            "aberto",
+            "encerrado"
+          ],
+          "type": "string"
+        },
+        "ja_resolvido": {
+          "description": "Verdadeiro quando a pessoa que opera a rede marcou o incidente como já resolvido: nada é proposto",
+          "type": "boolean"
+        },
+        "categoria": {
+          "description": "Categoria depois da regra que separa DoS de DDoS pela quantidade de origens",
+          "enum": [
+            "DDoS",
+            "DoS",
+            "Mirai",
+            "Recon",
+            "Spoofing",
+            "Web",
+            "BruteForce",
+            "Benign"
+          ],
+          "type": "string"
+        },
+        "categoria_do_modelo": {
+          "description": "Categoria que o Random Forest atribuiu",
+          "enum": [
+            "DDoS+DoS",
+            "Mirai",
+            "Recon",
+            "Spoofing",
+            "Web",
+            "BruteForce",
+            "Benign"
+          ],
+          "type": "string"
+        },
+        "confianca": {
+          "description": "Confiança do classificador, de 0 a 1",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "duracao_s": {
+          "description": "Duração do incidente até agora, em segundos",
+          "minimum": 0,
+          "type": "number"
+        },
+        "janelas": {
+          "description": "Quantidade de janelas reunidas no incidente",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "origens_distintas": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "distribuido": {
+          "description": "Verdadeiro quando o tráfego vem de várias origens",
+          "type": "boolean"
+        },
+        "origens": {
+          "description": "Origens com mais quadros, da maior para a menor",
+          "items": {
+            "$ref": "#/$defs/EnderecoRotulado"
+          },
+          "type": "array"
+        },
+        "destinos": {
+          "description": "Destinos com mais quadros, do maior para o menor",
+          "items": {
+            "$ref": "#/$defs/EnderecoRotulado"
+          },
+          "type": "array"
+        },
+        "features_principais": {
+          "description": "Features que mais pesaram, com o valor de referência do tráfego benigno",
+          "items": {
+            "$ref": "#/$defs/FeaturePrincipal"
+          },
+          "type": "array"
+        },
+        "ultimo_efeito": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Efeito"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "O último efeito verificado no incidente, depois de uma ação aplicada, ou nulo"
+        }
+      },
+      "required": [
+        "id",
+        "estado",
+        "ja_resolvido",
+        "categoria",
+        "categoria_do_modelo",
+        "confianca",
+        "duracao_s",
+        "janelas",
+        "origens_distintas",
+        "distribuido",
+        "origens",
+        "destinos",
+        "features_principais",
+        "ultimo_efeito"
+      ],
+      "title": "ResumoDoIncidente",
       "type": "object"
     },
     "Solucoes": {

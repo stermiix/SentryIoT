@@ -20,6 +20,7 @@ from codigo.mcp.acoes import (
     promover,
     propor,
     reconstruir,
+    resumo_do_incidente,
     usuario_do_sistema,
 )
 from codigo.mcp.eventos import LogInvalido, novo
@@ -70,8 +71,10 @@ class Mundo:
             self.eventos.append(validar_evento({"id": f"ev-{numero:06d}", "instante": instante, **rascunho}))
 
     def propor(self, acao="bloquear_ip", alvo="203.0.113.7", parametros=None, justificativa=JUSTIFICATIVA,
-               incidente="inc-0001"):
-        proposta, rascunhos = propor(self.estado, self.politica, incidente, acao, alvo, parametros or {}, justificativa)
+               incidente="inc-0001", so_rotulos=False):
+        proposta, rascunhos = propor(
+            self.estado, self.politica, incidente, acao, alvo, parametros or {}, justificativa, so_rotulos=so_rotulos
+        )
         self.aplicar(rascunhos)
         return proposta
 
@@ -1126,6 +1129,135 @@ def test_ipv6_comum_nao_vira_protegido_por_engano():
     assert motivos(mundo.propor("bloquear_ip", "2001:db8::c0a8:8901", {"duracao": 10})) == []
 
 
+# --- rótulos neutros: o agente de decisão não conhece endereço --------------------------------
+
+
+def test_cada_endereco_do_incidente_ganha_um_rotulo_na_ordem_em_que_aparece():
+    mundo = Mundo(incidente=INCIDENTE_COM_VARIAS_ORIGENS)
+    assert mundo.estado.rotulos["inc-0001"] == {
+        **{f"origem-{numero}": endereco for numero, endereco in enumerate(ORIGENS, start=1)},
+        "destino-1": "192.168.137.20", "destino-2": "192.168.137.1",
+    }
+
+
+def test_rotulo_nao_muda_quando_o_incidente_e_atualizado():
+    mundo = Mundo()
+    # Na nova versão, a origem nova passa à frente da antiga na lista: o rótulo da antiga fica o mesmo.
+    atualizado = INCIDENTE_DA_ESPECIFICACAO | {
+        "origens": [{"endereco": "198.51.100.9", "quadros": 20000}, {"endereco": "203.0.113.7", "quadros": 9120}],
+        "destinos": [{"endereco": "192.168.137.20", "quadros": 41200}, {"endereco": "203.0.113.7", "quadros": 10}],
+    }
+    mundo.aplicar([novo("incidente_atualizado", atualizado, "inc-0001")])
+    assert mundo.estado.rotulos["inc-0001"] == {
+        "origem-1": "203.0.113.7", "origem-2": "198.51.100.9", "destino-1": "192.168.137.20", "destino-2": "203.0.113.7",
+    }
+
+
+def test_proposta_com_rotulo_e_resolvida_no_servidor_e_o_risco_sai_do_endereco():
+    mundo = Mundo(incidente=INCIDENTE_COM_VARIAS_ORIGENS)
+    baixa = mundo.propor("bloquear_ip", "origem-1", {"duracao": 10}, so_rotulos=True)
+    assert (baixa.alvo, baixa.alvo_com_rotulo, baixa.risco) == (ORIGENS[0], "origem-1", "baixo")
+    # destino-2 é o gateway: o risco é calculado sobre o endereço real.
+    gateway = mundo.propor("limitar_taxa", " destino-2 ", {"duracao": 10}, so_rotulos=True)
+    assert (gateway.alvo, gateway.alvo_com_rotulo, motivos(gateway)) == ("192.168.137.1", "destino-2", ["alvo_protegido"])
+    conta = mundo.propor("revogar_credencial", "admin@destino-1", so_rotulos=True)
+    assert (conta.alvo, conta.alvo_com_rotulo) == ("admin@192.168.137.20", "admin@destino-1")
+    nova = mundo.propor("ativar_syn_cookies", "destino-1", ACAO_NOVA, so_rotulos=True)
+    assert (nova.alvo, nova.alvo_com_rotulo, nova.nova) == ("192.168.137.20", "destino-1", True)
+    # A execução, que é local, recebe o endereço real.
+    assert mundo.executar(baixa.id).alvo == ORIGENS[0]
+    # Fora da linha de decisão o rótulo também vale, e o endereço continua aceito.
+    assert mundo.propor("bloquear_ip", "origem-2", {"duracao": 10}).alvo == ORIGENS[1]
+    assert mundo.propor("bloquear_ip", ORIGENS[2], {"duracao": 10}).alvo_com_rotulo is None
+
+
+def test_rotulo_que_nao_existe_no_incidente_e_recusado():
+    mundo = Mundo()
+    for alvo in ("origem-9", "destino-2", "admin@origem-7"):
+        acao = "revogar_credencial" if "@" in alvo else "bloquear_ip"
+        mensagem = recusado("alvo_malformado", mundo.propor, acao, alvo, {"duracao": 10} if "@" not in alvo else {})
+        assert "origem-1" in mensagem and "destino-1" in mensagem and "203.0.113.7" not in mensagem
+    assert mundo.estado.propostas == {}
+
+
+@pytest.mark.parametrize("acao,alvo,parametros", [
+    ("bloquear_ip", "203.0.113.7", {"duracao": 10}),
+    ("limitar_taxa", "::ffff:203.0.113.7", {"duracao": 10}),
+    ("isolar_dispositivo", "192.168.137.20", {}),
+    ("revogar_credencial", "admin@192.168.137.20", {}),
+    ("ativar_syn_cookies", "o dispositivo 192.168.137.20", ACAO_NOVA),
+    ("ativar_syn_cookies", "aa:bb:cc:dd:ee:ff", ACAO_NOVA),
+    ("bloquear_ip", "a origem com mais quadros", {"duracao": 10}),
+])
+def test_linha_de_decisao_nao_escreve_endereco_no_alvo(mundo, acao, alvo, parametros):
+    # O agente de decisão não conhece endereço: o que vier com um foi copiado de texto de fora.
+    mensagem = recusado("alvo_malformado", mundo.propor, acao, alvo, parametros, so_rotulos=True)
+    assert "rótulo" in mensagem
+    assert mundo.estado.propostas == {}
+
+
+def test_acao_nova_da_linha_de_decisao_aceita_alvo_em_texto_sem_endereco(mundo):
+    proposta = mundo.propor("ativar_syn_cookies", "o dispositivo atacado", ACAO_NOVA, so_rotulos=True)
+    assert (proposta.alvo, proposta.alvo_com_rotulo) == ("o dispositivo atacado", None)
+
+
+def test_rotulo_gravado_na_proposta_precisa_conferir_com_o_incidente(mundo):
+    proposta = mundo.propor("bloquear_ip", "origem-1", {"duracao": 10})
+    gravada = dados_de(mundo, "acao_proposta")
+    for trocas in ({"alvo_com_rotulo": "destino-1"}, {"alvo_com_rotulo": "origem-9"}, {"alvo": "203.0.113.99"}):
+        outro = Mundo()
+        outro.aplicar([novo("acao_proposta", gravada | trocas, "inc-0001")])
+        violacao(outro, "acao_proposta", proposta.id, "rótulo")
+
+
+def test_acao_promovida_vai_ao_catalogo_sem_endereco(mundo):
+    com_endereco = ACAO_NOVA | {
+        "passos": ["Ativar SYN cookies em 192.168.137.20.", "Conferir a porta 22 de 192.168.137.20."],
+        "como_desfazer": "Desativar SYN cookies em 192.168.137.20 (MAC aa:bb:cc:dd:ee:ff).",
+    }
+    mundo.propor("ativar_syn_cookies", "192.168.137.20", com_endereco)
+    mundo.decidir("prop-0001")
+    mundo.executar("prop-0001")
+    promovida = mundo.promover("prop-0001")
+    texto = promovida.model_dump_json()
+    assert "192.168.137.20" not in texto and "aa:bb:cc" not in texto
+    assert promovida.passos == ["Ativar SYN cookies em [endereço].", "Conferir a porta 22 de [endereço]."]
+    assert "rótulo" in promovida.alvo
+    # A reconstrução aceita a promoção, porque é a mesma conta que o servidor faz.
+    assert mundo.estado.promovidas["ativar_syn_cookies"] == promovida
+
+
+def test_resumo_do_incidente_tem_rotulos_e_nenhum_endereco():
+    mundo = Mundo(incidente=INCIDENTE_COM_VARIAS_ORIGENS)
+    resumo = resumo_do_incidente(mundo.estado, mundo.politica, "inc-0001")
+    incidente = mundo.estado.incidentes["inc-0001"]
+    assert [(item.rotulo, item.quadros) for item in resumo.origens] == [
+        (f"origem-{numero}", item.quadros) for numero, item in enumerate(incidente.origens, start=1)
+    ]
+    assert [(item.rotulo, item.protegido) for item in resumo.destinos] == [("destino-1", False), ("destino-2", True)]
+    assert (resumo.categoria, resumo.categoria_do_modelo, resumo.confianca, resumo.janelas) == (
+        incidente.categoria, incidente.categoria_do_modelo, incidente.confianca, incidente.janelas,
+    )
+    assert resumo.duracao_s == (incidente.fim - incidente.inicio).total_seconds()
+    assert resumo.features_principais == incidente.features_principais
+    assert (resumo.estado, resumo.ja_resolvido, resumo.ultimo_efeito) == ("aberto", False, None)
+    texto = resumo.model_dump_json()
+    for endereco in (*ORIGENS, "192.168.137.20", "192.168.137.1"):
+        assert endereco not in texto
+
+
+def test_resumo_traz_o_ultimo_efeito_e_a_marca_de_ja_resolvido(mundo):
+    primeira = mundo.executar(mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10}).id)
+    segunda = mundo.executar(mundo.propor("limitar_taxa", "192.168.137.20", {"duracao": 10}).id)
+    for execucao, resultado in ((segunda, "diminuiu"), (primeira, "persiste")):
+        mundo.aplicar([novo("efeito_verificado", EFEITO | {"execucao": execucao.id, "resultado": resultado}, "inc-0001")])
+    resumo = resumo_do_incidente(mundo.estado, mundo.politica, "inc-0001")
+    # O último verificado, na ordem do log, e não o da última execução.
+    assert (resumo.ultimo_efeito.execucao, resumo.ultimo_efeito.resultado) == (primeira.id, "persiste")
+    mundo.marcar_resolvido()
+    assert resumo_do_incidente(mundo.estado, mundo.politica, "inc-0001").ja_resolvido is True
+
+
 # --- "Já resolvido": a pessoa resolveu antes dos agentes ----------------------------------------
 
 
@@ -1641,7 +1773,7 @@ def test_proposta_que_nao_nasce_no_estado_que_o_risco_pede_e_erro(mundo, trocas,
     # Uma linha escrita por fora com a proposta já liberada era executada sem aprovação.
     forjada = {
         "id": "prop-0001", "incidente": "inc-0001", "acao": "isolar_dispositivo", "alvo": "192.168.137.20",
-        "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
+        "alvo_com_rotulo": None, "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
         "motivos_de_risco_alto": [motivo("acao_sempre_de_risco_alto")], "exige_aprovacao": True,
         "estado": "aguardando_aprovacao",
     }
@@ -1664,7 +1796,7 @@ def test_proposta_que_nao_nasce_no_estado_que_o_risco_pede_e_erro(mundo, trocas,
 def test_proposta_com_motivos_que_nao_conferem_com_o_risco_e_erro(mundo, trocas, trecho):
     forjada = {
         "id": "prop-0001", "incidente": "inc-0001", "acao": "isolar_dispositivo", "alvo": "192.168.137.1",
-        "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
+        "alvo_com_rotulo": None, "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
         "motivos_de_risco_alto": [motivo("acao_sempre_de_risco_alto"), motivo("alvo_protegido")],
         "exige_aprovacao": True, "estado": "aguardando_aprovacao",
     }

@@ -438,6 +438,31 @@ def test_tela_mostra_cada_campo_da_proposta(stub, capsys):
     ]
 
 
+def test_tela_mostra_o_endereco_de_cada_rotulo_que_o_agente_de_decisao_escreveu(stub, capsys, monkeypatch):
+    # O agente de decisão escreve com os rótulos neutros. Quem aprova vê o endereço de cada um.
+    decisao = Stub(stub.registro, agente="decisao")
+    decisao.chamar(
+        "propor_acao", id="inc-0001", acao="ativar_syn_cookies", alvo="destino-1",
+        parametros=ACAO_NOVA | {"passos": ["Ativar SYN cookies em destino-1.", "Conferir o tráfego de origem-2."]},
+        justificativa="O bloqueio de origem-1 não resolveu.",
+    )
+    esperadas = [
+        "  alvo: 192.168.137.20 (destino-1, como o agente de decisão escreveu)",
+        # Na ordem em que aparecem na tela: o alvo, a justificativa e os passos.
+        "  rótulos citados: destino-1 = 192.168.137.20, origem-1 = 203.0.113.7, origem-2 = 203.0.113.18",
+    ]
+    assert aprovar(stub) == 0
+    tela = capsys.readouterr().out.splitlines()
+    assert all(linha in tela for linha in esperadas)
+    vistos = {}
+    Terminal(monkeypatch, "n", antes_de_responder=lambda: vistos.update(tela=capsys.readouterr().out))
+    assert aprovar(stub, "prop-0001") == 1
+    assert all(linha in vistos["tela"].splitlines() for linha in esperadas)
+    assert aprovar(stub, "prop-0001", "--rejeitar") == 0
+    tela = capsys.readouterr().out.splitlines()
+    assert all(linha in tela for linha in esperadas)
+
+
 def test_tela_mostra_todos_os_motivos_do_risco_alto_com_o_codigo_e_a_frase(stub, capsys, monkeypatch):
     # Bloqueio sem prazo do gateway, que na varredura é um dos destinos: quatro motivos.
     stub.chamar(
@@ -468,7 +493,7 @@ def acrescentar_proposta(stub, **trocas):
     """Escreve no arquivo, por fora do sistema, uma proposta que aguarda aprovação."""
     proposta = {
         "id": "prop-0001", "incidente": "inc-0001", "acao": "isolar_dispositivo", "alvo": "192.168.137.1",
-        "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
+        "alvo_com_rotulo": None, "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
         "motivos_de_risco_alto": [
             {"codigo": codigo, "descricao": MOTIVOS_DE_RISCO_ALTO[codigo]}
             for codigo in ("acao_sempre_de_risco_alto", "alvo_fora_do_incidente", "alvo_protegido")

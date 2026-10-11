@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -828,7 +829,7 @@ def log_invalido(stub, *trechos):
 
 PROPOSTA_FORJADA = {
     "id": "prop-0001", "incidente": "inc-0001", "acao": "isolar_dispositivo", "alvo": "192.168.137.1",
-    "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
+    "alvo_com_rotulo": None, "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
     "motivos_de_risco_alto": [
         {"codigo": codigo, "descricao": MOTIVOS_DE_RISCO_ALTO[codigo]}
         for codigo in ("acao_sempre_de_risco_alto", "alvo_fora_do_incidente", "alvo_protegido")
@@ -912,6 +913,10 @@ def test_stub_de_um_agente_registra_quem_chamou(registro):
     ("triagem", "executar_acao", {"id_proposta": "prop-0001"}),
     ("decisao", "executar_acao", {"id_proposta": "prop-0001"}),
     ("decisao", "obter_janelas", {"id": "inc-0001", "limite": 5}),
+    # O agente de decisão lê o resumo sem endereço, e não o incidente; e não verifica efeito, que muda o incidente.
+    ("decisao", "obter_incidente", {"id": "inc-0001"}),
+    ("decisao", "verificar_efeito", {"id_execucao": "exec-0001"}),
+    ("triagem", "obter_resumo", {"id": "inc-0001"}),
     ("execucao", "propor_acao", {"id": "inc-0001", "alvo": "203.0.113.7"} | BLOQUEIO),
     ("execucao", "obter_incidente", {"id": "inc-0001"}),
     ("execucao", "pesquisar_solucoes", {"consulta": "syn"}),
@@ -922,6 +927,52 @@ def test_agente_nao_chama_tool_de_outra_linha(registro, agente, tool, argumentos
     mensagem = recusado(stub, "tool_fora_da_linha", tool, **argumentos)
     assert agente in mensagem
     assert registro.ler()[-1].dados.agente == agente
+
+
+# --- linha de decisão: rótulos neutros, nunca endereço ----------------------------------------
+
+
+def stubs_das_tres_linhas(registro):
+    triagem, decisao, execucao = (Stub(registro, agente=agente) for agente in ("triagem", "decisao", "execucao"))
+    triagem.abrir_incidentes()
+    return triagem, decisao, execucao
+
+
+def test_decisao_le_o_resumo_e_propoe_com_rotulo_que_o_servidor_resolve(registro):
+    _, decisao, execucao = stubs_das_tres_linhas(registro)
+    resumo = chamar(decisao, "obter_resumo", id="inc-0001")
+    assert [item.rotulo for item in resumo.origens] == [f"origem-{numero}" for numero in range(1, 6)]
+    assert [item.rotulo for item in resumo.destinos] == ["destino-1"]
+
+    proposta = chamar(decisao, "propor_acao", id="inc-0001", alvo="origem-1", **BLOQUEIO)
+    # O que volta ao agente de decisão mostra o rótulo; o log guarda os dois.
+    assert (proposta.alvo, proposta.alvo_com_rotulo, proposta.risco) == ("origem-1", "origem-1", "baixo")
+    gravada = registro.ler()[-1].dados
+    assert (gravada.alvo, gravada.alvo_com_rotulo) == ("203.0.113.7", "origem-1")
+    # O agente de execução, local, aplica sobre o endereço real.
+    assert chamar(execucao, "executar_acao", id_proposta=proposta.id).alvo == "203.0.113.7"
+
+    # O destino do flood é o dispositivo atacado: o risco sai do endereço real, que o agente não vê.
+    destino = chamar(decisao, "propor_acao", id="inc-0001", alvo="destino-1", **BLOQUEIO)
+    assert [motivo.codigo for motivo in destino.motivos_de_risco_alto] == [
+        "alvo_e_destino_do_incidente", "alvo_na_rede_local",
+    ]
+
+
+def test_decisao_nao_propoe_com_endereco_e_a_recusa_nao_mostra_endereco(registro):
+    _, decisao, _ = stubs_das_tres_linhas(registro)
+    mensagem = recusado(decisao, "alvo_malformado", "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO)
+    assert "rótulo" in mensagem and "203.0.113.7" not in mensagem
+    assert "acao_proposta" not in [evento.tipo for evento in registro.ler()]
+
+
+def test_decisao_le_o_catalogo_com_os_alvos_escritos_por_rotulo(registro):
+    _, decisao, _ = stubs_das_tres_linhas(registro)
+    acoes = {acao.nome: acao for acao in chamar(decisao, "consultar_mitigacoes", categoria="DDoS").acoes}
+    assert "origem-1" in acoes["bloquear_ip"].alvo and "destino-1" in acoes["limitar_taxa"].alvo
+    assert "admin@destino-1" in acoes["revogar_credencial"].alvo
+    texto = json.dumps([acao.model_dump(mode="json") for acao in acoes.values()])
+    assert not re.search(r"\d+\.\d+\.\d+\.\d+", texto)
 
 
 def test_agente_desconhecido_nao_cria_stub(registro):
@@ -954,7 +1005,7 @@ def chamar_pelo_servidor(servidor, nome, argumentos):
     return asyncio.run(servidor.call_tool(nome, argumentos))
 
 
-def test_servidor_expoe_as_nove_tools_com_a_descricao_do_contrato(stub):
+def test_servidor_expoe_todas_as_tools_com_a_descricao_do_contrato(stub):
     tools = listar(criar_servidor(stub))
     assert [tool.name for tool in tools] == [tool.nome for tool in TOOLS]
     assert [tool.description for tool in tools] == [tool.descricao for tool in TOOLS]
@@ -1027,7 +1078,7 @@ def test_main_recusa_agente_desconhecido(capsys):
 
 
 def test_main_exige_dizer_o_agente(tmp_path, capsys):
-    # Expor as nove tools de uma vez é escolha de quem sobe o servidor, e não o que acontece por esquecimento.
+    # Expor todas as tools de uma vez é escolha de quem sobe o servidor, e não o que acontece por esquecimento.
     log = tmp_path / "eventos.jsonl"
     assert main(["--log", str(log)]) == 2
     assert main([]) == 2
