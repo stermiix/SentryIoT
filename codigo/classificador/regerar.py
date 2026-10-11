@@ -34,6 +34,8 @@ Uso, a partir da raiz do repositório:
     python -m codigo.classificador.regerar
     python -m codigo.classificador.regerar --dataset /caminho/CICIoT2023 --janelas 10,100
     python -m codigo.classificador.regerar --processos 3
+    python -m codigo.classificador.regerar --janelas 100 --preencher --limitar \
+        --destino dados/processed/regerado_no_fio --saida experimentos/resultados/regeracao_no_fio
 """
 import argparse
 import csv
@@ -375,12 +377,21 @@ def main(argv=None):
     analisador.add_argument(
         "--refazer", action="store_true", help="lê todos os pcaps de novo, sem reaproveitar as partes gravadas",
     )
+    analisador.add_argument(
+        "--preencher", action="store_true",
+        help="mede o quadro menor que 60 bytes completado até 60, como no fio (opção do extrator, desligada por padrão)",
+    )
+    analisador.add_argument(
+        "--limitar", action="store_true",
+        help="mede o quadro maior que 1.514 bytes como 1.514, como no fio (opção do extrator, desligada por padrão)",
+    )
     try:
         argumentos = analisador.parse_args(argv)
     except SystemExit as encerramento:
         return encerramento.code
     saida = Path(argumentos.saida)
-    opcoes = {}
+    # Só as opções ligadas vão para o extrator e para o manifesto: desligadas, a medida é a dos autores.
+    opcoes = {nome: True for nome in ("limitar", "preencher") if getattr(argumentos, nome)}
     try:
         anteriores = (
             {} if argumentos.refazer
