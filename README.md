@@ -110,7 +110,7 @@ agrupa as tarefas concluídas por semana e por responsável.
 
 | Pasta | Conteúdo |
 |---|---|
-| `artigo/` | `esqueleto.md`, o rascunho do artigo, a migrar para o template do Oriente (10–20 pág), e `figuras/` |
+| `artigo/` | `Artigo_TCC2_SentryIoT.docx`, o artigo no template do Oriente (10 a 20 páginas); `esqueleto.md`, o rascunho e a fonte das correções; e `figuras/`, com os scripts que geram as figuras |
 | `codigo/captura/` | extrator de features: pacotes → 39 números |
 | `codigo/classificador/` | regeração dos dados de treino a partir dos pcaps, preparação, treino e avaliação do Random Forest |
 | `codigo/mcp/` | contrato das tools MCP, stub do servidor, política de risco, base local de mitigações e log de eventos; o servidor que expõe o classificador ainda será escrito |
