@@ -19,6 +19,7 @@ export const ROTULO_DO_EVENTO = new Map<TipoDeEvento, string>([
   ["efeito_verificado", "Efeito verificado"],
   ["catalogo_ampliado", "Promovida ao catálogo"],
   ["recusa", "Recusada pelo servidor"],
+  ["incidente_marcado_resolvido", "Marcado como já resolvido"],
 ]);
 
 // Nome de cada agente como aparece na tela. No log vai sem acento (`AGENTES` em tipos.py).

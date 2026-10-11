@@ -8,6 +8,8 @@ import type { Evento, TipoDeEvento } from "./types";
 export const CATEGORIAS = [
   "DDoS",
   "DoS",
+  // Categoria do modelo que funde DDoS e DoS. Ainda não está no contrato; vem em outro PR.
+  "DDoS+DoS",
   "Mirai",
   "Recon",
   "Spoofing",
@@ -118,8 +120,8 @@ function lista(regra: Regra, maximo = Number.POSITIVE_INFINITY, minimo = 0): Reg
   };
 }
 
-/** Objeto com os campos obrigatórios `campos`. */
-function objeto(campos: Record<string, Regra>): Regra {
+/** Objeto com os campos obrigatórios `campos` e, se vierem, os de `opcionais`. */
+function objeto(campos: Record<string, Regra>, opcionais: Record<string, Regra> = {}): Regra {
   return (valor, caminho) => {
     if (!ehObjeto(valor)) {
       return caminho;
@@ -131,6 +133,14 @@ function objeto(campos: Record<string, Regra>): Regra {
       const problema = regra(valor[nome], `${caminho}.${nome}`);
       if (problema) {
         return problema;
+      }
+    }
+    for (const [nome, regra] of Object.entries(opcionais)) {
+      if (temCampo(valor, nome) && valor[nome] !== undefined) {
+        const problema = regra(valor[nome], `${caminho}.${nome}`);
+        if (problema) {
+          return problema;
+        }
       }
     }
     return null;
@@ -262,6 +272,10 @@ const DADOS_DO_TIPO = new Map<TipoDeEvento, Regra>([
       mensagem: textoLongo,
     }),
   ],
+  [
+    "incidente_marcado_resolvido",
+    objeto({ incidente: texto(), canal: umDe(CANAIS), usuario: texto() }, { motivo: ouNulo(textoLongo) }),
+  ],
 ]);
 
 const ESTADO_DO_TIPO = new Map<string, string>([
@@ -303,6 +317,9 @@ export function conferirEvento(valor: unknown): Conferido {
     if (dados.estado !== estadoEsperado) {
       return { problema: `${tipo} com o estado ${String(dados.estado)}` };
     }
+  }
+  if (tipo === "incidente_marcado_resolvido" && dados.incidente !== valor.incidente) {
+    return { problema: `${tipo} com dados.incidente diferente do campo incidente` };
   }
   return { evento: valor as unknown as Evento };
 }

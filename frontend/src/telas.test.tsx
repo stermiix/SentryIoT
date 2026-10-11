@@ -92,4 +92,32 @@ describe("telas 1 e 2", () => {
     // A quebra de linha da recomendação chega ao HTML; o CSS (white-space: pre-line) a mostra.
     expect(html).toContain("&lt;/b&gt;\nsegunda linha");
   });
+
+  it("mostram a marca de já resolvido na fila e no detalhe", () => {
+    const abertura = base.findIndex((e) => e.tipo === "incidente_aberto");
+    const incidente = base[abertura].incidente!;
+    const marcacao = {
+      id: "ev-999999",
+      instante: base[abertura].instante,
+      tipo: "incidente_marcado_resolvido",
+      incidente,
+      dados: { incidente, canal: "interface", usuario: "operador", motivo: "Bloqueado no firewall da borda." },
+    };
+    const { eventos } = lerLog([...base.slice(0, abertura + 1), marcacao].map((e) => JSON.stringify(e)).join("\n") + "\n");
+    const html = telas(eventos);
+    expect(html).toContain("Já resolvido");
+    expect(html).toContain("Marcado como já resolvido");
+    expect(html).toContain("operador");
+    expect(html).toContain("pela interface");
+    expect(html).toContain("Bloqueado no firewall da borda.");
+  });
+
+  it("mostram a categoria DDoS+DoS do modelo", () => {
+    const eventos = variacao((evento) => {
+      if (evento.tipo.startsWith("incidente_")) {
+        evento.dados.categoria_do_modelo = "DDoS+DoS";
+      }
+    });
+    expect(telas(eventos)).toContain("Saída do modelo: <strong>DDoS+DoS</strong>");
+  });
 });

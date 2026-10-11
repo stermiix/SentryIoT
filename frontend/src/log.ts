@@ -4,6 +4,7 @@ import type {
   ExecucaoView,
   Incidente,
   IncidenteView,
+  MarcacaoView,
   PropostaView,
   ResumoGeral,
 } from "./types";
@@ -175,6 +176,7 @@ export function agregar(eventos: Evento[]): Agregado {
         tokensSaida: 0,
         recomendacoes: [],
         propostas: [],
+        marcacao: null,
       };
       montagens.set(evento.incidente, montagem);
     }
@@ -330,6 +332,17 @@ export function agregar(eventos: Evento[]): Agregado {
         } else {
           proposta.promovida = true;
         }
+        break;
+      }
+      case "incidente_marcado_resolvido": {
+        const marcacao: MarcacaoView = {
+          instante: evento.instante,
+          canal: evento.dados.canal,
+          usuario: evento.dados.usuario,
+          motivo: evento.dados.motivo ?? null,
+        };
+        // Vale a primeira marca. Uma segunda fica só no histórico.
+        montagem.marcacao ??= marcacao;
         break;
       }
       default:

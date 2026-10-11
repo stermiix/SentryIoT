@@ -2,10 +2,15 @@
 // `codigo/mcp/tipos.py`). Cada linha do log é um `Evento`, e o campo `tipo` diz o formato de
 // `dados`: a união abaixo é discriminada por ele. A conferência em tempo de execução, que dá
 // garantia a estes tipos, fica em `contrato.ts`.
+//
+// Duas coisas daqui ainda não estão no contrato e chegam em outro PR do MCP: o evento
+// `incidente_marcado_resolvido` e a categoria `DDoS+DoS` do modelo. A interface já as aceita, e
+// funciona igual com um log que não tem nenhuma das duas.
 
 export type Categoria =
   | "DDoS"
   | "DoS"
+  | "DDoS+DoS"
   | "Mirai"
   | "Recon"
   | "Spoofing"
@@ -175,6 +180,14 @@ export interface Recusa {
   mensagem: string;
 }
 
+/** A pessoa marcou o incidente como já resolvido (evento que ainda vai entrar no contrato). */
+export interface MarcacaoDeResolvido {
+  incidente: string;
+  canal: Canal;
+  usuario: string;
+  motivo?: string | null;
+}
+
 // --- Os eventos ----------------------------------------------------------------------------
 
 interface Linha<T extends string, D> {
@@ -196,6 +209,7 @@ export type EventoDeExecucao = Linha<"acao_executada" | "acao_desfeita", Execuca
 export type EventoDeEfeito = Linha<"efeito_verificado", Efeito>;
 export type EventoDeCatalogo = Linha<"catalogo_ampliado", Promocao>;
 export type EventoDeRecusa = Linha<"recusa", Recusa>;
+export type EventoDeMarcacao = Linha<"incidente_marcado_resolvido", MarcacaoDeResolvido>;
 
 export type Evento =
   | EventoDeJanelas
@@ -208,7 +222,8 @@ export type Evento =
   | EventoDeExecucao
   | EventoDeEfeito
   | EventoDeCatalogo
-  | EventoDeRecusa;
+  | EventoDeRecusa
+  | EventoDeMarcacao;
 export type TipoDeEvento = Evento["tipo"];
 
 // --- O que a interface monta a partir dos eventos ------------------------------------------
@@ -245,6 +260,13 @@ export interface PropostaView {
   promovida: boolean;
 }
 
+export interface MarcacaoView {
+  instante: string;
+  canal: Canal;
+  usuario: string;
+  motivo: string | null;
+}
+
 export interface IncidenteView {
   id: string;
   incidente: Incidente;
@@ -255,6 +277,7 @@ export interface IncidenteView {
   tokensSaida: number;
   recomendacoes: EventoDeRecomendacao[];
   propostas: PropostaView[];
+  marcacao: MarcacaoView | null;
 }
 
 export interface ResumoGeral {

@@ -7,7 +7,8 @@ interface Props {
 }
 
 export default function ResumoMetricas({ resumo, incidentes }: Props) {
-  const ativos = incidentes.filter((item) => item.incidente.estado === "aberto").length;
+  // Em acompanhamento: aberto no classificador e sem a marca de já resolvido.
+  const ativos = incidentes.filter((item) => item.incidente.estado === "aberto" && !item.marcacao).length;
   const cartoes = [
     { rotulo: "Janelas analisadas", valor: inteiro(resumo.janelasClassificadas), detalhe: "em todos os lotes do replay", cor: "azul", icone: "▦" },
     { rotulo: "Incidentes", valor: String(resumo.totalIncidentes), detalhe: `${ativos} em acompanhamento`, cor: "ambar", icone: "⌁" },

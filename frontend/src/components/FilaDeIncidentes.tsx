@@ -12,10 +12,16 @@ function percentual(confianca: number) {
   return `${Math.round(confianca * 100)}%`;
 }
 
+// O estado vem do classificador (aberto ou encerrado). A marca de "já resolvido" é da pessoa que
+// opera a rede e aparece enquanto o classificador ainda vê o incidente aberto.
 function estadoNaFila(view: IncidenteView): { classe: string; texto: string } {
-  return view.incidente.estado === "encerrado"
-    ? { classe: "state-closed", texto: "Encerrado" }
-    : { classe: "state-open", texto: "Em análise" };
+  if (view.incidente.estado === "encerrado") {
+    return { classe: "state-closed", texto: "Encerrado" };
+  }
+  if (view.marcacao) {
+    return { classe: "state-resolved", texto: "Já resolvido" };
+  }
+  return { classe: "state-open", texto: "Em análise" };
 }
 
 /** Fila selecionável com categoria, prioridade e métricas úteis para triagem. */

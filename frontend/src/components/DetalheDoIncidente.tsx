@@ -18,6 +18,7 @@ const EVENTOS_DO_HISTORICO = new Set<TipoDeEvento>([
   "efeito_verificado",
   "catalogo_ampliado",
   "recusa",
+  "incidente_marcado_resolvido",
 ]);
 const RASTRO_RESUMIDO = 7;
 
@@ -58,6 +59,13 @@ function linhaDoHistorico(evento: Evento): { id: string; descricao: string } | n
       return { id: evento.dados.proposta, descricao: `a ação ${evento.dados.acao.nome} entra no catálogo` };
     case "recusa":
       return { id: idDaRecusa(evento.dados.argumentos), descricao: `${evento.dados.tool} · ${evento.dados.mensagem}` };
+    case "incidente_marcado_resolvido": {
+      const { dados } = evento;
+      return {
+        id: dados.incidente,
+        descricao: `por ${dados.usuario}, ${rotulo(PELO_CANAL, dados.canal)}${dados.motivo ? ` · ${dados.motivo}` : ""}`,
+      };
+    }
     default:
       return null;
   }
@@ -122,6 +130,7 @@ export default function DetalheDoIncidente({ incidente: view }: Props) {
   const tokensTotal = view.tokensEntrada + view.tokensSaida;
   const propostasPorId = new Map(view.propostas.map((proposta) => [proposta.id, proposta]));
   const agentesDaRecomendacao = Array.from(new Set(view.recomendacoes.map((evento) => evento.dados.agente)));
+  const marcacao = view.marcacao;
 
   return (
     <section className="detalhe">
@@ -130,6 +139,15 @@ export default function DetalheDoIncidente({ incidente: view }: Props) {
         <span className="replay-pill"><span className="status-dot" /> REPLAY</span>
       </div>
       <div className="replay-notice"><span>ⓘ</span><p><strong>Execução roteirizada.</strong> Valores ilustrativos do stub MCP: não representam tráfego, predição nem decisão reais de uma LLM.</p></div>
+      {marcacao && (
+        <div className="resolved-notice" role="status">
+          <span>✓</span>
+          <p>
+            <strong>Marcado como já resolvido</strong> às <Instante valor={marcacao.instante} />, por {marcacao.usuario}, {rotulo(PELO_CANAL, marcacao.canal)}
+            {marcacao.motivo && <> · {marcacao.motivo}</>}
+          </p>
+        </div>
+      )}
 
       <div className="detail-grid">
         <article className="panel verdict-panel">

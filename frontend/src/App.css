@@ -112,6 +112,7 @@ h1, h2, h3 { font-family: "Space Grotesk", "DM Sans", sans-serif; }
 .state-pill > span { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .state-open { color: #b67819; background: #fff7e9; }
 .state-closed { color: #34876a; background: #eaf7f1; }
+.state-resolved { color: #3d63b8; background: #edf2ff; }
 .confidence-value { color: #29364b; font-weight: 700; }
 .ai-count { color: #7762b4; font-weight: 700; }
 .queue-footnote { display: flex; justify-content: space-between; padding: 10px 14px; border-top: 1px solid #f0f2f5; color: #8a95a4; font-size: 12px; }
@@ -188,6 +189,7 @@ h1, h2, h3 { font-family: "Space Grotesk", "DM Sans", sans-serif; }
 .status-acao_desfeita > span { background: #939dab; }
 .status-acao_proposta > span { background: #6b7fe3; }
 .status-catalogo_ampliado > span { background: #8870c5; }
+.status-incidente_marcado_resolvido > span { background: #3d63b8; }
 .action-description { overflow: hidden; color: #6d788a; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .replay-lock { display: flex; align-items: center; gap: 6px; margin-top: 13px; padding-top: 10px; border-top: 1px solid #eff1f4; color: #9aa2ae; font-size: 12px; }
 .replay-lock span { color: #ba9a5e; }
@@ -207,6 +209,8 @@ h1, h2, h3 { font-family: "Space Grotesk", "DM Sans", sans-serif; }
 .event-id { padding: 1px 5px; border-radius: 4px; color: #3d4f8f; background: #eef1fb; font: 600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; }
 .instante { color: #6d788a; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .timeline li > .instante { width: 60px; flex: 0 0 auto; }
+.resolved-notice { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; padding: 10px 13px; border: 1px solid #d3ddf7; border-radius: 8px; color: #33508f; background: #f2f5ff; }
+.resolved-notice p { margin: 0; font-size: 13px; line-height: 1.55; }
 
 /* Recomendação, propostas e histórico. */
 .recommendation-list { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }

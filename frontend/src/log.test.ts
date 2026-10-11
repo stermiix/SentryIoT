@@ -261,6 +261,47 @@ describe("estado das propostas (C2)", () => {
   });
 });
 
+describe("eventos que ainda vão entrar no contrato", () => {
+  it("mostra a marca de já resolvido e aceita a categoria DDoS+DoS", () => {
+    const aberto = copia("incidente_aberto");
+    aberto.dados.categoria_do_modelo = "DDoS+DoS";
+    const marcacao: Bruto = {
+      id: proximoId(),
+      instante: base[base.length - 1].instante,
+      tipo: "incidente_marcado_resolvido",
+      incidente: aberto.incidente,
+      dados: { incidente: aberto.incidente, canal: "interface", usuario: "operador" },
+    };
+    const resultado = ler([...trocando(aberto), marcacao]);
+    expect(resultado.avisos).toEqual([]);
+    expect(resultado.avisosDaLeitura).toEqual([]);
+    const view = resultado.incidentes[0];
+    expect(view.marcacao).toEqual({ instante: marcacao.instante, canal: "interface", usuario: "operador", motivo: null });
+    expect(view.eventos.some((evento) => evento.tipo === "incidente_atualizado")).toBe(
+      base.some((evento) => evento.tipo === "incidente_atualizado"),
+    );
+  });
+
+  it("recusa a marca com canal fora da lista ou com outro incidente", () => {
+    const marcacao = (canal: string, incidente: string): Bruto => ({
+      id: proximoId(),
+      instante: base[base.length - 1].instante,
+      tipo: "incidente_marcado_resolvido",
+      incidente: base[1].incidente,
+      dados: { incidente, canal, usuario: "operador", motivo: "Bloqueado no firewall." },
+    });
+    const outroCanal = ler([...base, marcacao("email", base[1].incidente!)]);
+    expect(outroCanal.avisosDaLeitura.join(" ")).toContain("incidente_marcado_resolvido com dados.canal fora do contrato");
+    const outroIncidente = ler([...base, marcacao("terminal", "inc-0002")]);
+    expect(outroIncidente.avisosDaLeitura.join(" ")).toContain("dados.incidente diferente do campo incidente");
+  });
+
+  it("funciona com o log atual, que não tem nenhum dos dois", () => {
+    expect(base.some((evento) => evento.tipo === "incidente_marcado_resolvido")).toBe(false);
+    expect(ler(base).incidentes[0].marcacao).toBeNull();
+  });
+});
+
 describe("replay passo a passo", () => {
   it("só mostra o incidente depois do evento de abertura", () => {
     const { eventos } = lerLog(texto(base));
