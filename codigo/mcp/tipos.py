@@ -802,7 +802,7 @@ class _SemTituloDeCampo(GenerateJsonSchema):
 
 
 def contrato():
-    """O contrato em JSON Schema: as nove tools, o evento do log e as definições dos tipos.
+    """O contrato em JSON Schema: as dez tools, o evento do log e as definições dos tipos.
 
     Traz também a tabela dos motivos de risco alto, com a frase de cada código.
     """

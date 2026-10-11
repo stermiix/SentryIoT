@@ -177,6 +177,10 @@ def test_contrato_versionado_e_igual_ao_gerado_de_tipos():
     )
 
 
+def test_a_documentacao_do_contrato_conta_as_tools_que_existem():
+    assert len(TOOLS) == 10 and "as dez tools" in contrato.__doc__ and "nove" not in contrato.__doc__
+
+
 def test_texto_do_contrato_e_json_com_as_chaves_do_contrato():
     documento = json.loads(texto_do_contrato())
     assert documento == contrato()
