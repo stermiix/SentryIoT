@@ -55,6 +55,7 @@ from codigo.mcp.tipos import (
     Proposta,
     TextoLongo,
     endereco_canonico,
+    invisivel,
     visivel,
 )
 
@@ -79,7 +80,10 @@ def _milhar(numero):
     return f"{numero:,}".replace(",", ".")
 
 
-_UMA_LINHA = f"um texto de uma linha, com até {_milhar(TEXTO_LONGO)} caracteres, sem caractere de controle"
+_UMA_LINHA = (
+    f"um texto de uma linha, com até {_milhar(TEXTO_LONGO)} caracteres, sem caractere de controle nem caractere "
+    "que não aparece na tela"
+)
 
 
 def resumir(valor, maximo=_MAIOR_TRECHO):
@@ -797,7 +801,7 @@ def _alvo_de_base(acao, alvo):
 def _alvo_livre(acao, alvo):
     """Alvo de ação fora da base: um texto curto, de uma linha só."""
     limpo = alvo.strip() if isinstance(alvo, str) else ""
-    if not limpo or len(limpo) > _MAIOR_ALVO or not limpo.isprintable():
+    if not limpo or len(limpo) > _MAIOR_ALVO or not limpo.isprintable() or any(map(invisivel, limpo)):
         raise PedidoRecusado(
             "alvo_malformado",
             f"O alvo de {acao} precisa ser um texto de uma linha, com até {_MAIOR_ALVO} caracteres, que diga "

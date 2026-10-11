@@ -430,8 +430,11 @@ def test_tela_escapa_tudo_o_que_nao_e_imprimivel(stub, capsys):
     # trazer neles a sequência que sobe o cursor, apaga a tela e escreve outra proposta no lugar.
     falsa = "\x1b[3A\r\x1b[0Jprop-0001  incidente inc-0001  risco baixo\n  ação: limitar_taxa (do catálogo)"
     acrescentar_proposta(
-        stub, parametros={falsa: "203.0.113.7\x1b[2K", "nota\x07": ["a\x00b", {"c\u2028d": "e\u202ef"}]},
-        justificativa="Junta\u200dinvisível e espaço\u00a0duro.",
+        stub, parametros={
+            falsa: "203.0.113.7\x1b[2K", "nota\x07": ["a\x00b", {"c\u2028d": "e\u202ef"}],
+            "junta": "Junta\u200dinvisível\u3164",
+        },
+        justificativa="Espaço\u00a0duro.",
     )
     for argumentos in ([], ["prop-0001", "--sim"]):
         assert aprovar(stub, *argumentos) == 0
@@ -446,7 +449,7 @@ def test_tela_escapa_tudo_o_que_nao_e_imprimivel(stub, capsys):
         assert "\\x1b[3A\\r\\x1b[0Jprop-0001" in saida and "203.0.113.7\\x1b[2K" in saida
         # Valor que não é texto sai em JSON, que escreve o caractere nulo como \\u0000.
         assert '  nota\\x07: ["a\\u0000b", {"c\\u2028d": "e\\u202ef"}]' in saida
-        assert "Junta\\u200dinvisível e espaço\\xa0duro." in saida
+        assert "  junta: Junta\\u200dinvisível\\u3164" in saida and "Espaço\\xa0duro." in saida
 
 
 def test_motivo_com_frase_que_nao_e_a_do_contrato_nao_chega_a_tela(stub, capsys):

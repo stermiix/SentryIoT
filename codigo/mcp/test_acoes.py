@@ -3,6 +3,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from pydantic import ValidationError
 
 from codigo.mcp.acoes import (
     POLITICA_PADRAO,
@@ -21,7 +22,13 @@ from codigo.mcp.acoes import (
 )
 from codigo.mcp.eventos import LogInvalido, novo
 from codigo.mcp.test_tipos import INCIDENTE_DA_ESPECIFICACAO
-from codigo.mcp.tipos import MOTIVOS_DE_RISCO_ALTO, Ambiente, validar_evento
+from codigo.mcp.tipos import (
+    MOTIVOS_DE_RISCO_ALTO,
+    Ambiente,
+    Recusa,
+    invisivel,
+    validar_evento,
+)
 
 INSTANTE = datetime(2026, 10, 20, 14, 4, 0, tzinfo=UTC)
 ACAO_NOVA = {
@@ -690,7 +697,8 @@ def test_usuario_valido_de_revogar_credencial(mundo, usuario):
 TEXTOS_PERIGOSOS = [
     "ok\x1b[3A\r\x1b[0Jprop-0001  incidente inc-0001  risco baixo", "ok\x07", "ok\x00fim", "linha\noutra linha",
     "linha\rsobrescrita", "ok\x85outra", "ok\u2028outra", "ok\u2029outra", "ok\u202eatxet", "A" * 2_001,
-    "A" * 1_000_000,
+    "A" * 1_000_000, "ok\U000e0041\U000e0049 escondido", "ok\u200bfim", "ok\ufefffim", "ok\u3164\u3164",
+    "ok\u2800fim",
 ]
 
 
@@ -760,8 +768,11 @@ def tentativas_com(mundo, entrada):
 
 
 @pytest.mark.parametrize(
-    "entrada", ["A" * 1_000_000, "ok\x1b[2J\x07\x00\nlinha forjada\u2028" + "B" * 5_000],
-    ids=["um milhão de caracteres", "sequência de terminal e quebra de linha"],
+    "entrada", [
+        "A" * 1_000_000, "ok\x1b[2J\x07\x00\nlinha forjada\u2028" + "B" * 5_000,
+        "ok\U000e0041\u200b\u3164\u2800\ufeff" + "B" * 5_000,
+    ],
+    ids=["um milhão de caracteres", "sequência de terminal e quebra de linha", "caracteres invisíveis"],
 )
 def test_mensagem_de_recusa_nunca_devolve_a_entrada_inteira(mundo, entrada):
     mundo.propor("isolar_dispositivo", "192.168.137.20")
@@ -771,8 +782,17 @@ def test_mensagem_de_recusa_nunca_devolve_a_entrada_inteira(mundo, entrada):
         mensagem = captura.value.mensagem
         assert len(mensagem) < 700, mensagem[:200]
         assert "A" * 100 not in mensagem and "B" * 100 not in mensagem
-        # Nada de sequência de terminal nem de quebra de linha na mensagem.
+        # Nada de sequência de terminal, quebra de linha ou caractere invisível na mensagem.
         assert mensagem.isprintable(), ascii(mensagem[:200])
+        assert not any(invisivel(letra) for letra in mensagem), ascii(mensagem[:200])
+        # A mensagem cabe no evento de recusa.
+        Recusa(agente=None, tool="propor_acao", argumentos={}, motivo=captura.value.motivo, mensagem=mensagem)
+
+
+@pytest.mark.parametrize("alvo", ["192.168.137.31\u3164\u3164", "dispositivo\u2800", "alvo\U000e0041", "alvo\u200b"], ids=ascii)
+def test_alvo_livre_com_caractere_invisivel_e_recusado(mundo, alvo):
+    recusado("alvo_malformado", mundo.propor, "ativar_syn_cookies", alvo, ACAO_NOVA)
+    assert mundo.estado.propostas == {}
 
 
 def test_argumento_que_nao_e_texto_e_recusado_sem_derrubar(mundo):
@@ -1465,7 +1485,9 @@ def test_promocao_no_log_so_vale_para_acao_nova_aplicada(mundo):
     violacao(outro, "catalogo_ampliado", "bloquear_ip")
 
 
-def test_mensagem_de_log_invalido_nao_repete_caractere_invisivel_do_log(mundo):
-    mundo.aplicar([novo("acao_aprovada", APROVACAO | {"proposta": "prop\u200b-0007\u200d"}, "inc-0001")])
-    mensagem = violacao(mundo, "acao_aprovada")
-    assert mensagem.isprintable() and "\\u200b" in mensagem
+def test_caractere_invisivel_nem_entra_no_log_e_por_isso_nao_chega_a_mensagem(mundo):
+    # O contrato recusa o caractere invisível na própria linha, antes da conferência da sequência.
+    with pytest.raises(ValidationError):
+        mundo.aplicar([novo("acao_aprovada", APROVACAO | {"proposta": "prop\u200b-0007\u200d"}, "inc-0001")])
+    mundo.aplicar([novo("acao_aprovada", APROVACAO | {"proposta": "prop-0007"}, "inc-0001")])
+    assert violacao(mundo, "acao_aprovada", "prop-0007").isprintable()

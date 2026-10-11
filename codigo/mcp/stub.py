@@ -266,7 +266,8 @@ class Stub:
         except ValidationError:
             raise PedidoRecusado(
                 "argumentos_invalidos",
-                f"A consulta precisa ser um texto de até {_milhar(TEXTO_LONGO)} caracteres, sem caractere de controle.",
+                f"A consulta precisa ser um texto de até {_milhar(TEXTO_LONGO)} caracteres, sem caractere de controle "
+                "nem caractere que não aparece na tela.",
             ) from None
         return Solucoes(consulta=consulta, fonte="base_local", trechos=pesquisar(self._secoes, consulta)), []
 

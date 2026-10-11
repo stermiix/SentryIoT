@@ -125,7 +125,8 @@ def _ler_documento(arquivo):
         except ValidationError:
             raise invalido(
                 f"a seção {secao['titulo'][:60]!r} não cabe no contrato: o título tem até {TEXTO_CURTO} "
-                f"caracteres, o texto tem até {TEXTO_LONGO}, e nenhum dos dois aceita caractere de controle"
+                f"caracteres, o texto tem até {TEXTO_LONGO}, e nenhum dos dois aceita caractere de controle nem "
+                "caractere que não aparece na tela"
             ) from None
         resultado.append(lida)
     return resultado

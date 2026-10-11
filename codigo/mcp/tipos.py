@@ -13,6 +13,7 @@ Uso, a partir da raiz do repositório, para gerar o `contrato.json` de novo:
 import ipaddress
 import json
 import sys
+import unicodedata
 from functools import reduce
 from operator import or_
 from pathlib import Path
@@ -58,6 +59,13 @@ _UMA_LINHA = rf"^[^\x00-\x1f{_ALEM_DO_ASCII}]*$"
 # Texto em parágrafos: aceita a quebra de linha (U+000A) e mais nenhum caractere de controle.
 _PARAGRAFOS = rf"^[^\x00-\x09\x0b-\x1f{_ALEM_DO_ASCII}]*$"
 _NOME_DE_ACAO = rf"^[a-z][a-z0-9_]{{0,{MAIOR_NOME_DE_ACAO - 1}}}$"
+# Além disso, o texto é uma lista do que é permitido: letras, marcas, números, pontuação, símbolos e
+# espaços. Fica de fora o que a tela não mostra e o modelo lê: os caracteres de formatação (Cf), como
+# as etiquetas U+E0000 a U+E007F e os de largura zero, que escondem uma instrução num texto que parece
+# inofensivo; os de uso privado (Co); os sem atribuição (Cn); os substitutos soltos (Cs); e os
+# preenchimentos que o Unicode classifica como letra ou símbolo, mas que aparecem em branco.
+_GRUPOS_PERMITIDOS = frozenset("LMNPS")
+_PREENCHIMENTOS = frozenset("\u115f\u1160\u2800\u3164\uffa0")
 
 # As 7 categorias que o modelo do sistema responde. Ele não separa DDoS de DoS: as features descrevem
 # os pacotes, e não quantas máquinas atacam (decisão de 2026-10-04). A separação sai da quantidade de
@@ -101,9 +109,32 @@ MotivoDeRecusa = Literal[
 ]
 
 
+def invisivel(letra):
+    """Verdadeiro para o caractere que não aparece na tela e que nenhum texto do contrato aceita.
+
+    A quebra de linha fica de fora: quem diz onde ela é aceita é a expressão regular de cada tipo
+    de texto.
+    """
+    if letra in _PREENCHIMENTOS:
+        return True
+    if letra == "\n":
+        return False
+    categoria = unicodedata.category(letra)
+    # Letra, marca, número, pontuação e símbolo; dos separadores, só o espaço (Zs).
+    return categoria[0] not in _GRUPOS_PERMITIDOS and categoria != "Zs"
+
+
+def _so_visiveis(texto):
+    if any(invisivel(letra) for letra in texto):
+        raise ValueError("o texto traz caractere que não aparece na tela (formatação, uso privado ou preenchimento)")
+    return texto
+
+
 def _texto(maximo, padrao=_UMA_LINHA, minimo=1):
     return Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=minimo, max_length=maximo, pattern=padrao)
+        str,
+        StringConstraints(strip_whitespace=True, min_length=minimo, max_length=maximo, pattern=padrao),
+        AfterValidator(_so_visiveis),
     ]
 
 
@@ -114,7 +145,9 @@ def visivel(texto):
     sequência de controle gravada nele não pode chegar crua à tela de quem decide.
     """
     return "".join(
-        letra if letra.isprintable() else letra.encode("unicode_escape").decode("ascii") for letra in str(texto)
+        letra if letra.isprintable() and letra not in _PREENCHIMENTOS
+        else letra.encode("unicode_escape").decode("ascii")
+        for letra in str(texto)
     )
 
 

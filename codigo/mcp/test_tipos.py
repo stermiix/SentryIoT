@@ -31,9 +31,11 @@ from codigo.mcp.tipos import (
     Trecho,
     contrato,
     endereco_canonico,
+    invisivel,
     texto_do_contrato,
     tools_do_agente,
     validar_evento,
+    visivel,
 )
 
 # O exemplo de incidente que está na especificação do contrato.
@@ -481,9 +483,18 @@ def test_esquema_json_do_contrato_aceita_e_recusa_o_mesmo_que_os_tipos():
 
 # Sequências de terminal, quebras de linha e os caracteres que invertem a direção do texto: com
 # eles, o que a pessoa lê na tela de aprovação pode não ser o que está gravado.
+# Caracteres que a tela não mostra e o modelo lê: formatação (Cf), como as etiquetas U+E0000 a U+E007F
+# e os de largura zero; uso privado (Co); sem atribuição (Cn); substituto solto (Cs); e os
+# preenchimentos que o Unicode classifica como letra ou símbolo, mas que aparecem em branco.
+TEXTOS_INVISIVEIS = [
+    "ok\U000e0041\U000e0042", "ok\u200bfim", "ok\u200dfim", "ok\u200efim", "ok\u200ffim", "ok\u061cfim",
+    "ok\ufefffim", "ok\u2060fim", "ok\u2064fim", "ok\u00adfim", "ok\ue000fim", "ok\U000f0000fim", "ok\u0378fim",
+    "ok\ud800fim", "ok\u3164\u3164", "ok\u2800fim", "ok\u115ffim", "ok\u1160fim", "ok\uffa0fim",
+]
 TEXTOS_PERIGOSOS = [
     "ok\x1b[2Jtela apagada", "ok\x07", "ok\x00fim", "linha\noutra linha", "linha\rsobrescrita", "a\tb",
     "ok\x7f", "ok\x85outra", "ok\x9b2J", "ok\u2028outra", "ok\u2029outra", "ok\u202eatxet", "ok\u2066x\u2069",
+    *TEXTOS_INVISIVEIS,
 ]
 ACAO_NOVA_COMPLETA = {
     "descricao": "Ativa SYN cookies.",
@@ -515,6 +526,9 @@ def test_texto_do_contrato_recusa_controle_quebra_de_linha_e_inversao_de_direcao
 def test_texto_comum_com_acento_e_pontuacao_continua_valido():
     texto = "Bloquear a origem 203.0.113.7: é a que mais envia quadros (61.240), “de longe” → risco baixo."
     assert Proposta.model_validate(PROPOSTA | {"justificativa": texto}).justificativa == texto
+    # Acento combinado, espaço duro, símbolo e outras escritas são texto visível.
+    for visivel_na_tela in ("cafe\u0301 a\u00a0b", "alerta 🚨 ≥ 99%", "日本語 Ελληνικά العربية"):
+        assert Proposta.model_validate(PROPOSTA | {"justificativa": visivel_na_tela}).justificativa == visivel_na_tela
     # Espaço e quebra de linha nas pontas são retirados, como já eram.
     assert Proposta.model_validate(PROPOSTA | {"justificativa": f"  {texto}\n"}).justificativa == texto
 
@@ -603,6 +617,26 @@ def test_recomendacao_e_trecho_aceitam_paragrafos_e_mais_nenhum_caractere_de_con
     recusado_pelo_contrato(Trecho, trecho | {"titulo": "Bloquear\na origem"})
     with pytest.raises(ValidationError):
         validar_evento(evento("recomendacao_emitida", dados=recomendacao | {"propostas": ["prop-0001"] * 21}))
+
+
+@pytest.mark.parametrize("texto", TEXTOS_INVISIVEIS, ids=ascii)
+def test_texto_em_paragrafos_e_consulta_tambem_recusam_caractere_invisivel(texto):
+    recomendacao = DADOS_POR_TIPO["recomendacao_emitida"]
+    with pytest.raises(ValidationError):
+        validar_evento(evento("recomendacao_emitida", dados=recomendacao | {"texto": f"Bloquear.\n\n{texto}"}))
+    trecho = {"origem": "flood.md", "titulo": "Bloquear a origem", "texto": "Texto.", "acao": None}
+    for campo in ("titulo", "texto"):
+        recusado_pelo_contrato(Trecho, trecho | {campo: texto})
+    recusado_pelo_contrato(Solucoes, {"consulta": texto, "fonte": "base_local", "trechos": []})
+    with pytest.raises(ValidationError):
+        validar_evento(evento("acao_aprovada", dados=DADOS_POR_TIPO["acao_aprovada"] | {"motivo": texto}))
+
+
+@pytest.mark.parametrize("texto", TEXTOS_INVISIVEIS, ids=ascii)
+def test_visivel_escapa_caractere_invisivel(texto):
+    escapado = visivel(texto)
+    assert all(not invisivel(letra) and letra.isprintable() for letra in escapado)
+    assert escapado.startswith("ok\\")
 
 
 def test_consulta_da_pesquisa_tem_tamanho_maximo():
