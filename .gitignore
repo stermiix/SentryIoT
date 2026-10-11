@@ -5,6 +5,8 @@ dados/processed/*
 *.pcap
 *.pcapng
 *.csv.gz
+*.parquet
+*.npy
 
 # Log de eventos de uma execucao do sistema (o exemplo versionado fica em codigo/mcp/exemplos/)
 dados/eventos/
@@ -28,10 +30,16 @@ node_modules/
 frontend/dist/
 *.tsbuildinfo
 
-# Segredos e ambiente
+# Segredos e ambiente (.env.* cobre os arquivos que o Vite le, como .env.production)
 .env
-.env.local
+.env.*
+!.env.example
 *.key
+*.pem
+
+# Editores
+.vscode/
+.idea/
 
 # Sistema
 .DS_Store
