@@ -69,10 +69,11 @@ def test_nome_que_nao_casa_com_rotulo_e_recusado(nome):
 
 
 def test_tem_atacante_olha_a_origem_e_o_destino():
-    assert tem_atacante(Enderecos(frozenset({ATACANTE}), frozenset({VITIMA}), 1, 1))
-    assert tem_atacante(Enderecos(frozenset({VITIMA}), frozenset({ATACANTE, OUTRO}), 1, 2))
-    assert not tem_atacante(Enderecos(frozenset({VITIMA, OUTRO}), frozenset({OUTRO}), 2, 1))
-    assert not tem_atacante(Enderecos(frozenset(), frozenset(), 0, 0))
+    um, dois = frozenset({"10.0.0.1"}), frozenset({"10.0.0.1", "10.0.0.2"})
+    assert tem_atacante(Enderecos(frozenset({ATACANTE}), frozenset({VITIMA}), um, um))
+    assert tem_atacante(Enderecos(frozenset({VITIMA}), frozenset({ATACANTE, OUTRO}), um, dois))
+    assert not tem_atacante(Enderecos(frozenset({VITIMA, OUTRO}), frozenset({OUTRO}), dois, um))
+    assert not tem_atacante(Enderecos(frozenset(), frozenset(), frozenset(), frozenset()))
 
 
 def captura_de_teste(caminho):

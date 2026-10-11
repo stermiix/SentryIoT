@@ -38,7 +38,7 @@ from pathlib import Path
 
 import dpkt
 
-from codigo.captura.extrator import Extrator, ler_pcap, medir_quadro
+from codigo.captura.extrator import CapturaIncompleta, Extrator, ler_pcap, medir_quadro
 from codigo.classificador.experimento import (
     _campo,
     _decimal,
@@ -164,7 +164,7 @@ def percorrer(pcap, janelas=JANELAS, ao_fechar=None, atacantes=ATACANTES, contar
 
     inicio = time.perf_counter()
     with warnings.catch_warnings(record=True) as avisos:
-        warnings.simplefilter("always")
+        warnings.simplefilter("always", CapturaIncompleta)
         try:
             with open(pcap, "rb") as arquivo:
                 leitura = _LeituraComHash(arquivo)
@@ -195,7 +195,7 @@ def percorrer(pcap, janelas=JANELAS, ao_fechar=None, atacantes=ATACANTES, contar
         "bytes": leitura.bytes,
         "sha256": leitura.sha256.hexdigest(),
         "segundos": time.perf_counter() - inicio,
-        "avisos": [str(aviso.message) for aviso in avisos],
+        "avisos": [str(aviso.message) for aviso in avisos if issubclass(aviso.category, CapturaIncompleta)],
         "macs_origem": macs_origem,
         "macs_destino": macs_destino,
         "janelas": contagem,
