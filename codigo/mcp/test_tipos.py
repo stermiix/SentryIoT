@@ -3,6 +3,7 @@ import json
 import math
 import re
 import time
+import unicodedata
 from datetime import UTC, datetime
 
 import pytest
@@ -293,10 +294,15 @@ def test_resumo_traz_rotulos_e_nao_enderecos():
     "host192.168.137.20 colado", "192.168.137.20a com sufixo", "MAC 0:1b:63:84:45:e6 na tabela ARP",
     "octal 0300.0250.0211.0001", "octeto de 4 dígitos 0192.168.137.20", "separadores misturados aa:bb-cc:dd-ee:ff",
     "IPv6 com IPv4 no fim 64:ff9b::192.168.137.1", "url http://192.168.137.20:8080/admin",
+    # Escrito "desarmado", como em texto de segurança; com dígitos de largura total; e IPv6 de um grupo só.
+    "desarmado 203.0.113[.]7", "desarmado 203[.]0[.]113[.]7", "desarmado 203(.)0(.)113(.)7",
+    "largura total ２０３．０．１１３．７", "largura total ２００１：ｄｂ８：：５", "link-local fe80:: no fim",
+    "loopback ::1 também",
 ], ids=ascii)
 def test_filtro_troca_todo_endereco_por_um_marcador(texto):
     mascarado = mascarar_enderecos(texto)
     assert MARCADOR_DE_ENDERECO in mascarado and tem_endereco(texto)
+    mascarado = unicodedata.normalize("NFKC", mascarado)
     for trecho in re.findall(r"[0-9A-Fa-f:.%]{3,}", mascarado):
         for candidato in {trecho.strip(".:").split("%")[0], *trecho.split(":")}:
             if candidato.count(":") >= 2 or candidato.count(".") == 3:
@@ -305,6 +311,7 @@ def test_filtro_troca_todo_endereco_por_um_marcador(texto):
     assert not re.search(r"(?:[0-9A-Fa-f]{1,2}[:-]){5}[0-9A-Fa-f]{1,2}", mascarado)
     assert not re.search(r"[0-9]{1,4}(?:\.[0-9]{1,4}){3}", mascarado)
     assert not re.search(r"[0-9A-Fa-f]{1,4}::|::[0-9A-Fa-f]{1,4}", mascarado)
+    assert not re.search(r"[0-9]{1,4}(?:(?:\[\.\]|\(\.\))[0-9]{1,4}){1,3}", mascarado)
     assert not tem_endereco(mascarado)
     # Nenhum grupo de dígitos de um IPv4 sobra solto junto do marcador.
     assert not re.search(r"\]\.[0-9]", mascarado)
@@ -315,6 +322,8 @@ def test_filtro_troca_todo_endereco_por_um_marcador(texto):
     "Início às 14:03:11, fim às 14:03:41.250000; Rate de 35778.4 e IAT de 0.000028.",
     "Versão 1.2.3 do serviço, 61.240 quadros, 2026-10-20T14:03:11Z, prop-0001, exec-0002.",
     "Razão 3:2:1; nota: ver o passo 2; total: 1.073.352 quadros.", "",
+    # A normalização serve só para achar o endereço: o resto do texto sai como veio.
+    "Ｒａｔｅ alto no 1º passo, ½ das janelas, ﬁm do ataque às 14:03.",
 ], ids=ascii)
 def test_filtro_nao_mexe_em_texto_sem_endereco(texto):
     assert mascarar_enderecos(texto) == texto

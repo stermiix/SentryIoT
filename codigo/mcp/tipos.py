@@ -190,10 +190,11 @@ def endereco_canonico(texto):
 MARCADOR_DE_ENDERECO = "[endereço]"
 # Rótulo neutro de um endereço do incidente, na ordem em que o endereço apareceu nele.
 ROTULO = r"^(?:origem|destino)-[1-9][0-9]{0,5}$"
-# As três buscas abaixo não retrocedem: cada uma lê o texto uma vez, e o custo é linear no tamanho
-# dele. O filtro roda com o log travado, e um texto montado de propósito não pode segurar a trava.
-# Nenhuma olha o que vem antes ou depois do endereço: colado a uma letra, depois de `src:` ou com
-# sufixo, ele vira o marcador do mesmo jeito.
+# As buscas abaixo não retrocedem: cada uma lê o texto uma vez, e o custo é linear no tamanho dele.
+# O filtro roda com o log travado, e um texto montado de propósito não pode segurar a trava. Nenhuma
+# olha o que vem antes ou depois do endereço: colado a uma letra, depois de `src:` ou com sufixo,
+# ele vira o marcador do mesmo jeito. Elas correm sobre uma cópia normalizada do texto (`_normalizado`),
+# para pegar também os dígitos e a pontuação de largura total, e o marcador entra no texto original.
 #
 # IPv6: cada trecho máximo só de dígitos hexadecimais, dois-pontos e pontos é conferido no código.
 _TRECHO_HEXADECIMAL = re.compile(r"[0-9A-Fa-f:.]+")
@@ -204,41 +205,88 @@ _MAIOR_IPV6 = 45
 # MAC: seis grupos de um ou dois dígitos hexadecimais, com dois-pontos ou hífen (o `arp` do macOS
 # escreve sem o zero à esquerda), e o formato com pontos, de três grupos de quatro.
 _MAC_NO_TEXTO = re.compile(r"[0-9A-Fa-f]{1,2}(?:[:-][0-9A-Fa-f]{1,2}){5}|[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}")
-# IPv4 em quatro grupos de um a quatro dígitos, inclusive com zero à esquerda, octal ou fora da faixa.
-_IPV4_NO_TEXTO = re.compile(r"[0-9]{1,4}(?:\.[0-9]{1,4}){3}")
+# IPv4 em quatro grupos de um a quatro dígitos, inclusive com zero à esquerda, octal ou fora da faixa,
+# e o IPv4 "desarmado", como se escreve em texto de segurança: 203.0.113[.]7 ou 203(.)0(.)113(.)7.
+_IPV4_NO_TEXTO = re.compile(r"[0-9]{1,4}(?:(?:\.|\[\.\]|\(\.\))[0-9]{1,4}){3}")
+# O fim de um texto cortado que pode ser o começo de um endereço: o filtro não o reconheceria.
+_FIM_CORTADO = re.compile(r"[0-9A-Fa-f:.\[\]()%-]+$")
+# Caracteres que a normalização NFKC pode transformar num caractere de endereço.
+_DE_ENDERECO = frozenset("0123456789abcdefABCDEF:.[]()%-")
 
 
-def _sem_ipv6(achado):
-    """O trecho hexadecimal, ou o marcador quando ele é um IPv6, ou quase.
+def _normalizado(texto):
+    """O texto com cada caractere que, pela NFKC, é um caractere de endereço trocado por ele.
 
-    Com `::` ou com seis ou mais dois-pontos, entre dígitos hexadecimais, nenhum horário nem razão
-    é. Os demais são conferidos com `ipaddress`. O trecho inteiro vira o marcador, inclusive a letra
-    hexadecimal que estiver colada ao endereço.
+    A troca é de um caractere por um, e o texto normalizado tem o mesmo tamanho do original: o que
+    se acha nele está na mesma posição no original. Os demais caracteres ficam como estão.
     """
-    trecho = achado.group()
-    if trecho.count(":") < 2 or _GRUPOS_SEPARADOS.search(trecho) is None:
-        return trecho
-    if "::" in trecho or trecho.count(":") >= 6:
-        return MARCADOR_DE_ENDERECO
-    candidato = trecho.strip(".:")
+    if texto.isascii():
+        return texto
+    tabela = {}
+    for letra in set(texto):
+        if not letra.isascii():
+            normal = unicodedata.normalize("NFKC", letra)
+            if len(normal) == 1 and normal in _DE_ENDERECO:
+                tabela[ord(letra)] = normal
+    return texto.translate(tabela)
+
+
+def _e_ipv6(trecho):
+    """O trecho hexadecimal é um IPv6, ou quase.
+
+    Com `::` e ao menos um dígito (inclusive `fe80::` e `::1`), ou com seis ou mais dois-pontos entre
+    dígitos hexadecimais, nenhum horário nem razão é. Os demais são conferidos com `ipaddress`.
+    """
+    if trecho.count(":") < 2:
+        return False
+    if "::" in trecho:
+        return any(letra not in ":." for letra in trecho)
+    if _GRUPOS_SEPARADOS.search(trecho) is None:
+        return False
+    if trecho.count(":") >= 6:
+        return True
+    candidato = trecho.strip(".")
     if len(candidato) > _MAIOR_IPV6:
-        return trecho
+        return False
     try:
         ipaddress.IPv6Address(candidato)
     except ValueError:
-        return trecho
-    return MARCADOR_DE_ENDERECO
+        return False
+    return True
 
 
-def mascarar_enderecos(texto):
+def mascarar_enderecos(texto, cortado_no_fim=False):
     """O texto com todo endereço IPv4, IPv6 ou MAC trocado por `MARCADOR_DE_ENDERECO`.
 
-    O IPv6 vem primeiro, para que o IPv4 escrito dentro dele saia junto, e o IPv4, antes do MAC,
-    para que um IPv4 de octetos de quatro dígitos não seja tomado pelo MAC com pontos.
+    Os trechos de endereço achados pelas três buscas se juntam quando se sobrepõem: o IPv4 dentro
+    de um IPv6 sai com ele. Com `cortado_no_fim`, o texto é um pedaço de outro maior, e o que o fim
+    dele tiver de caractere de endereço também vira o marcador: pode ser o começo de um endereço
+    cortado, que nenhuma busca reconheceria.
     """
-    texto = _TRECHO_HEXADECIMAL.sub(_sem_ipv6, texto)
-    texto = _IPV4_NO_TEXTO.sub(MARCADOR_DE_ENDERECO, texto)
-    return _MAC_NO_TEXTO.sub(MARCADOR_DE_ENDERECO, texto)
+    normal = _normalizado(texto)
+    trechos = [achado.span() for achado in _TRECHO_HEXADECIMAL.finditer(normal) if _e_ipv6(achado.group())]
+    for busca in (_IPV4_NO_TEXTO, _MAC_NO_TEXTO):
+        trechos.extend(achado.span() for achado in busca.finditer(normal))
+    if cortado_no_fim:
+        # Só letras hexadecimais no fim não dizem nada de um endereço; um dígito ou um separador, sim.
+        fim = _FIM_CORTADO.search(normal)
+        if fim is not None and any(letra in "0123456789:.-" for letra in fim.group()):
+            trechos.append(fim.span())
+    if not trechos:
+        return texto
+    partes, posicao = [], 0
+    for inicio, fim in sorted(trechos):
+        if fim <= posicao:
+            continue
+        if inicio < posicao:
+            # Sobreposto ao anterior: o marcador já cobre o começo deste.
+            partes[-1] = MARCADOR_DE_ENDERECO
+        else:
+            partes.append(texto[posicao:inicio])
+            partes.append(MARCADOR_DE_ENDERECO)
+        posicao = fim
+    partes.append(texto[posicao:])
+    return "".join(partes)
 
 
 def tem_endereco(texto):
