@@ -559,21 +559,44 @@ def test_quadro_arp_tem_macs_e_nao_tem_ip():
     assert (m["ip_origem"], m["ip_destino"]) == (None, None)
 
 
-def test_enderecos_da_janela_sao_conjuntos_de_macs_e_contagens_de_ips():
+def arp_de(ip_origem, ip_destino=(10, 0, 0, 254), operacao=2):
+    """Quadro ARP de IPv4 sobre Ethernet, com os IPs pedidos no corpo."""
+    return eth(0x0806, struct.pack(">HHBBH", 1, 0x0800, 6, 4, operacao) + MAC_ORIGEM + bytes(ip_origem)
+               + MAC_DESTINO + bytes(ip_destino))
+
+
+def test_enderecos_da_janela_sao_conjuntos_de_macs_e_de_ips():
     medidas = [
         medir_quadro(0.0, quadro_de("aa:00:00:00:00:01", "aa:00:00:00:00:02", (10, 0, 0, 1), (10, 0, 0, 9))),
         medir_quadro(1.0, quadro_de("aa:00:00:00:00:03", "aa:00:00:00:00:02", (10, 0, 0, 2), (10, 0, 0, 9)), 0.0),
         medir_quadro(2.0, quadro_de("aa:00:00:00:00:01", "aa:00:00:00:00:04", (10, 0, 0, 1), (10, 0, 0, 8)), 1.0),
-        medir_quadro(3.0, eth(0x0806, b"\x00" * 28), 2.0),
+        medir_quadro(3.0, arp_de((10, 0, 0, 9)), 2.0),
+        medir_quadro(4.0, eth(0x0806, b"\x00" * 28), 3.0),  # ARP sem protocolo IPv4 declarado
     ]
     e = enderecos(medidas)
     assert isinstance(e, Enderecos)
     assert e.macs_origem == frozenset({"aa:00:00:00:00:01", "aa:00:00:00:00:03", "02:00:00:00:00:01"})
     assert e.macs_destino == frozenset({"aa:00:00:00:00:02", "aa:00:00:00:00:04", "02:00:00:00:00:02"})
-    # O ARP não tem cabeçalho IPv4, então não entra na contagem de IPs.
+    assert e.conjunto_ips_origem == frozenset({"10.0.0.1", "10.0.0.2"})
+    assert e.conjunto_ips_destino == frozenset({"10.0.0.9", "10.0.0.8"})
+    # O IP anunciado no corpo do ARP fica num campo à parte e não entra nas contagens do IPv4.
+    assert e.ips_arp == frozenset({"10.0.0.9"})
     assert (e.ips_origem, e.ips_destino) == (2, 2)
     # A agregação das 39 colunas não muda com os endereços registrados.
     assert list(agregar(medidas)) == list(COLUNAS)
+
+
+def test_ip_do_arp_so_e_lido_em_arp_de_ipv4_sobre_ethernet():
+    assert medir_quadro(0.0, arp_de((192, 168, 0, 1)))["ip_arp"] == bytes([192, 168, 0, 1])
+    assert medir_quadro(0.0, eth(0x0806, b"\x00" * 28))["ip_arp"] is None
+    assert medir_quadro(0.0, eth(0x0806, b"\x00" * 10))["ip_arp"] is None  # cortado: o dpkt não o decodifica
+    assert medir_quadro(0.0, quadro_tcp())["ip_arp"] is None
+
+
+def test_contagens_de_ips_sao_derivadas_dos_conjuntos():
+    e = Enderecos(frozenset({"aa"}), frozenset({"bb"}), frozenset({"10.0.0.1", "10.0.0.2", "10.0.0.3"}), frozenset())
+    assert (e.ips_origem, e.ips_destino, e.ips_arp) == (3, 0, frozenset())
+    assert e._fields == ("macs_origem", "macs_destino", "conjunto_ips_origem", "conjunto_ips_destino", "ips_arp")
 
 
 def test_extrator_com_enderecos_devolve_a_linha_e_os_enderecos():
@@ -582,8 +605,10 @@ def test_extrator_com_enderecos_devolve_a_linha_e_os_enderecos():
     linha, e = extrator.alimentar(1.0, quadro_de("aa:00:00:00:00:03", "aa:00:00:00:00:02"))
     assert list(linha) == list(COLUNAS) and linha["Number"] == 2
     assert e == Enderecos(
-        frozenset({"aa:00:00:00:00:01", "aa:00:00:00:00:03"}), frozenset({"aa:00:00:00:00:02"}), 1, 1,
+        frozenset({"aa:00:00:00:00:01", "aa:00:00:00:00:03"}), frozenset({"aa:00:00:00:00:02"}),
+        frozenset({"10.0.0.1"}), frozenset({"10.0.0.2"}), frozenset(),
     )
+    assert (e.ips_origem, e.ips_destino) == (1, 1)
     assert extrator.finalizar() is None
     extrator.alimentar(2.0, quadro_de("aa:00:00:00:00:05", "aa:00:00:00:00:06"))
     linha, e = extrator.finalizar()

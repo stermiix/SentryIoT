@@ -6,7 +6,7 @@ código publicado pelos autores do dataset faz, para que o classificador receba 
 os mesmos números com que foi treinado.
 
 Com a opção `enderecos`, cada janela sai acompanhada dos endereços dos seus quadros: os MACs
-de origem e de destino e a quantidade de IPs de origem e de destino distintos. É o que a
+e os IPs de origem e de destino, e os IPs que os quadros ARP anunciam como origem. É o que a
 regeração dos dados de treino usa para saber se um atacante está na janela, e o que a resposta
 precisa para saber quem bloquear. Sem a opção, a saída são só as 39 colunas.
 
@@ -23,6 +23,7 @@ import csv
 import itertools
 import math
 import os
+import socket
 import struct
 import sys
 import warnings
@@ -76,9 +77,26 @@ MEDIAS = (
     "Header_Length", "Time_To_Live", *(nome for nome, _ in FLAGS), *INDICADORES, "Tot size", "IAT",
 )
 
-# Os endereços de uma janela: os MACs como texto, na grafia do Wireshark (minúsculas, separados
-# por dois-pontos), e a quantidade de IPs distintos. Só o cabeçalho IPv4 traz IP; o ARP não conta.
-Enderecos = namedtuple("Enderecos", ("macs_origem", "macs_destino", "ips_origem", "ips_destino"))
+class Enderecos(namedtuple("Enderecos", ("macs_origem", "macs_destino", "conjunto_ips_origem",
+                                         "conjunto_ips_destino", "ips_arp"), defaults=(frozenset(),))):
+    """Os endereços de uma janela, cada campo um conjunto de textos.
+
+    Os MACs vêm na grafia do Wireshark (minúsculas, separados por dois-pontos) e os IPs em
+    notação decimal. `conjunto_ips_origem` e `conjunto_ips_destino` vêm do cabeçalho IPv4.
+    `ips_arp` guarda à parte o IP de origem anunciado no corpo dos quadros ARP: no ARP spoofing
+    é o IP que o atacante finge ser, e não o dele. As quantidades `ips_origem` e `ips_destino`,
+    que a regeração grava, são derivadas dos conjuntos do IPv4.
+    """
+
+    __slots__ = ()
+
+    @property
+    def ips_origem(self):
+        return len(self.conjunto_ips_origem)
+
+    @property
+    def ips_destino(self):
+        return len(self.conjunto_ips_destino)
 
 
 def como_no_fio(quadro, preencher=False, limitar=False):
@@ -115,9 +133,10 @@ def medir_quadro(ts, quadro, ts_anterior=None, preencher=False, limitar=False):
     """Mede um quadro Ethernet.
 
     Devolve um dicionário com as colunas de MEDIAS, mais "Protocol Type", "ts" e os endereços
-    do quadro: "mac_origem" e "mac_destino" em texto, "ip_origem" e "ip_destino" em bytes, ou
-    None fora do IPv4. Devolve None se o quadro não entra na conta: não é IPv4 nem ARP, ou não
-    pôde ser decodificado. `preencher` e `limitar` são as opções de `como_no_fio`.
+    do quadro: "mac_origem" e "mac_destino" em texto; "ip_origem" e "ip_destino" em bytes, ou
+    None fora do IPv4; "ip_arp", o IP de origem anunciado num ARP de IPv4 sobre Ethernet, em
+    bytes, ou None. Devolve None se o quadro não entra na conta: não é IPv4 nem ARP, ou não pôde
+    ser decodificado. `preencher` e `limitar` são as opções de `como_no_fio`.
     """
     quadro = como_no_fio(quadro, preencher, limitar)
     # Quadro que o dpkt não decodifica como Ethernet é descartado, qualquer que seja o erro:
@@ -128,7 +147,7 @@ def medir_quadro(ts, quadro, ts_anterior=None, preencher=False, limitar=False):
         return None
     medida = dict.fromkeys(MEDIAS, 0)
     medida["Protocol Type"] = 0
-    medida["ip_origem"] = medida["ip_destino"] = None
+    medida["ip_origem"] = medida["ip_destino"] = medida["ip_arp"] = None
     if eth.type == dpkt.ethernet.ETH_TYPE_IP:
         ip = eth.data
         # IPv4 com cabeçalho ilegível: o dpkt devolve os bytes crus. Aqui o quadro é ignorado;
@@ -159,6 +178,10 @@ def medir_quadro(ts, quadro, ts_anterior=None, preencher=False, limitar=False):
                 medida[nome] = int(porta in portas)
     elif eth.type == dpkt.ethernet.ETH_TYPE_ARP:
         medida["ARP"] = 1
+        arp = eth.data
+        # O dpkt lê os endereços do ARP em posições fixas, que só valem para Ethernet e IPv4.
+        if isinstance(arp, dpkt.arp.ARP) and (arp.pro, arp.hln, arp.pln) == (dpkt.ethernet.ETH_TYPE_IP, 6, 4):
+            medida["ip_arp"] = arp.spa
     else:
         return None
     medida["Tot size"] = len(quadro)
@@ -198,13 +221,19 @@ def agregar(medidas):
     return {coluna: linha[coluna] for coluna in COLUNAS}
 
 
+def _ips(medidas, campo):
+    """Os IPs distintos de um campo das medidas, em texto. Converte cada IP uma vez só."""
+    return frozenset(socket.inet_ntoa(ip) for ip in {m[campo] for m in medidas} - {None})
+
+
 def enderecos(medidas):
-    """Os endereços de uma janela de medidas: MACs de origem e de destino e IPs distintos."""
+    """Os endereços de uma janela de medidas: MACs e IPs de origem e de destino e IPs do ARP."""
     return Enderecos(
         frozenset(m["mac_origem"] for m in medidas),
         frozenset(m["mac_destino"] for m in medidas),
-        len({m["ip_origem"] for m in medidas} - {None}),
-        len({m["ip_destino"] for m in medidas} - {None}),
+        _ips(medidas, "ip_origem"),
+        _ips(medidas, "ip_destino"),
+        _ips(medidas, "ip_arp"),
     )
 
 
