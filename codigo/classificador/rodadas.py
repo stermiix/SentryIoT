@@ -2299,7 +2299,7 @@ def _cabecalho_das_capturas(m):
             "definem ao mesmo tempo o sorteio do teto e o Random Forest. Os valores são a média das sementes, com o "
             "menor e o maior entre "
             "parênteses. Uma diferença para a configuração 0 só conta quando as faixas das sementes não se cruzam; "
-            "dentro delas, é \"sem diferença\"."
+            "dentro delas, é \"sem diferença\". A tabela-resumo fecha o relatório."
         ),
     ]
 
@@ -2340,7 +2340,13 @@ def _diferencas_das_capturas(m):
     if "0" not in r:
         return []
     referencia = medidas_do_resumo(r["0"], sementes)
-    secao = ["## Quais diferenças passam do ruído", ""]
+    secao = [
+        "## Quais diferenças passam do ruído",
+        "",
+        "Passar do ruído de semente não quer dizer que a diferença é grande: com três sementes de faixa estreita,",
+        "meio ponto já passa. O tamanho de cada diferença, na média das sementes, vem entre parênteses.",
+        "",
+    ]
     rotulos = {
         "macro_f1": "macro-F1 no corte por tempo", "pior_benigno": "benigno como ataque no pior pcap benigno de fora",
         "fundo": "fundo virando ataque",
@@ -2554,8 +2560,8 @@ def _como_foram_obtidos_das_capturas(m):
 
 def montar_relatorio_das_capturas(m):
     """O relatório da comparação de capturas, a partir do manifesto."""
-    secoes = [_cabecalho_das_capturas(m), _tabela_resumo(m), _diferencas_das_capturas(m), _corte_das_capturas(m),
-              _rotacao_das_capturas(m), _fundo_das_capturas(m), _fora_das_capturas(m), _tamanhos_das_capturas(m),
+    secoes = [_cabecalho_das_capturas(m), _corte_das_capturas(m), _rotacao_das_capturas(m), _fundo_das_capturas(m),
+              _fora_das_capturas(m), _tamanhos_das_capturas(m), _diferencas_das_capturas(m), _tabela_resumo(m),
               _como_foram_obtidos_das_capturas(m)]
     return "\n".join("\n".join(secao) + "\n" for secao in secoes if secao).rstrip("\n") + "\n"
 
