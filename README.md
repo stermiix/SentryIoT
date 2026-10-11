@@ -164,6 +164,7 @@ de enviar ao orientador.
 ou crítica nas dependências de produção derruba o job; nas de desenvolvimento, vira aviso),
 confere se a cópia do log de exemplo em `frontend/public/dados/` está igual à de
 `codigo/mcp/exemplos/`, roda os testes com `npm test` e constrói com `npm run build`. PR que mexe
-em arquivo `.py` passa também pelo CodeQL, que procura falhas de segurança no código. Para
+em código Python, TypeScript ou JavaScript, ou nos workflows, passa também pelo CodeQL, que procura
+falhas de segurança no código. Para
 conferir antes de abrir o PR: `ruff check .`, `python -m pytest` e, em `frontend/`, `npm test` e
 `npm run build`.
