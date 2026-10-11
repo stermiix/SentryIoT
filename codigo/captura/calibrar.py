@@ -4,6 +4,10 @@ O CSV oficial de cada pcap foi gerado em pedaços: os autores fatiam o pcap com
 `tcpdump -C 10`, processam cada pedaço em separado e juntam os resultados sem ordem definida.
 Este módulo refaz esse caminho com o nosso extrator e compara as 39 colunas, linha a linha.
 
+Precisa dos CSVs por ataque, que não estão mais na cópia do dataset; o `calibracao.md` que ele
+gerou cobre os 5 pcaps que os tinham. Sem eles, a conferência de todos os pcaps é a de conjunto,
+contra o `MERGED_CSV`: `python -m codigo.captura.calibrar_conjunto`.
+
 Uso, a partir da raiz do repositório:
     python -m codigo.captura.calibrar
 """
@@ -13,7 +17,6 @@ import datetime
 import math
 import platform
 import re
-import struct
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
@@ -21,7 +24,14 @@ from pathlib import Path
 
 import dpkt
 
-from codigo.captura.extrator import COLUNAS, JANELA_MAXIMA, extrair, ler_pcap
+from codigo.captura.extrator import (
+    COLUNAS,
+    JANELA_MAXIMA,
+    extrair,
+    ler_pcap,
+    nome_do_tipo,
+    tipo_ethernet,
+)
 
 LIMITE_PEDACO = 10_000_000  # tcpdump -C 10: a unidade é 1.000.000 de bytes
 TOLERANCIA = 1e-9
@@ -123,9 +133,6 @@ def janela_do_oficial(oficial):
     return int(maior)
 
 
-_NOMES_DE_TIPO = {0x0800: "IPv4", 0x0806: "ARP", 0x86DD: "IPv6", 0x9000: "teste de enlace (loopback)"}
-
-
 @dataclass
 class Resultado:
     """O que a calibração mediu em um pcap."""
@@ -148,10 +155,6 @@ class Resultado:
         return self.linhas_extraidas == self.linhas_oficiais == self.linhas_iguais
 
 
-def _tipo_ethernet(quadro):
-    return struct.unpack(">H", quadro[12:14])[0] if len(quadro) >= 14 else -1
-
-
 def _desvio_relativo(a, b):
     if not (math.isfinite(a) and math.isfinite(b)) or a == b:
         return 0.0
@@ -169,7 +172,7 @@ def calibrar_pcap(pcap, csv_oficial, limite=LIMITE_PEDACO, janela=None):
     for pedaco in fatiar(ler_pcap(pcap), limite):
         resultado.pedacos += 1
         resultado.pacotes += len(pedaco)
-        resultado.tipos.update(_tipo_ethernet(quadro) for _, quadro in pedaco)
+        resultado.tipos.update(tipo_ethernet(quadro) for _, quadro in pedaco)
         blocos.append(list(extrair(pedaco, resultado.janela)))
     alinhadas = encaixar(blocos, oficial)
     resultado.linhas_extraidas = len(alinhadas)
@@ -195,14 +198,6 @@ def _milhar(numero):
     return f"{numero:,}".replace(",", ".")
 
 
-def _nome_do_tipo(tipo):
-    if tipo in _NOMES_DE_TIPO:
-        return _NOMES_DE_TIPO[tipo]
-    if 0 <= tipo < 0x0600:
-        return "IEEE 802.3 com LLC (STP e afins)"
-    return f"0x{tipo:04x}"
-
-
 def montar_relatorio(resultados):
     """Monta o relatório de calibração em Markdown."""
     hoje = datetime.datetime.now(tz=datetime.UTC).astimezone().strftime("%d/%m/%Y")
@@ -218,6 +213,9 @@ def montar_relatorio(resultados):
         "",
         "O extrator (`codigo/captura/extrator.py`) foi executado sobre pcaps do CICIoT2023 e a saída",
         "foi comparada, coluna a coluna, com os CSVs publicados pelos autores do dataset.",
+        "",
+        "A conferência de todos os pcaps do dataset, contra o `MERGED_CSV`, está em `calibracao_conjunto.md`",
+        "(`python -m codigo.captura.calibrar_conjunto`).",
         "",
         "## Escopo",
         "",
@@ -268,7 +266,7 @@ def montar_relatorio(resultados):
         fora = [(t, n) for t, n in r.tipos.most_common() if t not in (0x0800, 0x0806)]
         resumo = {}
         for tipo, quantidade in fora:
-            resumo[_nome_do_tipo(tipo)] = resumo.get(_nome_do_tipo(tipo), 0) + quantidade
+            resumo[nome_do_tipo(tipo)] = resumo.get(nome_do_tipo(tipo), 0) + quantidade
         for nome, quantidade in resumo.items():
             linhas.append(f"| `{r.nome}` | {nome} | {_milhar(quantidade)} |")
     linhas += ["", "## Divergências", ""]
@@ -327,6 +325,8 @@ def montar_relatorio(resultados):
         "- Quadros IPv6 não geram linha.",
         "- Quadro maior que o limite de captura declarado no cabeçalho do pcap entra cortado nesse",
         "  limite, como a libpcap entrega ao `tcpdump` que fatia o arquivo.",
+        "- Captura com fração de tempo em nanossegundos tem o instante truncado para microssegundos,",
+        "  como o `tcpdump -r ... -w` do fatiamento grava. Os pcaps do dataset estão em microssegundos.",
         "- A última janela de cada pedaço pode ficar incompleta. Com um único quadro, `Std` e",
         "  `Variance` ficam vazios e `Rate` é infinito.",
         "",
@@ -338,8 +338,6 @@ def montar_relatorio(resultados):
         "- O código dos autores trata o instante 0 como ausência de quadro anterior. O extrator só",
         "  considera ausente o quadro anterior no início da leitura. A diferença só aparece em",
         "  capturas com instante exatamente igual a zero.",
-        "- O extrator lê capturas com fração de tempo em nanossegundos. Não há referência dos autores",
-        "  para esse formato.",
         "- O extrator decodifica só os primeiros 1600 bytes de cada quadro, o que cobre todos os",
         "  cabeçalhos usados na medição. Um quadro maior que isso cuja decodificação completa falhe",
         "  é descartado pelo código dos autores e mantido pelo extrator.",
@@ -382,7 +380,8 @@ def main(argv=None):
     if not pares:
         print(
             f"erro: nenhum pcap com CSV oficial em {pasta}/ "
-            "(esperado: NOME.pcap e, em alguma subpasta, NOME.pcap.csv)",
+            "(esperado: NOME.pcap e, em alguma subpasta, NOME.pcap.csv). Sem os CSVs por ataque, confira "
+            "os pcaps contra o MERGED_CSV com: python -m codigo.captura.calibrar_conjunto",
             file=sys.stderr,
         )
         return 2
