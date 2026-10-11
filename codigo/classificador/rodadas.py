@@ -2126,6 +2126,15 @@ def _secao_i(m):
     ]
 
 
+def _tempo_de_treino(valor):
+    """A soma dos segundos de treino de todos os resultados, onde quer que estejam."""
+    if isinstance(valor, dict):
+        return sum(v if k == "treino_segundos" else _tempo_de_treino(v) for k, v in valor.items())
+    if isinstance(valor, list):
+        return sum(_tempo_de_treino(v) for v in valor)
+    return 0.0
+
+
 def _nucleos_em_texto(nucleos):
     if nucleos <= 0:
         return "todos os núcleos"
@@ -2157,7 +2166,11 @@ def _como_foram_obtidos(m):
         ),
         "- Os números das tabelas são arredondados; os valores completos, com as contagens, estão no manifesto, e as",
         f"  tabelas em CSV começam com `{m['prefixo']}_`.",
-        f"- Tempo total, na máquina em que rodou: {_decimal(m['duracao_segundos'])} s.",
+        (
+            f"- Tempo desta execução, na máquina em que rodou: {_decimal(m['duracao_segundos'])} s. Os treinos já "
+            f"guardados em `{TRABALHO}/` são reaproveitados e não entram nessa conta; somados, os treinos de que os "
+            f"números saem levaram {_decimal(_tempo_de_treino(m['resultados']))} s."
+        ),
         "- Com as mesmas entradas e as mesmas sementes, os números saem iguais. Só mudam a data e os tempos.",
     ]
     return linhas
@@ -2552,7 +2565,11 @@ def _como_foram_obtidos_das_capturas(m):
             "pcap, as mesmas funções de `treinar_regerado`; a configuração 0 é o mesmo treino de `rodadas_de_teste.md`."
         ),
         f"- As tabelas em CSV começam com `{m['prefixo']}_`; os valores completos, com as contagens, estão no manifesto.",
-        f"- Tempo total, na máquina em que rodou: {_decimal(m['duracao_segundos'])} s.",
+        (
+            f"- Tempo desta execução, na máquina em que rodou: {_decimal(m['duracao_segundos'])} s. Os treinos já "
+            f"guardados em `{TRABALHO}/` são reaproveitados e não entram nessa conta; somados, os treinos de que os "
+            f"números saem levaram {_decimal(_tempo_de_treino(m['resultados']))} s."
+        ),
         "- Com as mesmas entradas e as mesmas sementes, os números saem iguais. Só mudam a data e os tempos.",
     ]
     return linhas
