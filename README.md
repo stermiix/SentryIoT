@@ -15,14 +15,15 @@ fica em outro repositório e é o espelho do andamento, não o trabalho.
 
 ## O projeto
 
-Um classificador Random Forest detecta anomalias no tráfego de rede IoT. As predições são expostas
-por um **servidor MCP** e consumidas por um **sistema multiagente LLM**, que correlaciona os
-alertas com vulnerabilidades conhecidas e devolve recomendações de mitigação acionáveis — indo
-além da detecção, para a resposta.
+Um classificador Random Forest, treinado nas classes rotuladas do CICIoT2023, classifica janelas
+do tráfego de rede IoT em sete categorias. As predições são expostas por um **servidor MCP** e
+consumidas por um **sistema multiagente LLM**, que interpreta o alerta, consulta uma base de
+mitigações e propõe a resposta, com aprovação humana para as ações de risco alto. O trabalho
+cobre a detecção e a resposta.
 
-- **Dataset primário:** CICIoT2023 (confirmado). Ver `dados/README.md`.
-- **Dataset secundário:** dispensado em 10/10/2026, com o orientador. O trabalho segue só com o
-  CICIoT2023, que cobre os três cenários da PoC. Ver `ROADMAP.md`.
+- **Dataset:** CICIoT2023, o único do trabalho. O dataset secundário foi dispensado em
+  10/10/2026, com o orientador, porque o CICIoT2023 cobre os três cenários da PoC. Ver
+  `dados/README.md` e `ROADMAP.md`.
 - **Stack:** Python, Pandas, scikit-learn, dpkt, servidor MCP, agentes LLM.
 - **Agentes:** três papéis (triagem, decisão e execução), em arquitetura híbrida: triagem e
   execução no modelo local, e só a decisão pode usar um modelo de fronteira na nuvem, recebendo
@@ -44,13 +45,19 @@ mudaram o escopo do trabalho:
    nome). Todo texto novo usa esse enquadramento, não "NIDS".
 2. **Deixar claro o papel do Scapy e do Wireshark.** O avaliador 2 questionou: se o trabalho usa
    datasets, onde entra a captura de pacotes? Resposta adotada: processamos tráfego bruto (PCAP)
-   com um extrator calibrado contra o oficial — ver `dados/README.md`. Vale registrar que a stack
-   real dos autores do dataset usa `dpkt` como parser, `tcpdump` para captura e `mergecap` para
-   juntar capturas; o Scapy aparece só para Zigbee e Bluetooth.
-3. **Riscos de IA em nuvem, custo de tokens e a alternativa on-premises.**
-4. **Limites de análise por NetFlow vs. PCAP.**
-5. **Referências a investigar e citar:** Darktrace, Netskope, Vectra AI e o ataque
-   *Denial of Wallet* (DoW).
+   com um extrator calibrado contra o oficial (ver `dados/README.md`). Não há coleta in loco,
+   inviável no prazo e sem rótulos: os pcaps do CICIoT2023 fazem o papel da captura. Vale
+   registrar que a stack real dos autores do dataset usa `dpkt` como parser, `tcpdump` para
+   captura e `mergecap` para juntar capturas; o Scapy aparece só para Zigbee e Bluetooth.
+3. **Riscos de IA em nuvem, custo de tokens e a alternativa on-premises.** Resposta adotada:
+   arquitetura híbrida, com triagem e execução num modelo local e só a decisão podendo usar um
+   modelo de nuvem, sem dado identificável da rede; os agentes recebem o resumo do incidente, e
+   não as janelas (`ROADMAP.md`; seção 3.5 de `artigo/esqueleto.md`).
+4. **Limites de análise por NetFlow vs. PCAP.** Resposta adotada: o sistema lê o pcap, porque as
+   39 features medem cada quadro da janela, o que um registro de fluxo não guarda (seção 3.1 de
+   `artigo/esqueleto.md`).
+5. **Referências pedidas pela banca:** Darktrace, Netskope, Vectra AI e o ataque
+   *Denial of Wallet* (DoW), com menção curta no artigo.
 
 Cada seção do artigo deve endereçar os pontos desta lista que lhe couberem.
 
@@ -102,17 +109,18 @@ agrupa as tarefas concluídas por semana e por responsável.
 
 | Pasta | Conteúdo |
 |---|---|
-| `artigo/` | texto do artigo (10–20 pág, template do Oriente) e `figuras/` |
+| `artigo/` | `esqueleto.md`, o rascunho do artigo, a migrar para o template do Oriente (10–20 pág), e `figuras/` |
 | `codigo/captura/` | extrator de features: pacotes → 39 números |
 | `codigo/classificador/` | regeração dos dados de treino a partir dos pcaps, preparação, treino e avaliação do Random Forest |
-| `codigo/mcp/` | contrato da tool e servidor MCP que expõe as predições |
-| `codigo/agente/` | sistema multiagente (triagem, decisão e execução), prompts e política de acionamento |
+| `codigo/mcp/` | contrato das tools MCP, stub do servidor, política de risco, base local de mitigações e log de eventos; o servidor que expõe o classificador ainda será escrito |
+| `codigo/agente/` | skills dos agentes de triagem e de decisão; o código do sistema multiagente (triagem, decisão e execução), os prompts e a política de acionamento ainda serão escritos |
 | `frontend/` | interface web do sistema: fila de incidentes, detalhe, comparações e replay (ver `frontend/README.md`) |
 | `dados/` | **`README.md` com a receita completa do ambiente e o mapa de arquivos** |
 | `experimentos/` | `notebooks/` de exploração e `resultados/` com métricas e tabelas |
 | `referencias/` | bibliografia e material de apoio |
 
-O dataset não é versionado (~17 GB). `dados/README.md` diz de onde baixar e onde colocar.
+O dataset não é versionado: o `MERGED_CSV` tem 8,7 GB, e os 38 pcaps usados na regeração somam
+cerca de 46 GB. `dados/README.md` diz de onde baixar e onde colocar.
 
 Material de origem do TCC I (artigo, pôster, edital e o feedback integral do orientador) fica na
 pasta-mãe, fora deste repositório.
@@ -121,10 +129,13 @@ pasta-mãe, fora deste repositório.
 
 ## Documentos deste repositório
 
-- **`dados/README.md`** — o mais importante para começar: onde está o dataset, como montar o
+- **`dados/README.md`**: o mais importante para começar. Onde está o dataset, como montar o
   ambiente, o mapa completo de arquivos e scripts, e as armadilhas já mapeadas.
-- **`GLOSSARIO.md`** — os termos do projeto em português simples, com exemplos dos nossos dados.
-- **`ROADMAP.md`** — as decisões importantes do projeto, tomadas e em aberto, com o motivo de cada uma.
+- **`GLOSSARIO.md`**: os termos do projeto em português simples, com exemplos dos nossos dados.
+- **`ROADMAP.md`**: as decisões importantes do projeto, tomadas e em aberto, com o motivo de cada uma.
+- **`artigo/esqueleto.md`**: o rascunho do artigo, seção por seção.
+- **`codigo/mcp/README.md`**: por onde começar na frente de agentes, com o contrato, o stub e o
+  log de eventos.
 
 ---
 
@@ -146,7 +157,10 @@ de enviar ao orientador.
   tarefas fica só no painel.
 
 **Todo PR passa pelo CI** (GitHub Actions, Python 3.11). O `ruff` procura erros no código, o
-`pytest` roda os testes — os que precisam do dataset são pulados, porque ele não existe lá — e o
-`pip-audit` confere se alguma dependência do `requirements.txt` tem vulnerabilidade conhecida.
+`pytest` roda os testes (os que precisam do dataset são pulados, porque ele não existe lá) e o
+`pip-audit` confere se alguma dependência do `requirements.txt` tem vulnerabilidade conhecida. O
+`frontend/` é instalado com `npm ci` e construído com `npm run build`, depois de conferir se a
+cópia do log de exemplo em `frontend/public/dados/` está igual à de `codigo/mcp/exemplos/`.
 PR que mexe em arquivo `.py` passa também pelo CodeQL, que procura falhas de segurança no código.
-Para conferir antes de abrir o PR: `ruff check .` e `python -m pytest`.
+Para conferir antes de abrir o PR: `ruff check .`, `python -m pytest` e, em `frontend/`,
+`npm run build`.
