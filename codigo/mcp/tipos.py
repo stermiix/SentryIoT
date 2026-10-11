@@ -233,11 +233,12 @@ def _sem_ipv6(achado):
 def mascarar_enderecos(texto):
     """O texto com todo endereço IPv4, IPv6 ou MAC trocado por `MARCADOR_DE_ENDERECO`.
 
-    O IPv6 vem primeiro, para que o IPv4 escrito dentro dele saia junto, e o MAC, antes do IPv4.
+    O IPv6 vem primeiro, para que o IPv4 escrito dentro dele saia junto, e o IPv4, antes do MAC,
+    para que um IPv4 de octetos de quatro dígitos não seja tomado pelo MAC com pontos.
     """
     texto = _TRECHO_HEXADECIMAL.sub(_sem_ipv6, texto)
-    texto = _MAC_NO_TEXTO.sub(MARCADOR_DE_ENDERECO, texto)
-    return _IPV4_NO_TEXTO.sub(MARCADOR_DE_ENDERECO, texto)
+    texto = _IPV4_NO_TEXTO.sub(MARCADOR_DE_ENDERECO, texto)
+    return _MAC_NO_TEXTO.sub(MARCADOR_DE_ENDERECO, texto)
 
 
 def tem_endereco(texto):

@@ -306,6 +306,8 @@ def test_filtro_troca_todo_endereco_por_um_marcador(texto):
     assert not re.search(r"[0-9]{1,4}(?:\.[0-9]{1,4}){3}", mascarado)
     assert not re.search(r"[0-9A-Fa-f]{1,4}::|::[0-9A-Fa-f]{1,4}", mascarado)
     assert not tem_endereco(mascarado)
+    # Nenhum grupo de dígitos de um IPv4 sobra solto junto do marcador.
+    assert not re.search(r"\]\.[0-9]", mascarado)
 
 
 @pytest.mark.parametrize("texto", [
