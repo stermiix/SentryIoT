@@ -9,6 +9,20 @@ Skill do agente de **decisão**, segunda metade do trabalho dele (a primeira é
 `analise-por-categoria`). O resultado desta skill é uma chamada a `propor_acao`; quem aplica a
 ação é o agente de **execução**, numa skill separada (ainda não escrita).
 
+## Onde roda e o que esta skill não faz
+
+O agente de decisão pode estar num modelo de nuvem e só conhece os rótulos neutros do incidente
+(`origem-1`, `destino-1`); o `alvo` da proposta é escrito com esses rótulos, e é o agente de
+execução, local e o único com credenciais, que desfaz a troca na hora de aplicar (arquitetura
+híbrida, `ROADMAP.md`, decisão de 2026-10-10).
+
+A pessoa que opera a rede é avisada pelo servidor assim que o incidente abre e pode marcar o
+incidente como **já resolvido** na interface. Quando o orquestrador informa que essa marca existe,
+esta skill não chama `propor_acao`: a saída passa a ser a explicação do incidente (o que o tráfego
+mostra, que mitigação seria a indicada e por quê), no formato da seção "Explicação" abaixo. O
+agente de execução confere a mesma marca antes de aplicar qualquer ação, mesmo de risco baixo, e
+também não aplica nada com ela presente.
+
 ## Quando usar
 
 - Logo depois da `analise-por-categoria`, para o primeiro incidente coerente.
@@ -45,9 +59,10 @@ ação é o agente de **execução**, numa skill separada (ainda não escrita).
    `efeito_esperado` e `como_desfazer` nos parâmetros — sem isso a proposta fica incompleta.
 6. Ler a resposta: `risco` e `exige_aprovacao` já vêm calculados pela política
    (`codigo/mcp/politica.toml`); a skill não recalcula risco, só decide o que propor.
-7. Depois que o agente de execução aplicar, o agente de decisão confere `verificar_efeito`. Se
-   `persiste`, repetir a partir do passo 2 com os dados do que já foi tentado (para não propor a
-   mesma ação de novo).
+7. Depois de aplicar, o agente de execução, local, confere `verificar_efeito` e devolve o
+   resultado (`cessou`, `diminuiu` ou `persiste`); o agente de decisão também pode chamar a tool,
+   porque o resultado não carrega dado da rede. Se `persiste`, repetir a partir do passo 2 com os
+   dados do que já foi tentado (para não propor a mesma ação de novo).
 
 ## Formato da resposta
 
@@ -57,4 +72,14 @@ Ação proposta: <nome ou descrição, se nova>  |  Alvo: <alvo>  |  Parâmetros
 Justificativa: <uma frase, com o dado concreto>
 Risco (devolvido pela tool): baixo | alto  |  Exige aprovação: sim/não
 Se exige aprovação: <os motivos_de_risco_alto, em português simples>
+```
+
+## Formato da resposta quando o incidente está marcado como já resolvido
+
+```
+Incidente: <id>  |  Marcado como já resolvido pela pessoa que opera a rede
+O que o tráfego mostra: <1–2 frases, com o dado concreto>
+Mitigação que seria indicada: <nome do catálogo ou descrição>  |  Alvo: <rótulo neutro>
+Por quê: <uma frase>
+Nenhuma ação foi proposta nem aplicada.
 ```

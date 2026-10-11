@@ -9,6 +9,16 @@ Skill do agente de **decisão** (ver `codigo/mcp/README.md`), primeira metade do
 entender o ataque antes de recomendar o que fazer. A segunda metade é a skill
 `recomendacao-de-mitigacao`.
 
+## Onde roda e o que chega aqui
+
+O agente de decisão é o único que pode rodar num modelo de fronteira pela nuvem (arquitetura
+híbrida, `ROADMAP.md`, decisão de 2026-10-10). Nada identificável da rede chega a ele: os
+endereços e nomes de dispositivo do incidente vêm trocados por rótulos neutros (`origem-1`,
+`destino-1`, `dispositivo-3`) pelo orquestrador, e a análise trabalha com esses rótulos, as
+contagens, a confiança e as features. Não há o que "descobrir" por trás de um rótulo, e a análise
+não deve tentar. Na configuração toda local, os dados chegam do mesmo jeito, para o fluxo ser o
+mesmo nas três configurações comparadas no artigo.
+
 ## Quando usar
 
 - Depois que a `triagem-do-alerta` devolve um rótulo **coerente** para o incidente.
@@ -25,22 +35,31 @@ entender o ataque antes de recomendar o que fazer. A segunda metade é a skill
 
 ## Passo a passo (o que olhar em cada categoria)
 
+As 39 features descrevem uma janela de 100 quadros (decisão de 2026-10-10): não há porta nem
+endereço entre elas. O que existe de camada de aplicação são os indicadores de protocolo
+(`HTTP`, `HTTPS`, `DNS`, `Telnet`, `SSH`, `TCP`, `UDP`, `ICMP`, `ARP` e os demais), que dizem a
+fração da janela em cada protocolo. Quando a análise precisar de "em quais portas", a resposta
+não está nos dados: dizer isso em vez de inventar.
+
 - **DDoS / DoS**: `Rate` muito acima da referência de benigno, `syn_count`/`ack_count` altos,
   `origens_distintas` (DDoS tem muitas; DoS poucas — a separação exata já vem pronta em
   `categoria`, não precisa ser recalculada aqui). Confirmar se o padrão é volumétrico (Rate) ou
-  de exaustão de recursos (contagem de flags).
-- **Mirai**: portas e protocolos típicos de botnet IoT (ver `Protocol Type`, indicadores de
-  porta), muitas vezes com múltiplos destinos.
-- **Recon**: variação de porta de destino ao longo das janelas (varredura), `Time_To_Live`
-  estável, poucas origens.
-- **Spoofing**: inconsistência entre endereço de origem declarado e padrão de resposta —
-  normalmente aparece como `confianca` mais baixa na triagem; checar se o destino coincide com
-  um dispositivo protegido (política em `codigo/mcp/politica.toml`).
-- **Web**: indicadores de porta HTTP/HTTPS, com `Rate` mais baixo que DDoS/DoS — risco de
-  confundir com tráfego legítimo de alto volume; comparar sempre com `referencia_benigno`.
-- **BruteForce**: muitas janelas seguidas com a mesma origem e destino, `Rate` moderado,
-  característico de tentativa repetida (ex.: SSH) — ver cenário `inc-0002` em
-  `codigo/mcp/README.md`.
+  de exaustão de recursos (contagem de flags). Pacote pequeno (`AVG`, `Tot size`) com `Rate`
+  alto é flood de SYN, RST ou ICMP; `UDP` alto com `Rate` alto é flood UDP.
+- **Mirai**: `Rate` alto com `UDP` ou `TCP` dominando a janela, pacotes de tamanho quase
+  constante (`Std` e `Variance` baixos), muitas vezes com mais de um destino.
+- **Recon**: `syn_count` com `rst_count` na mesma proporção (porta fechada responde RST),
+  pacotes pequenos, `Time_To_Live` estável, poucas origens; no ping sweep, `ICMP` domina.
+- **Spoofing**: `ARP` ou `DNS` acima da referência de benigno numa rede em que esse tráfego é
+  raro — normalmente aparece com `confianca` mais baixa na triagem; checar se o destino coincide
+  com um dispositivo protegido (política em `codigo/mcp/politica.toml`).
+- **Web**: `HTTP` ou `HTTPS` dominando, `Rate` mais baixo que DDoS/DoS — risco de confundir com
+  tráfego legítimo de alto volume; comparar sempre com `referencia_benigno`. É a categoria em que
+  o classificador mais erra (recall abaixo de 40%, `experimentos/resultados/regeracao.md`).
+- **BruteForce**: muitas janelas seguidas com a mesma origem e destino, `Rate` moderado, `SSH`
+  ou `Telnet` presentes, característico de tentativa repetida — ver cenário `inc-0002` em
+  `codigo/mcp/README.md`. Recall também baixo; a precisão é alta, então o rótulo, quando vem,
+  costuma estar certo.
 
 ## Formato da resposta
 

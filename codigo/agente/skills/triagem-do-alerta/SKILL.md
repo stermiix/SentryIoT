@@ -1,6 +1,6 @@
 ---
 name: triagem-do-alerta
-description: Primeira análise de um incidente aberto pelo classificador, antes de qualquer proposta de ação. Usar sempre que um incidente novo aparece no log de eventos (evento `incident_opened`), para decidir se a confiança do classificador é suficiente e se o incidente é coerente, agrupando alertas do mesmo ataque antes de passar ao agente de decisão.
+description: Primeira análise de um incidente aberto pelo classificador, antes de qualquer proposta de ação. Usar sempre que um incidente novo aparece no log de eventos (evento `incidente_aberto`), para decidir se a confiança do classificador é suficiente e se o incidente é coerente, agrupando alertas do mesmo ataque antes de passar ao agente de decisão.
 ---
 
 # Triagem do alerta
@@ -8,6 +8,20 @@ description: Primeira análise de um incidente aberto pelo classificador, antes 
 Skill do agente de **triagem** (ver `codigo/mcp/README.md`, seção "Tools" — tools `obter_incidente`
 e `obter_janelas`). Este agente não propõe nem executa ação; a saída dele é o insumo do agente de
 decisão.
+
+## Onde roda e o que sai daqui
+
+O agente de triagem roda sempre no modelo local (arquitetura híbrida, `ROADMAP.md`, decisão de
+2026-10-10): é ele que vê endereços e nomes de dispositivo. O resumo que ele produz é o único
+material que o agente de decisão recebe, e esse agente pode estar num modelo de nuvem. Por isso o
+orquestrador troca, no resumo, cada endereço e nome de dispositivo por um rótulo neutro
+(`origem-1`, `destino-1`, `dispositivo-3`), antes de entregá-lo. O resumo precisa fazer sentido
+sem os endereços: contagens, categoria, confiança e features, nunca "o IP 192.168.1.20".
+
+Quem avisa a pessoa que opera a rede é o servidor, no instante em que o incidente abre, com a
+categoria e a confiança do classificador. A triagem não avisa ninguém e não espera resposta: se a
+pessoa marcar o incidente como já resolvido na interface, quem lê essa marca é o agente de
+execução, antes de aplicar qualquer ação.
 
 ## Quando usar
 
@@ -22,6 +36,9 @@ decisão.
   `features_principais` (cada uma com `nome` e `valor`, e `referencia_benigno` quando houver).
 - `obter_janelas(id, limite)` — até 20 janelas de detalhe, cada uma com `categoria_do_modelo`,
   `confianca`, `origem`, `destino` e as 39 features. Usar só quando o resumo não for suficiente.
+  Cada janela tem 100 quadros (decisão de 2026-10-10): um flood enche uma janela em
+  milissegundos, uma varredura em menos de um segundo, e força bruta ou ataque Web em até três
+  segundos. Poucas janelas num incidente lento não significam ruído por si só.
 
 ## Passo a passo
 
@@ -52,6 +69,12 @@ Por quê: <uma frase, citando o que confirmou ou gerou a dúvida>
 Origens distintas: <n>  |  Distribuído: sim/não
 Features que mais chamam atenção: <até 3, com valor e referência de tráfego benigno quando houver>
 ```
+
+Origens e destinos entram no resumo só pelos rótulos neutros que o orquestrador atribui, nunca pelo
+endereço. Como Web e BruteForce são as categorias em que o classificador mais erra (recall abaixo
+de 40% nos dados regerados, confundidas com Recon e com tráfego benigno, `experimentos/resultados/regeracao.md`),
+um incidente dessas categorias com confiança média pede a conferência pelas janelas antes de
+receber o rótulo coerente.
 
 Quando o rótulo é **duvidoso**, a resposta inclui a ressalva explícita de que nenhuma ação de
 risco alto deve ser proposta sem reforçar a justificativa (o próprio contrato MCP já exige
