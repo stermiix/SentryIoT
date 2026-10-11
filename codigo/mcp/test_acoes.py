@@ -1399,6 +1399,12 @@ def test_marca_no_log_e_conferida_na_reconstrucao(mundo):
         ([novo("incidente_marcado_resolvido", marca, "inc-0001")] * 2, "já foi marcado"),
         ([novo("incidente_marcado_resolvido", marca | {"incidente": "inc-0002"}, "inc-0002")], "inc-0002"),
     ]
+    encerrado = INCIDENTE_DA_ESPECIFICACAO | {"estado": "encerrado"}
+    casos.append((
+        # A leitura do log concorda com o comando: incidente encerrado não recebe a marca.
+        [novo("incidente_encerrado", encerrado, "inc-0001"), novo("incidente_marcado_resolvido", marca, "inc-0001")],
+        "encerrado",
+    ))
     for rascunhos, trecho in casos:
         outro = Mundo()
         outro.aplicar(rascunhos)

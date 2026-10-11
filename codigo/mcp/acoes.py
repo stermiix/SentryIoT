@@ -639,8 +639,10 @@ def _aplicar(estado, evento):
             estado.incidentes[dados.id] = dados
             _rotular(estado, dados)
         case "incidente_marcado_resolvido":
-            _citado(estado.incidentes, dados.incidente, "o incidente")
+            marcado = _citado(estado.incidentes, dados.incidente, "o incidente")
             _exigir(dados.incidente not in estado.resolvidos, f"o incidente {dados.incidente} já foi marcado como resolvido")
+            # A mesma regra de marcar_resolvido: só o incidente aberto recebe a marca.
+            _exigir(marcado.estado == "aberto", f"o incidente {dados.incidente} já está encerrado e não recebe a marca")
             estado.resolvidos[dados.incidente] = dados
         case "acao_proposta":
             _conferir_proposta_nova(estado, dados)

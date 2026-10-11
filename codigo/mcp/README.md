@@ -715,7 +715,7 @@ aparece:
 - o efeito verificado é do incidente da execução, e a ação promovida é exatamente a que sai da
   proposta aprovada e aplicada;
 - o incidente abre uma vez e não volta a aberto depois de encerrado, e a marca de já resolvido
-  vale uma vez.
+  vale uma vez, em incidente aberto, como no comando.
 
 A violação levanta `LogInvalido` (um `ValueError`), com o arquivo e a linha, como em
 `eventos.jsonl, linha 14: acao_aprovada fora de lugar: a proposta prop-0001 não aguarda
