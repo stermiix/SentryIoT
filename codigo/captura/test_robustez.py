@@ -22,11 +22,11 @@ from codigo.captura.extrator import (
     QUADRO_MINIMO,
     Extrator,
     agregar,
-    como_no_fio,
     extrair,
     gravar_csv,
     ler_pcap,
     medir_quadro,
+    tamanho_no_fio,
 )
 from codigo.captura.test_extrator import (
     MACS,
@@ -220,7 +220,7 @@ def test_quadros_validos_adulterados_nunca_derrubam_a_medicao(semente):
 
 
 @pytest.mark.parametrize("semente", range(4))
-def test_quadro_como_no_fio_nunca_derruba_a_medicao(semente):
+def test_as_opcoes_do_quadro_no_fio_so_mudam_o_tamanho_medido(semente):
     sorteio = random.Random(1500 + semente)
     for _ in range(1500):
         if sorteio.random() < 0.5:
@@ -228,11 +228,14 @@ def test_quadro_como_no_fio_nunca_derruba_a_medicao(semente):
         else:
             quadro = adulterar(sorteio, quadro_sorteado(sorteio)) + bytes(sorteio.choice((0, 0, 2000)))
         preencher, limitar = sorteio.random() < 0.5, sorteio.random() < 0.5
-        medida = conferir_medida(1.5, como_no_fio(quadro, preencher, limitar))
-        assert medir_quadro(1.5, quadro, None, preencher, limitar) == medida
-        if medida is not None:
-            assert not preencher or medida["Tot size"] >= QUADRO_MINIMO
-            assert not limitar or medida["Tot size"] <= QUADRO_MAXIMO
+        como_gravado = conferir_medida(1.5, quadro)
+        no_fio = medir_quadro(1.5, quadro, None, preencher, limitar)
+        # O quadro é decodificado como foi gravado: entra no filtro, ou não, do mesmo jeito.
+        assert (no_fio is None) == (como_gravado is None), quadro.hex()
+        if no_fio is not None:
+            assert no_fio == como_gravado | {"Tot size": tamanho_no_fio(quadro, preencher, limitar)}, quadro.hex()
+            assert not preencher or no_fio["Tot size"] >= QUADRO_MINIMO
+            assert not limitar or no_fio["Tot size"] <= QUADRO_MAXIMO
 
 
 def ip_dentro_de_ip(niveis):
