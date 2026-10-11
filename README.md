@@ -63,12 +63,21 @@ Cada seção do artigo deve endereçar os pontos desta lista que lhe couberem.
 | Cadastro no Oriente + anuência do orientador | 18/08 – 31/08/2026 |
 | Requerimento no Portal do Aluno | 01/09 – 21/09/2026 |
 | Indicação dos avaliadores da banca | 03/11 – 11/11/2026 |
-| **Submissão do artigo + relatório + pôster** | **03/11 – 09/11/2026** |
-| Bancas TCC II | 16/11 – 27/11 e 30/11 – 01/12/2026 |
-| **Entrega final + termo de anuência** | **04/12/2026** |
+| **Submissão do artigo científico** | **03/11 – 09/11/2026** |
+| Bancas TCC II | 16/11 – 27/11/2026; 31/11 e 01/12/2026 (ver nota) |
+| **Artigo final, com as alterações pedidas pela banca** | **até 04/12/2026** |
+| Anuência do orientador à entrega final | até 07/12/2026 |
 | Postagem das notas | 07/12 – 09/12/2026 |
 
 O artigo tem 10–20 páginas, no template do Oriente. A apresentação tem 15–20 min.
+
+Na parte de TCC II para Ciência da Computação e Sistemas de Informação, o edital avalia o artigo
+científico e a apresentação oral à banca, além da participação nas reuniões de orientação.
+Relatório técnico e pôster são entregas do TCC I, no mesmo período de 03 a 09/11; a mensagem do
+orientador com as datas lista os dois junto do artigo, mas o edital não os pede no TCC II. Com
+conceito Excelente ou Muito Bom, o termo de autorização de publicação no repositório Adelpha
+segue junto com o artigo final, até 04/12. O edital marca a segunda janela de bancas em "31/11 e
+01/12/2026", e 31/11 não existe: confirmar a data com o orientador.
 
 **A restrição que domina o cronograma:** a submissão é no início de novembro, não em dezembro.
 O plano previa congelar os resultados por volta de 17/10, para o rascunho completo chegar ao
