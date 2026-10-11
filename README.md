@@ -26,8 +26,9 @@ cobre a detecção e a resposta.
   `dados/README.md` e `ROADMAP.md`.
 - **Stack:** Python, Pandas, scikit-learn, dpkt, servidor MCP, agentes LLM.
 - **Agentes:** três papéis (triagem, decisão e execução), em arquitetura híbrida: triagem e
-  execução no modelo local, e só a decisão pode usar um modelo de fronteira na nuvem, recebendo
-  um resumo sem endereços nem nomes de dispositivo. Ver `ROADMAP.md`.
+  execução no modelo local, e só a decisão pode usar um modelo de fronteira na nuvem. O servidor
+  MCP entrega à decisão um resumo em que cada endereço vira um rótulo neutro, e só a execução
+  recebe o endereço real. Ver `ROADMAP.md` e `codigo/mcp/README.md`.
 - **Cenários da PoC:** DDoS, port scan e brute force. O cenário de exfiltração foi retirado em
   10/10/2026, em decisão com o orientador: o CICIoT2023 não tem essa classe, e os datasets de
   referência da área também não cobrem esse vetor com dados rotulados suficientes.
@@ -51,8 +52,8 @@ mudaram o escopo do trabalho:
    captura e `mergecap` para juntar capturas; o Scapy aparece só para Zigbee e Bluetooth.
 3. **Riscos de IA em nuvem, custo de tokens e a alternativa on-premises.** Resposta adotada:
    arquitetura híbrida, com triagem e execução num modelo local e só a decisão podendo usar um
-   modelo de nuvem, sem dado identificável da rede; os agentes recebem o resumo do incidente, e
-   não as janelas (`ROADMAP.md`; seção 3.5 de `artigo/esqueleto.md`).
+   modelo de nuvem, sem endereço da rede, o que o servidor MCP garante; os agentes recebem o
+   resumo do incidente, e não as janelas (`ROADMAP.md`; seção 3.5 de `artigo/esqueleto.md`).
 4. **Limites de análise por NetFlow vs. PCAP.** Resposta adotada: o sistema lê o pcap, porque as
    39 features medem cada quadro da janela, o que um registro de fluxo não guarda (seção 3.1 de
    `artigo/esqueleto.md`).
@@ -158,9 +159,11 @@ de enviar ao orientador.
 
 **Todo PR passa pelo CI** (GitHub Actions, Python 3.11). O `ruff` procura erros no código, o
 `pytest` roda os testes (os que precisam do dataset são pulados, porque ele não existe lá) e o
-`pip-audit` confere se alguma dependência do `requirements.txt` tem vulnerabilidade conhecida. O
-`frontend/` é instalado com `npm ci` e construído com `npm run build`, depois de conferir se a
-cópia do log de exemplo em `frontend/public/dados/` está igual à de `codigo/mcp/exemplos/`.
-PR que mexe em arquivo `.py` passa também pelo CodeQL, que procura falhas de segurança no código.
-Para conferir antes de abrir o PR: `ruff check .`, `python -m pytest` e, em `frontend/`,
+`pip-audit` confere se alguma dependência do `requirements.txt` tem vulnerabilidade conhecida. No
+`frontend/`, o CI instala as dependências com `npm ci`, roda o `npm audit` (vulnerabilidade alta
+ou crítica nas dependências de produção derruba o job; nas de desenvolvimento, vira aviso),
+confere se a cópia do log de exemplo em `frontend/public/dados/` está igual à de
+`codigo/mcp/exemplos/`, roda os testes com `npm test` e constrói com `npm run build`. PR que mexe
+em arquivo `.py` passa também pelo CodeQL, que procura falhas de segurança no código. Para
+conferir antes de abrir o PR: `ruff check .`, `python -m pytest` e, em `frontend/`, `npm test` e
 `npm run build`.
