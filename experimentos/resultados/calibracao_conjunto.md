@@ -323,5 +323,5 @@ A partir da raiz do repositório, com os pcaps e o `MERGED_CSV` na pasta do data
 - Os dados intermediários ficam em `dados/processed/calibracao_conjunto`, fora do git. Numa execução seguinte,
   o índice e as extrações são reaproveitados enquanto os arquivos e o código que gera cada um não
   mudarem; para refazer tudo, apague a pasta.
-- Tempo total desta execução: 5,1 min; o pcap mais demorado levou 4,8 min. Os tempos das extrações reaproveitadas são os da execução em que foram feitas.
+- Tempo total desta execução: 26,8 min; o pcap mais demorado levou 4,6 min. Os tempos das extrações reaproveitadas são os da execução em que foram feitas.
 - Com os mesmos arquivos, os números saem iguais. Só mudam a data e os tempos.
