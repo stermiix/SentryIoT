@@ -2,15 +2,17 @@
 
 A aprovação e a rejeição não são tools: nenhum agente consegue aprovar a própria proposta.
 Elas entram por este comando, que é o canal da pessoa neste trabalho. Mais adiante serão os
-botões da interface web, pelo mesmo caminho: um evento gravado no log.
+botões da interface web, pelo mesmo caminho: um evento gravado no log, com o usuário do sistema
+que decidiu.
 
-O comando também promove ao catálogo uma ação nova que já foi aprovada e aplicada. É outra
-decisão que cabe só à pessoa.
+O comando também promove ao catálogo uma ação nova que já foi aprovada e aplicada, e marca um
+incidente como já resolvido quando a pessoa resolveu antes dos agentes. São outras decisões que
+cabem só à pessoa.
 
 Antes de aprovar ou de promover, o comando mostra a proposta inteira, com os motivos do risco
-alto e todos os parâmetros, e pede confirmação. Tudo o que vem do log é escrito na tela com os caracteres não imprimíveis
-escapados: o log é entrada, e uma sequência de terminal gravada nele não pode trocar o que a
-pessoa lê.
+alto e todos os parâmetros, e pede confirmação. Tudo o que vem do log é escrito na tela com os
+caracteres não imprimíveis escapados: o log é entrada, e uma sequência de terminal gravada nele
+não pode trocar o que a pessoa lê.
 
 Uso, a partir da raiz do repositório:
     python -m codigo.mcp.aprovar                        lista o que aguarda aprovação
@@ -18,6 +20,7 @@ Uso, a partir da raiz do repositório:
     python -m codigo.mcp.aprovar prop-0002 --sim        aprova sem perguntar (uso não interativo)
     python -m codigo.mcp.aprovar prop-0002 --rejeitar --motivo "o dispositivo não pode parar"
     python -m codigo.mcp.aprovar prop-0002 --promover   leva a ação nova para o catálogo, com confirmação
+    python -m codigo.mcp.aprovar --resolvido inc-0002 --motivo "bloqueei a origem no roteador"
 """
 import argparse
 import json
@@ -29,6 +32,7 @@ from codigo.mcp.acoes import (
     BASE,
     PedidoRecusado,
     decidir,
+    marcar_resolvido,
     promover,
     reconstruir,
     usuario_do_sistema,
@@ -101,10 +105,8 @@ def _valor(valor):
 
 
 def _listar(registro):
-    pendentes = [
-        proposta for proposta in reconstruir(registro.ler()).propostas.values()
-        if proposta.estado == "aguardando_aprovacao"
-    ]
+    estado = reconstruir(registro.ler())
+    pendentes = [proposta for proposta in estado.propostas.values() if proposta.estado == "aguardando_aprovacao"]
     if not pendentes:
         print("Nenhuma proposta aguarda aprovação.")
         return
@@ -115,6 +117,8 @@ def _listar(registro):
         identificador = shlex.quote(visivel(proposta.id))
         print()
         print(descrever(proposta))
+        if proposta.incidente in estado.resolvidos:
+            print("  o incidente foi marcado como já resolvido: a ação não será aplicada, mesmo que aprovada")
         print(f"  para aprovar:  {_COMANDO} {identificador}")
         print(f"  para rejeitar: {_COMANDO} {identificador} --rejeitar")
 
@@ -171,6 +175,13 @@ def main(argv=None):
     escolha.add_argument(
         "--promover", action="store_true", help="promove ao catálogo a ação nova já aprovada e aplicada"
     )
+    escolha.add_argument(
+        "--resolvido", metavar="INCIDENTE",
+        help=(
+            "marca o incidente como já resolvido pela pessoa: daí em diante nenhuma proposta dele é registrada "
+            "nem executada, e os agentes só explicam o incidente"
+        ),
+    )
     analisador.add_argument("--motivo", help="motivo da decisão, que fica registrado no log")
     analisador.add_argument(
         "--sim", action="store_true",
@@ -184,9 +195,14 @@ def main(argv=None):
     )
     try:
         argumentos = analisador.parse_args(argv)
-        sem_proposta = argumentos.rejeitar or argumentos.promover or argumentos.motivo or argumentos.sim
-        if argumentos.proposta is None and sem_proposta:
-            analisador.error("diga a proposta, como prop-0002")
+        if argumentos.resolvido is not None:
+            # Marcar o incidente não decide proposta nenhuma, e não libera nada: não há o que confirmar.
+            if argumentos.proposta is not None or argumentos.sim:
+                analisador.error("--resolvido recebe só o incidente e, se quiser, o --motivo")
+        else:
+            sem_proposta = argumentos.rejeitar or argumentos.promover or argumentos.motivo or argumentos.sim
+            if argumentos.proposta is None and sem_proposta:
+                analisador.error("diga a proposta, como prop-0002")
     except SystemExit as encerramento:
         return encerramento.code
     try:
@@ -196,7 +212,17 @@ def main(argv=None):
         registro = Registro(argumentos.log)
         # Quem decide é a pessoa que rodou o comando: o nome dela fica na decisão.
         usuario = usuario_do_sistema()
-        if argumentos.proposta is None:
+        if argumentos.resolvido is not None:
+            marca, _ = registro.atualizar(
+                lambda eventos: marcar_resolvido(
+                    reconstruir(eventos), argumentos.resolvido, motivo=argumentos.motivo, usuario=usuario,
+                )
+            )
+            print(
+                f"{visivel(marca.incidente)} marcado como já resolvido. Nenhuma proposta dele será registrada nem "
+                "executada, e os agentes só explicam o incidente."
+            )
+        elif argumentos.proposta is None:
             _listar(registro)
         elif argumentos.promover:
             acao = _decidir_com_confirmacao(

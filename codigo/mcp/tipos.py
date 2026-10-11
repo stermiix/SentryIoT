@@ -108,6 +108,7 @@ MotivoDeRecusa = Literal[
     "alvo_malformado",
     "alvo_nao_permitido",
     "incidente_encerrado",
+    "incidente_ja_resolvido",
     "limite_de_propostas_pendentes",
     "limite_de_propostas_liberadas",
     "acao_nova_incompleta",
@@ -580,6 +581,20 @@ class Decisao(Modelo):
     motivo: TextoLongo | None
 
 
+class MarcaDeResolvido(Modelo):
+    """A pessoa que opera a rede diz que já resolveu o incidente por conta própria.
+
+    É o botão "Já resolvido" da interface, ou o comando de terminal (decisão de 2026-10-10). Com a
+    marca, o servidor não registra nem executa proposta do incidente, nem a já aprovada: os agentes
+    só explicam o que aconteceu.
+    """
+
+    incidente: Texto
+    canal: Literal["terminal", "interface"]
+    usuario: Texto = Field(description="Usuário do sistema que marcou o incidente")
+    motivo: TextoLongo | None = Field(description="O que a pessoa fez, quando ela disser")
+
+
 class Promocao(Modelo):
     proposta: Texto
     acao: AcaoDoCatalogo
@@ -597,6 +612,7 @@ class Recusa(Modelo):
 EVENTOS = (
     ("EventoDeJanelas", ("janelas_classificadas",), LoteDeJanelas),
     ("EventoDeIncidente", ("incidente_aberto", "incidente_atualizado", "incidente_encerrado"), Incidente),
+    ("EventoDeMarca", ("incidente_marcado_resolvido",), MarcaDeResolvido),
     ("EventoDeLLM", ("llm_chamada",), ChamadaDeLLM),
     ("EventoDeTool", ("tool_chamada",), ChamadaDeTool),
     ("EventoDeRecomendacao", ("recomendacao_emitida",), Recomendacao),

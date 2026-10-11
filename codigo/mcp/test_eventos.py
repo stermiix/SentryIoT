@@ -372,6 +372,7 @@ def test_relogio_que_volta_no_tempo_nao_estraga_o_log(tmp_path):
     ("acao_executada", DADOS_POR_TIPO["acao_executada"]),
     ("acao_desfeita", DADOS_POR_TIPO["acao_desfeita"]),
     ("efeito_verificado", DADOS_POR_TIPO["efeito_verificado"]),
+    ("incidente_marcado_resolvido", DADOS_POR_TIPO["incidente_marcado_resolvido"]),
 ])
 def test_incidente_do_evento_e_o_mesmo_dos_dados(registro, tipo, dados):
     # O campo incidente do evento é o que a interface usa para montar o rastro de cada incidente.

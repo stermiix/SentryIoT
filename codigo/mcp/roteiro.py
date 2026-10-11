@@ -4,7 +4,9 @@ Gera o log de exemplo versionado em `exemplos/incidente_flood.jsonl`, que é o p
 do modo replay da interface web. O roteiro passa por todos os tipos de evento do contrato: a
 primeira ação não resolve, o agente de decisão pesquisa outra saída, o executor é recusado ao
 tentar aplicar antes da hora, a pessoa rejeita uma proposta e aprova outra, o incidente cessa,
-a primeira ação é desfeita e a ação nova vai para o catálogo.
+a primeira ação é desfeita e a ação nova vai para o catálogo. Depois, um segundo incidente, de
+força bruta, que a pessoa resolve antes dos agentes e marca como já resolvido: o agente de
+decisão só explica.
 
 Não há agente nem modelo de linguagem aqui. As chamadas de tool são feitas de verdade no stub,
 uma por uma, na ordem do roteiro. As chamadas ao modelo e as recomendações são eventos escritos
@@ -23,7 +25,13 @@ import sys
 from datetime import timedelta
 from pathlib import Path
 
-from codigo.mcp.acoes import PedidoRecusado, decidir, promover, reconstruir
+from codigo.mcp.acoes import (
+    PedidoRecusado,
+    decidir,
+    marcar_resolvido,
+    promover,
+    reconstruir,
+)
 from codigo.mcp.cenarios import CENARIOS
 from codigo.mcp.eventos import GravadorDoAgente, Registro, novo
 from codigo.mcp.stub import Stub
@@ -34,6 +42,7 @@ MODELO = "modelo-de-exemplo"
 # O usuário do sistema que decide no exemplo. É fixo, para que o arquivo saia igual em qualquer máquina.
 PESSOA = "operador"
 _FLOOD = next(cenario for cenario in CENARIOS if cenario.nome == "flood")
+_FORCA_BRUTA = next(cenario for cenario in CENARIOS if cenario.nome == "forca_bruta")
 _INCIDENTE = _FLOOD.incidente.id
 
 
@@ -51,6 +60,10 @@ class RelogioDoRoteiro:
     def esperar(self, segundos):
         self.instante += timedelta(seconds=segundos)
 
+    def ate(self, instante):
+        """Avança até o instante dado, se ele ainda não passou."""
+        self.instante = max(self.instante, instante)
+
 
 def executar(saida=SAIDA_PADRAO, sobrescrever=False):
     """Roda o roteiro e grava o log em `saida`.
@@ -66,28 +79,33 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
     # O lote sai do classificador quando o incidente é aberto, no fim do primeiro período.
     relogio = RelogioDoRoteiro(_FLOOD.incidente.fim)
     registro = Registro(saida, relogio)
+    cenarios = [_FLOOD, _FORCA_BRUTA]
     # Um stub por agente, sobre o mesmo log: cada um só atende as tools da sua linha.
-    triagem, decisao, execucao = (Stub(registro, agente=agente, cenarios=[_FLOOD]) for agente in AGENTES)
+    triagem, decisao, execucao = (Stub(registro, agente=agente, cenarios=cenarios) for agente in AGENTES)
     # O que cada agente grava por conta própria passa pelo gravador restrito dele.
     gravadores = {agente: GravadorDoAgente(agente, saida, relogio) for agente in AGENTES}
 
-    def modelo(agente, tokens_entrada, tokens_saida, segundos):
+    def classificador(cenario):
+        # No sistema de verdade, o lote e a abertura vêm do classificador e da política de acionamento.
+        Stub(registro, agente="triagem", cenarios=[cenario]).abrir_incidentes()
+
+    def modelo(agente, tokens_entrada, tokens_saida, segundos, incidente=_INCIDENTE):
         relogio.esperar(segundos)
         chamada = ChamadaDeLLM(
             agente=agente, modelo=MODELO, tokens_entrada=tokens_entrada, tokens_saida=tokens_saida,
             duracao_ms=segundos * 1000,
         )
-        gravadores[agente].gravar(novo("llm_chamada", chamada, _INCIDENTE))
+        gravadores[agente].gravar(novo("llm_chamada", chamada, incidente))
 
-    def recomendar(texto, *propostas):
+    def recomendar(texto, *propostas, incidente=_INCIDENTE):
         recomendacao = Recomendacao(agente="decisao", texto=texto, propostas=propostas)
-        gravadores["decisao"].gravar(novo("recomendacao_emitida", recomendacao, _INCIDENTE))
+        gravadores["decisao"].gravar(novo("recomendacao_emitida", recomendacao, incidente))
 
     def pessoa(funcao, *argumentos, espera, **opcoes):
         relogio.esperar(espera)
         registro.atualizar(lambda eventos: funcao(reconstruir(eventos), *argumentos, **opcoes))
 
-    triagem.abrir_incidentes()
+    classificador(_FLOOD)
 
     # Triagem: lê o resumo, pede uma fatia pequena das janelas e conclui.
     modelo("triagem", 1240, 96, 2.1)
@@ -174,6 +192,27 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
 
     # Com a ação nova aplicada e o incidente encerrado, a pessoa a promove ao catálogo.
     pessoa(promover, syn_cookies.id, espera=90)
+
+    # Segundo incidente: força bruta no SSH. Avisada na abertura, a pessoa bloqueia a origem no roteador
+    # antes dos agentes e marca o incidente pelo terminal. Com a marca, nada é proposto nem aplicado.
+    forca_bruta = _FORCA_BRUTA.incidente.id
+    relogio.ate(_FORCA_BRUTA.incidente.fim)
+    classificador(_FORCA_BRUTA)
+    pessoa(
+        marcar_resolvido, forca_bruta, espera=25, usuario=PESSOA,
+        motivo="Bloqueei a origem no roteador antes de os agentes responderem.",
+    )
+    modelo("triagem", 1180, 88, 2.0, incidente=forca_bruta)
+    triagem.chamar("obter_incidente", id=forca_bruta)
+    modelo("decisao", 1290, 154, 3.2, incidente=forca_bruta)
+    decisao.chamar("obter_incidente", id=forca_bruta)
+    recomendar(
+        "Incidente marcado como já resolvido pela pessoa que opera a rede. Era um ataque de dicionário contra o "
+        "SSH de um dispositivo, vindo de uma origem só: 18 janelas com SSH em quase todos os quadros e taxa de "
+        "11,8 quadros por segundo. A medida indicada seria bloquear a origem por até 15 minutos, que é o que a "
+        "pessoa já fez. Nenhuma ação foi proposta nem aplicada.",
+        incidente=forca_bruta,
+    )
     return saida
 
 

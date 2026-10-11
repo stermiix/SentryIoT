@@ -5,7 +5,13 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from codigo.mcp.acoes import PedidoRecusado, decidir, promover, reconstruir
+from codigo.mcp.acoes import (
+    PedidoRecusado,
+    decidir,
+    marcar_resolvido,
+    promover,
+    reconstruir,
+)
 from codigo.mcp.cenarios import CENARIOS
 from codigo.mcp.eventos import LogInvalido, Registro
 from codigo.mcp.stub import Stub, criar_servidor, main
@@ -380,6 +386,19 @@ def test_incidente_encerrado_nao_recebe_proposta(stub):
         assert "inc-0002" in mensagem
     # O que já estava aplicado continua podendo ser desfeito.
     assert chamar(stub, "desfazer_acao", id_execucao=execucao.id).estado == "desfeita"
+
+
+def test_incidente_marcado_como_ja_resolvido_nao_recebe_nem_executa_proposta(stub):
+    bloqueio = chamar(stub, "propor_acao", id="inc-0002", alvo="198.51.100.23", **BLOQUEIO)
+    isolamento = chamar(stub, "propor_acao", id="inc-0002", alvo="192.168.137.31", **ISOLAMENTO)
+    aprovar(stub, isolamento.id)
+    stub.registro.atualizar(lambda eventos: marcar_resolvido(reconstruir(eventos), "inc-0002", usuario="maria"))
+    for id_proposta in (bloqueio.id, isolamento.id):
+        assert "já resolvido" in recusado(stub, "incidente_ja_resolvido", "executar_acao", id_proposta=id_proposta)
+    recusado(stub, "incidente_ja_resolvido", "propor_acao", id="inc-0002", alvo="198.51.100.23", **BLOQUEIO)
+    assert chamar(stub, "consultar_estado").bloqueios == []
+    # Os outros incidentes seguem.
+    assert chamar(stub, "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO).estado == "liberada"
 
 
 # --- efeito das ações, pelo roteiro do cenário -----------------------------------------------

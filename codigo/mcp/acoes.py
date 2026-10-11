@@ -54,6 +54,7 @@ from codigo.mcp.tipos import (
     Ambiente,
     Decisao,
     Execucao,
+    MarcaDeResolvido,
     MotivoDeRiscoAlto,
     NomeDeAcao,
     ParametroDeAcao,
@@ -532,6 +533,8 @@ class Estado:
     promovidas: dict = field(default_factory=dict)
     # Identificadores das propostas que têm o evento de aprovação de uma pessoa.
     aprovadas: set = field(default_factory=set)
+    # Incidentes que a pessoa marcou como já resolvidos, com a marca.
+    resolvidos: dict = field(default_factory=dict)
 
 
 class _Violacao(Exception):
@@ -591,6 +594,10 @@ def _aplicar(estado, evento):
             esperado = "encerrado" if evento.tipo == "incidente_encerrado" else "aberto"
             _exigir(dados.estado == esperado, f"o incidente {dados.id} vem com o estado {dados.estado}")
             estado.incidentes[dados.id] = dados
+        case "incidente_marcado_resolvido":
+            _citado(estado.incidentes, dados.incidente, "o incidente")
+            _exigir(dados.incidente not in estado.resolvidos, f"o incidente {dados.incidente} já foi marcado como resolvido")
+            estado.resolvidos[dados.incidente] = dados
         case "acao_proposta":
             _conferir_proposta_nova(estado, dados)
             estado.propostas[dados.id] = dados
@@ -610,6 +617,10 @@ def _aplicar(estado, evento):
             _exigir(
                 proposta.estado == "liberada",
                 f"a proposta {proposta.id} não está liberada nem aprovada: está {proposta.estado}",
+            )
+            _exigir(
+                proposta.incidente not in estado.resolvidos,
+                f"o incidente {proposta.incidente} foi marcado como já resolvido, e nenhuma ação é aplicada nele",
             )
             _exigir(
                 (dados.incidente, dados.acao, dados.alvo, dados.parametros, dados.estado)
@@ -691,6 +702,10 @@ def _conferir_proposta_nova(estado, proposta):
     _exigir(
         proposta.incidente in estado.incidentes,
         f"a proposta {proposta.id} cita o incidente {proposta.incidente}, que não existe no log até este ponto",
+    )
+    _exigir(
+        proposta.incidente not in estado.resolvidos,
+        f"o incidente {proposta.incidente} foi marcado como já resolvido e não recebe proposta",
     )
     de_risco_alto = proposta.risco == "alto"
     _exigir(
@@ -791,6 +806,12 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
     if estado.incidentes[incidente].estado != "aberto":
         raise PedidoRecusado(
             "incidente_encerrado", f"O incidente {incidente} está encerrado e não recebe novas propostas."
+        )
+    if incidente in estado.resolvidos:
+        raise PedidoRecusado(
+            "incidente_ja_resolvido",
+            f"O incidente {incidente} foi marcado como já resolvido pela pessoa que opera a rede e não recebe "
+            "propostas. Explique o incidente, sem propor ação.",
         )
     justificativa = _justificativa(justificativa)
     if not isinstance(parametros, dict):
@@ -1049,10 +1070,38 @@ def decidir(estado, id_proposta, aprovar, canal="terminal", motivo=None, usuario
     return decidida, [novo("acao_aprovada" if aprovar else "acao_rejeitada", decisao, proposta.incidente)]
 
 
+def marcar_resolvido(estado, incidente, canal="terminal", usuario=None, motivo=None):
+    """Registra que a pessoa que opera a rede já resolveu o incidente por conta própria.
+
+    Como a aprovação, não é tool: entra pelo canal da pessoa (o comando `aprovar --resolvido` ou,
+    mais adiante, o botão "Já resolvido" da interface). Daí em diante, `propor` e `executar`
+    recusam qualquer proposta do incidente, inclusive a já aprovada. A garantia fica no servidor, e
+    não no prompt do agente.
+    """
+    if not isinstance(incidente, str) or incidente not in estado.incidentes:
+        raise PedidoRecusado(
+            "identificador_desconhecido", f"Não existe incidente com o identificador {resumir(incidente)}."
+        )
+    if incidente in estado.resolvidos:
+        raise PedidoRecusado("argumentos_invalidos", f"O incidente {incidente} já foi marcado como resolvido.")
+    if estado.incidentes[incidente].estado != "aberto":
+        raise PedidoRecusado(
+            "incidente_encerrado", f"O incidente {incidente} já está encerrado: não há o que marcar."
+        )
+    try:
+        marca = MarcaDeResolvido(
+            incidente=incidente, canal=canal, usuario=usuario or usuario_do_sistema(), motivo=motivo or None
+        )
+    except ValidationError:
+        raise PedidoRecusado("argumentos_invalidos", f"O motivo precisa ser {_UMA_LINHA}.") from None
+    return marca, [novo("incidente_marcado_resolvido", marca, incidente)]
+
+
 def executar(estado, politica, id_proposta, instante):
     """Aplica no ambiente simulado a ação de uma proposta liberada.
 
-    O campo `estado` da proposta, que veio do log, não basta para liberar. Proposta que exige
+    Proposta de incidente marcado como já resolvido não executa, nem a aprovada. O campo
+    `estado` da proposta, que veio do log, não basta para liberar. Proposta que exige
     aprovação só executa se o log tiver o evento de aprovação dela. Proposta registrada como de
     risco baixo tem o risco calculado de novo, com a política e o estado de agora: se o prazo
     da política diminuiu, se o alvo virou endereço protegido, se o incidente encerrou ou se o
@@ -1069,6 +1118,12 @@ def executar(estado, politica, id_proposta, instante):
             "proposta_ja_executada",
             f"A proposta {proposta.id} já foi executada ({execucao.id}). Para aplicar a ação outra vez, "
             "registre uma nova proposta.",
+        )
+    if proposta.incidente in estado.resolvidos:
+        raise PedidoRecusado(
+            "incidente_ja_resolvido",
+            f"A proposta {proposta.id} é do incidente {proposta.incidente}, que foi marcado como já resolvido pela "
+            "pessoa que opera a rede. Nenhuma ação é aplicada nele, nem a que já foi aprovada.",
         )
     if proposta.id not in estado.aprovadas:
         if proposta.exige_aprovacao or proposta.estado != "liberada":

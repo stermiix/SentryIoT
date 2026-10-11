@@ -105,6 +105,42 @@ def test_decisao_grava_o_usuario_do_sistema_que_rodou_o_comando(stub, monkeypatc
     assert [evento.dados.usuario for evento in stub.registro.ler()[-2:]] == ["maria", "maria"]
 
 
+def test_pessoa_marca_o_incidente_como_ja_resolvido_pelo_terminal(stub, capsys, monkeypatch):
+    monkeypatch.setattr(comando, "usuario_do_sistema", lambda: "maria")
+    terminal = Terminal(monkeypatch, interativo=False)
+    proposta = propor_bloqueio_curto(stub)
+    assert aprovar(stub, "--resolvido", "inc-0001", "--motivo", "Bloqueei a origem no roteador.") == 0
+    saida = capsys.readouterr().out
+    assert "inc-0001 marcado como já resolvido" in saida
+    # Marcar não libera nada: não pede confirmação.
+    assert terminal.perguntas == []
+    marca = stub.registro.ler()[-1]
+    assert (marca.tipo, marca.incidente) == ("incidente_marcado_resolvido", "inc-0001")
+    assert (marca.dados.canal, marca.dados.usuario, marca.dados.motivo) == (
+        "terminal", "maria", "Bloqueei a origem no roteador.",
+    )
+    # A partir daí o servidor não executa nem registra proposta do incidente.
+    with pytest.raises(PedidoRecusado, match="já resolvido"):
+        stub.chamar("executar_acao", id_proposta=proposta.id)
+    with pytest.raises(PedidoRecusado, match="já resolvido"):
+        propor_isolamento(stub)
+    # Marcar de novo não grava outra marca.
+    antes = stub.registro.caminho.read_bytes()
+    assert aprovar(stub, "--resolvido", "inc-0001") == 1
+    assert "já foi marcado" in capsys.readouterr().err
+    assert aprovar(stub, "--resolvido", "inc-0099") == 1
+    assert "inc-0099" in capsys.readouterr().err
+    assert stub.registro.caminho.read_bytes() == antes
+
+
+def test_lista_avisa_quando_a_proposta_pendente_e_de_incidente_ja_resolvido(stub, capsys):
+    propor_isolamento(stub)
+    assert aprovar(stub, "--resolvido", "inc-0001") == 0
+    capsys.readouterr()
+    assert aprovar(stub) == 0
+    assert "já resolvido" in capsys.readouterr().out
+
+
 def test_rejeitar_registra_o_motivo_e_a_proposta_nao_executa(stub, capsys):
     propor_isolamento(stub)
     assert aprovar(stub, "prop-0001", "--rejeitar", "--motivo", "O dispositivo não pode sair do ar.") == 0
@@ -207,12 +243,18 @@ def test_proposta_nao_e_decidida_duas_vezes(stub, capsys):
     ["--motivo", "sem proposta"],
     ["--sim"],
     ["prop-0001", "prop-0002"],
+    ["prop-0001", "--resolvido", "inc-0001"],
+    ["--resolvido", "inc-0001", "--rejeitar"],
+    ["--resolvido", "inc-0001", "--promover"],
+    ["--resolvido", "inc-0001", "--sim"],
+    ["--resolvido"],
 ])
 def test_combinacao_invalida_de_opcoes(stub, capsys, argumentos):
     propor_isolamento(stub)
     assert aprovar(stub, *argumentos) == 2
     assert capsys.readouterr().err
     assert tipos(stub).count("acao_aprovada") == 0
+    assert "incidente_marcado_resolvido" not in tipos(stub)
 
 
 def test_log_que_nao_existe_da_erro_e_nao_e_criado(tmp_path, capsys):

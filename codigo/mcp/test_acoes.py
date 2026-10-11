@@ -16,6 +16,7 @@ from codigo.mcp.acoes import (
     decidir,
     desfazer,
     executar,
+    marcar_resolvido,
     promover,
     propor,
     reconstruir,
@@ -88,6 +89,11 @@ class Mundo:
         execucao, rascunhos = desfazer(self.estado, id_execucao, INSTANTE + timedelta(minutes=5))
         self.aplicar(rascunhos)
         return execucao
+
+    def marcar_resolvido(self, incidente="inc-0001", motivo=None):
+        marca, rascunhos = marcar_resolvido(self.estado, incidente, usuario="maria", motivo=motivo)
+        self.aplicar(rascunhos)
+        return marca
 
     def promover(self, id_proposta):
         acao, rascunhos = promover(self.estado, id_proposta)
@@ -1118,6 +1124,78 @@ def test_ipv6_comum_nao_vira_protegido_por_engano():
     incidente = INCIDENTE_DA_ESPECIFICACAO | {"origens": [{"endereco": "2001:db8::c0a8:8901", "quadros": 9120}]}
     mundo = Mundo(incidente=incidente)
     assert motivos(mundo.propor("bloquear_ip", "2001:db8::c0a8:8901", {"duracao": 10})) == []
+
+
+# --- "Já resolvido": a pessoa resolveu antes dos agentes ----------------------------------------
+
+
+def test_incidente_marcado_como_ja_resolvido_nao_recebe_proposta(mundo):
+    marca = mundo.marcar_resolvido(motivo="Bloqueei a origem no roteador.")
+    assert (marca.incidente, marca.canal, marca.usuario, marca.motivo) == (
+        "inc-0001", "terminal", "maria", "Bloqueei a origem no roteador.",
+    )
+    assert mundo.eventos[-1].tipo == "incidente_marcado_resolvido"
+    assert mundo.estado.resolvidos["inc-0001"] == marca
+    for acao, alvo, parametros in (
+        ("bloquear_ip", "203.0.113.7", {"duracao": 10}),
+        ("isolar_dispositivo", "192.168.137.20", {}),
+        ("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA),
+    ):
+        mensagem = recusado("incidente_ja_resolvido", mundo.propor, acao, alvo, parametros)
+        assert "inc-0001" in mensagem and "já resolvido" in mensagem
+    assert mundo.estado.propostas == {}
+
+
+def test_proposta_de_incidente_marcado_nao_executa_nem_aprovada(mundo):
+    # A garantia é do servidor: vale para a proposta liberada, de risco baixo, e para a já aprovada.
+    baixa = mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    alta = mundo.propor("isolar_dispositivo", "192.168.137.20")
+    aplicada = mundo.executar(mundo.propor("limitar_taxa", "203.0.113.7", {"duracao": 10}).id)
+    mundo.decidir(alta.id)
+    mundo.marcar_resolvido()
+    for proposta in (baixa, alta):
+        mensagem = recusado("incidente_ja_resolvido", mundo.executar, proposta.id)
+        assert proposta.id in mensagem and "já resolvido" in mensagem
+    assert len(ambiente(mundo.estado).limites) == 1
+    # O que já estava aplicado pode ser desfeito.
+    assert mundo.desfazer(aplicada.id).estado == "desfeita"
+
+
+def test_marca_so_vale_uma_vez_e_em_incidente_aberto_que_existe(mundo):
+    recusado("identificador_desconhecido", marcar_resolvido, mundo.estado, "inc-0099")
+    mundo.marcar_resolvido()
+    assert "já foi marcado" in recusado("argumentos_invalidos", marcar_resolvido, mundo.estado, "inc-0001")
+    outro = Mundo()
+    outro.aplicar([novo("incidente_encerrado", INCIDENTE_DA_ESPECIFICACAO | {"estado": "encerrado"}, "inc-0001")])
+    recusado("incidente_encerrado", marcar_resolvido, outro.estado, "inc-0001")
+    estado = Mundo().estado
+    recusado("argumentos_invalidos", lambda: marcar_resolvido(estado, "inc-0001", motivo="linha\noutra"))
+
+
+def test_marca_no_log_e_conferida_na_reconstrucao(mundo):
+    marca = {"incidente": "inc-0001", "canal": "interface", "usuario": "maria", "motivo": None}
+    casos = [
+        # Marcar duas vezes, ou um incidente que não existe.
+        ([novo("incidente_marcado_resolvido", marca, "inc-0001")] * 2, "já foi marcado"),
+        ([novo("incidente_marcado_resolvido", marca | {"incidente": "inc-0002"}, "inc-0002")], "inc-0002"),
+    ]
+    for rascunhos, trecho in casos:
+        outro = Mundo()
+        outro.aplicar(rascunhos)
+        violacao(outro, "incidente_marcado_resolvido", trecho)
+    # Proposta e execução gravadas depois da marca são o que o servidor teria recusado.
+    proposta = mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    referencia = Mundo()
+    referencia.eventos = list(mundo.eventos)
+    referencia.executar(proposta.id)
+    execucao = dados_de(referencia, "acao_executada")
+    mundo.marcar_resolvido()
+    depois = list(mundo.eventos)
+    mundo.aplicar([novo("acao_executada", execucao, "inc-0001")])
+    violacao(mundo, "acao_executada", "já resolvido")
+    mundo.eventos = depois
+    mundo.aplicar([novo("acao_proposta", dados_de(mundo, "acao_proposta") | {"id": "prop-0002"}, "inc-0001")])
+    violacao(mundo, "acao_proposta", "já resolvido")
 
 
 def test_proposta_para_incidente_encerrado_e_recusada(mundo):

@@ -650,6 +650,7 @@
           "incidente_aberto": "#/$defs/EventoDeIncidente",
           "incidente_atualizado": "#/$defs/EventoDeIncidente",
           "incidente_encerrado": "#/$defs/EventoDeIncidente",
+          "incidente_marcado_resolvido": "#/$defs/EventoDeMarca",
           "janelas_classificadas": "#/$defs/EventoDeJanelas",
           "llm_chamada": "#/$defs/EventoDeLLM",
           "recomendacao_emitida": "#/$defs/EventoDeRecomendacao",
@@ -664,6 +665,9 @@
         },
         {
           "$ref": "#/$defs/EventoDeIncidente"
+        },
+        {
+          "$ref": "#/$defs/EventoDeMarca"
         },
         {
           "$ref": "#/$defs/EventoDeLLM"
@@ -1025,6 +1029,52 @@
         "dados"
       ],
       "title": "EventoDeLLM",
+      "type": "object"
+    },
+    "EventoDeMarca": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "incidente_marcado_resolvido",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/MarcaDeResolvido"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeMarca",
       "type": "object"
     },
     "EventoDeProposta": {
@@ -2037,6 +2087,54 @@
       "title": "LoteDeJanelas",
       "type": "object"
     },
+    "MarcaDeResolvido": {
+      "additionalProperties": false,
+      "description": "A pessoa que opera a rede diz que já resolveu o incidente por conta própria.\n\nÉ o botão \"Já resolvido\" da interface, ou o comando de terminal (decisão de 2026-10-10). Com a\nmarca, o servidor não registra nem executa proposta do incidente, nem a já aprovada: os agentes\nsó explicam o que aconteceu.",
+      "properties": {
+        "incidente": {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "canal": {
+          "enum": [
+            "terminal",
+            "interface"
+          ],
+          "type": "string"
+        },
+        "usuario": {
+          "description": "Usuário do sistema que marcou o incidente",
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "motivo": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "O que a pessoa fez, quando ela disser"
+        }
+      },
+      "required": [
+        "incidente",
+        "canal",
+        "usuario",
+        "motivo"
+      ],
+      "title": "MarcaDeResolvido",
+      "type": "object"
+    },
     "Mitigacoes": {
       "additionalProperties": false,
       "properties": {
@@ -2374,6 +2472,7 @@
             "alvo_malformado",
             "alvo_nao_permitido",
             "incidente_encerrado",
+            "incidente_ja_resolvido",
             "limite_de_propostas_pendentes",
             "limite_de_propostas_liberadas",
             "acao_nova_incompleta",

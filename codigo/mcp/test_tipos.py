@@ -133,6 +133,9 @@ DADOS_POR_TIPO = {
         "agente": "triagem", "nome": "obter_incidente", "argumentos": {"id": "inc-0001"},
         "resultado": {"categoria": "DDoS"}, "duracao_ms": 4.0,
     },
+    "incidente_marcado_resolvido": {
+        "incidente": "inc-0001", "canal": "interface", "usuario": "maria", "motivo": "Bloqueei a origem no roteador.",
+    },
     "recomendacao_emitida": {"agente": "decisao", "texto": "Bloquear a origem.", "propostas": ["prop-0001"]},
     "acao_proposta": PROPOSTA,
     "acao_aprovada": {"proposta": "prop-0001", "canal": "terminal", "usuario": "maria", "motivo": None},
@@ -405,9 +408,9 @@ def test_ambiente_separa_as_medidas_ativas_por_tipo():
 def test_tipos_de_evento_sao_os_da_especificacao():
     assert TIPOS_DE_EVENTO == (
         "janelas_classificadas", "incidente_aberto", "incidente_atualizado", "incidente_encerrado",
-        "llm_chamada", "tool_chamada", "recomendacao_emitida", "acao_proposta", "acao_aprovada",
-        "acao_rejeitada", "acao_executada", "acao_desfeita", "efeito_verificado", "catalogo_ampliado",
-        "recusa",
+        "incidente_marcado_resolvido", "llm_chamada", "tool_chamada", "recomendacao_emitida", "acao_proposta",
+        "acao_aprovada", "acao_rejeitada", "acao_executada", "acao_desfeita", "efeito_verificado",
+        "catalogo_ampliado", "recusa",
     )
     assert set(DADOS_POR_TIPO) == set(TIPOS_DE_EVENTO)
     mapeados = contrato()["$defs"]["Evento"]["discriminator"]["mapping"]
@@ -427,9 +430,9 @@ def test_motivos_de_recusa_do_contrato():
     motivos = contrato()["$defs"]["Recusa"]["properties"]["motivo"]["enum"]
     assert motivos == [
         "identificador_desconhecido", "argumentos_invalidos", "alvo_malformado", "alvo_nao_permitido",
-        "incidente_encerrado", "limite_de_propostas_pendentes", "limite_de_propostas_liberadas",
-        "acao_nova_incompleta", "proposta_nao_liberada", "proposta_ja_executada", "acao_nao_aplicada",
-        "tool_fora_da_linha",
+        "incidente_encerrado", "incidente_ja_resolvido", "limite_de_propostas_pendentes",
+        "limite_de_propostas_liberadas", "acao_nova_incompleta", "proposta_nao_liberada", "proposta_ja_executada",
+        "acao_nao_aplicada", "tool_fora_da_linha",
     ]
     for motivo in motivos:
         assert validar_evento(evento("recusa", dados=DADOS_POR_TIPO["recusa"] | {"motivo": motivo})).dados.motivo == motivo
@@ -445,6 +448,15 @@ def test_decisao_traz_o_usuario_que_decidiu():
     with pytest.raises(ValidationError):
         validar_evento(evento("acao_aprovada", dados=sem_usuario))
     assert "usuario" in contrato()["$defs"]["Decisao"]["required"]
+
+
+def test_marca_de_ja_resolvido_traz_o_canal_quem_marcou_e_o_motivo_opcional():
+    marca = DADOS_POR_TIPO["incidente_marcado_resolvido"]
+    assert validar_evento(evento("incidente_marcado_resolvido", dados=marca | {"motivo": None})).dados.motivo is None
+    for trocas in ({"canal": "email"}, {"usuario": ""}, {"motivo": "ok\x1b[2J"}, {"incidente": None}, {"extra": 1}):
+        with pytest.raises(ValidationError):
+            validar_evento(evento("incidente_marcado_resolvido", dados=marca | trocas))
+    assert contrato()["$defs"]["MarcaDeResolvido"]["required"] == ["incidente", "canal", "usuario", "motivo"]
 
 
 def test_evento_sem_incidente_traz_o_campo_nulo():

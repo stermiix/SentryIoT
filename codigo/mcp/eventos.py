@@ -51,7 +51,7 @@ _SEM_SEGUIR_LINK = getattr(os, "O_NOFOLLOW", 0)
 _INCIDENTE_DOS_DADOS = {
     "incidente_aberto": "id", "incidente_atualizado": "id", "incidente_encerrado": "id",
     "acao_proposta": "incidente", "acao_executada": "incidente", "acao_desfeita": "incidente",
-    "efeito_verificado": "incidente",
+    "efeito_verificado": "incidente", "incidente_marcado_resolvido": "incidente",
 }
 
 
