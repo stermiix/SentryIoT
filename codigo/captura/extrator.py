@@ -501,17 +501,27 @@ def _mostrar_avisos_da_leitura(mostrar_outros):
 
 
 def _resumir_quadros(extrator, contagem):
-    """Mensagens do fim da extração: quadros fora do filtro, VLAN e limite de captura curto."""
+    """Mensagens do fim da extração: opções do quadro, quadros fora do filtro, VLAN e limite curto."""
     mensagens = []
+    opcoes = []
+    if extrator.preencher:
+        opcoes.append(f"--preencher (o quadro inteiro menor que {QUADRO_MINIMO} bytes conta como {QUADRO_MINIMO})")
+    if extrator.limitar:
+        opcoes.append(f"--limitar (o quadro maior que {QUADRO_MAXIMO} bytes conta como {QUADRO_MAXIMO})")
+    if opcoes:
+        # O CSV não guarda as opções: quem o usa no treino ou na operação precisa saber como foi gerado.
+        mensagens.append("tamanho do quadro medido como no fio, e não como o código dos autores: " + "; ".join(opcoes))
     if extrator.ignorados:
-        partes = []
-        for tipo, quantos in extrator.ignorados_por_tipo.most_common():
+        # Os tipos menores que 0x0600 são comprimentos do 802.3 e têm o mesmo nome: soma-se pelo nome.
+        por_nome = Counter()
+        for tipo, quantos in extrator.ignorados_por_tipo.items():
             nome = nome_do_tipo(tipo)
             if tipo in (dpkt.ethernet.ETH_TYPE_IP, dpkt.ethernet.ETH_TYPE_ARP):
                 nome += " que não pôde ser decodificado"
-            partes.append(f"{nome}: {quantos}")
+            por_nome[nome] += quantos
         mensagens.append(
-            f"{extrator.ignorados} quadros ficaram fora (só IPv4 e ARP entram na conta): " + "; ".join(partes)
+            f"{extrator.ignorados} quadros ficaram fora (só IPv4 e ARP entram na conta): "
+            + "; ".join(f"{nome}: {quantos}" for nome, quantos in por_nome.most_common())
         )
         com_vlan = sum(extrator.ignorados_por_tipo[tipo] for tipo in TIPOS_VLAN)
         if 2 * com_vlan > extrator.ignorados:

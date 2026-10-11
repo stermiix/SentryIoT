@@ -909,3 +909,28 @@ def test_so_o_quadro_entregue_com_menos_bytes_que_o_original_e_cortado():
     tipos = [type(quadro) for _, quadro in ler_pcap(io.BytesIO(dados))]
     assert tipos == [bytes, QuadroCortado, bytes]
     assert [quadro for _, quadro in ler_pcap(io.BytesIO(dados))] == [a, a, a]
+
+
+def test_main_diz_quando_as_opcoes_do_quadro_estao_ligadas(tmp_path, capsys):
+    entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
+    entrada.write_bytes(pcap([(i, 0, QUADRO_ARP_SEM_PREENCHIMENTO) for i in range(10)]))
+    assert main([str(entrada), str(saida)]) == 0
+    assert "como no fio" not in capsys.readouterr().err
+    for opcoes, trechos in (
+        (["--preencher"], ["--preencher"]), (["--limitar"], ["--limitar"]),
+        (["--preencher", "--limitar"], ["--preencher", "--limitar"]),
+    ):
+        assert main([*opcoes, str(entrada), str(saida)]) == 0
+        erro = capsys.readouterr().err
+        assert "tamanho do quadro medido como no fio" in erro and all(trecho in erro for trecho in trechos)
+        assert ("--limitar" in erro) == ("--limitar" in opcoes) and ("--preencher" in erro) == ("--preencher" in opcoes)
+
+
+def test_main_junta_os_quadros_802_3_de_varios_comprimentos_num_nome_so(tmp_path, capsys):
+    entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
+    llc = [eth(comprimento, b"\x42\x42\x03" + bytes(40)) for comprimento in (0x0026, 0x0027, 0x0100, 0x0026)]
+    entrada.write_bytes(pcap([(i, 0, q) for i, q in enumerate([*llc, quadro_tcp()])]))
+    assert main([str(entrada), str(saida)]) == 0
+    erro = capsys.readouterr().err
+    assert "4 quadros ficaram fora" in erro
+    assert erro.count("IEEE 802.3 com LLC") == 1 and "IEEE 802.3 com LLC (STP e afins): 4" in erro
