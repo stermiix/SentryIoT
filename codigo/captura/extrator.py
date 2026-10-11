@@ -10,9 +10,13 @@ de origem e de destino e a quantidade de IPs de origem e de destino distintos. �
 regeração dos dados de treino usa para saber se um atacante está na janela, e o que a resposta
 precisa para saber quem bloquear. Sem a opção, a saída são só as 39 colunas.
 
+As opções `preencher` e `limitar`, desligadas por padrão, medem o tamanho do quadro como ele
+passa no fio, e não como a máquina que capturou o gravou (veja `como_no_fio`).
+
 Uso, a partir da raiz do repositório:
     python -m codigo.captura.extrator entrada.pcap saida.csv
     python -m codigo.captura.extrator --janela 100 entrada.pcap saida.csv
+    python -m codigo.captura.extrator --preencher --limitar entrada.pcap saida.csv
 """
 import argparse
 import csv
@@ -62,6 +66,10 @@ PREFIXO_DECODIFICADO = 1600
 JANELA_MAXIMA = 10_000
 # Maior registro aceito num pcap: é o limite de captura mais alto do tcpdump e do Wireshark.
 MAIOR_REGISTRO = 262_144
+# Menor e maior quadro Ethernet no fio, sem o FCS e sem etiqueta de VLAN (MTU de 1500 bytes).
+QUADRO_MINIMO = 60
+QUADRO_MAXIMO = 1514
+_CABECALHO_ETHERNET = 14
 
 # Colunas que a janela resume pela média dos quadros.
 MEDIAS = (
@@ -73,14 +81,45 @@ MEDIAS = (
 Enderecos = namedtuple("Enderecos", ("macs_origem", "macs_destino", "ips_origem", "ips_destino"))
 
 
-def medir_quadro(ts, quadro, ts_anterior=None):
+def como_no_fio(quadro, preencher=False, limitar=False):
+    """O quadro com o tamanho que ele tem no fio, conforme as opções. Sem nenhuma, não muda nada.
+
+    `preencher` completa com zeros até 60 bytes o quadro Ethernet menor que isso, como a placa de
+    rede faz antes de transmitir. Quem captura na própria máquina que envia grava o quadro antes
+    desse preenchimento. Os dois pcaps de spoofing do CICIoT2023 (DNS_Spoofing e
+    MITM-ArpSpoofing) foram capturados assim: 84% das suas janelas de 100 quadros têm quadro
+    menor que 60 bytes, contra nenhuma nos pcaps benignos (no Mirai-greip_flood21, 10%). Com
+    isso o modelo pode reconhecer a configuração da captura, e não o ataque. Um registro com
+    menos de 14 bytes não chega a ser um quadro Ethernet e fica como está.
+
+    `limitar` faz o quadro maior que 1514 bytes contar como 1514. Quadro assim não existe no fio:
+    é a placa da máquina que capturou juntando vários segmentos TCP num só (offload de
+    segmentação). Ele aparece em 80% a 93% das janelas de 100 quadros dos pcaps benignos e em
+    nenhuma das de spoofing. O quadro é cortado nos primeiros 1514 bytes, que trazem todos os
+    cabeçalhos medidos.
+
+    As duas opções juntas medem o quadro como ele passa no fio. Ficam desligadas por padrão
+    porque o código dos autores não faz nenhuma das duas coisas, e o extrator precisa reproduzir
+    os números com que o modelo publicado foi treinado. Ligar ou não no treino e na operação, e
+    regerar os dados de treino com elas, é uma decisão da equipe ainda em aberto; o que importa é
+    usar a mesma escolha nos dois lugares.
+    """
+    if preencher and _CABECALHO_ETHERNET <= len(quadro) < QUADRO_MINIMO:
+        quadro = quadro + bytes(QUADRO_MINIMO - len(quadro))
+    if limitar and len(quadro) > QUADRO_MAXIMO:
+        quadro = quadro[:QUADRO_MAXIMO]
+    return quadro
+
+
+def medir_quadro(ts, quadro, ts_anterior=None, preencher=False, limitar=False):
     """Mede um quadro Ethernet.
 
     Devolve um dicionário com as colunas de MEDIAS, mais "Protocol Type", "ts" e os endereços
     do quadro: "mac_origem" e "mac_destino" em texto, "ip_origem" e "ip_destino" em bytes, ou
     None fora do IPv4. Devolve None se o quadro não entra na conta: não é IPv4 nem ARP, ou não
-    pôde ser decodificado.
+    pôde ser decodificado. `preencher` e `limitar` são as opções de `como_no_fio`.
     """
+    quadro = como_no_fio(quadro, preencher, limitar)
     # Quadro que o dpkt não decodifica como Ethernet é descartado, qualquer que seja o erro:
     # um quadro malformado não pode derrubar a extração. O código dos autores também o descarta.
     try:
@@ -174,14 +213,18 @@ class Extrator:
 
     Não sabe de onde os quadros vêm. Serve tanto para um arquivo pcap quanto para uma captura
     ao vivo que entregue (instante, quadro). Com `enderecos`, cada janela sai como o par
-    (linha, Enderecos), em vez de só a linha.
+    (linha, Enderecos), em vez de só a linha. `preencher` e `limitar` são as opções de
+    `como_no_fio`, aplicadas a cada quadro entregue por `alimentar`; desligadas, o extrator
+    reproduz o código dos autores.
     """
 
-    def __init__(self, janela=10, enderecos=False):
+    def __init__(self, janela=10, enderecos=False, preencher=False, limitar=False):
         if janela < 1:
             raise ValueError("a janela precisa ter ao menos 1 quadro")
         self.janela = janela
         self.enderecos = enderecos
+        self.preencher = preencher
+        self.limitar = limitar
         self.ignorados = 0
         self._pendentes = []
         self._ts_anterior = None
@@ -191,7 +234,7 @@ class Extrator:
         ts = float(ts)
         if not math.isfinite(ts):
             raise ValueError("o instante do quadro precisa ser um número finito")
-        return self.acumular(medir_quadro(ts, quadro, self._ts_anterior))
+        return self.acumular(medir_quadro(ts, quadro, self._ts_anterior, self.preencher, self.limitar))
 
     def acumular(self, medida):
         """Entrega um quadro já medido por `medir_quadro`, ou None se ele ficou fora do filtro.
@@ -220,10 +263,10 @@ class Extrator:
         return linha
 
 
-def extrair(quadros, janela=10, enderecos=False):
+def extrair(quadros, janela=10, enderecos=False, preencher=False, limitar=False):
     """Gera as janelas de uma sequência de (instante, quadro): as linhas de features ou, com
-    `enderecos`, os pares (linha, Enderecos)."""
-    extrator = Extrator(janela, enderecos)
+    `enderecos`, os pares (linha, Enderecos). `preencher` e `limitar` são as de `como_no_fio`."""
+    extrator = Extrator(janela, enderecos, preencher, limitar)
     for ts, quadro in quadros:
         linha = extrator.alimentar(ts, quadro)
         if linha is not None:
@@ -355,6 +398,18 @@ def main(argv=None):
         default=10,
         help="quadros por linha: 10 (padrão) ou 100, como nas classes de flood do dataset",
     )
+    analisador.add_argument(
+        "--preencher",
+        action="store_true",
+        help=f"completa com zeros até {QUADRO_MINIMO} bytes o quadro menor que isso, como no fio "
+        "(desligado por padrão, como no código dos autores)",
+    )
+    analisador.add_argument(
+        "--limitar",
+        action="store_true",
+        help=f"conta como {QUADRO_MAXIMO} bytes o quadro maior que isso, que só existe com offload de "
+        "segmentação na máquina que capturou (desligado por padrão, como no código dos autores)",
+    )
     try:
         argumentos = analisador.parse_args(argv)
     except SystemExit as encerramento:
@@ -371,7 +426,10 @@ def main(argv=None):
             quadros = ler_pcap(entrada)
             primeiro = list(itertools.islice(quadros, 1))
             with open(argumentos.saida, "w", newline="") as saida:
-                linhas = extrair(itertools.chain(primeiro, quadros), argumentos.janela)
+                linhas = extrair(
+                    itertools.chain(primeiro, quadros), argumentos.janela,
+                    preencher=argumentos.preencher, limitar=argumentos.limitar,
+                )
                 total = gravar_csv(linhas, saida)
         except (OSError, ValueError) as erro:
             print(f"erro: {erro}", file=sys.stderr)

@@ -12,6 +12,7 @@ from codigo.captura.extrator import (
     Enderecos,
     Extrator,
     agregar,
+    como_no_fio,
     enderecos,
     extrair,
     gravar_csv,
@@ -616,3 +617,77 @@ def test_acumular_recebe_um_quadro_ja_medido():
     um = Extrator(janela=1)
     assert um.alimentar(7.0, quadro_tcp())["Number"] == 1
     assert um.acumular(None) is None and um.ignorados == 1
+
+
+# --- quadro medido como no fio: preenchimento até 60 bytes e teto de 1514 -----------------------
+
+QUADRO_ARP_SEM_PREENCHIMENTO = eth(0x0806, struct.pack(">HHBBH", 1, 0x0800, 6, 4, 1) + bytes(20))
+QUADRO_AGREGADO = quadro_tcp(flags=0x18, dados=bytes(2908))  # dois segmentos de 1460 bytes juntos
+TAMANHOS = ("Tot sum", "Min", "Max", "AVG", "Std", "Tot size", "Variance")
+
+
+def test_sem_as_opcoes_o_quadro_fica_como_foi_capturado():
+    assert len(QUADRO_ARP_SEM_PREENCHIMENTO) == 42 and len(QUADRO_AGREGADO) == 2962
+    for quadro in (QUADRO_ARP_SEM_PREENCHIMENTO, quadro_tcp(), QUADRO_AGREGADO, b"\x00" * 10):
+        assert como_no_fio(quadro) is quadro
+    assert medir_quadro(0.0, QUADRO_ARP_SEM_PREENCHIMENTO)["Tot size"] == 42
+    assert medir_quadro(0.0, QUADRO_AGREGADO)["Tot size"] == 2962
+    quadros = [(float(i), q) for i, q in enumerate([QUADRO_ARP_SEM_PREENCHIMENTO, quadro_tcp(), QUADRO_AGREGADO] * 10)]
+    assert list(extrair(quadros)) == list(extrair(quadros, preencher=False, limitar=False))
+    assert Extrator().preencher is False and Extrator().limitar is False
+
+
+def test_preencher_conta_o_quadro_de_42_bytes_como_60():
+    assert como_no_fio(QUADRO_ARP_SEM_PREENCHIMENTO, preencher=True) == QUADRO_ARP_SEM_PREENCHIMENTO + bytes(18)
+    original = medir_quadro(0.0, QUADRO_ARP_SEM_PREENCHIMENTO)
+    preenchido = medir_quadro(0.0, QUADRO_ARP_SEM_PREENCHIMENTO, preencher=True)
+    assert preenchido["Tot size"] == 60
+    assert {k: v for k, v in preenchido.items() if k != "Tot size"} == {
+        k: v for k, v in original.items() if k != "Tot size"
+    }
+    # O TCP sem dados tem 54 bytes; os cabeçalhos medidos não mudam com os zeros do fim.
+    tcp_curto = medir_quadro(0.0, quadro_tcp(opcoes=b"\x02\x04\x05\xb4"), preencher=True)
+    assert (tcp_curto["Tot size"], tcp_curto["Header_Length"], tcp_curto["syn_flag_number"]) == (60, 24, 1)
+    # Quadro de 60 bytes ou mais e quadro grande ficam como estão.
+    assert como_no_fio(quadro_udp(dados=bytes(20)), preencher=True) == quadro_udp(dados=bytes(20))
+    assert como_no_fio(QUADRO_AGREGADO, preencher=True) == QUADRO_AGREGADO
+    # Menos de 14 bytes não é quadro Ethernet: nada é inventado.
+    assert como_no_fio(b"\x08\x00", preencher=True) == b"\x08\x00"
+
+
+def test_limitar_conta_o_quadro_agregado_como_1514():
+    original = medir_quadro(0.0, QUADRO_AGREGADO)
+    limitado = medir_quadro(0.0, QUADRO_AGREGADO, limitar=True)
+    assert limitado["Tot size"] == 1514
+    assert {k: v for k, v in limitado.items() if k != "Tot size"} == {
+        k: v for k, v in original.items() if k != "Tot size"
+    }
+    assert como_no_fio(QUADRO_ARP_SEM_PREENCHIMENTO, limitar=True) == QUADRO_ARP_SEM_PREENCHIMENTO
+    assert len(como_no_fio(quadro_tcp(dados=bytes(1460)), limitar=True)) == 1514
+
+
+def test_as_duas_opcoes_juntas_so_mudam_as_colunas_de_tamanho():
+    quadros = [(i * 0.01, q) for i, q in enumerate([QUADRO_ARP_SEM_PREENCHIMENTO, quadro_tcp(), QUADRO_AGREGADO] * 4)]
+    (antes,) = extrair(quadros, janela=12)
+    (depois,) = extrair(quadros, janela=12, preencher=True, limitar=True)
+    assert (depois["Min"], depois["Max"], depois["Tot sum"]) == (60, 1514, 4 * (60 + 60 + 1514))
+    assert (antes["Min"], antes["Max"]) == (42, 2962)
+    assert [c for c in COLUNAS if antes[c] != depois[c]] == [c for c in COLUNAS if c in TAMANHOS]
+    extrator = Extrator(janela=12, preencher=True, limitar=True)
+    linhas = [extrator.alimentar(ts, q) for ts, q in quadros]
+    assert linhas[-1] == depois
+
+
+def test_main_com_as_opcoes_do_quadro_no_fio(tmp_path):
+    entrada = tmp_path / "entrada.pcap"
+    entrada.write_bytes(pcap([(i, 0, q) for i, q in enumerate([QUADRO_ARP_SEM_PREENCHIMENTO, QUADRO_AGREGADO] * 5)]))
+    tamanhos = {}
+    for opcoes in ([], ["--preencher"], ["--limitar"], ["--preencher", "--limitar"]):
+        saida = tmp_path / "saida.csv"
+        assert main([*opcoes, str(entrada), str(saida)]) == 0
+        campos = saida.read_text().splitlines()[1].split(",")
+        tamanhos[" ".join(opcoes)] = (campos[COLUNAS.index("Min")], campos[COLUNAS.index("Max")])
+    assert tamanhos == {
+        "": ("42", "2962"), "--preencher": ("60", "2962"), "--limitar": ("42", "1514"),
+        "--preencher --limitar": ("60", "1514"),
+    }

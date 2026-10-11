@@ -18,8 +18,11 @@ from codigo.captura.calibrar import ler_oficial
 from codigo.captura.extrator import (
     COLUNAS,
     MAIOR_REGISTRO,
+    QUADRO_MAXIMO,
+    QUADRO_MINIMO,
     Extrator,
     agregar,
+    como_no_fio,
     extrair,
     gravar_csv,
     ler_pcap,
@@ -213,6 +216,22 @@ def test_quadros_validos_adulterados_nunca_derrubam_a_medicao(semente):
         medida = conferir_medida(1.5, quadro)
         vistos.add(None if medida is None else (medida["TCP"], medida["UDP"], medida["ARP"]))
     assert vistos == {None, (1, 0, 0), (0, 1, 0), (0, 0, 1), (0, 0, 0)}
+
+
+@pytest.mark.parametrize("semente", range(4))
+def test_quadro_como_no_fio_nunca_derruba_a_medicao(semente):
+    sorteio = random.Random(1500 + semente)
+    for _ in range(1500):
+        if sorteio.random() < 0.5:
+            quadro = bytes_com_cara_de_quadro(sorteio)
+        else:
+            quadro = adulterar(sorteio, quadro_sorteado(sorteio)) + bytes(sorteio.choice((0, 0, 2000)))
+        preencher, limitar = sorteio.random() < 0.5, sorteio.random() < 0.5
+        medida = conferir_medida(1.5, como_no_fio(quadro, preencher, limitar))
+        assert medir_quadro(1.5, quadro, None, preencher, limitar) == medida
+        if medida is not None:
+            assert not preencher or medida["Tot size"] >= QUADRO_MINIMO
+            assert not limitar or medida["Tot size"] <= QUADRO_MAXIMO
 
 
 def ip_dentro_de_ip(niveis):
