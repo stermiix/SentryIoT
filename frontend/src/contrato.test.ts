@@ -120,6 +120,7 @@ describe("regras do acoes.py que a reconstrução repete", () => {
 
   it("o formato do alvo com rótulo é o de _ALVO_COM_ROTULO", () => {
     const padrao = /^_ALVO_COM_ROTULO = re\.compile\(r"([^"]+)"\)/m.exec(fonteDasAcoes)![1];
-    expect(ALVO_COM_ROTULO.source).toBe(`^${padrao.replace(/\//g, "\\/")}$`);
+    // O construtor do RegExp escapa a barra do mesmo jeito que a expressão literal da interface.
+    expect(ALVO_COM_ROTULO.source).toBe(new RegExp(`^${padrao}$`).source);
   });
 });

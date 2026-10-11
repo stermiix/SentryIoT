@@ -65,7 +65,19 @@ function recorte(html: string, classe: string): string {
 
 /** O texto dentro de um trecho de HTML, sem as marcas e sem os comentários que o React põe entre textos. */
 function textoDe(html: string): string {
-  return html.replace(/<!-- -->/g, "").replace(/<[^>]+>/g, "").replace(/&quot;/g, '"').replace(/&#x27;/g, "'");
+  // Percorre o HTML caractere a caractere: o que está entre < e > (marcas e comentários) fica de fora.
+  let texto = "";
+  let dentroDeMarca = false;
+  for (const caractere of html) {
+    if (caractere === "<") {
+      dentroDeMarca = true;
+    } else if (caractere === ">") {
+      dentroDeMarca = false;
+    } else if (!dentroDeMarca) {
+      texto += caractere;
+    }
+  }
+  return texto.replace(/&quot;/g, '"').replace(/&#x27;/g, "'");
 }
 
 const final = agregar(base);
@@ -240,7 +252,7 @@ describe("recomendação", () => {
       }
     });
     const html = agregar(eventos).incidentes.map(detalhe).join("");
-    expect(html).not.toMatch(/<(script|img|b)[\s>]/);
+    expect(html).not.toMatch(/<(script|img|b)[\s>]/i);
     expect(html).toContain("&lt;script&gt;alert(2)&lt;/script&gt;");
     expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
     // A quebra de linha chega ao HTML; o CSS (white-space: pre-line) a mostra.
