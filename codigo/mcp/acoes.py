@@ -694,13 +694,15 @@ def _aplicar(estado, evento):
                 and dados.acao.origem == "promovida",
                 f"a proposta {proposta.id} não é de uma ação nova aplicada, com o nome {nome}",
             )
-            # O que entra no catálogo é o que a pessoa aprovou, e não uma variação com o mesmo nome.
+            # O que entra no catálogo é o que a pessoa aprovou, e não uma variação com o mesmo nome. O
+            # filtro de endereços de agora vale para os dois lados: uma promoção gravada por uma versão
+            # do filtro que deixou passar um endereço continua válida.
             try:
                 aprovada = _acao_promovida(proposta)
             except ValidationError:
                 aprovada = None
             _exigir(
-                dados.acao == aprovada,
+                aprovada is not None and _sem_enderecos_nos_textos(dados.acao) == aprovada,
                 f"a ação promovida pela proposta {proposta.id} não é a que foi aprovada e aplicada",
             )
             estado.promovidas[nome] = dados.acao
@@ -1342,6 +1344,20 @@ def promover(estado, id_proposta):
     return acao, [novo("catalogo_ampliado", Promocao(proposta=proposta.id, acao=acao), proposta.incidente)]
 
 
+def _sem_enderecos_nos_textos(acao):
+    """A ação do catálogo com o filtro de endereços aplicado aos textos que a promoção filtra."""
+    def mascarado(texto, maximo=TEXTO_LONGO):
+        return None if texto is None else mascarar_enderecos(texto)[:maximo]
+
+    return acao.model_copy(update={
+        "descricao": mascarado(acao.descricao),
+        "passos": [mascarado(passo) for passo in acao.passos],
+        "efeito_esperado": mascarado(acao.efeito_esperado),
+        "como_desfazer": mascarado(acao.como_desfazer),
+        "fonte": mascarado(acao.fonte, TEXTO_CURTO),
+    })
+
+
 def _acao_promovida(proposta):
     """A ação do catálogo que sai de uma proposta de ação nova: os passos aprovados, sempre de risco alto.
 
@@ -1350,19 +1366,15 @@ def _acao_promovida(proposta):
     marcador neutro.
     """
     detalhes = ParametrosDeAcaoNova.model_validate(proposta.parametros)
-
-    def generico(texto, maximo=TEXTO_LONGO):
-        return None if texto is None else mascarar_enderecos(texto)[:maximo]
-
-    return AcaoDoCatalogo(
+    return _sem_enderecos_nos_textos(AcaoDoCatalogo(
         nome=proposta.acao,
-        descricao=generico(detalhes.descricao),
+        descricao=detalhes.descricao,
         alvo=_ALVO_DA_PROMOVIDA,
         parametros=[],
         regra=_REGRA_DE_RISCO_ALTO,
         origem="promovida",
-        passos=[generico(passo) for passo in detalhes.passos],
-        efeito_esperado=generico(detalhes.efeito_esperado),
-        como_desfazer=generico(detalhes.como_desfazer),
-        fonte=generico(detalhes.fonte, TEXTO_CURTO),
-    )
+        passos=detalhes.passos,
+        efeito_esperado=detalhes.efeito_esperado,
+        como_desfazer=detalhes.como_desfazer,
+        fonte=detalhes.fonte,
+    ))

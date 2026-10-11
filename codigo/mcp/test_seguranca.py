@@ -213,6 +213,11 @@ Bloqueie 192.168.137.20, o IPv6 2001:db8::7, fe80::1%eth0, ::ffff:192.168.137.2 
 ## Conferir o roteador
 
 O roteador 198.51.100.4 responde em 0011.2233.4455 e em 64:ff9b::c0a8:8901.
+
+## Regra de filtro
+
+A regra usa src:2001:db8::5 e addr:fe80::1, o host192.168.137.31 aparece colado, e o MAC
+0:1b:63:84:45:e6 está na tabela ARP do Mac.
 """
 _POLITICA = carregar_politica()
 ENDERECOS_CONHECIDOS = {
@@ -231,14 +236,17 @@ def enderecos_em(texto):
             except ValueError:
                 continue
             achados.add(candidato)
-    achados.update(re.findall(r"(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}", texto))
+    achados.update(re.findall(r"(?:[0-9A-Fa-f]{1,2}[:-]){5}[0-9A-Fa-f]{1,2}", texto))
     achados.update(re.findall(r"[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}", texto))
     return achados
 
 
 def test_a_busca_de_enderecos_do_teste_acha_o_que_precisa_achar():
     assert enderecos_em("bloquear 203.0.113.7.") == {"203.0.113.7"}
-    assert enderecos_em(DOCUMENTO_COM_ENDERECOS) >= {"2001:db8::7", "fe80::1", "aa:bb:cc:dd:ee:ff", "0011.2233.4455"}
+    assert enderecos_em(DOCUMENTO_COM_ENDERECOS) >= {
+        "2001:db8::7", "fe80::1", "aa:bb:cc:dd:ee:ff", "0011.2233.4455", "c:2001:db8::5", "0:1b:63:84:45:e6",
+        "192.168.137.31",
+    }
     assert enderecos_em('{"inicio": "2026-10-20T14:03:11Z", "rotulo": "origem-1", "valor": 35778.4}') == set()
 
 

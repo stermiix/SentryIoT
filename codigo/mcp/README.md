@@ -149,10 +149,12 @@ prompt:
   incidente. O agente de decisão lê o último efeito em `obter_resumo`;
 - toda resposta à linha de decisão, inclusive a mensagem de recusa, passa por um filtro que troca
   qualquer IPv4, IPv6 ou MAC que tenha sobrado em texto livre (num documento da base, numa ação
-  promovida, no eco da consulta) por `[endereço]`. A busca é larga de propósito: um IPv4 com zero
-  à esquerda ou fora da faixa também vira o marcador. A falha é fechada: se a resposta filtrada
-  sai do contrato (um título que passa de 200 caracteres com o marcador, por exemplo), ela não é
-  entregue, e nada é gravado.
+  promovida, no eco da consulta) por `[endereço]`. A busca é larga de propósito e não olha o que
+  vem antes ou depois do endereço: um IPv4 com zero à esquerda, octal ou fora da faixa, um IPv6
+  depois de `src:` ou colado a uma letra e o MAC sem zero à esquerda também viram o marcador. As
+  buscas não retrocedem, e o custo é linear no tamanho do texto. A falha é fechada: se a resposta
+  filtrada sai do contrato (um título que passa de 200 caracteres com o marcador, por exemplo),
+  ela não é entregue, e nada é gravado.
 
 Um teste (`test_seguranca.py`) percorre todas as tools da linha de decisão, em todos os
 cenários, pelo servidor MCP, com um documento da base cheio de endereços e uma ação promovida com
@@ -482,7 +484,9 @@ com `parametros` vazio: os passos e a forma de desfazer são os do catálogo, e 
 trouxer qualquer parâmetro é recusada. A ação promovida volta a todas as sessões do agente de
 decisão, em qualquer categoria, e por isso vai ao catálogo sem endereço: o `alvo` é genérico, e
 o endereço que estiver na descrição, nos passos, no efeito, na forma de desfazer ou na fonte vira
-`[endereço]`. A reconstrução do log confere que a ação promovida é exatamente essa.
+`[endereço]`. A reconstrução do log confere que a ação promovida é exatamente essa, aplicando o
+filtro de agora aos dois lados: uma promoção gravada por uma versão do filtro que deixou passar um
+endereço continua válida.
 
 No ambiente simulado, aplicar uma ação é gravar um evento. O prazo fica registrado, mas a
 medida não expira sozinha: ela vale até ser desfeita.
@@ -810,9 +814,14 @@ O que mais fica de fora deste trabalho:
   os do momento da proposta, com a política e o incidente de então. Os tetos de propostas
   pendentes e liberadas valem na hora de propor, e a leitura do log não os confere.
 - **O filtro de endereços é uma rede de proteção, não a garantia.** A garantia é a linha de
-  decisão não ter tool que devolva endereço. O filtro pega IPv4 em quatro grupos, IPv6 com `::` ou
-  com seis ou mais dois-pontos e MAC com dois-pontos, hífen ou pontos. Não pega endereço escrito
-  como inteiro ou em hexadecimal, nome de host nem endereço por extenso em palavras.
+  decisão não ter tool que devolva endereço. O filtro pega IPv4 em quatro grupos de um a quatro
+  dígitos separados por ponto; IPv6 com `::`, com seis ou mais dois-pontos ou que `ipaddress`
+  reconhece, mesmo colado a letra ou depois de `nome:` (a letra hexadecimal colada vai junto para o
+  marcador); e MAC de seis grupos de um ou dois dígitos com dois-pontos ou hífen, ou de três grupos
+  de quatro com pontos. Não pega endereço escrito como inteiro ou em hexadecimal (`0xc0a88914`),
+  IPv4 com hífens (`ip-192-168-137-20`), MAC sem separador, nome de host nem endereço por extenso
+  em palavras. Como a busca é larga, troca também o que só parece endereço: uma versão em quatro
+  grupos (`1.2.3.4`) ou uma sequência de seis números separados por hífen.
 - **O texto da triagem e o orquestrador.** O veredito da triagem é texto livre escrito por um
   modelo local, e quem o entrega ao agente de decisão é o orquestrador, ainda não escrito. Ele
   precisa passar esse texto pelo mesmo filtro (`tipos.mascarar_enderecos`) antes de mandá-lo à

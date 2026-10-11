@@ -1232,6 +1232,28 @@ def test_acao_promovida_vai_ao_catalogo_sem_endereco(mundo):
     assert mundo.estado.promovidas["ativar_syn_cookies"] == promovida
 
 
+def test_promocao_gravada_com_filtro_mais_antigo_continua_valida(mundo):
+    # O filtro de endereços melhora com o tempo. A promoção gravada por uma versão que deixou passar
+    # um endereço (aqui, depois de "src:") continua aceita: a conferência aplica o filtro de agora aos
+    # dois lados. O que não sai do texto aprovado continua recusado.
+    aprovado = ACAO_NOVA | {"passos": ["Filtrar src:2001:db8::5 no roteador."]}
+    mundo.propor("filtrar_origem", "192.168.137.20", aprovado)
+    mundo.decidir("prop-0001")
+    mundo.executar("prop-0001")
+    referencia = Mundo()
+    referencia.eventos = list(mundo.eventos)
+    referencia.promover("prop-0001")
+    promocao = dados_de(referencia, "catalogo_ampliado")
+    gravada_antes = promocao | {"acao": promocao["acao"] | {"passos": ["Filtrar src:2001:db8::5 no roteador."]}}
+    outro = Mundo()
+    outro.eventos = list(mundo.eventos)
+    outro.aplicar([novo("catalogo_ampliado", gravada_antes, "inc-0001")])
+    assert list(outro.estado.promovidas) == ["filtrar_origem"]
+    trocada = promocao | {"acao": promocao["acao"] | {"passos": ["Filtrar [endereço] e desligar o firewall."]}}
+    mundo.aplicar([novo("catalogo_ampliado", trocada, "inc-0001")])
+    violacao(mundo, "catalogo_ampliado", "aprovada")
+
+
 def test_resumo_do_incidente_tem_rotulos_e_nenhum_endereco():
     mundo = Mundo(incidente=INCIDENTE_COM_VARIAS_ORIGENS)
     resumo = resumo_do_incidente(mundo.estado, mundo.politica, "inc-0001")
