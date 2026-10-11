@@ -1,30 +1,40 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import ControleDoReplay from "./components/ControleDoReplay";
 import DetalheDoIncidente from "./components/DetalheDoIncidente";
 import FilaDeIncidentes from "./components/FilaDeIncidentes";
+import LimiteDeErro from "./components/LimiteDeErro";
 import ResumoMetricas from "./components/ResumoMetricas";
-import { agregar, carregarLog } from "./log";
-import type { IncidenteView, ResumoGeral } from "./types";
+import { type Agregado, agregar, carregarLog } from "./log";
+import type { Evento } from "./types";
 
-export default function App() {
-  const [resumo, setResumo] = useState<ResumoGeral | null>(null);
-  const [incidentes, setIncidentes] = useState<IncidenteView[]>([]);
-  const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
-  const [carregando, setCarregando] = useState(true);
+export interface PropsDaPagina {
+  eventos: Evento[];
+  avisos: string[];
+  passo: number;
+  onMudarPasso: (passo: number) => void;
+  selecionadoId: string | null;
+  onSelecionar: (id: string) => void;
+  carregando: boolean;
+  erro: string | null;
+}
 
-  useEffect(() => {
-    carregarLog()
-      .then((eventos) => {
-        const agregado = agregar(eventos);
-        setResumo(agregado.resumo);
-        setIncidentes(agregado.incidentes);
-        setSelecionadoId(agregado.incidentes[0]?.id ?? null);
-      })
-      .catch((erroCarregado: Error) => setErro(erroCarregado.message))
-      .finally(() => setCarregando(false));
-  }, []);
-
-  const selecionado = incidentes.find((view) => view.id === selecionadoId) ?? null;
+/**
+ * A página, desenhada a partir dos eventos e do passo do replay. Não guarda estado nem busca o
+ * log: isso fica no `App`, e esta parte pode ser desenhada nos testes em qualquer passo.
+ */
+export function Pagina({ eventos, avisos, passo, onMudarPasso, selecionadoId, onSelecionar, carregando, erro }: PropsDaPagina) {
+  // O estado das telas é o dos eventos até o passo atual do replay.
+  const agregado = useMemo((): { valor: Agregado } | { falha: string } => {
+    try {
+      return { valor: agregar(eventos.slice(0, passo)) };
+    } catch (falha) {
+      return { falha: (falha as Error).message };
+    }
+  }, [eventos, passo]);
+  const resumo = "valor" in agregado ? agregado.valor.resumo : null;
+  const incidentes = "valor" in agregado ? agregado.valor.incidentes : [];
+  // Se o incidente escolhido ainda não abriu neste passo, o detalhe mostra o primeiro da fila.
+  const selecionado = incidentes.find((view) => view.id === selecionadoId) ?? incidentes[0] ?? null;
 
   return (
     <div className="shell">
@@ -71,23 +81,73 @@ export default function App() {
             </div>
           </section>
 
-          {erro && <div className="error-banner"><strong>Não foi possível abrir o replay.</strong><span>{erro}</span></div>}
+          {erro && <div className="error-banner" role="alert"><strong>Não foi possível abrir o replay.</strong><span>{erro}</span></div>}
+          {"falha" in agregado && <div className="error-banner" role="alert"><strong>Não foi possível montar o replay.</strong><span>{agregado.falha}</span></div>}
+          {avisos.length > 0 && (
+            <div className="warning-banner" role="status">
+              <strong>O log tem {avisos.length} aviso(s). A tela mostra só o que passou na conferência.</strong>
+              <ul>{avisos.map((aviso, indice) => <li key={indice}>{aviso}</li>)}</ul>
+            </div>
+          )}
           {carregando && <div className="loading-state">Carregando execução demonstrativa…</div>}
-          {resumo && (
+          {!carregando && !erro && eventos.length > 0 && <ControleDoReplay eventos={eventos} passo={passo} onMudar={onMudarPasso} />}
+          {!carregando && !erro && resumo && (
             <>
               <ResumoMetricas resumo={resumo} incidentes={incidentes} />
               <div className="section-heading">
                 <div><h2>Fila de incidentes</h2><p>Alertas agrupados para análise e resposta</p></div>
                 <span className="table-count">{incidentes.length} incidente{incidentes.length === 1 ? "" : "s"}</span>
               </div>
-              <FilaDeIncidentes resumo={resumo} incidentes={incidentes} selecionadoId={selecionadoId} onSelecionar={setSelecionadoId} />
+              <LimiteDeErro parte="a fila de incidentes" chave={String(passo)}>
+                <FilaDeIncidentes resumo={resumo} incidentes={incidentes} selecionadoId={selecionado?.id ?? null} onSelecionar={onSelecionar} />
+              </LimiteDeErro>
             </>
           )}
-          {selecionado && <DetalheDoIncidente incidente={selecionado} />}
+          {selecionado && (
+            <LimiteDeErro parte={`o detalhe do incidente ${selecionado.id}`} chave={`${selecionado.id}:${passo}`}>
+              <DetalheDoIncidente key={selecionado.id} incidente={selecionado} />
+            </LimiteDeErro>
+          )}
 
           <footer className="page-footer"><span>SentryIoT <span className="footer-separator">·</span> TCC II FCI Mackenzie</span><span>Protótipo em modo replay · dados ilustrativos</span></footer>
         </div>
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  const [eventos, setEventos] = useState<Evento[]>([]);
+  const [avisos, setAvisos] = useState<string[]>([]);
+  const [passo, setPasso] = useState(0);
+  const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    carregarLog()
+      .then((lido) => {
+        // Os avisos valem para o log inteiro; o replay começa no estado final.
+        const final = agregar(lido.eventos);
+        setEventos(lido.eventos);
+        setAvisos([...lido.avisos, ...final.avisos]);
+        setPasso(lido.eventos.length);
+        setSelecionadoId(final.incidentes[0]?.id ?? null);
+      })
+      .catch((erroCarregado: Error) => setErro(erroCarregado.message))
+      .finally(() => setCarregando(false));
+  }, []);
+
+  return (
+    <Pagina
+      eventos={eventos}
+      avisos={avisos}
+      passo={passo}
+      onMudarPasso={setPasso}
+      selecionadoId={selecionadoId}
+      onSelecionar={setSelecionadoId}
+      carregando={carregando}
+      erro={erro}
+    />
   );
 }

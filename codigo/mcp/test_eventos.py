@@ -1,4 +1,6 @@
 import json
+import os
+import stat
 import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -21,7 +23,7 @@ from codigo.mcp.tipos import TIPOS_DE_EVENTO, ChamadaDeLLM, Recomendacao
 
 RAIZ = Path(__file__).resolve().parents[2]
 INICIO = datetime(2026, 10, 20, 14, 3, 41, tzinfo=UTC)
-LOTE = {"janelas": 450, "por_categoria": {"DoS": 412, "Benign": 38}}
+LOTE = {"janelas": 450, "por_categoria": {"DDoS+DoS": 412, "Benign": 38}}
 CHAMADA = {
     "agente": "triagem", "modelo": "modelo-de-exemplo", "tokens_entrada": 812, "tokens_saida": 164,
     "duracao_ms": 2300.0,
@@ -100,6 +102,37 @@ def test_cria_a_pasta_do_log(tmp_path):
     caminho = tmp_path / "pasta" / "nova" / "eventos.jsonl"
     Registro(caminho).gravar(novo("janelas_classificadas", LOTE))
     assert len(ler(caminho)) == 1
+
+
+def test_log_novo_so_e_lido_e_escrito_pelo_dono(tmp_path):
+    # O log traz endereços, alvos e contas da rede. Com a umask comum (022), ele nasceria legível por todos.
+    antiga = os.umask(0o022)
+    try:
+        caminho = tmp_path / "pasta" / "eventos.jsonl"
+        Registro(caminho).gravar(novo("janelas_classificadas", LOTE))
+    finally:
+        os.umask(antiga)
+    assert stat.S_IMODE(caminho.stat().st_mode) == 0o600
+    assert stat.S_IMODE(caminho.parent.stat().st_mode) == 0o700
+
+
+@pytest.mark.skipif(not hasattr(os, "O_NOFOLLOW"), reason="o sistema não tem O_NOFOLLOW")
+def test_log_que_e_link_simbolico_nao_e_seguido(tmp_path):
+    destino = tmp_path / "outro_arquivo.jsonl"
+    caminho = tmp_path / "eventos.jsonl"
+    # Link pendente: antes, o destino era criado e recebia o log.
+    caminho.symlink_to(destino)
+    with pytest.raises(OSError, match="link simbólico"):
+        Registro(caminho).gravar(novo("janelas_classificadas", LOTE))
+    assert not destino.exists()
+    # Link para um arquivo que existe também não é seguido, nem para ler.
+    Registro(destino).gravar(novo("janelas_classificadas", LOTE))
+    antes = destino.read_bytes()
+    with pytest.raises(OSError, match="link simbólico"):
+        Registro(caminho).gravar(novo("janelas_classificadas", LOTE))
+    with pytest.raises(OSError, match="link simbólico"):
+        ler(caminho)
+    assert destino.read_bytes() == antes
 
 
 def test_ler_arquivo_que_nao_existe_devolve_lista_vazia(tmp_path):
@@ -263,6 +296,107 @@ def test_cada_evento_ocupa_uma_linha_para_qualquer_leitor(registro):
     assert registro.ler()[0].dados.argumentos == {"x": texto}
 
 
+# --- o log é conferido como sequência ---------------------------------------------------------
+
+INCIDENTE = DADOS_POR_TIPO["incidente_aberto"]
+
+
+def linhas_de(registro):
+    return registro.caminho.read_text(encoding="utf-8").splitlines(keepends=True)
+
+
+def regravar(registro, linhas):
+    registro.caminho.write_text("".join(linhas), encoding="utf-8")
+
+
+def com(linha, **trocas):
+    return json.dumps(json.loads(linha) | trocas, ensure_ascii=False) + "\n"
+
+
+def gravar_tres(registro):
+    registro.gravar(novo("janelas_classificadas", LOTE))
+    registro.gravar(novo("incidente_aberto", INCIDENTE, "inc-0001"))
+    registro.gravar(novo("llm_chamada", CHAMADA, "inc-0001"))
+    return linhas_de(registro)
+
+
+@pytest.mark.parametrize("mexer,linha,trecho", [
+    # Uma linha apagada no meio: a seguinte fica com o identificador fora da posição.
+    (lambda linhas: [linhas[0], linhas[2]], 2, "ev-000003"),
+    # Duas linhas trocadas de lugar.
+    (lambda linhas: [linhas[0], linhas[2], linhas[1]], 2, "ev-000003"),
+    # A mesma linha duas vezes.
+    (lambda linhas: [*linhas, linhas[2]], 4, "ev-000003"),
+    # Identificador que pula um número.
+    (lambda linhas: [*linhas[:2], com(linhas[2], id="ev-000004")], 3, "ev-000004"),
+    (lambda linhas: [*linhas[:2], com(linhas[2], id="evento-3")], 3, "evento-3"),
+], ids=["linha apagada", "linhas fora de ordem", "linha repetida", "identificador que pula", "identificador fora do formato"])
+def test_identificador_do_evento_e_a_posicao_dele_no_arquivo(registro, mexer, linha, trecho):
+    regravar(registro, mexer(gravar_tres(registro)))
+    with pytest.raises(LogInvalido) as captura:
+        registro.ler()
+    mensagem = str(captura.value)
+    assert f"eventos.jsonl, linha {linha}: " in mensagem and trecho in mensagem and "identificador" in mensagem
+    # Com o arquivo assim, nada novo é gravado.
+    antes = registro.caminho.read_bytes()
+    with pytest.raises(LogInvalido):
+        registro.gravar(novo("janelas_classificadas", LOTE))
+    assert registro.caminho.read_bytes() == antes
+
+
+def test_instante_do_evento_nao_volta_no_tempo(registro):
+    linhas = gravar_tres(registro)
+    regravar(registro, [*linhas[:2], com(linhas[2], instante="2026-10-20T14:03:40Z")])
+    with pytest.raises(LogInvalido, match=r"linha 3: .*instante"):
+        registro.ler()
+    # Instante igual ao anterior vale: eventos gravados juntos têm o mesmo instante.
+    regravar(registro, [*linhas[:2], com(linhas[2], instante=json.loads(linhas[1])["instante"])])
+    assert len(registro.ler()) == 3
+
+
+def test_relogio_que_volta_no_tempo_nao_estraga_o_log(tmp_path):
+    instantes = iter([INICIO, INICIO + timedelta(minutes=5), INICIO - timedelta(hours=1)])
+    registro = Registro(tmp_path / "eventos.jsonl", relogio=lambda: next(instantes))
+    for _ in range(3):
+        registro.gravar(novo("janelas_classificadas", LOTE))
+    # O relógio da máquina pode ser acertado para trás. O evento novo fica com o instante do anterior.
+    depois = INICIO + timedelta(minutes=5)
+    assert [evento.instante for evento in registro.ler()] == [INICIO, depois, depois]
+
+
+@pytest.mark.parametrize("tipo,dados", [
+    ("incidente_aberto", INCIDENTE),
+    ("incidente_atualizado", INCIDENTE),
+    ("incidente_encerrado", DADOS_POR_TIPO["incidente_encerrado"]),
+    ("acao_proposta", DADOS_POR_TIPO["acao_proposta"]),
+    ("acao_executada", DADOS_POR_TIPO["acao_executada"]),
+    ("acao_desfeita", DADOS_POR_TIPO["acao_desfeita"]),
+    ("efeito_verificado", DADOS_POR_TIPO["efeito_verificado"]),
+    ("incidente_marcado_resolvido", DADOS_POR_TIPO["incidente_marcado_resolvido"]),
+])
+def test_incidente_do_evento_e_o_mesmo_dos_dados(registro, tipo, dados):
+    # O campo incidente do evento é o que a interface usa para montar o rastro de cada incidente.
+    registro.gravar(novo(tipo, dados, "inc-0001"))
+    antes = registro.caminho.read_bytes()
+    for outro in ("inc-0002", None):
+        # O gravador não grava o evento que o leitor recusaria.
+        with pytest.raises(ValueError, match="não pode ser gravado"):
+            registro.gravar(novo(tipo, dados, outro))
+        assert registro.caminho.read_bytes() == antes
+    # Escrito por fora, o evento deixa o log inválido.
+    linha = linhas_de(registro)[0]
+    regravar(registro, [linha, com(linha, id="ev-000002", incidente="inc-0002")])
+    with pytest.raises(LogInvalido, match=r"linha 2: .*inc-0002.*inc-0001"):
+        registro.ler()
+
+
+def test_a_numeracao_segue_o_ultimo_identificador_do_arquivo(registro):
+    registro.gravar(novo("janelas_classificadas", LOTE))
+    with open(registro.caminho, "a", encoding="utf-8") as arquivo:
+        arquivo.write("\n\n")
+    assert [evento.id for evento in registro.gravar(novo("janelas_classificadas", LOTE))] == ["ev-000002"]
+
+
 # --- o que o código dos agentes grava --------------------------------------------------------
 
 
@@ -274,6 +408,7 @@ def gravador(registro):
 def test_gravador_do_agente_grava_chamada_ao_modelo_e_recomendacao(gravador, registro):
     assert TIPOS_DO_AGENTE == ("llm_chamada", "recomendacao_emitida")
     assert (gravador.agente, gravador.caminho) == ("decisao", registro.caminho)
+    registro.gravar(novo("incidente_aberto", INCIDENTE, "inc-0001"))
     chamada = CHAMADA | {"agente": "decisao"}
     recomendacao = {"agente": "decisao", "texto": "Bloquear a origem.\n\nSe não resolver, limitar a taxa.", "propostas": []}
     gravados = gravador.gravar(novo("llm_chamada", chamada, "inc-0001"))
@@ -282,9 +417,11 @@ def test_gravador_do_agente_grava_chamada_ao_modelo_e_recomendacao(gravador, reg
         novo("llm_chamada", ChamadaDeLLM.model_validate(chamada), "inc-0001"),
     )
     assert [(evento.id, evento.tipo) for evento in gravados] == [
-        ("ev-000001", "llm_chamada"), ("ev-000002", "recomendacao_emitida"), ("ev-000003", "llm_chamada"),
+        ("ev-000002", "llm_chamada"), ("ev-000003", "recomendacao_emitida"), ("ev-000004", "llm_chamada"),
     ]
-    assert gravados == registro.ler()
+    assert gravados == registro.ler()[1:]
+    # A chamada ao modelo fora de um incidente não precisa de incidente.
+    assert gravador.gravar(novo("llm_chamada", chamada))[0].incidente is None
 
 
 @pytest.mark.parametrize("tipo", [tipo for tipo in TIPOS_DE_EVENTO if tipo not in ("llm_chamada", "recomendacao_emitida")])
@@ -294,7 +431,7 @@ def test_gravador_do_agente_recusa_todos_os_outros_eventos(gravador, registro, t
         gravador.gravar(novo(tipo, DADOS_POR_TIPO[tipo], "inc-0001"))
     # Um evento permitido no mesmo lote também não entra.
     with pytest.raises(ValueError, match=tipo):
-        gravador.gravar(novo("llm_chamada", CHAMADA | {"agente": "decisao"}, "inc-0001"), novo(tipo, DADOS_POR_TIPO[tipo]))
+        gravador.gravar(novo("llm_chamada", CHAMADA | {"agente": "decisao"}), novo(tipo, DADOS_POR_TIPO[tipo]))
     assert registro.ler() == []
 
 
@@ -306,6 +443,31 @@ def test_gravador_so_grava_em_nome_do_proprio_agente(gravador, registro):
     with pytest.raises(ValueError, match="agente desconhecido"):
         GravadorDoAgente("detector", registro.caminho)
     assert registro.ler() == []
+
+
+def test_gravador_nao_grava_em_incidente_que_nao_existe(gravador, registro):
+    # O custo por incidente sai destes eventos: um incidente inventado distorceria a medida.
+    registro.gravar(novo("incidente_aberto", INCIDENTE, "inc-0001"))
+    chamada = CHAMADA | {"agente": "decisao", "tokens_entrada": 10**9}
+    recomendacao = {"agente": "decisao", "texto": "Bloquear a origem.", "propostas": []}
+    for rascunho in (novo("llm_chamada", chamada, "inc-9999"), novo("recomendacao_emitida", recomendacao, "inc-9999")):
+        with pytest.raises(ValueError, match="inc-9999"):
+            gravador.gravar(rascunho)
+    assert [evento.tipo for evento in registro.ler()] == ["incidente_aberto"]
+
+
+def test_recomendacao_so_cita_proposta_do_proprio_incidente(gravador, registro):
+    registro.gravar(
+        novo("incidente_aberto", INCIDENTE, "inc-0001"),
+        novo("incidente_aberto", INCIDENTE | {"id": "inc-0002"}, "inc-0002"),
+        novo("acao_proposta", DADOS_POR_TIPO["acao_proposta"], "inc-0001"),
+    )
+    recomendacao = {"agente": "decisao", "texto": "Bloquear a origem.", "propostas": ["prop-0001"]}
+    for incidente in ("inc-0002", None):
+        with pytest.raises(ValueError, match="prop-0001.*inc-0001"):
+            gravador.gravar(novo("recomendacao_emitida", recomendacao, incidente))
+    gravador.gravar(novo("recomendacao_emitida", recomendacao, "inc-0001"))
+    assert registro.ler()[-1].tipo == "recomendacao_emitida"
 
 
 def test_recomendacao_so_cita_proposta_que_existe_no_log(gravador, registro):

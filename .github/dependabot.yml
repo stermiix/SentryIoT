@@ -3,9 +3,18 @@
 # da mensagem ("bump X from A to B") e gerado pelo Dependabot e nao se traduz.
 version: 2
 updates:
-  # Bibliotecas Python do requirements.txt (passa a valer quando ele existir).
+  # Bibliotecas Python do requirements.txt.
   - package-ecosystem: pip
     directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "Atualiza dependencia"
+
+  # Pacotes do frontend (package.json e package-lock.json).
+  - package-ecosystem: npm
+    directory: /frontend
     schedule:
       interval: weekly
     open-pull-requests-limit: 3

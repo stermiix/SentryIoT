@@ -1,11 +1,19 @@
 import asyncio
 import json
+import re
+import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from codigo.mcp.acoes import PedidoRecusado, decidir, promover, reconstruir
+from codigo.mcp.acoes import (
+    PedidoRecusado,
+    decidir,
+    marcar_resolvido,
+    promover,
+    reconstruir,
+)
 from codigo.mcp.cenarios import CENARIOS
 from codigo.mcp.eventos import LogInvalido, Registro
 from codigo.mcp.stub import Stub, criar_servidor, main
@@ -26,6 +34,7 @@ SAIDA = {tool.nome: tool.saida for tool in TOOLS}
 POR_NOME = {cenario.nome: cenario for cenario in CENARIOS}
 # Uma ação de risco baixo e uma de risco alto para o alvo de cada cenário.
 BLOQUEIO = {"acao": "bloquear_ip", "parametros": {"duracao": 10}, "justificativa": "Origem do tráfego."}
+LIMITE = {"acao": "limitar_taxa", "parametros": {"duracao": 10}, "justificativa": "Origem do tráfego."}
 ISOLAMENTO = {"acao": "isolar_dispositivo", "parametros": {}, "justificativa": "Dispositivo sob ataque."}
 SYN_COOKIES = {"acao": "ativar_syn_cookies", "parametros": ACAO_NOVA, "justificativa": "O bloqueio não resolveu."}
 
@@ -48,7 +57,7 @@ def registro(tmp_path):
 
 @pytest.fixture
 def stub(registro):
-    stub = Stub(registro)
+    stub = Stub(registro, agente="todos")
     stub.abrir_incidentes()
     return stub
 
@@ -106,12 +115,12 @@ def test_abrir_incidentes_grava_o_lote_e_a_abertura_de_cada_cenario(stub):
 
 def test_incidente_ja_aberto_no_log_nao_e_aberto_de_novo(stub, registro):
     stub.abrir_incidentes()
-    Stub(registro).abrir_incidentes()
+    Stub(registro, agente="todos").abrir_incidentes()
     assert len(registro.ler()) == 8
 
 
 def test_stub_pode_abrir_so_alguns_cenarios(registro):
-    stub = Stub(registro, cenarios=[POR_NOME["varredura"]])
+    stub = Stub(registro, agente="todos", cenarios=[POR_NOME["varredura"]])
     stub.abrir_incidentes()
     assert [evento.incidente for evento in registro.ler()] == [None, "inc-0003"]
     assert chamar(stub, "obter_incidente", id="inc-0003").categoria == "Recon"
@@ -140,19 +149,21 @@ def test_cada_tool_devolve_dados_validos_pelo_contrato(stub, cenario):
     solucoes = chamar(stub, "pesquisar_solucoes", consulta="limitar taxa de pacotes")
     assert solucoes.fonte == "base_local" and solucoes.trechos
 
-    proposta = chamar(stub, "propor_acao", id=identificador, alvo=incidente.origens[0].endereco, **BLOQUEIO)
+    # A origem do falso positivo é a câmera, da rede local: bloqueá-la é de risco alto, e limitar a taxa não.
+    acao, grupo = (LIMITE, "limites") if cenario.nome == "falso_positivo" else (BLOQUEIO, "bloqueios")
+    proposta = chamar(stub, "propor_acao", id=identificador, alvo=incidente.origens[0].endereco, **acao)
     assert (proposta.incidente, proposta.risco, proposta.exige_aprovacao) == (identificador, "baixo", False)
 
     execucao = chamar(stub, "executar_acao", id_proposta=proposta.id)
     assert (execucao.proposta, execucao.estado) == (proposta.id, "aplicada")
-    assert chamar(stub, "consultar_estado").bloqueios == [execucao]
+    assert getattr(chamar(stub, "consultar_estado"), grupo) == [execucao]
 
     efeito = chamar(stub, "verificar_efeito", id_execucao=execucao.id)
     assert (efeito.execucao, efeito.incidente, efeito.resultado) == (execucao.id, identificador, cenario.efeitos[0])
 
     desfeita = chamar(stub, "desfazer_acao", id_execucao=execucao.id)
     assert desfeita.estado == "desfeita"
-    assert chamar(stub, "consultar_estado").bloqueios == []
+    assert getattr(chamar(stub, "consultar_estado"), grupo) == []
 
 
 def test_mitigacoes_recomendadas_vem_da_base_local_com_a_acao_do_catalogo(stub):
@@ -301,8 +312,8 @@ def test_bloquear_o_destino_do_incidente_exige_aprovacao_e_limitar_a_taxa_dele_n
 def test_resposta_de_propor_acao_e_o_log_dizem_por_que_o_risco_e_alto(stub):
     antes = len(stub.registro.ler())
     proposta = chamar(stub, "propor_acao", id="inc-0003", alvo="192.168.137.1", **BLOQUEIO | {"parametros": {}})
-    # Na varredura, o gateway é um dos destinos. Bloqueio sem prazo, do destino, em endereço protegido.
-    esperados = ["prazo_acima_do_limite", "alvo_e_destino_do_incidente", "alvo_protegido"]
+    # Na varredura, o gateway é um dos destinos. Bloqueio sem prazo, do destino, na rede local, em endereço protegido.
+    esperados = ["prazo_acima_do_limite", "alvo_e_destino_do_incidente", "alvo_na_rede_local", "alvo_protegido"]
     assert [motivo.codigo for motivo in proposta.motivos_de_risco_alto] == esperados
     assert [motivo.descricao for motivo in proposta.motivos_de_risco_alto] == [MOTIVOS_DE_RISCO_ALTO[c] for c in esperados]
 
@@ -377,6 +388,19 @@ def test_incidente_encerrado_nao_recebe_proposta(stub):
         assert "inc-0002" in mensagem
     # O que já estava aplicado continua podendo ser desfeito.
     assert chamar(stub, "desfazer_acao", id_execucao=execucao.id).estado == "desfeita"
+
+
+def test_incidente_marcado_como_ja_resolvido_nao_recebe_nem_executa_proposta(stub):
+    bloqueio = chamar(stub, "propor_acao", id="inc-0002", alvo="198.51.100.23", **BLOQUEIO)
+    isolamento = chamar(stub, "propor_acao", id="inc-0002", alvo="192.168.137.31", **ISOLAMENTO)
+    aprovar(stub, isolamento.id)
+    stub.registro.atualizar(lambda eventos: marcar_resolvido(reconstruir(eventos), "inc-0002", usuario="maria"))
+    for id_proposta in (bloqueio.id, isolamento.id):
+        assert "já resolvido" in recusado(stub, "incidente_ja_resolvido", "executar_acao", id_proposta=id_proposta)
+    recusado(stub, "incidente_ja_resolvido", "propor_acao", id="inc-0002", alvo="198.51.100.23", **BLOQUEIO)
+    assert chamar(stub, "consultar_estado").bloqueios == []
+    # Os outros incidentes seguem.
+    assert chamar(stub, "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO).estado == "liberada"
 
 
 # --- efeito das ações, pelo roteiro do cenário -----------------------------------------------
@@ -540,9 +564,9 @@ def test_cada_chamada_de_tool_fica_no_log_com_argumentos_resumo_e_duracao(stub):
     assert [evento.incidente for evento in chamadas] == ["inc-0002", "inc-0002"]
     primeira, segunda = (evento.dados for evento in chamadas)
     assert (primeira.agente, primeira.nome, primeira.argumentos) == (None, "obter_incidente", {"id": "inc-0002"})
-    assert primeira.resultado == {"estado": "aberto", "categoria": "BruteForce", "confianca": 0.91, "janelas": 180}
+    assert primeira.resultado == {"estado": "aberto", "categoria": "BruteForce", "confianca": 0.91, "janelas": 18}
     assert (segunda.nome, segunda.argumentos) == ("obter_janelas", {"id": "inc-0002", "limite": 3})
-    assert segunda.resultado == {"janelas": 3, "total": 180}
+    assert segunda.resultado == {"janelas": 3, "total": 18}
     # O relógio de teste avança 5 ms a cada leitura, e a chamada lê o relógio no começo e no fim.
     assert primeira.duracao_ms == segunda.duracao_ms == 5.0
 
@@ -610,7 +634,7 @@ def test_log_de_um_incidente_inteiro_e_valido_e_a_leitura_reconstroi_a_sequencia
 
 def test_dois_processos_sobre_o_mesmo_log_enxergam_o_mesmo_estado(stub, registro):
     proposta = chamar(stub, "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO)
-    outro = Stub(Registro(registro.caminho))
+    outro = Stub(Registro(registro.caminho), agente="todos")
     execucao = chamar(outro, "executar_acao", id_proposta=proposta.id)
     assert chamar(stub, "consultar_estado").bloqueios == [execucao]
 
@@ -685,6 +709,33 @@ def test_acao_nova_enorme_e_recusada_e_fica_resumida_no_log(stub):
     assert len(gravado["parametros"]) == 21
 
 
+def test_argumentos_no_log_tem_teto_em_bytes_no_total(stub):
+    # Cada item cabe no corte por item (2.000 caracteres, 20 itens, 4 níveis), mas o total passava de 16 MB.
+    enorme = {f"chave_{i}": {f"sub_{j}": ["x" * 2_000] * 20 for j in range(20)} for i in range(20)}
+    antes = stub.registro.caminho.stat().st_size
+    _, gravado = recusa_resumida(
+        stub, "argumentos_invalidos", "propor_acao", id="inc-0001", acao="bloquear_ip", alvo="203.0.113.7",
+        parametros=enorme, justificativa="j",
+    )
+    assert stub.registro.caminho.stat().st_size - antes < 10_000
+    assert len(json.dumps(gravado, ensure_ascii=False).encode()) <= 8 * 1024
+    # O que cabe fica como veio; o que não cabe vira a marca, com o tamanho cortado.
+    assert (gravado["id"], gravado["acao"], gravado["alvo"], gravado["justificativa"]) == (
+        "inc-0001", "bloquear_ip", "203.0.113.7", "j",
+    )
+    assert gravado["parametros"].startswith("[cortado: ") and gravado["parametros"].endswith(" bytes]")
+
+
+def test_chamada_atendida_com_argumentos_grandes_fica_inteira_na_proposta(stub):
+    longa = ACAO_NOVA | {"passos": ["P" * 2_000] * 20}
+    proposta = chamar(stub, "propor_acao", id="inc-0001", acao="ativar_syn_cookies", alvo="192.168.137.20",
+                      parametros=longa, justificativa="O bloqueio não resolveu.")
+    chamada, gravada = stub.registro.ler()[-2:]
+    assert len(json.dumps(chamada.dados.argumentos, ensure_ascii=False).encode()) <= 8 * 1024
+    assert "cortado" in chamada.dados.argumentos["parametros"]
+    assert gravada.dados == proposta and proposta.parametros["passos"] == longa["passos"]
+
+
 def aninhado(niveis):
     valor = atual = {}
     for _ in range(niveis):
@@ -734,16 +785,33 @@ def test_nome_de_argumento_que_veio_de_fora_entra_escapado_na_mensagem(stub):
 
 
 def acrescentar(stub, tipo, dados, incidente="inc-0001"):
-    """Escreve uma linha no arquivo do log por fora do sistema, como um `echo >>` faria."""
-    linha = {"id": "ev-999999", "instante": "1999-01-01T00:00:00Z", "tipo": tipo, "incidente": incidente, "dados": dados}
+    """Escreve uma linha no arquivo do log por fora do sistema, como um `echo >>` faria.
+
+    A linha vem bem formada: com o identificador seguinte e o instante do último evento, como faria
+    quem conhece o formato e quer que ela passe pela conferência da sequência.
+    """
+    anteriores = stub.registro.ler()
+    linha = {
+        "id": f"ev-{len(anteriores) + 1:06d}", "instante": anteriores[-1].instante.isoformat(), "tipo": tipo,
+        "incidente": incidente, "dados": dados,
+    }
     with open(stub.registro.caminho, "a", encoding="utf-8") as arquivo:
         arquivo.write(json.dumps(linha, ensure_ascii=False) + "\n")
 
 
 def repetir_linha(stub, tipo):
-    linhas = stub.registro.caminho.read_text(encoding="utf-8").splitlines()
+    """Escreve de novo, no fim do arquivo, o primeiro evento do tipo, com o identificador seguinte."""
+    evento = next(evento for evento in stub.registro.ler() if evento.tipo == tipo)
+    acrescentar(stub, tipo, evento.dados.model_dump(mode="json"), evento.incidente)
+
+
+def test_linha_repetida_como_estava_e_pega_pelo_identificador(stub):
+    proposta = chamar(stub, "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO)
+    chamar(stub, "executar_acao", id_proposta=proposta.id)
+    linhas = stub.registro.caminho.read_text(encoding="utf-8").splitlines(keepends=True)
     with open(stub.registro.caminho, "a", encoding="utf-8") as arquivo:
-        arquivo.write(next(linha for linha in linhas if f'"tipo":"{tipo}"' in linha) + "\n")
+        arquivo.write(next(linha for linha in linhas if '"tipo":"acao_proposta"' in linha))
+    log_invalido(stub, "identificador")
 
 
 def log_invalido(stub, *trechos):
@@ -762,7 +830,7 @@ def log_invalido(stub, *trechos):
 
 PROPOSTA_FORJADA = {
     "id": "prop-0001", "incidente": "inc-0001", "acao": "isolar_dispositivo", "alvo": "192.168.137.1",
-    "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
+    "alvo_com_rotulo": None, "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
     "motivos_de_risco_alto": [
         {"codigo": codigo, "descricao": MOTIVOS_DE_RISCO_ALTO[codigo]}
         for codigo in ("acao_sempre_de_risco_alto", "alvo_fora_do_incidente", "alvo_protegido")
@@ -807,7 +875,7 @@ def test_linha_de_aprovacao_repetida_nao_executa_de_novo(stub):
 
 
 def test_evento_que_cita_proposta_inexistente_e_erro_com_a_linha_e_nao_keyerror(stub, capsys):
-    acrescentar(stub, "acao_aprovada", {"proposta": "prop-0007", "canal": "interface", "motivo": None})
+    acrescentar(stub, "acao_aprovada", {"proposta": "prop-0007", "canal": "interface", "usuario": "maria", "motivo": None})
     log_invalido(stub, "linha 9", "acao_aprovada", "prop-0007", "não existe")
     # A linha de comando do stub explica e não sobe o servidor.
     assert main(["--log", str(stub.registro.caminho), "--agente", "todos"]) == 1
@@ -846,6 +914,10 @@ def test_stub_de_um_agente_registra_quem_chamou(registro):
     ("triagem", "executar_acao", {"id_proposta": "prop-0001"}),
     ("decisao", "executar_acao", {"id_proposta": "prop-0001"}),
     ("decisao", "obter_janelas", {"id": "inc-0001", "limite": 5}),
+    # O agente de decisão lê o resumo sem endereço, e não o incidente; e não verifica efeito, que muda o incidente.
+    ("decisao", "obter_incidente", {"id": "inc-0001"}),
+    ("decisao", "verificar_efeito", {"id_execucao": "exec-0001"}),
+    ("triagem", "obter_resumo", {"id": "inc-0001"}),
     ("execucao", "propor_acao", {"id": "inc-0001", "alvo": "203.0.113.7"} | BLOQUEIO),
     ("execucao", "obter_incidente", {"id": "inc-0001"}),
     ("execucao", "pesquisar_solucoes", {"consulta": "syn"}),
@@ -858,9 +930,103 @@ def test_agente_nao_chama_tool_de_outra_linha(registro, agente, tool, argumentos
     assert registro.ler()[-1].dados.agente == agente
 
 
+# --- linha de decisão: rótulos neutros, nunca endereço ----------------------------------------
+
+
+def stubs_das_tres_linhas(registro):
+    triagem, decisao, execucao = (Stub(registro, agente=agente) for agente in ("triagem", "decisao", "execucao"))
+    triagem.abrir_incidentes()
+    return triagem, decisao, execucao
+
+
+def test_decisao_le_o_resumo_e_propoe_com_rotulo_que_o_servidor_resolve(registro):
+    _, decisao, execucao = stubs_das_tres_linhas(registro)
+    resumo = chamar(decisao, "obter_resumo", id="inc-0001")
+    assert [item.rotulo for item in resumo.origens] == [f"origem-{numero}" for numero in range(1, 6)]
+    assert [item.rotulo for item in resumo.destinos] == ["destino-1"]
+
+    proposta = chamar(decisao, "propor_acao", id="inc-0001", alvo="origem-1", **BLOQUEIO)
+    # O que volta ao agente de decisão mostra o rótulo; o log guarda os dois.
+    assert (proposta.alvo, proposta.alvo_com_rotulo, proposta.risco) == ("origem-1", "origem-1", "baixo")
+    gravada = registro.ler()[-1].dados
+    assert (gravada.alvo, gravada.alvo_com_rotulo) == ("203.0.113.7", "origem-1")
+    # O agente de execução, local, aplica sobre o endereço real.
+    assert chamar(execucao, "executar_acao", id_proposta=proposta.id).alvo == "203.0.113.7"
+
+    # O destino do flood é o dispositivo atacado: o risco sai do endereço real, que o agente não vê.
+    destino = chamar(decisao, "propor_acao", id="inc-0001", alvo="destino-1", **BLOQUEIO)
+    assert [motivo.codigo for motivo in destino.motivos_de_risco_alto] == [
+        "alvo_e_destino_do_incidente", "alvo_na_rede_local",
+    ]
+
+
+def test_decisao_nao_propoe_com_endereco_e_a_recusa_nao_mostra_endereco(registro):
+    _, decisao, _ = stubs_das_tres_linhas(registro)
+    mensagem = recusado(decisao, "alvo_malformado", "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO)
+    assert "rótulo" in mensagem and "203.0.113.7" not in mensagem
+    assert "acao_proposta" not in [evento.tipo for evento in registro.ler()]
+
+
+@pytest.mark.parametrize("agente", ["decisao", "todos"])
+@pytest.mark.parametrize("acao", ["bloquear_ip", "revogar_credencial", "acao_qualquer"])
+def test_alvo_de_1_mb_e_recusado_sem_segurar_a_trava_do_log(registro, agente, acao):
+    # A chamada inteira acontece com o log travado: a triagem, a execução e o aprovar esperam por ela.
+    stub = Stub(registro, agente=agente)
+    stub.abrir_incidentes()
+    parametros = {"duracao": 10} if acao == "bloquear_ip" else ACAO_NOVA if acao == "acao_qualquer" else {}
+    for alvo in ("1:" * 500_000 + "g", "a" * 1_000_000 + "@origem-1", "origem-1" + " " * 1_000_000, "2001:db8::1 " * 90_000):
+        inicio = time.perf_counter()
+        with pytest.raises(PedidoRecusado) as captura:
+            stub.chamar("propor_acao", id="inc-0001", acao=acao, alvo=alvo, parametros=parametros, justificativa="j")
+        assert time.perf_counter() - inicio < 2.0
+        assert captura.value.motivo == "alvo_malformado" and len(captura.value.mensagem) < 700
+    assert "acao_proposta" not in tipos(stub)
+
+
+@pytest.mark.parametrize("nome,campo", [
+    ("propor_acao", "id"), ("propor_acao", "alvo"), ("executar_acao", "id_proposta"), ("obter_resumo", "id"),
+])
+def test_argumento_de_10_mb_e_recusado_sem_segurar_a_trava_do_log(registro, nome, campo):
+    agente = "execucao" if nome == "executar_acao" else "decisao"
+    stub = Stub(registro, agente=agente)
+    Stub(registro, agente="triagem").abrir_incidentes()
+    argumentos = {
+        "propor_acao": {"id": "inc-0001", "acao": "x", "alvo": "a", "parametros": {}, "justificativa": "j"},
+        "executar_acao": {"id_proposta": "prop-0001"},
+        "obter_resumo": {"id": "inc-0001"},
+    }[nome] | {campo: "1:2:3 " * (10_000_000 // 6)}
+    inicio = time.perf_counter()
+    with pytest.raises(PedidoRecusado):
+        stub.chamar(nome, **argumentos)
+    assert time.perf_counter() - inicio < 1.0
+
+
+def test_decisao_le_o_catalogo_com_os_alvos_escritos_por_rotulo(registro):
+    _, decisao, _ = stubs_das_tres_linhas(registro)
+    acoes = {acao.nome: acao for acao in chamar(decisao, "consultar_mitigacoes", categoria="DDoS").acoes}
+    assert "origem-1" in acoes["bloquear_ip"].alvo and "destino-1" in acoes["limitar_taxa"].alvo
+    assert "admin@destino-1" in acoes["revogar_credencial"].alvo
+    texto = json.dumps([acao.model_dump(mode="json") for acao in acoes.values()])
+    assert not re.search(r"\d+\.\d+\.\d+\.\d+", texto)
+
+
 def test_agente_desconhecido_nao_cria_stub(registro):
     with pytest.raises(ValueError, match="agente desconhecido"):
         Stub(registro, agente="detector")
+
+
+def test_stub_sem_dizer_o_agente_nao_abre_as_tools(registro):
+    # Como na linha de comando, expor todas as tools é uma escolha explícita, e não o padrão.
+    with pytest.raises(TypeError, match="agente"):
+        Stub(registro)
+    with pytest.raises(ValueError, match="agente desconhecido"):
+        Stub(registro, agente=None)
+    todos = Stub(registro, agente="todos")
+    todos.abrir_incidentes()
+    assert tuple(tool.name for tool in listar(criar_servidor(todos))) == tuple(tool.nome for tool in TOOLS)
+    chamar(todos, "obter_incidente", id="inc-0001")
+    # No log, a chamada de quem tem todas as tools fica sem agente: não se sabe qual dos três chamou.
+    assert registro.ler()[-1].dados.agente is None
 
 
 # --- servidor MCP ----------------------------------------------------------------------------
@@ -874,7 +1040,7 @@ def chamar_pelo_servidor(servidor, nome, argumentos):
     return asyncio.run(servidor.call_tool(nome, argumentos))
 
 
-def test_servidor_expoe_as_nove_tools_com_a_descricao_do_contrato(stub):
+def test_servidor_expoe_todas_as_tools_com_a_descricao_do_contrato(stub):
     tools = listar(criar_servidor(stub))
     assert [tool.name for tool in tools] == [tool.nome for tool in TOOLS]
     assert [tool.description for tool in tools] == [tool.descricao for tool in TOOLS]
@@ -947,7 +1113,7 @@ def test_main_recusa_agente_desconhecido(capsys):
 
 
 def test_main_exige_dizer_o_agente(tmp_path, capsys):
-    # Expor as nove tools de uma vez é escolha de quem sobe o servidor, e não o que acontece por esquecimento.
+    # Expor todas as tools de uma vez é escolha de quem sobe o servidor, e não o que acontece por esquecimento.
     log = tmp_path / "eventos.jsonl"
     assert main(["--log", str(log)]) == 2
     assert main([]) == 2
