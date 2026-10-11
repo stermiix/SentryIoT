@@ -70,8 +70,8 @@ def test_no_roteiro_o_papel_dos_agentes_grava_pelo_gravador_restrito(tmp_path, m
     saida = executar(tmp_path / "exemplo.jsonl")
     eventos = ler(saida)
     dos_agentes = [(e.dados.agente, e.tipo) for e in eventos if e.tipo in ("llm_chamada", "recomendacao_emitida")]
-    # Onze chamadas ao modelo e duas recomendações.
-    assert usados == dos_agentes and len(usados) == 13
+    # Treze chamadas ao modelo e três recomendações.
+    assert usados == dos_agentes and len(usados) == 16
 
 
 def test_toda_linha_do_exemplo_e_valida_e_todos_os_tipos_de_evento_aparecem():
@@ -80,15 +80,17 @@ def test_toda_linha_do_exemplo_e_valida_e_todos_os_tipos_de_evento_aparecem():
     assert {evento.tipo for evento in eventos} == set(TIPOS_DE_EVENTO)
     assert [evento.id for evento in eventos] == [f"ev-{n:06d}" for n in range(1, len(eventos) + 1)]
     assert [evento.instante for evento in eventos] == sorted(evento.instante for evento in eventos)
-    assert {evento.incidente for evento in eventos if evento.tipo != "janelas_classificadas"} == {"inc-0001"}
+    assert {evento.incidente for evento in eventos if evento.tipo != "janelas_classificadas"} == {"inc-0001", "inc-0002"}
 
 
 def test_exemplo_percorre_o_incidente_do_comeco_ao_fim():
     eventos = ler(SAIDA_PADRAO)
     marcos = [
-        evento.tipo for evento in eventos if evento.tipo not in ("tool_chamada", "llm_chamada")
+        evento.tipo for evento in eventos
+        if evento.tipo not in ("tool_chamada", "llm_chamada") and evento.incidente in ("inc-0001", None)
     ]
-    assert marcos == [
+    assert marcos[-1] == "janelas_classificadas"
+    assert marcos[:-1] == [
         "janelas_classificadas", "incidente_aberto",
         # Primeira tentativa: bloqueio de uma origem, de risco baixo, que não resolve.
         "acao_proposta", "recomendacao_emitida", "acao_executada", "efeito_verificado", "incidente_atualizado",
@@ -112,6 +114,21 @@ def test_exemplo_percorre_o_incidente_do_comeco_ao_fim():
     ativo = ambiente(estado)
     assert [medida.acao for medida in ativo.outras_medidas] == ["ativar_syn_cookies"]
     assert ativo.bloqueios == []
+
+
+def test_no_exemplo_a_pessoa_resolve_o_segundo_incidente_e_o_agente_so_explica():
+    eventos = ler(SAIDA_PADRAO)
+    do_segundo = [evento for evento in eventos if evento.incidente == "inc-0002"]
+    assert [evento.tipo for evento in do_segundo if evento.tipo not in ("tool_chamada", "llm_chamada")] == [
+        "incidente_aberto", "incidente_marcado_resolvido", "recomendacao_emitida",
+    ]
+    marca = next(evento.dados for evento in do_segundo if evento.tipo == "incidente_marcado_resolvido")
+    assert (marca.canal, marca.usuario) == ("terminal", "operador") and marca.motivo
+    explicacao = next(evento.dados for evento in do_segundo if evento.tipo == "recomendacao_emitida")
+    assert explicacao.propostas == [] and "já resolvido" in explicacao.texto
+    estado = reconstruir(eventos)
+    assert list(estado.resolvidos) == ["inc-0002"]
+    assert all(proposta.incidente == "inc-0001" for proposta in estado.propostas.values())
 
 
 def test_no_exemplo_cada_agente_so_chama_as_tools_da_sua_linha():

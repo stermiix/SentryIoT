@@ -1,6 +1,6 @@
 """Servidor MCP de mentira (stub) do SentryIoT.
 
-Responde às nove tools do contrato com os incidentes de `cenarios.py`, sem classificador
+Responde às dez tools do contrato com os incidentes de `cenarios.py`, sem classificador
 treinado e sem rede. Serve para a frente dos agentes trabalhar em paralelo: quem escreve as
 skills chama as tools, percorre um incidente do começo ao fim e obtém o log de eventos que a
 interface web vai ler.
@@ -9,13 +9,19 @@ O servidor não guarda estado na memória. A cada chamada ele lê o log, decide 
 aconteceu. Por isso o comando de aprovação, que é outro processo, vale na chamada seguinte, e
 cada agente pode ter o seu próprio processo sobre o mesmo log.
 
+A linha de decisão não recebe endereço nenhum (arquitetura híbrida, decisão de 2026-10-10): ela
+lê o resumo com rótulos neutros, escreve o alvo com o rótulo, e toda resposta a ela passa por um
+filtro que troca o endereço que sobrar em texto livre por um marcador. Se o filtro não consegue
+entregar a resposta dentro do contrato, ela não é entregue.
+
 Uso, a partir da raiz do repositório (transporte stdio). O agente é obrigatório:
     python -m codigo.mcp.stub --agente triagem
     python -m codigo.mcp.stub --agente decisao --log outro/caminho.jsonl
-    python -m codigo.mcp.stub --agente todos       as nove tools de uma vez, só para desenvolvimento
+    python -m codigo.mcp.stub --agente todos       todas as tools de uma vez, só para desenvolvimento
 """
 import argparse
 import inspect
+import json
 import math
 import sys
 from typing import Annotated
@@ -34,14 +40,17 @@ from codigo.mcp.tipos import (
     LIMITE_DE_JANELAS,
     TEXTO_CURTO,
     TEXTO_LONGO,
+    TODOS,
     TOOLS,
     ChamadaDeTool,
     Consulta,
     Efeito,
     FatiaDeJanelas,
     Mitigacoes,
+    Proposta,
     Recusa,
     Solucoes,
+    mascarar_enderecos,
     tools_do_agente,
 )
 
@@ -49,10 +58,11 @@ INSTRUCOES = (
     "Servidor de mentira (stub) do SentryIoT. Responde com incidentes de exemplo, de números ilustrativos, "
     "e aplica as ações só em um ambiente simulado. Os incidentes são inc-0001 (flood), inc-0002 (força "
     "bruta), inc-0003 (varredura de portas) e inc-0004. Ação de risco alto e ação nova, fora do catálogo, "
-    "só são executadas depois que uma pessoa aprova."
+    "só são executadas depois que uma pessoa aprova. Na linha de decisão, os endereços do incidente são "
+    "rótulos neutros, como origem-1 e destino-1."
 )
-# Na linha de comando, a forma explícita de expor as nove tools em um processo só.
-TODOS = "todos"
+# A linha que não recebe endereço nenhum: a do agente que pode estar num modelo de nuvem.
+LINHA_SEM_ENDERECOS = "decisao"
 _LOG_INVALIDO = (
     "O log de eventos do servidor está inconsistente, e nenhuma tool é atendida até que ele seja corrigido. "
     "O detalhe está na saída de erro do servidor."
@@ -62,6 +72,9 @@ _CONSULTA = TypeAdapter(Consulta)
 # Até onde uma lista, um objeto ou uma estrutura aninhada de um argumento vai para o log.
 _MAIS_ITENS = 20
 _MAIS_NIVEIS = 4
+# Teto, em bytes de JSON, dos argumentos de uma chamada no log. O corte item a item não basta: 20
+# objetos de 20 listas de 20 textos de 2.000 caracteres cabem nele e somam 16 MB.
+MAIOR_REGISTRO_DE_ARGUMENTOS = 8 * 1024
 
 
 def _milhar(numero):
@@ -105,6 +118,37 @@ def _para_o_log(valor, nivel=0):
             resumo.append(f"[cortado: {_milhar(len(valor))} itens]")
         return resumo
     return f"[valor do tipo {type(valor).__name__}]"
+
+
+def _bytes(valor):
+    return len(json.dumps(valor, ensure_ascii=False).encode("utf-8"))
+
+
+def _argumentos_para_o_log(argumentos):
+    """Os argumentos como vão para o log: cortados item a item e, depois, com teto no total.
+
+    Os argumentos entram na ordem em que vieram enquanto cabem no teto. O que não cabe vira a marca
+    `[cortado: N bytes]`, com o tamanho do que ficou de fora. Os nomes dos argumentos ficam todos, e
+    são no máximo 20, de até 200 caracteres.
+    """
+    resumo = _para_o_log(argumentos)
+    if _bytes(resumo) <= MAIOR_REGISTRO_DE_ARGUMENTOS:
+        return resumo
+    # Cada argumento ocupa, no pior caso, o tamanho da marca. O que sobra do teto vai para os que
+    # cabem inteiros, na ordem em que vieram.
+    marca = "[cortado: 000.000.000 bytes]"
+    livre = MAIOR_REGISTRO_DE_ARGUMENTOS - sum(_bytes({nome: marca}) for nome in resumo)
+    cabem = {}
+    for nome, valor in resumo.items():
+        a_mais = _bytes({nome: valor}) - _bytes({nome: marca})
+        if a_mais <= livre:
+            cabem[nome] = valor
+            livre -= max(a_mais, 0)
+        else:
+            cabem[nome] = f"[cortado: {_milhar(_bytes(valor))} bytes]"
+    return cabem
+
+
 _OBSERVACOES = {
     "cessou": "O tráfego do incidente cessou depois da ação.",
     "diminuiu": "O tráfego do incidente diminuiu depois da ação, mas não cessou.",
@@ -114,6 +158,10 @@ _OBSERVACOES = {
 _RESUMOS = {
     "obter_incidente": lambda r: {
         "estado": r.estado, "categoria": r.categoria, "confianca": r.confianca, "janelas": r.janelas,
+    },
+    "obter_resumo": lambda r: {
+        "estado": r.estado, "categoria": r.categoria, "confianca": r.confianca, "janelas": r.janelas,
+        "ja_resolvido": r.ja_resolvido,
     },
     "obter_janelas": lambda r: {"janelas": len(r.janelas), "total": r.total},
     "consultar_mitigacoes": lambda r: {"mitigacoes": len(r.mitigacoes), "acoes": len(r.acoes)},
@@ -131,17 +179,20 @@ _RESUMOS = {
 
 
 class Stub:
-    """As nove tools, respondidas com os cenários e registradas no log de eventos.
+    """As tools do contrato, respondidas com os cenários e registradas no log de eventos.
 
-    Com `agente`, o stub atende só as tools da linha desse agente e registra o nome dele em
-    cada chamada. Sem agente, atende todas: é o que `--agente todos` pede na linha de comando,
-    e serve só para desenvolvimento.
+    O agente é obrigatório. Com `triagem`, `decisao` ou `execucao`, o stub atende só as tools
+    da linha desse agente e registra o nome dele em cada chamada. Com `agente="todos"`, atende
+    todas e deixa o agente nulo no log: é o que `--agente todos` pede na linha de comando, e
+    serve só para desenvolvimento.
     """
 
-    def __init__(self, registro=None, agente=None, cenarios=CENARIOS, politica=None, secoes=None):
+    def __init__(self, registro=None, *, agente, cenarios=CENARIOS, politica=None, secoes=None):
         self.registro = registro if registro is not None else Registro()
-        self.agente = agente
-        self._permitidas = tools_do_agente(agente)
+        # As tools que este processo atende e anuncia ao cliente.
+        self.permitidas = tools_do_agente(agente)
+        # Com todas as tools, não se sabe qual dos três agentes chamou: o log fica sem o nome.
+        self.agente = None if agente == TODOS else agente
         self._cenarios = {cenario.incidente.id: cenario for cenario in cenarios}
         self._politica = politica if politica is not None else carregar_politica()
         self._secoes = secoes if secoes is not None else carregar()
@@ -177,7 +228,7 @@ class Stub:
             raise ValueError(f"tool desconhecida: {nome}")
         inicio = self.registro.relogio()
         # Para o log vai o resumo dos argumentos: igual a eles, a não ser quando são grandes demais.
-        para_o_log = _para_o_log(argumentos)
+        para_o_log = _argumentos_para_o_log(argumentos)
 
         def decidir(eventos):
             estado = reconstruir(eventos)
@@ -185,6 +236,9 @@ class Stub:
             try:
                 resultado, rascunhos = self._atender(nome, estado, argumentos, inicio)
             except PedidoRecusado as recusa:
+                if self.agente == LINHA_SEM_ENDERECOS:
+                    # Rede de proteção: o filtro roda sobre a mensagem inteira, antes do corte.
+                    recusa = PedidoRecusado(recusa.motivo, mascarar_enderecos(recusa.inteira))
                 dados = Recusa(
                     agente=self.agente, tool=nome, argumentos=para_o_log, motivo=recusa.motivo,
                     mensagem=recusa.mensagem,
@@ -195,6 +249,9 @@ class Stub:
                 agente=self.agente, nome=nome, argumentos=para_o_log, resultado=_RESUMOS[nome](resultado),
                 duracao_ms=round(duracao, 3),
             )
+            if self.agente == LINHA_SEM_ENDERECOS:
+                # Dentro da gravação: se a resposta não pode ser entregue sem endereço, nada é gravado.
+                resultado = _sem_enderecos(resultado)
             return resultado, [novo("tool_chamada", chamada, incidente), *rascunhos]
 
         resultado, _ = self.registro.atualizar(decidir)
@@ -203,11 +260,11 @@ class Stub:
         return resultado
 
     def _atender(self, nome, estado, argumentos, inicio):
-        if nome not in self._permitidas:
+        if nome not in self.permitidas:
             raise PedidoRecusado(
                 "tool_fora_da_linha",
                 f"A tool {nome} não faz parte da linha do agente de {self.agente}, que só enxerga: "
-                f"{', '.join(self._permitidas)}.",
+                f"{', '.join(self.permitidas)}.",
             )
         try:
             entrada = _TOOLS[nome].entrada.model_validate(argumentos)
@@ -253,11 +310,15 @@ class Stub:
         fatia = janelas(self._cenarios[id], incidente, min(limite, LIMITE_DE_JANELAS))
         return FatiaDeJanelas(incidente=id, total=incidente.janelas, janelas=fatia), []
 
+    def _obter_resumo(self, estado, _inicio, id):
+        self._incidente(estado, id)
+        return acoes.resumo_do_incidente(estado, self._politica, id), []
+
     def _consultar_mitigacoes(self, estado, _inicio, categoria):
         return Mitigacoes(
             categoria=categoria,
             mitigacoes=mitigacoes(self._secoes, categoria),
-            acoes=acoes.catalogo(estado, self._politica),
+            acoes=acoes.catalogo(estado, self._politica, com_rotulos=self.agente == LINHA_SEM_ENDERECOS),
         ), []
 
     def _pesquisar_solucoes(self, _estado, _inicio, consulta):
@@ -266,13 +327,17 @@ class Stub:
         except ValidationError:
             raise PedidoRecusado(
                 "argumentos_invalidos",
-                f"A consulta precisa ser um texto de até {_milhar(TEXTO_LONGO)} caracteres, sem caractere de controle.",
+                f"A consulta precisa ser um texto de até {_milhar(TEXTO_LONGO)} caracteres, sem caractere de controle "
+                "nem caractere que não aparece na tela.",
             ) from None
         return Solucoes(consulta=consulta, fonte="base_local", trechos=pesquisar(self._secoes, consulta)), []
 
     def _propor_acao(self, estado, _inicio, id, acao, alvo, parametros, justificativa):
         self._incidente(estado, id)
-        return acoes.propor(estado, self._politica, id, acao, alvo, parametros, justificativa)
+        return acoes.propor(
+            estado, self._politica, id, acao, alvo, parametros, justificativa,
+            so_rotulos=self.agente == LINHA_SEM_ENDERECOS,
+        )
 
     def _executar_acao(self, estado, inicio, id_proposta):
         return acoes.executar(estado, self._politica, id_proposta, inicio)
@@ -311,6 +376,35 @@ class Stub:
         return verificado, rascunhos
 
 
+def _limpar(valor):
+    if isinstance(valor, str):
+        return mascarar_enderecos(valor)
+    if isinstance(valor, list):
+        return [_limpar(item) for item in valor]
+    if isinstance(valor, dict):
+        return {_limpar(chave): _limpar(item) for chave, item in valor.items()}
+    return valor
+
+
+def _sem_enderecos(resultado):
+    """A resposta como vai para a linha de decisão: sem endereço nenhum.
+
+    A proposta volta com o alvo escrito com o rótulo, como o agente o escreveu. Depois, todo texto
+    da resposta passa pelo filtro que troca IPv4, IPv6 e MAC por um marcador: é a rede de proteção
+    para o endereço que sobrou em texto livre, como num documento da base ou numa ação promovida.
+    A falha é fechada: se a resposta filtrada não cabe no contrato, ela não é entregue.
+    """
+    if isinstance(resultado, Proposta) and resultado.alvo_com_rotulo is not None:
+        resultado = resultado.model_copy(update={"alvo": resultado.alvo_com_rotulo})
+    try:
+        return type(resultado).model_validate(_limpar(resultado.model_dump(mode="json")))
+    except ValidationError:
+        raise ValueError(
+            f"a resposta do tipo {type(resultado).__name__} não pôde ser entregue à linha de decisão sem endereço: "
+            "com o marcador no lugar, ela sai do contrato"
+        ) from None
+
+
 def _funcao_da_tool(stub, tool):
     """A função que o SDK registra como tool.
 
@@ -345,7 +439,7 @@ def criar_servidor(stub):
     """Monta o servidor MCP com as tools que o stub atende."""
     servidor = MCPServer("sentryiot-stub", instructions=INSTRUCOES, log_level="WARNING")
     for tool in TOOLS:
-        if tool.nome in tools_do_agente(stub.agente):
+        if tool.nome in stub.permitidas:
             servidor.add_tool(_funcao_da_tool(stub, tool), name=tool.nome, description=tool.descricao)
     return servidor
 
@@ -362,7 +456,7 @@ def main(argv=None):
         "--agente", required=True, choices=(*AGENTES, TODOS),
         help=(
             "obrigatório. Com triagem, decisao ou execucao, expõe só as tools da linha desse agente e registra o "
-            f"nome dele no log. Com {TODOS}, expõe as nove tools em um processo só, o que serve apenas para "
+            f"nome dele no log. Com {TODOS}, expõe todas as tools em um processo só, o que serve apenas para "
             "desenvolvimento: um mesmo cliente consegue propor e executar"
         ),
     )
@@ -371,7 +465,7 @@ def main(argv=None):
     except SystemExit as encerramento:
         return encerramento.code
     try:
-        stub = Stub(Registro(argumentos.log), agente=None if argumentos.agente == TODOS else argumentos.agente)
+        stub = Stub(Registro(argumentos.log), agente=argumentos.agente)
         stub.abrir_incidentes()
     except (OSError, ValueError) as erro:
         print(f"erro: {erro}", file=sys.stderr)
