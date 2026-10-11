@@ -4,7 +4,7 @@ import shutil
 import pytest
 
 from codigo.mcp import aprovar as comando
-from codigo.mcp.acoes import PedidoRecusado
+from codigo.mcp.acoes import PedidoRecusado, usuario_do_sistema
 from codigo.mcp.aprovar import main
 from codigo.mcp.eventos import Registro
 from codigo.mcp.stub import Stub
@@ -14,7 +14,7 @@ from codigo.mcp.tipos import MOTIVOS_DE_RISCO_ALTO, TOOLS
 
 @pytest.fixture
 def stub(tmp_path):
-    stub = Stub(Registro(tmp_path / "eventos.jsonl"))
+    stub = Stub(Registro(tmp_path / "eventos.jsonl"), agente="todos")
     stub.abrir_incidentes()
     return stub
 
@@ -91,7 +91,54 @@ def test_aprovar_libera_a_proposta_para_execucao(stub, capsys):
     decisao = stub.registro.ler()[-1]
     assert (decisao.tipo, decisao.incidente) == ("acao_aprovada", "inc-0001")
     assert (decisao.dados.proposta, decisao.dados.canal, decisao.dados.motivo) == ("prop-0001", "terminal", None)
+    # Quem aprovou é o usuário do sistema que rodou o comando.
+    assert decisao.dados.usuario == usuario_do_sistema() and decisao.dados.usuario
     assert stub.chamar("executar_acao", id_proposta="prop-0001").estado == "aplicada"
+
+
+def test_decisao_grava_o_usuario_do_sistema_que_rodou_o_comando(stub, monkeypatch):
+    monkeypatch.setattr(comando, "usuario_do_sistema", lambda: "maria")
+    propor_isolamento(stub)
+    propor_isolamento(stub)
+    assert aprovar(stub, "prop-0001", "--sim") == 0
+    assert aprovar(stub, "prop-0002", "--rejeitar") == 0
+    assert [evento.dados.usuario for evento in stub.registro.ler()[-2:]] == ["maria", "maria"]
+
+
+def test_pessoa_marca_o_incidente_como_ja_resolvido_pelo_terminal(stub, capsys, monkeypatch):
+    monkeypatch.setattr(comando, "usuario_do_sistema", lambda: "maria")
+    terminal = Terminal(monkeypatch, interativo=False)
+    proposta = propor_bloqueio_curto(stub)
+    assert aprovar(stub, "--resolvido", "inc-0001", "--motivo", "Bloqueei a origem no roteador.") == 0
+    saida = capsys.readouterr().out
+    assert "inc-0001 marcado como já resolvido" in saida
+    # Marcar não libera nada: não pede confirmação.
+    assert terminal.perguntas == []
+    marca = stub.registro.ler()[-1]
+    assert (marca.tipo, marca.incidente) == ("incidente_marcado_resolvido", "inc-0001")
+    assert (marca.dados.canal, marca.dados.usuario, marca.dados.motivo) == (
+        "terminal", "maria", "Bloqueei a origem no roteador.",
+    )
+    # A partir daí o servidor não executa nem registra proposta do incidente.
+    with pytest.raises(PedidoRecusado, match="já resolvido"):
+        stub.chamar("executar_acao", id_proposta=proposta.id)
+    with pytest.raises(PedidoRecusado, match="já resolvido"):
+        propor_isolamento(stub)
+    # Marcar de novo não grava outra marca.
+    antes = stub.registro.caminho.read_bytes()
+    assert aprovar(stub, "--resolvido", "inc-0001") == 1
+    assert "já foi marcado" in capsys.readouterr().err
+    assert aprovar(stub, "--resolvido", "inc-0099") == 1
+    assert "inc-0099" in capsys.readouterr().err
+    assert stub.registro.caminho.read_bytes() == antes
+
+
+def test_lista_avisa_quando_a_proposta_pendente_e_de_incidente_ja_resolvido(stub, capsys):
+    propor_isolamento(stub)
+    assert aprovar(stub, "--resolvido", "inc-0001") == 0
+    capsys.readouterr()
+    assert aprovar(stub) == 0
+    assert "já resolvido" in capsys.readouterr().out
 
 
 def test_rejeitar_registra_o_motivo_e_a_proposta_nao_executa(stub, capsys):
@@ -102,6 +149,7 @@ def test_rejeitar_registra_o_motivo_e_a_proposta_nao_executa(stub, capsys):
     decisao = stub.registro.ler()[-1]
     assert decisao.tipo == "acao_rejeitada"
     assert decisao.dados.motivo == "O dispositivo não pode sair do ar."
+    assert decisao.dados.usuario == usuario_do_sistema()
     with pytest.raises(PedidoRecusado, match="rejeitada"):
         stub.chamar("executar_acao", id_proposta="prop-0001")
 
@@ -195,12 +243,18 @@ def test_proposta_nao_e_decidida_duas_vezes(stub, capsys):
     ["--motivo", "sem proposta"],
     ["--sim"],
     ["prop-0001", "prop-0002"],
+    ["prop-0001", "--resolvido", "inc-0001"],
+    ["--resolvido", "inc-0001", "--rejeitar"],
+    ["--resolvido", "inc-0001", "--promover"],
+    ["--resolvido", "inc-0001", "--sim"],
+    ["--resolvido"],
 ])
 def test_combinacao_invalida_de_opcoes(stub, capsys, argumentos):
     propor_isolamento(stub)
     assert aprovar(stub, *argumentos) == 2
     assert capsys.readouterr().err
     assert tipos(stub).count("acao_aprovada") == 0
+    assert "incidente_marcado_resolvido" not in tipos(stub)
 
 
 def test_log_que_nao_existe_da_erro_e_nao_e_criado(tmp_path, capsys):
@@ -224,11 +278,12 @@ def test_log_estragado_da_erro_com_a_linha(stub, capsys):
 ])
 def test_log_com_evento_fora_de_lugar_da_erro_com_a_linha_e_sem_traceback(stub, capsys, argumentos):
     propor_isolamento(stub)
+    ultimo = stub.registro.ler()[-1]
     with open(stub.registro.caminho, "a", encoding="utf-8") as arquivo:
-        arquivo.write(
-            '{"id":"qualquer","instante":"1999-01-01T00:00:00Z","tipo":"acao_aprovada","incidente":null,'
-            '"dados":{"proposta":"prop-0007","canal":"interface","motivo":null}}\n'
-        )
+        arquivo.write(json.dumps({
+            "id": "ev-000011", "instante": ultimo.instante.isoformat(), "tipo": "acao_aprovada", "incidente": None,
+            "dados": {"proposta": "prop-0007", "canal": "interface", "usuario": "maria", "motivo": None},
+        }) + "\n")
     antes = stub.registro.caminho.read_bytes()
     assert aprovar(stub, *argumentos) == 1
     saida = capsys.readouterr()
@@ -383,8 +438,33 @@ def test_tela_mostra_cada_campo_da_proposta(stub, capsys):
     ]
 
 
+def test_tela_mostra_o_endereco_de_cada_rotulo_que_o_agente_de_decisao_escreveu(stub, capsys, monkeypatch):
+    # O agente de decisão escreve com os rótulos neutros. Quem aprova vê o endereço de cada um.
+    decisao = Stub(stub.registro, agente="decisao")
+    decisao.chamar(
+        "propor_acao", id="inc-0001", acao="ativar_syn_cookies", alvo="destino-1",
+        parametros=ACAO_NOVA | {"passos": ["Ativar SYN cookies em destino-1.", "Conferir o tráfego de origem-2."]},
+        justificativa="O bloqueio de origem-1 não resolveu.",
+    )
+    esperadas = [
+        "  alvo: 192.168.137.20 (destino-1, como o agente de decisão escreveu)",
+        # Na ordem em que aparecem na tela: o alvo, a justificativa e os passos.
+        "  rótulos citados: destino-1 = 192.168.137.20, origem-1 = 203.0.113.7, origem-2 = 203.0.113.18",
+    ]
+    assert aprovar(stub) == 0
+    tela = capsys.readouterr().out.splitlines()
+    assert all(linha in tela for linha in esperadas)
+    vistos = {}
+    Terminal(monkeypatch, "n", antes_de_responder=lambda: vistos.update(tela=capsys.readouterr().out))
+    assert aprovar(stub, "prop-0001") == 1
+    assert all(linha in vistos["tela"].splitlines() for linha in esperadas)
+    assert aprovar(stub, "prop-0001", "--rejeitar") == 0
+    tela = capsys.readouterr().out.splitlines()
+    assert all(linha in tela for linha in esperadas)
+
+
 def test_tela_mostra_todos_os_motivos_do_risco_alto_com_o_codigo_e_a_frase(stub, capsys, monkeypatch):
-    # Bloqueio sem prazo do gateway, que na varredura é um dos destinos: três motivos.
+    # Bloqueio sem prazo do gateway, que na varredura é um dos destinos: quatro motivos.
     stub.chamar(
         "propor_acao", id="inc-0003", acao="bloquear_ip", alvo="192.168.137.1", parametros={},
         justificativa="Destino da varredura.",
@@ -394,33 +474,37 @@ def test_tela_mostra_todos_os_motivos_do_risco_alto_com_o_codigo_e_a_frase(stub,
         "  motivos do risco alto:",
         *(
             f"    - {codigo}: {MOTIVOS_DE_RISCO_ALTO[codigo]}"
-            for codigo in ("prazo_acima_do_limite", "alvo_e_destino_do_incidente", "alvo_protegido")
+            for codigo in ("prazo_acima_do_limite", "alvo_e_destino_do_incidente", "alvo_na_rede_local", "alvo_protegido")
         ),
         "  ação: bloquear_ip (do catálogo)",
     ]
     # Na lista, na tela de confirmação da aprovação e na rejeição.
     assert aprovar(stub) == 0
-    assert capsys.readouterr().out.splitlines()[2:8] == esperadas
+    assert capsys.readouterr().out.splitlines()[2:2 + len(esperadas)] == esperadas
     vistos = {}
     Terminal(monkeypatch, "n", antes_de_responder=lambda: vistos.update(tela=capsys.readouterr().out))
     assert aprovar(stub, "prop-0001") == 1
-    assert vistos["tela"].splitlines()[:6] == esperadas
+    assert vistos["tela"].splitlines()[:len(esperadas)] == esperadas
     assert aprovar(stub, "prop-0001", "--rejeitar") == 0
-    assert capsys.readouterr().out.splitlines()[:6] == esperadas
+    assert capsys.readouterr().out.splitlines()[:len(esperadas)] == esperadas
 
 
 def acrescentar_proposta(stub, **trocas):
     """Escreve no arquivo, por fora do sistema, uma proposta que aguarda aprovação."""
     proposta = {
         "id": "prop-0001", "incidente": "inc-0001", "acao": "isolar_dispositivo", "alvo": "192.168.137.1",
-        "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
+        "alvo_com_rotulo": None, "parametros": {}, "justificativa": "j", "nova": False, "risco": "alto",
         "motivos_de_risco_alto": [
             {"codigo": codigo, "descricao": MOTIVOS_DE_RISCO_ALTO[codigo]}
             for codigo in ("acao_sempre_de_risco_alto", "alvo_fora_do_incidente", "alvo_protegido")
         ],
         "exige_aprovacao": True, "estado": "aguardando_aprovacao",
     } | trocas
-    linha = {"id": "ev-000009", "instante": "2026-10-20T18:00:00Z", "tipo": "acao_proposta", "incidente": "inc-0001", "dados": proposta}
+    anteriores = stub.registro.ler()
+    linha = {
+        "id": f"ev-{len(anteriores) + 1:06d}", "instante": anteriores[-1].instante.isoformat(), "tipo": "acao_proposta",
+        "incidente": "inc-0001", "dados": proposta,
+    }
     with open(stub.registro.caminho, "a", encoding="utf-8") as arquivo:
         arquivo.write(json.dumps(linha) + "\n")
 
@@ -430,8 +514,11 @@ def test_tela_escapa_tudo_o_que_nao_e_imprimivel(stub, capsys):
     # trazer neles a sequência que sobe o cursor, apaga a tela e escreve outra proposta no lugar.
     falsa = "\x1b[3A\r\x1b[0Jprop-0001  incidente inc-0001  risco baixo\n  ação: limitar_taxa (do catálogo)"
     acrescentar_proposta(
-        stub, parametros={falsa: "203.0.113.7\x1b[2K", "nota\x07": ["a\x00b", {"c\u2028d": "e\u202ef"}]},
-        justificativa="Junta\u200dinvisível e espaço\u00a0duro.",
+        stub, parametros={
+            falsa: "203.0.113.7\x1b[2K", "nota\x07": ["a\x00b", {"c\u2028d": "e\u202ef"}],
+            "junta": "Junta\u200dinvisível\u3164",
+        },
+        justificativa="Espaço\u00a0duro.",
     )
     for argumentos in ([], ["prop-0001", "--sim"]):
         assert aprovar(stub, *argumentos) == 0
@@ -446,7 +533,7 @@ def test_tela_escapa_tudo_o_que_nao_e_imprimivel(stub, capsys):
         assert "\\x1b[3A\\r\\x1b[0Jprop-0001" in saida and "203.0.113.7\\x1b[2K" in saida
         # Valor que não é texto sai em JSON, que escreve o caractere nulo como \\u0000.
         assert '  nota\\x07: ["a\\u0000b", {"c\\u2028d": "e\\u202ef"}]' in saida
-        assert "Junta\\u200dinvisível e espaço\\xa0duro." in saida
+        assert "  junta: Junta\\u200dinvisível\\u3164" in saida and "Espaço\\xa0duro." in saida
 
 
 def test_motivo_com_frase_que_nao_e_a_do_contrato_nao_chega_a_tela(stub, capsys):
@@ -474,7 +561,7 @@ def test_proposta_que_muda_entre_a_tela_e_a_confirmacao_nao_e_aprovada(stub, tmp
     # A pessoa viu o isolamento de 192.168.137.20. Se, na hora de gravar, o identificador for de outra proposta,
     # a aprovação não vale.
     propor_isolamento(stub)
-    outro = Stub(Registro(tmp_path / "outro.jsonl"))
+    outro = Stub(Registro(tmp_path / "outro.jsonl"), agente="todos")
     outro.abrir_incidentes()
     outro.chamar(
         "propor_acao", id="inc-0001", acao="isolar_dispositivo", alvo="192.168.137.1", parametros={},

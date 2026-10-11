@@ -1,5 +1,7 @@
+import ipaddress
 import json
 import math
+import re
 from datetime import UTC, datetime
 
 import pytest
@@ -10,8 +12,10 @@ from codigo.classificador.mapeamento import CATEGORIAS
 from codigo.mcp.tipos import (
     AGENTES,
     ARQUIVO_DO_CONTRATO,
+    CATEGORIAS_DO_MODELO,
     LIMITE_DE_JANELAS,
     MAIOR_NOME_DE_ACAO,
+    MARCADOR_DE_ENDERECO,
     MAXIMO_DE_PASSOS,
     MOTIVOS_DE_RISCO_ALTO,
     TEXTO_CURTO,
@@ -26,13 +30,18 @@ from codigo.mcp.tipos import (
     Janela,
     ParametrosDeAcaoNova,
     Proposta,
+    ResumoDoIncidente,
     Solucoes,
     Trecho,
     contrato,
     endereco_canonico,
+    invisivel,
+    mascarar_enderecos,
+    tem_endereco,
     texto_do_contrato,
     tools_do_agente,
     validar_evento,
+    visivel,
 )
 
 # O exemplo de incidente que está na especificação do contrato.
@@ -40,7 +49,7 @@ INCIDENTE_DA_ESPECIFICACAO = {
     "id": "inc-0001",
     "estado": "aberto",
     "categoria": "DDoS",
-    "categoria_do_modelo": "DDoS",
+    "categoria_do_modelo": "DDoS+DoS",
     "confianca": 0.97,
     "inicio": "2026-10-20T14:03:11Z",
     "fim": "2026-10-20T14:03:41Z",
@@ -61,7 +70,7 @@ def janela(**trocas):
     base = {
         "indice": 0,
         "instante": "2026-10-20T14:03:11Z",
-        "categoria_do_modelo": "DoS",
+        "categoria_do_modelo": "DDoS+DoS",
         "confianca": 0.97,
         "origem": "203.0.113.7",
         "destino": "192.168.137.20",
@@ -75,6 +84,7 @@ PROPOSTA = {
     "incidente": "inc-0001",
     "acao": "bloquear_ip",
     "alvo": "203.0.113.7",
+    "alvo_com_rotulo": None,
     "parametros": {"duracao": 10},
     "justificativa": "Origem com mais quadros no incidente.",
     "nova": False,
@@ -118,7 +128,7 @@ ACAO_PROMOVIDA = {
 }
 # Um exemplo de `dados` para cada tipo de evento do log.
 DADOS_POR_TIPO = {
-    "janelas_classificadas": {"janelas": 450, "por_categoria": {"DoS": 412, "Benign": 38}},
+    "janelas_classificadas": {"janelas": 450, "por_categoria": {"DDoS+DoS": 412, "Benign": 38}},
     "incidente_aberto": INCIDENTE_DA_ESPECIFICACAO,
     "incidente_atualizado": INCIDENTE_DA_ESPECIFICACAO,
     "incidente_encerrado": INCIDENTE_DA_ESPECIFICACAO | {"estado": "encerrado"},
@@ -130,10 +140,13 @@ DADOS_POR_TIPO = {
         "agente": "triagem", "nome": "obter_incidente", "argumentos": {"id": "inc-0001"},
         "resultado": {"categoria": "DDoS"}, "duracao_ms": 4.0,
     },
+    "incidente_marcado_resolvido": {
+        "incidente": "inc-0001", "canal": "interface", "usuario": "maria", "motivo": "Bloqueei a origem no roteador.",
+    },
     "recomendacao_emitida": {"agente": "decisao", "texto": "Bloquear a origem.", "propostas": ["prop-0001"]},
     "acao_proposta": PROPOSTA,
-    "acao_aprovada": {"proposta": "prop-0001", "canal": "terminal", "motivo": None},
-    "acao_rejeitada": {"proposta": "prop-0001", "canal": "terminal", "motivo": "Dispositivo crítico."},
+    "acao_aprovada": {"proposta": "prop-0001", "canal": "terminal", "usuario": "maria", "motivo": None},
+    "acao_rejeitada": {"proposta": "prop-0001", "canal": "terminal", "usuario": "maria", "motivo": "Dispositivo crítico."},
     "acao_executada": EXECUCAO,
     "acao_desfeita": EXECUCAO | {"estado": "desfeita", "desfeita_em": INSTANTE},
     "efeito_verificado": {
@@ -175,10 +188,10 @@ def test_texto_do_contrato_e_json_com_as_chaves_do_contrato():
     assert list(documento["motivos_de_risco_alto"]) == list(MOTIVOS_DE_RISCO_ALTO)
 
 
-def test_sao_as_nove_tools_da_especificacao_na_ordem_da_tabela():
+def test_sao_as_dez_tools_da_especificacao_na_ordem_da_tabela():
     assert [tool.nome for tool in TOOLS] == [
-        "obter_incidente", "obter_janelas", "consultar_mitigacoes", "pesquisar_solucoes", "propor_acao",
-        "verificar_efeito", "executar_acao", "desfazer_acao", "consultar_estado",
+        "obter_incidente", "obter_janelas", "obter_resumo", "consultar_mitigacoes", "pesquisar_solucoes",
+        "propor_acao", "verificar_efeito", "executar_acao", "desfazer_acao", "consultar_estado",
     ]
     assert all(tool.descricao.strip() for tool in TOOLS)
 
@@ -186,15 +199,16 @@ def test_sao_as_nove_tools_da_especificacao_na_ordem_da_tabela():
 def test_cada_agente_so_enxerga_as_tools_da_sua_linha():
     assert AGENTES == ("triagem", "decisao", "execucao")
     assert tools_do_agente("triagem") == ("obter_incidente", "obter_janelas")
-    assert tools_do_agente("decisao") == (
-        "obter_incidente", "consultar_mitigacoes", "pesquisar_solucoes", "propor_acao", "verificar_efeito",
-    )
+    # O agente de decisão pode estar num modelo de nuvem: lê o resumo montado pelo servidor, sem endereço,
+    # e não tem verificar_efeito, que muda o incidente.
+    assert tools_do_agente("decisao") == ("obter_resumo", "consultar_mitigacoes", "pesquisar_solucoes", "propor_acao")
     assert tools_do_agente("execucao") == (
         "verificar_efeito", "executar_acao", "desfazer_acao", "consultar_estado",
     )
-    assert tools_do_agente(None) == tuple(tool.nome for tool in TOOLS)
-    with pytest.raises(ValueError, match="agente desconhecido"):
-        tools_do_agente("detector")
+    assert tools_do_agente("todos") == tuple(tool.nome for tool in TOOLS)
+    for desconhecido in ("detector", None):
+        with pytest.raises(ValueError, match="agente desconhecido"):
+            tools_do_agente(desconhecido)
 
 
 def test_argumentos_das_tools_sao_os_da_especificacao():
@@ -202,6 +216,7 @@ def test_argumentos_das_tools_sao_os_da_especificacao():
     assert argumentos == {
         "obter_incidente": ("id",),
         "obter_janelas": ("id", "limite"),
+        "obter_resumo": ("id",),
         "consultar_mitigacoes": ("categoria",),
         "pesquisar_solucoes": ("consulta",),
         "propor_acao": ("id", "acao", "alvo", "parametros", "justificativa"),
@@ -227,6 +242,69 @@ def test_contrato_descreve_entrada_e_saida_de_cada_tool():
     assert "ParametrosDeAcaoNova" in definicoes
 
 
+def test_nenhuma_saida_da_linha_de_decisao_tem_campo_de_endereco():
+    # A arquitetura híbrida: o que volta ao agente de decisão não tem campo que seja endereço IP.
+    definicoes = contrato()["$defs"]
+
+    def alcancaveis(nome, vistos):
+        if nome in vistos:
+            return vistos
+        vistos.add(nome)
+        for referencia in re.findall(r'"\$ref": "#/\$defs/(\w+)"', json.dumps(definicoes[nome])):
+            alcancaveis(referencia, vistos)
+        return vistos
+
+    for tool in TOOLS:
+        if "decisao" in tool.agentes:
+            for nome in alcancaveis(tool.saida.__name__, set()):
+                assert '"ipv4"' not in json.dumps(definicoes[nome]), (tool.nome, nome)
+    assert "Incidente" not in alcancaveis("ResumoDoIncidente", set())
+
+
+def test_resumo_traz_rotulos_e_nao_enderecos():
+    resumo = {
+        "id": "inc-0001", "estado": "aberto", "ja_resolvido": False, "categoria": "DDoS", "categoria_do_modelo": "DDoS+DoS",
+        "confianca": 0.97, "duracao_s": 30.0, "janelas": 412, "origens_distintas": 37, "distribuido": True,
+        "origens": [{"rotulo": "origem-1", "quadros": 9120, "protegido": False}],
+        "destinos": [{"rotulo": "destino-1", "quadros": 41200, "protegido": False}],
+        "features_principais": INCIDENTE_DA_ESPECIFICACAO["features_principais"],
+        "ultimo_efeito": None,
+    }
+    assert ResumoDoIncidente.model_validate(resumo).model_dump(mode="json") == resumo
+    for rotulo in ("203.0.113.7", "origem", "origem-0", "origem-01", "vitima-1", "destino-1 e mais", "Origem-1"):
+        recusado_pelo_contrato(
+            ResumoDoIncidente, resumo | {"origens": [{"rotulo": rotulo, "quadros": 1, "protegido": False}]}
+        )
+    assert contrato()["$defs"]["EnderecoRotulado"]["properties"]["rotulo"]["pattern"]
+
+
+@pytest.mark.parametrize("texto", [
+    "Bloquear 203.0.113.7 agora.", "origem 192.168.137.020 com zero à esquerda", "rede 192.168.137.0/24",
+    "IPv6 2001:db8::7 e fe80::1%eth0", "mapeado ::ffff:192.168.137.1", "nat64 64:ff9b::c0a8:8901.",
+    "completo 2001:0db8:0000:0000:0000:0000:0000:0007", "MAC aa:bb:cc:dd:ee:ff e AA-BB-CC-DD-EE-01",
+    "Cisco 0011.2233.4455", "[2001:db8::1]:443", "300.300.300.300 fora da faixa também",
+], ids=ascii)
+def test_filtro_troca_todo_endereco_por_um_marcador(texto):
+    mascarado = mascarar_enderecos(texto)
+    assert MARCADOR_DE_ENDERECO in mascarado and tem_endereco(texto)
+    for trecho in re.findall(r"[0-9A-Fa-f:.%]{7,}", mascarado):
+        with pytest.raises(ValueError):
+            ipaddress.ip_address(trecho.strip(".:").split("%")[0])
+    assert not re.search(r"(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}", mascarado)
+    assert not tem_endereco(mascarado)
+
+
+@pytest.mark.parametrize("texto", [
+    "Flood de SYN contra destino-1, vindo de 37 origens (origem-1 a origem-5).",
+    "Início às 14:03:11, fim às 14:03:41.250000; Rate de 35778.4 e IAT de 0.000028.",
+    "Versão 1.2.3 do serviço, 61.240 quadros, 2026-10-20T14:03:11Z, prop-0001, exec-0002.",
+    "C++ usa std::vector; razão 3:2:1.", "",
+], ids=ascii)
+def test_filtro_nao_mexe_em_texto_sem_endereco(texto):
+    assert mascarar_enderecos(texto) == texto
+    assert not tem_endereco(texto)
+
+
 def test_incidente_da_especificacao_e_valido():
     incidente = Incidente.model_validate(INCIDENTE_DA_ESPECIFICACAO)
     assert incidente.inicio == datetime(2026, 10, 20, 14, 3, 11, tzinfo=UTC)
@@ -236,6 +314,9 @@ def test_incidente_da_especificacao_e_valido():
 @pytest.mark.parametrize("trocas", [
     {"categoria": "Exfiltracao"},
     {"categoria_do_modelo": "ddos"},
+    {"categoria_do_modelo": "DDoS"},
+    {"categoria_do_modelo": "DoS"},
+    {"categoria": "Recon"},
     {"estado": "fechado"},
     {"confianca": 1.2},
     {"confianca": -0.1},
@@ -250,10 +331,41 @@ def test_incidente_fora_do_contrato_e_recusado(trocas):
         Incidente.model_validate(INCIDENTE_DA_ESPECIFICACAO | trocas)
 
 
-def test_categorias_do_contrato_sao_as_8_do_classificador():
+def test_categoria_do_incidente_sao_as_8_com_ddos_e_dos_separados():
     for categoria in CATEGORIAS:
-        Incidente.model_validate(INCIDENTE_DA_ESPECIFICACAO | {"categoria": categoria})
+        modelo = "DDoS+DoS" if categoria in ("DDoS", "DoS") else categoria
+        Incidente.model_validate(INCIDENTE_DA_ESPECIFICACAO | {"categoria": categoria, "categoria_do_modelo": modelo})
     assert contrato()["$defs"]["Incidente"]["properties"]["categoria"]["enum"] == list(CATEGORIAS)
+    assert contrato()["$defs"]["EntradaConsultarMitigacoes"]["properties"]["categoria"]["enum"] == list(CATEGORIAS)
+
+
+def test_categoria_do_modelo_sao_as_7_que_o_classificador_do_sistema_responde():
+    # O modelo do sistema não separa DDoS de DoS: responde DDoS+DoS, e a separação sai das origens.
+    preparar = pytest.importorskip("codigo.classificador.preparar")
+    assert CATEGORIAS_DO_MODELO == preparar.ALVOS["7"].classes == (
+        "DDoS+DoS", "Mirai", "Recon", "Spoofing", "Web", "BruteForce", "Benign",
+    )
+    definicoes = contrato()["$defs"]
+    assert definicoes["Incidente"]["properties"]["categoria_do_modelo"]["enum"] == list(CATEGORIAS_DO_MODELO)
+    assert definicoes["Janela"]["properties"]["categoria_do_modelo"]["enum"] == list(CATEGORIAS_DO_MODELO)
+    assert definicoes["LoteDeJanelas"]["properties"]["por_categoria"]["propertyNames"]["enum"] == list(
+        CATEGORIAS_DO_MODELO
+    )
+    for categoria in CATEGORIAS_DO_MODELO:
+        Janela.model_validate(janela(categoria_do_modelo=categoria))
+        validar_evento(evento("janelas_classificadas", dados={"janelas": 1, "por_categoria": {categoria: 1}}))
+    for categoria in ("DDoS", "DoS", "ddos+dos", "Exfiltracao"):
+        recusado_pelo_contrato(Janela, janela(categoria_do_modelo=categoria))
+        with pytest.raises(ValidationError):
+            validar_evento(evento("janelas_classificadas", dados={"janelas": 1, "por_categoria": {categoria: 1}}))
+
+
+def test_categoria_do_incidente_cabe_no_que_o_modelo_disse():
+    # A regra das origens só separa DDoS de DoS: as outras categorias passam como o modelo disse.
+    for categoria in ("DDoS", "DoS"):
+        Incidente.model_validate(INCIDENTE_DA_ESPECIFICACAO | {"categoria": categoria})
+    for categoria, modelo in (("Recon", "DDoS+DoS"), ("DDoS", "Mirai"), ("Web", "Recon"), ("DoS", "Benign")):
+        recusado_pelo_contrato(Incidente, INCIDENTE_DA_ESPECIFICACAO | {"categoria": categoria, "categoria_do_modelo": modelo})
 
 
 def test_janela_traz_exatamente_as_39_features_do_extrator():
@@ -289,6 +401,9 @@ def test_fatia_tem_no_maximo_20_janelas():
 
 def test_proposta_e_execucao_validas():
     assert Proposta.model_validate(PROPOSTA).exige_aprovacao is False
+    # Da linha de decisão, a proposta guarda também o alvo como o agente o escreveu, com o rótulo neutro.
+    assert Proposta.model_validate(PROPOSTA | {"alvo_com_rotulo": "origem-1"}).alvo_com_rotulo == "origem-1"
+    assert "alvo_com_rotulo" in contrato()["$defs"]["Proposta"]["required"]
     assert Execucao.model_validate(EXECUCAO).desfeita_em is None
     for trocas in ({"risco": "medio"}, {"estado": "aprovada"}, {"justificativa": ""}):
         with pytest.raises(ValidationError):
@@ -297,10 +412,11 @@ def test_proposta_e_execucao_validas():
         Execucao.model_validate(EXECUCAO | {"estado": "pendente"})
 
 
-def test_motivos_de_risco_alto_sao_sete_codigos_com_uma_frase_cada():
+def test_motivos_de_risco_alto_sao_nove_codigos_com_uma_frase_cada():
     assert tuple(MOTIVOS_DE_RISCO_ALTO) == (
         "acao_sempre_de_risco_alto", "acao_nova", "prazo_acima_do_limite", "alvo_fora_do_incidente",
-        "alvo_e_destino_do_incidente", "alvo_protegido", "orcamento_de_risco_baixo_esgotado",
+        "alvo_e_destino_do_incidente", "alvo_na_rede_local", "alvo_protegido", "orcamento_de_risco_baixo_esgotado",
+        "orcamento_global_de_risco_baixo_esgotado",
     )
     for codigo, frase in MOTIVOS_DE_RISCO_ALTO.items():
         # O código é um identificador curto. A frase é o que a pessoa lê: uma linha, com ponto final.
@@ -321,7 +437,7 @@ def test_proposta_traz_os_motivos_do_risco_alto():
     ]
     assert alta.model_dump(mode="json") == PROPOSTA_DE_RISCO_ALTO
     todos = [{"codigo": codigo, "descricao": frase} for codigo, frase in MOTIVOS_DE_RISCO_ALTO.items()]
-    assert len(Proposta.model_validate(PROPOSTA_DE_RISCO_ALTO | {"motivos_de_risco_alto": todos}).motivos_de_risco_alto) == 7
+    assert len(Proposta.model_validate(PROPOSTA_DE_RISCO_ALTO | {"motivos_de_risco_alto": todos}).motivos_de_risco_alto) == 9
     sem_o_campo = {campo: valor for campo, valor in PROPOSTA.items() if campo != "motivos_de_risco_alto"}
     for invalida in (
         sem_o_campo,
@@ -366,9 +482,9 @@ def test_ambiente_separa_as_medidas_ativas_por_tipo():
 def test_tipos_de_evento_sao_os_da_especificacao():
     assert TIPOS_DE_EVENTO == (
         "janelas_classificadas", "incidente_aberto", "incidente_atualizado", "incidente_encerrado",
-        "llm_chamada", "tool_chamada", "recomendacao_emitida", "acao_proposta", "acao_aprovada",
-        "acao_rejeitada", "acao_executada", "acao_desfeita", "efeito_verificado", "catalogo_ampliado",
-        "recusa",
+        "incidente_marcado_resolvido", "llm_chamada", "tool_chamada", "recomendacao_emitida", "acao_proposta",
+        "acao_aprovada", "acao_rejeitada", "acao_executada", "acao_desfeita", "efeito_verificado",
+        "catalogo_ampliado", "recusa",
     )
     assert set(DADOS_POR_TIPO) == set(TIPOS_DE_EVENTO)
     mapeados = contrato()["$defs"]["Evento"]["discriminator"]["mapping"]
@@ -388,13 +504,33 @@ def test_motivos_de_recusa_do_contrato():
     motivos = contrato()["$defs"]["Recusa"]["properties"]["motivo"]["enum"]
     assert motivos == [
         "identificador_desconhecido", "argumentos_invalidos", "alvo_malformado", "alvo_nao_permitido",
-        "incidente_encerrado", "limite_de_propostas_pendentes", "acao_nova_incompleta", "proposta_nao_liberada",
-        "proposta_ja_executada", "acao_nao_aplicada", "tool_fora_da_linha",
+        "incidente_encerrado", "incidente_ja_resolvido", "limite_de_propostas_pendentes",
+        "limite_de_propostas_liberadas", "acao_nova_incompleta", "proposta_nao_liberada", "proposta_ja_executada",
+        "acao_nao_aplicada", "tool_fora_da_linha",
     ]
     for motivo in motivos:
         assert validar_evento(evento("recusa", dados=DADOS_POR_TIPO["recusa"] | {"motivo": motivo})).dados.motivo == motivo
     with pytest.raises(ValidationError):
         validar_evento(evento("recusa", dados=DADOS_POR_TIPO["recusa"] | {"motivo": "fila_cheia"}))
+
+
+def test_decisao_traz_o_usuario_que_decidiu():
+    for invalido in (None, "", "maria\x1b[2J", "x" * 201):
+        with pytest.raises(ValidationError):
+            validar_evento(evento("acao_aprovada", dados=DADOS_POR_TIPO["acao_aprovada"] | {"usuario": invalido}))
+    sem_usuario = {campo: valor for campo, valor in DADOS_POR_TIPO["acao_aprovada"].items() if campo != "usuario"}
+    with pytest.raises(ValidationError):
+        validar_evento(evento("acao_aprovada", dados=sem_usuario))
+    assert "usuario" in contrato()["$defs"]["Decisao"]["required"]
+
+
+def test_marca_de_ja_resolvido_traz_o_canal_quem_marcou_e_o_motivo_opcional():
+    marca = DADOS_POR_TIPO["incidente_marcado_resolvido"]
+    assert validar_evento(evento("incidente_marcado_resolvido", dados=marca | {"motivo": None})).dados.motivo is None
+    for trocas in ({"canal": "email"}, {"usuario": ""}, {"motivo": "ok\x1b[2J"}, {"incidente": None}, {"extra": 1}):
+        with pytest.raises(ValidationError):
+            validar_evento(evento("incidente_marcado_resolvido", dados=marca | trocas))
+    assert contrato()["$defs"]["MarcaDeResolvido"]["required"] == ["incidente", "canal", "usuario", "motivo"]
 
 
 def test_evento_sem_incidente_traz_o_campo_nulo():
@@ -446,9 +582,18 @@ def test_esquema_json_do_contrato_aceita_e_recusa_o_mesmo_que_os_tipos():
 
 # Sequências de terminal, quebras de linha e os caracteres que invertem a direção do texto: com
 # eles, o que a pessoa lê na tela de aprovação pode não ser o que está gravado.
+# Caracteres que a tela não mostra e o modelo lê: formatação (Cf), como as etiquetas U+E0000 a U+E007F
+# e os de largura zero; uso privado (Co); sem atribuição (Cn); substituto solto (Cs); e os
+# preenchimentos que o Unicode classifica como letra ou símbolo, mas que aparecem em branco.
+TEXTOS_INVISIVEIS = [
+    "ok\U000e0041\U000e0042", "ok\u200bfim", "ok\u200dfim", "ok\u200efim", "ok\u200ffim", "ok\u061cfim",
+    "ok\ufefffim", "ok\u2060fim", "ok\u2064fim", "ok\u00adfim", "ok\ue000fim", "ok\U000f0000fim", "ok\u0378fim",
+    "ok\ud800fim", "ok\u3164\u3164", "ok\u2800fim", "ok\u115ffim", "ok\u1160fim", "ok\uffa0fim",
+]
 TEXTOS_PERIGOSOS = [
     "ok\x1b[2Jtela apagada", "ok\x07", "ok\x00fim", "linha\noutra linha", "linha\rsobrescrita", "a\tb",
     "ok\x7f", "ok\x85outra", "ok\x9b2J", "ok\u2028outra", "ok\u2029outra", "ok\u202eatxet", "ok\u2066x\u2069",
+    *TEXTOS_INVISIVEIS,
 ]
 ACAO_NOVA_COMPLETA = {
     "descricao": "Ativa SYN cookies.",
@@ -480,6 +625,9 @@ def test_texto_do_contrato_recusa_controle_quebra_de_linha_e_inversao_de_direcao
 def test_texto_comum_com_acento_e_pontuacao_continua_valido():
     texto = "Bloquear a origem 203.0.113.7: é a que mais envia quadros (61.240), “de longe” → risco baixo."
     assert Proposta.model_validate(PROPOSTA | {"justificativa": texto}).justificativa == texto
+    # Acento combinado, espaço duro, símbolo e outras escritas são texto visível.
+    for visivel_na_tela in ("cafe\u0301 a\u00a0b", "alerta 🚨 ≥ 99%", "日本語 Ελληνικά العربية"):
+        assert Proposta.model_validate(PROPOSTA | {"justificativa": visivel_na_tela}).justificativa == visivel_na_tela
     # Espaço e quebra de linha nas pontas são retirados, como já eram.
     assert Proposta.model_validate(PROPOSTA | {"justificativa": f"  {texto}\n"}).justificativa == texto
 
@@ -568,6 +716,26 @@ def test_recomendacao_e_trecho_aceitam_paragrafos_e_mais_nenhum_caractere_de_con
     recusado_pelo_contrato(Trecho, trecho | {"titulo": "Bloquear\na origem"})
     with pytest.raises(ValidationError):
         validar_evento(evento("recomendacao_emitida", dados=recomendacao | {"propostas": ["prop-0001"] * 21}))
+
+
+@pytest.mark.parametrize("texto", TEXTOS_INVISIVEIS, ids=ascii)
+def test_texto_em_paragrafos_e_consulta_tambem_recusam_caractere_invisivel(texto):
+    recomendacao = DADOS_POR_TIPO["recomendacao_emitida"]
+    with pytest.raises(ValidationError):
+        validar_evento(evento("recomendacao_emitida", dados=recomendacao | {"texto": f"Bloquear.\n\n{texto}"}))
+    trecho = {"origem": "flood.md", "titulo": "Bloquear a origem", "texto": "Texto.", "acao": None}
+    for campo in ("titulo", "texto"):
+        recusado_pelo_contrato(Trecho, trecho | {campo: texto})
+    recusado_pelo_contrato(Solucoes, {"consulta": texto, "fonte": "base_local", "trechos": []})
+    with pytest.raises(ValidationError):
+        validar_evento(evento("acao_aprovada", dados=DADOS_POR_TIPO["acao_aprovada"] | {"motivo": texto}))
+
+
+@pytest.mark.parametrize("texto", TEXTOS_INVISIVEIS, ids=ascii)
+def test_visivel_escapa_caractere_invisivel(texto):
+    escapado = visivel(texto)
+    assert all(not invisivel(letra) and letra.isprintable() for letra in escapado)
+    assert escapado.startswith("ok\\")
 
 
 def test_consulta_da_pesquisa_tem_tamanho_maximo():

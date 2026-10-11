@@ -31,13 +31,13 @@ def conversar(log, roteiro, agente="todos"):
     return asyncio.run(asyncio.wait_for(sessao(), timeout=60))
 
 
-def test_cliente_lista_as_nove_tools(tmp_path):
+def test_cliente_lista_as_dez_tools(tmp_path):
     async def roteiro(cliente):
         return (await cliente.list_tools()).tools
 
     tools = conversar(tmp_path / "eventos.jsonl", roteiro)
     assert [tool.name for tool in tools] == [tool.nome for tool in TOOLS]
-    assert len(tools) == 9
+    assert len(tools) == 10
     assert [tool.description for tool in tools] == [tool.descricao for tool in TOOLS]
     por_nome = {tool.name: tool for tool in tools}
     assert list(por_nome["propor_acao"].input_schema["properties"]) == [
@@ -52,6 +52,7 @@ def test_cliente_de_um_agente_so_lista_as_tools_da_linha_dele(tmp_path):
         return tuple(tool.name for tool in (await cliente.list_tools()).tools)
 
     assert conversar(tmp_path / "eventos.jsonl", roteiro, "triagem") == tools_do_agente("triagem")
+    assert conversar(tmp_path / "eventos.jsonl", roteiro, "decisao") == tools_do_agente("decisao")
     assert conversar(tmp_path / "eventos.jsonl", roteiro, "execucao") == tools_do_agente("execucao")
 
 

@@ -6,21 +6,26 @@ desfazer. A autonomia é graduada pelo risco. Ação de risco baixo é aplicada 
 ação de risco alto e toda ação nova só são aplicadas depois que uma pessoa aprova.
 
 O risco não sai só do nome da ação e da duração. Uma ação é de risco baixo quando o alvo faz
-parte do incidente aberto, no papel que a política aceita para a ação, não é endereço
-protegido, a duração cabe no prazo e o incidente ainda não atingiu o limite de medidas de risco
-baixo ativas. O papel depende da ação: limitar a taxa vale para origem e para destino, e
-bloquear só para origem, porque o destino é o dispositivo atacado e bloqueá-lo tira a vítima do
-ar. Os números e os papéis ficam em `politica.toml`. O piso fica aqui, no código:
-isolar_dispositivo, revogar_credencial e toda ação nova são sempre de risco alto.
+parte do incidente aberto, no papel que a política aceita para a ação, não é endereço protegido
+nem crítico, a duração cabe no prazo e nem o incidente nem o sistema todo atingiram o limite de
+medidas de risco baixo ativas. O papel depende da ação: limitar a taxa vale para origem e para
+destino, e bloquear só para origem fora da rede local, porque o destino é o dispositivo atacado,
+bloqueá-lo tira a vítima do ar, e a origem de um flood é forjável. Os números e os papéis ficam
+em `politica.toml`. O piso fica aqui, no código: isolar_dispositivo, revogar_credencial e toda
+ação nova são sempre de risco alto.
+
+O agente de decisão não conhece endereço (arquitetura híbrida). Cada endereço do incidente ganha
+um rótulo neutro (`origem-1`, `destino-1`), o resumo que ele lê é montado aqui, sem endereço, e
+`propor` troca o rótulo do alvo pelo endereço antes de calcular o risco.
 
 A proposta de risco alto diz por quê: traz a lista dos motivos, cada um com um código estável e
 uma frase (`tipos.MOTIVOS_DE_RISCO_ALTO`). A lista sai da mesma conta que decide o risco, e por
 isso é vazia quando o risco é baixo, e só então.
 
 Quem chama as tools é um modelo de linguagem, que pode ser enganado por conteúdo vindo da rede.
-Por isso tudo o que chega é tratado como entrada: textos têm uma linha e tamanho máximo, o alvo
-de uma ação de base é um endereço IP sem zona, e a mensagem de recusa nunca devolve a entrada
-inteira. O log também é entrada: `reconstruir` confere cada transição, e `executar` não confia
+Por isso tudo o que chega é tratado como entrada: textos têm uma linha, tamanho máximo e só
+caracteres visíveis, o alvo de uma ação de base é um endereço IP sem zona ou o rótulo dele, e a
+mensagem de recusa nunca devolve a entrada inteira. O log também é entrada: `reconstruir` confere cada transição, e `executar` não confia
 no campo `estado` lido.
 
 Nada aqui toca a rede: aplicar uma ação é registrar um evento no log. O estado das propostas,
@@ -28,11 +33,18 @@ das aprovações e das medidas ativas é sempre reconstruído a partir dos event
 e as funções deste módulo não gravam nada. Elas recebem o estado e devolvem o resultado e os
 rascunhos dos eventos, que quem chamou grava com `eventos.Registro`.
 """
+import getpass
 import ipaddress
+import os
 import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+
+try:
+    import pwd
+except ImportError:  # No Windows não existe pwd: o nome vem de getpass.
+    pwd = None
 
 from pydantic import TypeAdapter, ValidationError
 
@@ -46,15 +58,21 @@ from codigo.mcp.tipos import (
     AcaoDoCatalogo,
     Ambiente,
     Decisao,
+    EnderecoRotulado,
     Execucao,
+    MarcaDeResolvido,
     MotivoDeRiscoAlto,
     NomeDeAcao,
     ParametroDeAcao,
     ParametrosDeAcaoNova,
     Promocao,
     Proposta,
+    ResumoDoIncidente,
     TextoLongo,
     endereco_canonico,
+    invisivel,
+    mascarar_enderecos,
+    tem_endereco,
     visivel,
 )
 
@@ -79,7 +97,10 @@ def _milhar(numero):
     return f"{numero:,}".replace(",", ".")
 
 
-_UMA_LINHA = f"um texto de uma linha, com até {_milhar(TEXTO_LONGO)} caracteres, sem caractere de controle"
+_UMA_LINHA = (
+    f"um texto de uma linha, com até {_milhar(TEXTO_LONGO)} caracteres, sem caractere de controle nem caractere "
+    "que não aparece na tela"
+)
 
 
 def resumir(valor, maximo=_MAIOR_TRECHO):
@@ -125,6 +146,8 @@ class PedidoRecusado(Exception):
 class _AcaoDeBase:
     descricao: str
     alvo: str
+    # Como o alvo é escrito na linha de decisão, que só conhece os rótulos neutros do incidente.
+    alvo_com_rotulo: str
     # "ip" ou "credencial": o formato que o alvo precisa ter.
     tipo_de_alvo: str
     # "obrigatoria", "opcional" ou None, quando a ação não aceita prazo.
@@ -138,6 +161,7 @@ BASE = {
     "limitar_taxa": _AcaoDeBase(
         descricao="Limita, por um prazo, a taxa de pacotes aceitos de um endereço ou para ele.",
         alvo="Endereço IP do dispositivo atacado ou da origem, como 192.168.137.20",
+        alvo_com_rotulo="Rótulo de uma origem ou de um destino do incidente, como origem-1 ou destino-1",
         tipo_de_alvo="ip",
         duracao="obrigatoria",
         grupo="limites",
@@ -146,6 +170,7 @@ BASE = {
     "bloquear_ip": _AcaoDeBase(
         descricao="Bloqueia o tráfego vindo de um endereço de origem.",
         alvo="Endereço IP de origem, como 203.0.113.7",
+        alvo_com_rotulo="Rótulo de uma origem do incidente, como origem-1",
         tipo_de_alvo="ip",
         duracao="opcional",
         grupo="bloqueios",
@@ -154,6 +179,7 @@ BASE = {
     "isolar_dispositivo": _AcaoDeBase(
         descricao="Isola um dispositivo do restante da rede.",
         alvo="Endereço IP do dispositivo, como 192.168.137.20",
+        alvo_com_rotulo="Rótulo do dispositivo no incidente, como destino-1",
         tipo_de_alvo="ip",
         duracao=None,
         grupo="isolamentos",
@@ -162,6 +188,7 @@ BASE = {
     "revogar_credencial": _AcaoDeBase(
         descricao="Revoga a credencial de uma conta em um dispositivo.",
         alvo="Conta e dispositivo, no formato usuario@endereco, como admin@192.168.137.31",
+        alvo_com_rotulo="Conta e dispositivo, no formato usuario@rotulo, como admin@destino-1",
         tipo_de_alvo="credencial",
         duracao=None,
         grupo="credenciais_revogadas",
@@ -181,10 +208,25 @@ _ORIGENS_E_DESTINOS = "origens_e_destinos"
 ALVOS_DE_RISCO_BAIXO = (_SO_ORIGENS, _ORIGENS_E_DESTINOS)
 _LIMITES = "limites"
 _MEDIDAS = "medidas_de_risco_baixo_por_incidente"
+_MEDIDAS_NO_TOTAL = "medidas_de_risco_baixo_no_total"
 _PENDENTES = "propostas_aguardando_aprovacao_por_incidente"
+_LIBERADAS = "propostas_liberadas_por_incidente"
 _REDE = "rede"
 _PROTEGIDOS = "enderecos_protegidos"
+_CRITICOS = "enderecos_criticos"
 _REDES_LOCAIS = "redes_locais"
+# Prefixos IPv6 que levam um IPv4 dentro deles: NAT64 (64:ff9b::/96) e SIIT (::ffff:0:0:0/96). O IPv4
+# compatível (::/96) e o 6to4 (2002::/16) são tratados à parte, em `_ipv4_embutido`.
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_SIIT = ipaddress.ip_network("::ffff:0:0:0/96")
+_COMPATIVEL = ipaddress.ip_network("::/96")
+# Alvo escrito com o rótulo neutro de um endereço do incidente: o rótulo só, ou usuario@rótulo.
+_ALVO_COM_ROTULO = re.compile(r"(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,63}@)?(?:origem|destino)-[1-9][0-9]{0,5}")
+# O alvo da ação promovida: genérico, sem o endereço da proposta que deu origem a ela.
+_ALVO_DA_PROMOVIDA = (
+    "Texto de uma linha que diga sobre o que a ação age. Um endereço do incidente vai com o rótulo neutro, "
+    "como destino-1."
+)
 
 
 # --- política de risco -----------------------------------------------------------------------
@@ -199,11 +241,19 @@ class Politica:
     acoes: dict
     # Máximo de medidas de risco baixo ativas ao mesmo tempo em um incidente.
     medidas_de_risco_baixo_por_incidente: int
+    # Máximo de medidas de risco baixo ativas ao mesmo tempo, somando todos os incidentes.
+    medidas_de_risco_baixo_no_total: int
     # Máximo de propostas de um incidente aguardando aprovação ao mesmo tempo. A seguinte é recusada.
     propostas_aguardando_aprovacao_por_incidente: int
-    # Endereços em que qualquer ação é de risco alto, na forma canônica.
+    # Máximo de propostas de um incidente liberadas e ainda não executadas. A seguinte de risco baixo é
+    # recusada.
+    propostas_liberadas_por_incidente: int
+    # Endereços em que qualquer ação é de risco alto, na forma canônica: o gateway e a captura.
     enderecos_protegidos: frozenset
-    # Redes locais: o endereço de rede e o de broadcast de cada uma não são aceitos como alvo.
+    # Endereços dos serviços de que o sistema depende, tratados como protegidos.
+    enderecos_criticos: frozenset
+    # Redes locais: o endereço de rede e o de broadcast de cada uma não são aceitos como alvo, e
+    # bloquear um endereço delas é de risco alto.
     redes_locais: tuple
 
 
@@ -281,22 +331,36 @@ def carregar_politica(caminho=POLITICA_PADRAO):
             )
         regras[nome] = {"risco": regra["risco"], _PRAZO: prazo, _ALVOS: alvos}
 
-    limites = secao(_LIMITES, (_MEDIDAS, _PENDENTES))
+    limites = secao(_LIMITES, (_MEDIDAS, _MEDIDAS_NO_TOTAL, _PENDENTES, _LIBERADAS))
     medidas = limites.get(_MEDIDAS)
     if type(medidas) is not int or medidas < 0:
         raise invalida(f"{_MEDIDAS} precisa ser um número inteiro, a partir de 0")
+    no_total = limites.get(_MEDIDAS_NO_TOTAL)
+    if type(no_total) is not int or no_total < 0:
+        raise invalida(f"{_MEDIDAS_NO_TOTAL} precisa ser um número inteiro, a partir de 0")
     pendentes = limites.get(_PENDENTES)
     # Com zero, nenhuma proposta de risco alto chegaria à pessoa.
     if type(pendentes) is not int or pendentes < 1:
         raise invalida(f"{_PENDENTES} precisa ser um número inteiro, a partir de 1")
+    liberadas = limites.get(_LIBERADAS)
+    # Com zero, nenhuma proposta de risco baixo seria registrada.
+    if type(liberadas) is not int or liberadas < 1:
+        raise invalida(f"{_LIBERADAS} precisa ser um número inteiro, a partir de 1")
 
-    rede = secao(_REDE, (_PROTEGIDOS, _REDES_LOCAIS))
-    protegidos, redes = [], []
-    for texto in lista_de_textos(rede, _PROTEGIDOS):
-        try:
-            protegidos.append(endereco_canonico(texto.strip()))
-        except ValueError:
-            raise invalida(f"{_PROTEGIDOS} traz {texto!r}, que não é um endereço IP") from None
+    rede = secao(_REDE, (_PROTEGIDOS, _CRITICOS, _REDES_LOCAIS))
+
+    def enderecos(chave):
+        lidos = []
+        for texto in lista_de_textos(rede, chave):
+            try:
+                lidos.append(endereco_canonico(texto.strip()))
+            except ValueError:
+                raise invalida(f"{chave} traz {texto!r}, que não é um endereço IP") from None
+        return frozenset(lidos)
+
+    protegidos = enderecos(_PROTEGIDOS)
+    criticos = enderecos(_CRITICOS)
+    redes = []
     for texto in lista_de_textos(rede, _REDES_LOCAIS):
         try:
             redes.append(ipaddress.ip_network(texto.strip()))
@@ -307,8 +371,11 @@ def carregar_politica(caminho=POLITICA_PADRAO):
     return Politica(
         acoes=regras,
         medidas_de_risco_baixo_por_incidente=medidas,
+        medidas_de_risco_baixo_no_total=no_total,
         propostas_aguardando_aprovacao_por_incidente=pendentes,
-        enderecos_protegidos=frozenset(protegidos),
+        propostas_liberadas_por_incidente=liberadas,
+        enderecos_protegidos=protegidos,
+        enderecos_criticos=criticos,
         redes_locais=tuple(redes),
     )
 
@@ -342,15 +409,60 @@ def _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros):
         # alvo de risco baixo.
         if endereco in destinos and regra[_ALVOS] != _ORIGENS_E_DESTINOS:
             valem.add("alvo_e_destino_do_incidente")
+        # Na ação que só é de risco baixo sobre quem ataca, um endereço da rede local não conta como
+        # atacante: num flood UDP ou ICMP a origem é forjável, e bloquear um dispositivo interno
+        # equivale a isolá-lo.
+        if regra[_ALVOS] == _SO_ORIGENS and _na_rede_local(politica, endereco):
+            valem.add("alvo_na_rede_local")
         if _medidas_de_risco_baixo(estado, incidente) >= politica.medidas_de_risco_baixo_por_incidente:
             valem.add("orcamento_de_risco_baixo_esgotado")
+        # Cada incidente aberto com origens forjadas teria o seu limite: há também o do sistema todo.
+        if _medidas_de_risco_baixo(estado) >= politica.medidas_de_risco_baixo_no_total:
+            valem.add("orcamento_global_de_risco_baixo_esgotado")
     # O que se diz do alvo vale para toda ação de base, inclusive a que já é sempre de risco alto: quem
     # aprova o isolamento de um dispositivo precisa saber que ele é o gateway, ou que é alheio ao incidente.
     if endereco not in origens and endereco not in destinos:
         valem.add("alvo_fora_do_incidente")
-    if endereco in politica.enderecos_protegidos:
+    if _protegido(politica, endereco):
         valem.add("alvo_protegido")
     return [codigo for codigo in MOTIVOS_DE_RISCO_ALTO if codigo in valem]
+
+
+def _ipv4_embutido(endereco):
+    """O IPv4 que um endereço IPv6 leva dentro dele, ou None.
+
+    São as formas em que um IPv6 chega ao mesmo dispositivo que um IPv4: o IPv4 compatível
+    (`::a.b.c.d`), o SIIT (`::ffff:0:a.b.c.d`), o NAT64 (`64:ff9b::a.b.c.d`) e o 6to4
+    (`2002:AABB:CCDD::`). O IPv4 escrito como IPv6 (`::ffff:a.b.c.d`) já vira o IPv4 na leitura.
+    """
+    ip = ipaddress.ip_address(endereco)
+    if ip.version != 6:
+        return None
+    if ip.sixtofour is not None:
+        return str(ip.sixtofour)
+    # O compatível exclui :: e ::1, que são o endereço não especificado e o loopback do IPv6.
+    if ip in _NAT64 or ip in _SIIT or (ip in _COMPATIVEL and int(ip) > 1):
+        return str(ipaddress.IPv4Address(int(ip) & 0xFFFF_FFFF))
+    return None
+
+
+def _formas(endereco):
+    """O endereço e, quando ele é um IPv6 que leva um IPv4, também esse IPv4."""
+    embutido = _ipv4_embutido(endereco)
+    return (endereco,) if embutido is None else (endereco, embutido)
+
+
+def _protegido(politica, endereco):
+    """O endereço é protegido ou crítico, escrito direto ou dentro de um IPv6."""
+    return any(forma in politica.enderecos_protegidos | politica.enderecos_criticos for forma in _formas(endereco))
+
+
+def _na_rede_local(politica, endereco):
+    """O endereço está numa das redes locais, escrito direto ou dentro de um IPv6."""
+    return any(
+        ipaddress.ip_address(forma) in rede for forma in _formas(endereco) for rede in politica.redes_locais
+        if ipaddress.ip_address(forma).version == rede.version
+    )
 
 
 def _enderecos_do_incidente(estado, incidente):
@@ -364,11 +476,11 @@ def _enderecos_do_incidente(estado, incidente):
     )
 
 
-def _medidas_de_risco_baixo(estado, incidente):
-    """Quantas medidas aplicadas sem aprovação humana estão ativas no incidente."""
+def _medidas_de_risco_baixo(estado, incidente=None):
+    """Quantas medidas aplicadas sem aprovação humana estão ativas no incidente, ou em todos."""
     return sum(
         1 for execucao in estado.execucoes.values()
-        if execucao.incidente == incidente and execucao.estado == "aplicada"
+        if incidente in (None, execucao.incidente) and execucao.estado == "aplicada"
         and execucao.proposta not in estado.aprovadas
     )
 
@@ -379,15 +491,16 @@ def _regra(politica, acao):
         return _REGRA_DE_RISCO_ALTO
     sem_prazo = "sem duracao, " if BASE[acao].duracao == "opcional" else ""
     if regra[_ALVOS] == _ORIGENS_E_DESTINOS:
-        papel, destino = "origem ou destino", ""
+        papel, destino = "origem ou destino do incidente", ""
     else:
-        papel, destino = "origem", "alvo que é destino do incidente, isto é, o dispositivo atacado, "
+        papel = "origem do incidente fora da rede local"
+        destino = "alvo que é destino do incidente, isto é, o dispositivo atacado, endereço da rede local, "
     return (
-        f"Risco baixo quando o alvo é {papel} do incidente, a duracao é de até {regra[_PRAZO]} "
-        f"minutos e o incidente tem menos de {politica.medidas_de_risco_baixo_por_incidente} medidas de risco "
-        f"baixo ativas: o agente de execução aplica sem aprovação. Fora disso ({sem_prazo}duracao maior, alvo "
-        f"que não consta do incidente, {destino}endereço protegido pela política ou limite de medidas atingido), "
-        "risco alto: só com aprovação humana."
+        f"Risco baixo quando o alvo é {papel}, a duracao é de até {regra[_PRAZO]} minutos, o incidente "
+        f"tem menos de {politica.medidas_de_risco_baixo_por_incidente} medidas de risco baixo ativas e o sistema, "
+        f"somando os incidentes, menos de {politica.medidas_de_risco_baixo_no_total}: o agente de execução aplica "
+        f"sem aprovação. Fora disso ({sem_prazo}duracao maior, alvo que não consta do incidente, {destino}"
+        "endereço protegido pela política ou limite de medidas atingido), risco alto: só com aprovação humana."
     )
 
 
@@ -442,6 +555,12 @@ class Estado:
     promovidas: dict = field(default_factory=dict)
     # Identificadores das propostas que têm o evento de aprovação de uma pessoa.
     aprovadas: set = field(default_factory=set)
+    # Incidentes que a pessoa marcou como já resolvidos, com a marca.
+    resolvidos: dict = field(default_factory=dict)
+    # Rótulos neutros dos endereços de cada incidente: rótulo -> endereço, na ordem em que apareceram.
+    rotulos: dict = field(default_factory=dict)
+    # Último efeito verificado em cada incidente, na ordem do log.
+    ultimos_efeitos: dict = field(default_factory=dict)
 
 
 class _Violacao(Exception):
@@ -495,17 +614,24 @@ def _aplicar(estado, evento):
             _exigir(dados.id not in estado.incidentes, f"o incidente {dados.id} já foi aberto")
             _exigir(dados.estado == "aberto", f"o incidente {dados.id} é aberto com o estado {dados.estado}")
             estado.incidentes[dados.id] = dados
+            _rotular(estado, dados)
         case "incidente_atualizado" | "incidente_encerrado":
             _exigir(dados.id in estado.incidentes, f"o incidente {dados.id} não foi aberto")
             _exigir(estado.incidentes[dados.id].estado == "aberto", f"o incidente {dados.id} já está encerrado")
             esperado = "encerrado" if evento.tipo == "incidente_encerrado" else "aberto"
             _exigir(dados.estado == esperado, f"o incidente {dados.id} vem com o estado {dados.estado}")
             estado.incidentes[dados.id] = dados
+            _rotular(estado, dados)
+        case "incidente_marcado_resolvido":
+            _citado(estado.incidentes, dados.incidente, "o incidente")
+            _exigir(dados.incidente not in estado.resolvidos, f"o incidente {dados.incidente} já foi marcado como resolvido")
+            estado.resolvidos[dados.incidente] = dados
         case "acao_proposta":
             _conferir_proposta_nova(estado, dados)
             estado.propostas[dados.id] = dados
         case "acao_aprovada" | "acao_rejeitada":
             proposta = _citado(estado.propostas, dados.proposta, "a proposta")
+            _no_incidente_da_proposta(evento, proposta)
             _exigir(
                 proposta.estado == "aguardando_aprovacao",
                 f"a proposta {proposta.id} não aguarda aprovação: está {proposta.estado}",
@@ -519,6 +645,10 @@ def _aplicar(estado, evento):
             _exigir(
                 proposta.estado == "liberada",
                 f"a proposta {proposta.id} não está liberada nem aprovada: está {proposta.estado}",
+            )
+            _exigir(
+                proposta.incidente not in estado.resolvidos,
+                f"o incidente {proposta.incidente} foi marcado como já resolvido, e nenhuma ação é aplicada nele",
             )
             _exigir(
                 (dados.incidente, dados.acao, dados.alvo, dados.parametros, dados.estado)
@@ -538,13 +668,25 @@ def _aplicar(estado, evento):
             estado.execucoes[dados.id] = dados
             mudar_proposta(dados.proposta, "desfeita")
         case "efeito_verificado":
-            _citado(estado.execucoes, dados.execucao, "a execução")
+            execucao = _citado(estado.execucoes, dados.execucao, "a execução")
+            _exigir(
+                dados.incidente == execucao.incidente,
+                f"o efeito diz que é do incidente {dados.incidente}, e a execução {execucao.id} é do incidente "
+                f"{execucao.incidente}",
+            )
             estado.efeitos[dados.execucao] = dados
+            estado.ultimos_efeitos[dados.incidente] = dados
         case "recomendacao_emitida":
             for citada in dados.propostas:
-                _citado(estado.propostas, citada, "a proposta")
+                proposta = _citado(estado.propostas, citada, "a proposta")
+                _exigir(
+                    proposta.incidente == evento.incidente,
+                    f"a recomendação está no incidente {evento.incidente} e cita a proposta {proposta.id}, que é do "
+                    f"incidente {proposta.incidente}",
+                )
         case "catalogo_ampliado":
             proposta = _citado(estado.propostas, dados.proposta, "a proposta")
+            _no_incidente_da_proposta(evento, proposta)
             nome = dados.acao.nome
             _exigir(nome not in BASE and nome not in estado.promovidas, f"a ação {nome} já está no catálogo")
             _exigir(
@@ -552,7 +694,60 @@ def _aplicar(estado, evento):
                 and dados.acao.origem == "promovida",
                 f"a proposta {proposta.id} não é de uma ação nova aplicada, com o nome {nome}",
             )
+            # O que entra no catálogo é o que a pessoa aprovou, e não uma variação com o mesmo nome.
+            try:
+                aprovada = _acao_promovida(proposta)
+            except ValidationError:
+                aprovada = None
+            _exigir(
+                dados.acao == aprovada,
+                f"a ação promovida pela proposta {proposta.id} não é a que foi aprovada e aplicada",
+            )
             estado.promovidas[nome] = dados.acao
+    # O evento que diz ser de um incidente está no rastro de um incidente que existe: é por esse campo
+    # que a interface monta o rastro e o custo de cada incidente.
+    _exigir(
+        evento.incidente is None or evento.incidente in estado.incidentes,
+        f"o incidente {evento.incidente} não existe no log até este ponto",
+    )
+
+
+def _rotular(estado, incidente):
+    """Dá um rótulo neutro a cada endereço novo do incidente, na ordem em que ele aparece.
+
+    O rótulo de um endereço não muda quando o incidente é atualizado e a lista é reordenada: o
+    agente de decisão que propôs sobre origem-2 continua falando do mesmo dispositivo. O papel
+    (origem ou destino) faz parte do rótulo, e o endereço que aparece nos dois ganha um de cada.
+    """
+    rotulos = estado.rotulos.setdefault(incidente.id, {})
+    for papel, lista in (("origem", incidente.origens), ("destino", incidente.destinos)):
+        do_papel = [endereco for rotulo, endereco in rotulos.items() if rotulo.startswith(f"{papel}-")]
+        for item in lista:
+            if item.endereco not in do_papel:
+                do_papel.append(item.endereco)
+                rotulos[f"{papel}-{len(do_papel)}"] = item.endereco
+
+
+def _resolver_rotulo(estado, incidente, alvo):
+    """O alvo com o rótulo trocado pelo endereço que ele representa no incidente."""
+    usuario, arroba, rotulo = alvo.rpartition("@")
+    rotulos = estado.rotulos.get(incidente, {})
+    if rotulo not in rotulos:
+        raise PedidoRecusado(
+            "alvo_malformado",
+            f"O rótulo {resumir(rotulo, 30)} não existe no incidente {incidente}. Os rótulos dele são: "
+            f"{', '.join(rotulos) or 'nenhum'}.",
+        )
+    return f"{usuario}{arroba}{rotulos[rotulo]}"
+
+
+def _no_incidente_da_proposta(evento, proposta):
+    """A decisão e a promoção ficam no rastro do incidente da proposta, e não no de outro."""
+    _exigir(
+        evento.incidente == proposta.incidente,
+        f"o evento diz que é do incidente {evento.incidente}, e a proposta {proposta.id} é do incidente "
+        f"{proposta.incidente}",
+    )
 
 
 def _conferir_proposta_nova(estado, proposta):
@@ -565,6 +760,10 @@ def _conferir_proposta_nova(estado, proposta):
     _exigir(
         proposta.incidente in estado.incidentes,
         f"a proposta {proposta.id} cita o incidente {proposta.incidente}, que não existe no log até este ponto",
+    )
+    _exigir(
+        proposta.incidente not in estado.resolvidos,
+        f"o incidente {proposta.incidente} foi marcado como já resolvido e não recebe proposta",
     )
     de_risco_alto = proposta.risco == "alto"
     _exigir(
@@ -584,6 +783,16 @@ def _conferir_proposta_nova(estado, proposta):
         proposta.nova == (proposta.acao not in BASE and proposta.acao not in estado.promovidas),
         f"a proposta {proposta.id} vem com nova = {proposta.nova}, o que não confere com o catálogo",
     )
+    if proposta.alvo_com_rotulo is not None:
+        # O rótulo gravado é o que o servidor resolveu: com ele, o incidente dá o mesmo alvo.
+        try:
+            resolvido = _resolver_rotulo(estado, proposta.incidente, proposta.alvo_com_rotulo)
+        except PedidoRecusado:
+            resolvido = None
+        _exigir(
+            _ALVO_COM_ROTULO.fullmatch(proposta.alvo_com_rotulo) is not None and resolvido == proposta.alvo,
+            f"a proposta {proposta.id} traz um rótulo que não dá o alvo dela no incidente {proposta.incidente}",
+        )
     # Os motivos são texto do sistema na tela de aprovação: existem se e só se o risco é alto, não se
     # repetem e trazem a frase do contrato, e não outra.
     codigos = [motivo.codigo for motivo in proposta.motivos_de_risco_alto]
@@ -599,13 +808,17 @@ def _conferir_proposta_nova(estado, proposta):
     )
 
 
-def catalogo(estado, politica):
-    """As ações que o agente pode propor: as quatro de base e as promovidas, nessa ordem."""
+def catalogo(estado, politica, com_rotulos=False):
+    """As ações que o agente pode propor: as quatro de base e as promovidas, nessa ordem.
+
+    Com `com_rotulos`, o alvo de cada ação de base é descrito com os rótulos neutros, como a
+    linha de decisão o escreve.
+    """
     de_base = [
         AcaoDoCatalogo(
             nome=nome,
             descricao=definicao.descricao,
-            alvo=definicao.alvo,
+            alvo=definicao.alvo_com_rotulo if com_rotulos else definicao.alvo,
             parametros=_parametros_de_base(definicao),
             regra=_regra(politica, nome),
             origem="base",
@@ -631,6 +844,43 @@ def _parametros_de_base(definicao):
     ]
 
 
+def resumo_do_incidente(estado, politica, identificador):
+    """O incidente como o agente de decisão o vê: montado aqui, sem endereço nenhum.
+
+    O agente de decisão pode estar num modelo de nuvem (arquitetura híbrida, decisão de
+    2026-10-10). Em vez dos endereços, o resumo traz os rótulos neutros, com a contagem de
+    quadros e se o endereço é protegido pela política. Traz também o último efeito verificado e a
+    marca de já resolvido, para o agente saber o que já foi tentado e quando só deve explicar.
+    """
+    incidente = estado.incidentes[identificador]
+    rotulo_de = {(rotulo.partition("-")[0], endereco): rotulo for rotulo, endereco in estado.rotulos[identificador].items()}
+
+    def rotulados(lista, papel):
+        return [
+            EnderecoRotulado(
+                rotulo=rotulo_de[(papel, item.endereco)], quadros=item.quadros, protegido=_protegido(politica, item.endereco),
+            )
+            for item in lista
+        ]
+
+    return ResumoDoIncidente(
+        id=incidente.id,
+        estado=incidente.estado,
+        ja_resolvido=identificador in estado.resolvidos,
+        categoria=incidente.categoria,
+        categoria_do_modelo=incidente.categoria_do_modelo,
+        confianca=incidente.confianca,
+        duracao_s=max(0.0, (incidente.fim - incidente.inicio).total_seconds()),
+        janelas=incidente.janelas,
+        origens_distintas=incidente.origens_distintas,
+        distribuido=incidente.distribuido,
+        origens=rotulados(incidente.origens, "origem"),
+        destinos=rotulados(incidente.destinos, "destino"),
+        features_principais=incidente.features_principais,
+        ultimo_efeito=estado.ultimos_efeitos.get(identificador),
+    )
+
+
 def ambiente(estado):
     """As medidas ativas no ambiente simulado. Ação desfeita não aparece."""
     grupos = {nome: [] for nome in Ambiente.model_fields}
@@ -644,13 +894,19 @@ def ambiente(estado):
 # --- propor ----------------------------------------------------------------------------------
 
 
-def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
+def propor(estado, politica, incidente, acao, alvo, parametros, justificativa, so_rotulos=False):
     """Registra a proposta de uma ação do catálogo ou de uma ação nova.
 
     Devolve a proposta, com o nível de risco, os motivos quando o risco é alto e se ela exige
     aprovação, e o rascunho do evento `acao_proposta`. Não aplica nada: proposta de risco baixo
     já nasce liberada para o agente de execução, e a de risco alto fica aguardando a decisão de
     uma pessoa.
+
+    O alvo pode vir com o rótulo neutro de um endereço do incidente (`origem-1`, `destino-1`,
+    `admin@destino-1`). O rótulo é trocado aqui pelo endereço, o risco é calculado sobre o
+    endereço, e a proposta guarda os dois. Com `so_rotulos`, que é o caso da linha de decisão, o
+    alvo de uma ação de base só pode vir com o rótulo, e nenhum alvo pode trazer endereço: o
+    agente de decisão não conhece endereço, e o que vier com um foi copiado de texto de fora.
 
     Alvo que não consta do incidente, endereço protegido e limite de medidas atingido não são
     motivo de recusa: a proposta é registrada como de risco alto, e quem decide é a pessoa.
@@ -666,11 +922,31 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
         raise PedidoRecusado(
             "incidente_encerrado", f"O incidente {incidente} está encerrado e não recebe novas propostas."
         )
+    if incidente in estado.resolvidos:
+        raise PedidoRecusado(
+            "incidente_ja_resolvido",
+            f"O incidente {incidente} foi marcado como já resolvido pela pessoa que opera a rede e não recebe "
+            "propostas. Explique o incidente, sem propor ação.",
+        )
     justificativa = _justificativa(justificativa)
     if not isinstance(parametros, dict):
         raise PedidoRecusado("argumentos_invalidos", "O campo parametros precisa ser um objeto.")
     if not isinstance(acao, str):
         raise PedidoRecusado("argumentos_invalidos", f"O nome da ação precisa ser um texto. Veio {resumir(acao)}.")
+
+    alvo_com_rotulo = None
+    if isinstance(alvo, str) and _ALVO_COM_ROTULO.fullmatch(alvo.strip()):
+        alvo_com_rotulo = alvo.strip()
+        alvo = _resolver_rotulo(estado, incidente, alvo_com_rotulo)
+    elif so_rotulos and (acao in BASE or tem_endereco(alvo)):
+        # O nome só entra na mensagem quando é de uma ação de base: o de uma ação nova vem do agente.
+        de_qual = f" de {acao}" if acao in BASE else ""
+        raise PedidoRecusado(
+            "alvo_malformado",
+            f"Na linha de decisão, o alvo{de_qual} é o rótulo neutro de um endereço do incidente, como origem-1, "
+            "destino-1 ou admin@destino-1, como vem em obter_resumo, e não um endereço. Uma ação nova também pode "
+            "descrever o alvo em texto, sem endereço.",
+        )
 
     if acao in BASE:
         alvo = _alvo_de_base(acao, alvo)
@@ -709,11 +985,14 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
     motivos = _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros)
     if motivos:
         _conferir_fila_de_aprovacao(estado, politica, incidente)
+    else:
+        _conferir_propostas_liberadas(estado, politica, incidente)
     proposta = Proposta(
         id=f"prop-{len(estado.propostas) + 1:04d}",
         incidente=incidente,
         acao=acao,
         alvo=alvo,
+        alvo_com_rotulo=alvo_com_rotulo,
         parametros=parametros,
         justificativa=justificativa,
         nova=acao not in BASE and acao not in estado.promovidas,
@@ -745,6 +1024,26 @@ def _conferir_fila_de_aprovacao(estado, politica, incidente):
             f"O incidente {incidente} já tem {quantas} aguardando aprovação, que é o máximo aceito pela "
             "política, e esta proposta não foi registrada. Uma nova proposta de risco alto só entra depois que "
             "uma pessoa aprovar ou rejeitar alguma das pendentes.",
+        )
+
+
+def _conferir_propostas_liberadas(estado, politica, incidente):
+    """Recusa a proposta de risco baixo quando o incidente já tem o máximo de propostas liberadas.
+
+    A proposta de risco baixo nasce liberada e assim fica até o agente de execução aplicá-la. Sem
+    o teto, um agente enganado em laço registraria propostas sem fim, e o log cresceria com elas.
+    Contam também as aprovadas e ainda não executadas.
+    """
+    liberadas = sum(
+        1 for proposta in estado.propostas.values() if proposta.incidente == incidente and proposta.estado == "liberada"
+    )
+    if liberadas >= politica.propostas_liberadas_por_incidente:
+        quantas = "1 proposta liberada" if liberadas == 1 else f"{liberadas} propostas liberadas"
+        raise PedidoRecusado(
+            "limite_de_propostas_liberadas",
+            f"O incidente {incidente} já tem {quantas} que ainda não foram executadas, que é o máximo aceito pela "
+            "política, e esta proposta não foi registrada. Uma nova proposta de risco baixo só entra depois que o "
+            "agente de execução aplicar alguma das liberadas.",
         )
 
 
@@ -797,7 +1096,7 @@ def _alvo_de_base(acao, alvo):
 def _alvo_livre(acao, alvo):
     """Alvo de ação fora da base: um texto curto, de uma linha só."""
     limpo = alvo.strip() if isinstance(alvo, str) else ""
-    if not limpo or len(limpo) > _MAIOR_ALVO or not limpo.isprintable():
+    if not limpo or len(limpo) > _MAIOR_ALVO or not limpo.isprintable() or any(map(invisivel, limpo)):
         raise PedidoRecusado(
             "alvo_malformado",
             f"O alvo de {acao} precisa ser um texto de uma linha, com até {_MAIOR_ALVO} caracteres, que diga "
@@ -862,11 +1161,25 @@ def _execucao_da_proposta(estado, proposta):
     return next(execucao for execucao in estado.execucoes.values() if execucao.proposta == proposta.id)
 
 
-def decidir(estado, id_proposta, aprovar, canal="terminal", motivo=None):
+def usuario_do_sistema():
+    """O nome do usuário do sistema operacional dono do processo, para registrar quem decidiu.
+
+    Vem da conta do processo, e não das variáveis de ambiente, onde houver como. O nome é escapado
+    e cortado para caber no contrato.
+    """
+    try:
+        nome = pwd.getpwuid(os.getuid()).pw_name if pwd is not None else getpass.getuser()
+    except (KeyError, OSError):
+        nome = ""
+    return visivel(nome).strip()[:TEXTO_CURTO] or "desconhecido"
+
+
+def decidir(estado, id_proposta, aprovar, canal="terminal", motivo=None, usuario=None):
     """Aprova ou rejeita uma proposta que aguarda aprovação.
 
     Não é tool: nenhum agente chega aqui. A decisão entra por um canal só da pessoa, que neste
-    trabalho é o comando `python -m codigo.mcp.aprovar`.
+    trabalho é o comando `python -m codigo.mcp.aprovar`. Fica registrado quem decidiu: o usuário
+    dado ou, sem ele, o usuário do sistema que roda o processo.
     """
     proposta = _proposta(estado, id_proposta)
     if proposta.estado != "aguardando_aprovacao":
@@ -878,17 +1191,47 @@ def decidir(estado, id_proposta, aprovar, canal="terminal", motivo=None):
         }[proposta.estado]
         raise PedidoRecusado("argumentos_invalidos", f"A proposta {proposta.id} {situacao}.")
     try:
-        decisao = Decisao(proposta=proposta.id, canal=canal, motivo=motivo or None)
+        decisao = Decisao(
+            proposta=proposta.id, canal=canal, usuario=usuario or usuario_do_sistema(), motivo=motivo or None
+        )
     except ValidationError:
         raise PedidoRecusado("argumentos_invalidos", f"O motivo da decisão precisa ser {_UMA_LINHA}.") from None
     decidida = proposta.model_copy(update={"estado": "liberada" if aprovar else "rejeitada"})
     return decidida, [novo("acao_aprovada" if aprovar else "acao_rejeitada", decisao, proposta.incidente)]
 
 
+def marcar_resolvido(estado, incidente, canal="terminal", usuario=None, motivo=None):
+    """Registra que a pessoa que opera a rede já resolveu o incidente por conta própria.
+
+    Como a aprovação, não é tool: entra pelo canal da pessoa (o comando `aprovar --resolvido` ou,
+    mais adiante, o botão "Já resolvido" da interface). Daí em diante, `propor` e `executar`
+    recusam qualquer proposta do incidente, inclusive a já aprovada. A garantia fica no servidor, e
+    não no prompt do agente.
+    """
+    if not isinstance(incidente, str) or incidente not in estado.incidentes:
+        raise PedidoRecusado(
+            "identificador_desconhecido", f"Não existe incidente com o identificador {resumir(incidente)}."
+        )
+    if incidente in estado.resolvidos:
+        raise PedidoRecusado("argumentos_invalidos", f"O incidente {incidente} já foi marcado como resolvido.")
+    if estado.incidentes[incidente].estado != "aberto":
+        raise PedidoRecusado(
+            "incidente_encerrado", f"O incidente {incidente} já está encerrado: não há o que marcar."
+        )
+    try:
+        marca = MarcaDeResolvido(
+            incidente=incidente, canal=canal, usuario=usuario or usuario_do_sistema(), motivo=motivo or None
+        )
+    except ValidationError:
+        raise PedidoRecusado("argumentos_invalidos", f"O motivo precisa ser {_UMA_LINHA}.") from None
+    return marca, [novo("incidente_marcado_resolvido", marca, incidente)]
+
+
 def executar(estado, politica, id_proposta, instante):
     """Aplica no ambiente simulado a ação de uma proposta liberada.
 
-    O campo `estado` da proposta, que veio do log, não basta para liberar. Proposta que exige
+    Proposta de incidente marcado como já resolvido não executa, nem a aprovada. O campo
+    `estado` da proposta, que veio do log, não basta para liberar. Proposta que exige
     aprovação só executa se o log tiver o evento de aprovação dela. Proposta registrada como de
     risco baixo tem o risco calculado de novo, com a política e o estado de agora: se o prazo
     da política diminuiu, se o alvo virou endereço protegido, se o incidente encerrou ou se o
@@ -905,6 +1248,12 @@ def executar(estado, politica, id_proposta, instante):
             "proposta_ja_executada",
             f"A proposta {proposta.id} já foi executada ({execucao.id}). Para aplicar a ação outra vez, "
             "registre uma nova proposta.",
+        )
+    if proposta.incidente in estado.resolvidos:
+        raise PedidoRecusado(
+            "incidente_ja_resolvido",
+            f"A proposta {proposta.id} é do incidente {proposta.incidente}, que foi marcado como já resolvido pela "
+            "pessoa que opera a rede. Nenhuma ação é aplicada nele, nem a que já foi aprovada.",
         )
     if proposta.id not in estado.aprovadas:
         if proposta.exige_aprovacao or proposta.estado != "liberada":
@@ -989,17 +1338,31 @@ def promover(estado, id_proposta):
             f"A proposta {proposta.id} só pode ser promovida depois de aprovada e aplicada, e enquanto a ação "
             "não for desfeita.",
         )
+    acao = _acao_promovida(proposta)
+    return acao, [novo("catalogo_ampliado", Promocao(proposta=proposta.id, acao=acao), proposta.incidente)]
+
+
+def _acao_promovida(proposta):
+    """A ação do catálogo que sai de uma proposta de ação nova: os passos aprovados, sempre de risco alto.
+
+    A ação promovida volta a todas as sessões do agente de decisão, em qualquer categoria. Por isso
+    ela vai sem endereço: o alvo é genérico, e o endereço que estiver nos textos aprovados vira o
+    marcador neutro.
+    """
     detalhes = ParametrosDeAcaoNova.model_validate(proposta.parametros)
-    acao = AcaoDoCatalogo(
+
+    def generico(texto, maximo=TEXTO_LONGO):
+        return None if texto is None else mascarar_enderecos(texto)[:maximo]
+
+    return AcaoDoCatalogo(
         nome=proposta.acao,
-        descricao=detalhes.descricao,
-        alvo=f"O mesmo tipo de alvo da proposta que deu origem à ação, como {proposta.alvo}",
+        descricao=generico(detalhes.descricao),
+        alvo=_ALVO_DA_PROMOVIDA,
         parametros=[],
         regra=_REGRA_DE_RISCO_ALTO,
         origem="promovida",
-        passos=detalhes.passos,
-        efeito_esperado=detalhes.efeito_esperado,
-        como_desfazer=detalhes.como_desfazer,
-        fonte=detalhes.fonte,
+        passos=[generico(passo) for passo in detalhes.passos],
+        efeito_esperado=generico(detalhes.efeito_esperado),
+        como_desfazer=generico(detalhes.como_desfazer),
+        fonte=generico(detalhes.fonte, TEXTO_CURTO),
     )
-    return acao, [novo("catalogo_ampliado", Promocao(proposta=proposta.id, acao=acao), proposta.incidente)]

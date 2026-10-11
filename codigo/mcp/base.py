@@ -3,7 +3,7 @@
 A base é uma pasta de documentos em markdown, um por tipo de ataque, mais material de
 referência. Cada seção de um documento descreve uma medida. Dela saem duas respostas:
 
-- `consultar_mitigacoes` devolve as seções da categoria que têm uma ação do catálogo.
+- `consultar_mitigacoes` devolve as seções da categoria que têm uma ação do catálogo, até 10.
 - `pesquisar_solucoes` procura em todas as seções, inclusive nas que o catálogo não cobre. É
   por aí que o agente de decisão encontra uma saída quando a base de ações não resolve.
 
@@ -27,17 +27,23 @@ de referência e só aparece na pesquisa. O `README.md` da pasta não faz parte 
 """
 import re
 import unicodedata
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from pydantic import ValidationError
 
 from codigo.classificador.mapeamento import CATEGORIAS
 from codigo.mcp.acoes import BASE
-from codigo.mcp.tipos import TEXTO_CURTO, TEXTO_LONGO, Trecho
+from codigo.mcp.tipos import (
+    LIMITE_DE_MITIGACOES,
+    LIMITE_DE_TRECHOS,
+    TEXTO_CURTO,
+    TEXTO_LONGO,
+    Trecho,
+)
 
 PASTA_PADRAO = Path(__file__).with_name("base_provisoria")
-LIMITE_DE_TRECHOS = 3
 _CATEGORIAS = "Categorias:"
 _ACAO = "Ação do catálogo:"
 # Palavras que não ajudam a distinguir um trecho do outro, já sem acento.
@@ -51,7 +57,11 @@ _RAIZ = 5
 
 @dataclass(frozen=True)
 class Secao:
-    """Uma medida descrita em um documento da base."""
+    """Uma medida descrita em um documento da base.
+
+    As palavras do título, do texto e do título do documento são separadas uma vez, na leitura: a
+    cada pesquisa, só a consulta é quebrada em palavras.
+    """
 
     origem: str
     documento: str
@@ -59,6 +69,9 @@ class Secao:
     texto: str
     categorias: tuple
     acao: str | None
+    palavras_do_titulo: frozenset = field(default=frozenset(), compare=False, repr=False)
+    palavras_do_texto: Counter = field(default_factory=Counter, compare=False, repr=False, hash=False)
+    palavras_do_documento: frozenset = field(default=frozenset(), compare=False, repr=False)
 
     def trecho(self):
         return Trecho(origem=self.origem, titulo=self.titulo, texto=self.texto, acao=self.acao)
@@ -117,7 +130,11 @@ def _ler_documento(arquivo):
         texto = "\n\n".join(" ".join(linhas) for linhas in secao["paragrafos"] if linhas)
         if not secao["titulo"] or not texto:
             raise invalido(f"a seção {secao['titulo']!r} está sem título ou sem texto")
-        lida = Secao(arquivo.name, documento, secao["titulo"], texto, categorias, secao["acao"])
+        lida = Secao(
+            arquivo.name, documento, secao["titulo"], texto, categorias, secao["acao"],
+            palavras_do_titulo=frozenset(_raizes(secao["titulo"])), palavras_do_texto=Counter(_raizes(texto)),
+            palavras_do_documento=frozenset(_raizes(documento)),
+        )
         # Cada seção vira um trecho do contrato. Conferir aqui faz o erro aparecer na partida, e
         # não na primeira consulta de um agente.
         try:
@@ -125,15 +142,17 @@ def _ler_documento(arquivo):
         except ValidationError:
             raise invalido(
                 f"a seção {secao['titulo'][:60]!r} não cabe no contrato: o título tem até {TEXTO_CURTO} "
-                f"caracteres, o texto tem até {TEXTO_LONGO}, e nenhum dos dois aceita caractere de controle"
+                f"caracteres, o texto tem até {TEXTO_LONGO}, e nenhum dos dois aceita caractere de controle nem "
+                "caractere que não aparece na tela"
             ) from None
         resultado.append(lida)
     return resultado
 
 
-def mitigacoes(secoes, categoria):
-    """As medidas recomendadas para a categoria que o catálogo de ações cobre."""
-    return [secao.trecho() for secao in secoes if categoria in secao.categorias and secao.acao is not None]
+def mitigacoes(secoes, categoria, limite=LIMITE_DE_MITIGACOES):
+    """As medidas recomendadas para a categoria que o catálogo de ações cobre, até `limite`, na ordem da base."""
+    recomendadas = [secao for secao in secoes if categoria in secao.categorias and secao.acao is not None]
+    return [secao.trecho() for secao in recomendadas[:limite]]
 
 
 def _raizes(texto):
@@ -144,8 +163,11 @@ def _raizes(texto):
 
 def _pontos(secao, termos):
     """Quanto a seção se aproxima da consulta. Palavra no título pesa mais que no texto."""
-    titulo, texto, documento = _raizes(secao.titulo), _raizes(secao.texto), _raizes(secao.documento)
-    return sum(3 * (termo in titulo) + min(texto.count(termo), 3) + (termo in documento) for termo in termos)
+    return sum(
+        3 * (termo in secao.palavras_do_titulo) + min(secao.palavras_do_texto[termo], 3)
+        + (termo in secao.palavras_do_documento)
+        for termo in termos
+    )
 
 
 def pesquisar(secoes, consulta, limite=LIMITE_DE_TRECHOS):

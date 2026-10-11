@@ -1,15 +1,17 @@
 import pytest
 
 from codigo.classificador.mapeamento import CATEGORIAS
+from codigo.mcp import base
 from codigo.mcp.acoes import BASE
 from codigo.mcp.base import (
+    LIMITE_DE_MITIGACOES,
     LIMITE_DE_TRECHOS,
     PASTA_PADRAO,
     carregar,
     mitigacoes,
     pesquisar,
 )
-from codigo.mcp.tipos import Trecho
+from codigo.mcp.tipos import Mitigacoes, Solucoes, Trecho, contrato
 
 DOCUMENTO = """# Flood de teste
 
@@ -115,7 +117,38 @@ def test_mitigacoes_sao_as_secoes_da_categoria_que_o_catalogo_cobre(pasta):
     assert mitigacoes(secoes, "Recon") == []
 
 
+def test_mitigacoes_tem_teto_de_trechos_por_resposta(tmp_path):
+    # Numa base grande, a resposta viraria milhões de caracteres para o modelo.
+    secoes = "".join(
+        f"## Medida {n}\n\nAção do catálogo: limitar_taxa\n\nLimitar a taxa, variante {n}.\n\n" for n in range(1, 31)
+    )
+    (tmp_path / "muitas.md").write_text("# Muitas medidas\n\nCategorias: DDoS\n\n" + secoes, encoding="utf-8")
+    recomendadas = mitigacoes(carregar(tmp_path), "DDoS")
+    assert LIMITE_DE_MITIGACOES == 10
+    # Na ordem dos documentos.
+    assert [trecho.titulo for trecho in recomendadas] == [f"Medida {n}" for n in range(1, 11)]
+    # O teto está também no contrato.
+    definicoes = contrato()["$defs"]
+    assert definicoes["Mitigacoes"]["properties"]["mitigacoes"]["maxItems"] == LIMITE_DE_MITIGACOES
+    assert definicoes["Solucoes"]["properties"]["trechos"]["maxItems"] == LIMITE_DE_TRECHOS
+    with pytest.raises(ValueError):
+        Mitigacoes(categoria="DDoS", mitigacoes=recomendadas * 2, acoes=[])
+    with pytest.raises(ValueError):
+        Solucoes(consulta="x", fonte="base_local", trechos=recomendadas[:4])
+
+
 # --- pesquisa --------------------------------------------------------------------------------
+
+
+def test_cada_secao_e_quebrada_em_palavras_uma_vez_so_na_leitura(pasta, monkeypatch):
+    secoes = carregar(pasta)
+    quebras = []
+    original = base._raizes
+    monkeypatch.setattr(base, "_raizes", lambda texto: quebras.append(texto) or original(texto))
+    for consulta in ("syn cookies", "bloquear a origem", "segmento de rede"):
+        pesquisar(secoes, consulta)
+    # Só a consulta é quebrada em palavras a cada pesquisa; as seções já vêm prontas da leitura.
+    assert quebras == ["syn cookies", "bloquear a origem", "segmento de rede"]
 
 
 def test_pesquisa_devolve_trechos_com_a_origem_de_cada_um(pasta):

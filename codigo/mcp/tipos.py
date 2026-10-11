@@ -12,7 +12,9 @@ Uso, a partir da raiz do repositório, para gerar o `contrato.json` de novo:
 """
 import ipaddress
 import json
+import re
 import sys
+import unicodedata
 from functools import reduce
 from operator import or_
 from pathlib import Path
@@ -28,6 +30,7 @@ from pydantic import (
     StringConstraints,
     WithJsonSchema,
     create_model,
+    model_validator,
 )
 from pydantic.json_schema import GenerateJsonSchema, models_json_schema
 from typing_extensions import TypedDict
@@ -35,12 +38,18 @@ from typing_extensions import TypedDict
 from codigo.captura.extrator import COLUNAS
 from codigo.classificador.mapeamento import CATEGORIAS
 
-VERSAO = "0.2.0"
+VERSAO = "0.3.0"
 # Máximo de janelas que o agente recebe por chamada. Um flood tem milhares de janelas, e mandar
 # todas para a LLM custaria tokens demais.
 LIMITE_DE_JANELAS = 20
+# Máximo de trechos da base por resposta: em consultar_mitigacoes e em pesquisar_solucoes. Numa base
+# grande, a resposta sem teto viraria milhões de caracteres para o modelo.
+LIMITE_DE_MITIGACOES = 10
+LIMITE_DE_TRECHOS = 3
 ARQUIVO_DO_CONTRATO = Path(__file__).with_name("contrato.json")
 AGENTES = ("triagem", "decisao", "execucao")
+# O nome que expõe todas as tools em um processo só. Serve só para desenvolvimento e precisa ser dito.
+TODOS = "todos"
 # Tamanhos máximos. O que um agente escreve chega a uma pessoa, na tela de aprovação, e ao log:
 # nenhum texto entra sem limite.
 TEXTO_CURTO = 200
@@ -57,8 +66,23 @@ _UMA_LINHA = rf"^[^\x00-\x1f{_ALEM_DO_ASCII}]*$"
 # Texto em parágrafos: aceita a quebra de linha (U+000A) e mais nenhum caractere de controle.
 _PARAGRAFOS = rf"^[^\x00-\x09\x0b-\x1f{_ALEM_DO_ASCII}]*$"
 _NOME_DE_ACAO = rf"^[a-z][a-z0-9_]{{0,{MAIOR_NOME_DE_ACAO - 1}}}$"
+# Além disso, o texto é uma lista do que é permitido: letras, marcas, números, pontuação, símbolos e
+# espaços. Fica de fora o que a tela não mostra e o modelo lê: os caracteres de formatação (Cf), como
+# as etiquetas U+E0000 a U+E007F e os de largura zero, que escondem uma instrução num texto que parece
+# inofensivo; os de uso privado (Co); os sem atribuição (Cn); os substitutos soltos (Cs); e os
+# preenchimentos que o Unicode classifica como letra ou símbolo, mas que aparecem em branco.
+_GRUPOS_PERMITIDOS = frozenset("LMNPS")
+_PREENCHIMENTOS = frozenset("\u115f\u1160\u2800\u3164\uffa0")
+
+# As 7 categorias que o modelo do sistema responde. Ele não separa DDoS de DoS: as features descrevem
+# os pacotes, e não quantas máquinas atacam (decisão de 2026-10-04). A separação sai da quantidade de
+# origens do incidente, fora do modelo, e só existe em `Incidente.categoria`. Os nomes são os de
+# `ALVOS["7"]`, em `codigo/classificador/preparar.py`, e um teste confere que continuam iguais.
+DDOS_E_DOS = "DDoS+DoS"
+CATEGORIAS_DO_MODELO = (DDOS_E_DOS, *(nome for nome in CATEGORIAS if nome not in ("DDoS", "DoS")))
 
 Categoria = Literal[CATEGORIAS]
+CategoriaDoModelo = Literal[CATEGORIAS_DO_MODELO]
 Agente = Literal[AGENTES]
 Risco = Literal["baixo", "alto"]
 ResultadoDoEfeito = Literal["cessou", "diminuiu", "persiste"]
@@ -73,8 +97,14 @@ MOTIVOS_DE_RISCO_ALTO = {
         "O alvo é destino do incidente, isto é, o dispositivo atacado, e esta ação só é de risco baixo sobre "
         "uma origem."
     ),
+    "alvo_na_rede_local": (
+        "O alvo é um endereço da rede local, e bloqueá-lo equivale a isolar um dispositivo interno."
+    ),
     "alvo_protegido": "O alvo é um endereço protegido pela política.",
     "orcamento_de_risco_baixo_esgotado": "O incidente já tem o máximo de medidas de risco baixo ativas.",
+    "orcamento_global_de_risco_baixo_esgotado": (
+        "O sistema já tem o máximo de medidas de risco baixo ativas, somando todos os incidentes."
+    ),
 }
 CodigoDeRiscoAlto = Literal[tuple(MOTIVOS_DE_RISCO_ALTO)]
 MotivoDeRecusa = Literal[
@@ -83,7 +113,9 @@ MotivoDeRecusa = Literal[
     "alvo_malformado",
     "alvo_nao_permitido",
     "incidente_encerrado",
+    "incidente_ja_resolvido",
     "limite_de_propostas_pendentes",
+    "limite_de_propostas_liberadas",
     "acao_nova_incompleta",
     "proposta_nao_liberada",
     "proposta_ja_executada",
@@ -92,9 +124,32 @@ MotivoDeRecusa = Literal[
 ]
 
 
+def invisivel(letra):
+    """Verdadeiro para o caractere que não aparece na tela e que nenhum texto do contrato aceita.
+
+    A quebra de linha fica de fora: quem diz onde ela é aceita é a expressão regular de cada tipo
+    de texto.
+    """
+    if letra in _PREENCHIMENTOS:
+        return True
+    if letra == "\n":
+        return False
+    categoria = unicodedata.category(letra)
+    # Letra, marca, número, pontuação e símbolo; dos separadores, só o espaço (Zs).
+    return categoria[0] not in _GRUPOS_PERMITIDOS and categoria != "Zs"
+
+
+def _so_visiveis(texto):
+    if any(invisivel(letra) for letra in texto):
+        raise ValueError("o texto traz caractere que não aparece na tela (formatação, uso privado ou preenchimento)")
+    return texto
+
+
 def _texto(maximo, padrao=_UMA_LINHA, minimo=1):
     return Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=minimo, max_length=maximo, pattern=padrao)
+        str,
+        StringConstraints(strip_whitespace=True, min_length=minimo, max_length=maximo, pattern=padrao),
+        AfterValidator(_so_visiveis),
     ]
 
 
@@ -105,7 +160,9 @@ def visivel(texto):
     sequência de controle gravada nele não pode chegar crua à tela de quem decide.
     """
     return "".join(
-        letra if letra.isprintable() else letra.encode("unicode_escape").decode("ascii") for letra in str(texto)
+        letra if letra.isprintable() and letra not in _PREENCHIMENTOS
+        else letra.encode("unicode_escape").decode("ascii")
+        for letra in str(texto)
     )
 
 
@@ -122,6 +179,50 @@ def endereco_canonico(texto):
     if endereco.version == 6 and endereco.ipv4_mapped is not None:
         endereco = endereco.ipv4_mapped
     return str(endereco)
+
+
+# --- endereços em texto livre, para a linha de decisão ----------------------------------------
+
+# O agente de decisão pode estar num modelo de nuvem e não recebe endereço nenhum (arquitetura
+# híbrida, decisão de 2026-10-10). Os endereços do incidente chegam a ele como rótulos neutros, e o
+# que sobrar em texto livre (um documento da base, uma ação promovida) é trocado por este marcador.
+# A busca é larga de propósito: na dúvida, o trecho vira o marcador.
+MARCADOR_DE_ENDERECO = "[endereço]"
+# Rótulo neutro de um endereço do incidente, na ordem em que o endereço apareceu nele.
+ROTULO = r"^(?:origem|destino)-[1-9][0-9]{0,5}$"
+# MAC com dois-pontos ou hífen (o mesmo nos cinco lugares) e o formato com pontos, de três grupos.
+_MAC_NO_TEXTO = re.compile(
+    r"(?<![0-9A-Fa-f:-])[0-9A-Fa-f]{2}([:-])[0-9A-Fa-f]{2}(?:\1[0-9A-Fa-f]{2}){4}(?![0-9A-Fa-f:-])"
+    r"|(?<![0-9A-Fa-f.])[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}(?![0-9A-Fa-f.])"
+)
+# Candidato a IPv6: dígitos hexadecimais, pontos e ao menos dois-pontos duas vezes, com a zona, se houver.
+_IPV6_NO_TEXTO = re.compile(r"(?<![0-9A-Za-z:.])[0-9A-Fa-f.]*:[0-9A-Fa-f.:]*:[0-9A-Fa-f.:]*(?:%[0-9A-Za-z_.-]+)?(?![0-9A-Za-z:])")
+# IPv4 em quatro grupos, inclusive com zero à esquerda ou fora da faixa: na dúvida, é endereço.
+_IPV4_NO_TEXTO = re.compile(r"(?<![0-9A-Za-z.])[0-9]{1,3}(?:\.[0-9]{1,3}){3}(?![0-9A-Za-z]|\.[0-9])")
+
+
+def _e_ipv6(trecho):
+    """O candidato é um IPv6, ou quase: com `::` ou com seis ou mais dois-pontos, nenhum horário é."""
+    endereco = trecho.split("%")[0].strip(".")
+    if "::" in endereco or endereco.count(":") >= 6:
+        return True
+    try:
+        ipaddress.IPv6Address(endereco)
+    except ValueError:
+        return False
+    return True
+
+
+def mascarar_enderecos(texto):
+    """O texto com todo endereço IPv4, IPv6 ou MAC trocado por `MARCADOR_DE_ENDERECO`."""
+    texto = _MAC_NO_TEXTO.sub(MARCADOR_DE_ENDERECO, texto)
+    texto = _IPV6_NO_TEXTO.sub(lambda achado: MARCADOR_DE_ENDERECO if _e_ipv6(achado.group()) else achado.group(), texto)
+    return _IPV4_NO_TEXTO.sub(MARCADOR_DE_ENDERECO, texto)
+
+
+def tem_endereco(texto):
+    """Verdadeiro se o texto traz algo que o filtro da linha de decisão trocaria pelo marcador."""
+    return isinstance(texto, str) and mascarar_enderecos(texto) != texto
 
 
 # Texto curto, de uma linha: identificadores, alvos, nomes e títulos.
@@ -142,6 +243,7 @@ EnderecoIP = Annotated[
 ]
 Proporcao = Annotated[float, Field(ge=0, le=1)]
 Contagem = Annotated[int, Field(ge=0)]
+Rotulo = Annotated[str, StringConstraints(pattern=ROTULO)]
 
 
 class Modelo(BaseModel):
@@ -172,7 +274,9 @@ class Incidente(Modelo):
     categoria: Categoria = Field(
         description="Categoria depois da regra que separa DoS de DDoS pela quantidade de origens"
     )
-    categoria_do_modelo: Categoria = Field(description="Categoria que o Random Forest atribuiu")
+    categoria_do_modelo: CategoriaDoModelo = Field(
+        description="Categoria que o Random Forest atribuiu, entre as 7 do modelo, com DDoS e DoS juntos"
+    )
     confianca: Proporcao = Field(description="Confiança do classificador, de 0 a 1")
     inicio: AwareDatetime
     fim: AwareDatetime
@@ -184,6 +288,22 @@ class Incidente(Modelo):
     features_principais: list[FeaturePrincipal] = Field(
         description="Features que mais pesaram, com o valor de referência do tráfego benigno"
     )
+
+    @model_validator(mode="after")
+    def _categoria_cabe_no_que_o_modelo_disse(self):
+        # A regra das origens só separa DDoS de DoS. As outras categorias são as do modelo.
+        possiveis = ("DDoS", "DoS") if self.categoria_do_modelo == DDOS_E_DOS else (self.categoria_do_modelo,)
+        if self.categoria not in possiveis:
+            raise ValueError(
+                f"a categoria {self.categoria} não sai do que o modelo disse ({self.categoria_do_modelo})"
+            )
+        return self
+
+
+class EnderecoRotulado(Modelo):
+    rotulo: Rotulo = Field(description="Rótulo neutro do endereço no incidente, como origem-1 ou destino-1")
+    quadros: Contagem = Field(description="Quadros desse endereço no incidente")
+    protegido: bool = Field(description="Verdadeiro quando o endereço é protegido pela política, como o gateway")
 
 
 # As 39 features, com os nomes das colunas do extrator. O valor é nulo quando o extrator não
@@ -198,7 +318,7 @@ class Janela(Modelo):
 
     indice: Contagem = Field(description="Posição da janela dentro do incidente, a partir de 0")
     instante: AwareDatetime
-    categoria_do_modelo: Categoria
+    categoria_do_modelo: CategoriaDoModelo
     confianca: Proporcao
     origem: EnderecoIP = Field(description="Endereço de origem mais frequente na janela")
     destino: EnderecoIP = Field(description="Endereço de destino mais frequente na janela")
@@ -250,14 +370,20 @@ class Trecho(Modelo):
 
 class Mitigacoes(Modelo):
     categoria: Categoria
-    mitigacoes: list[Trecho] = Field(description="Medidas recomendadas que o catálogo de ações cobre")
+    mitigacoes: list[Trecho] = Field(
+        max_length=LIMITE_DE_MITIGACOES,
+        description=f"Medidas recomendadas que o catálogo de ações cobre, até {LIMITE_DE_MITIGACOES}",
+    )
     acoes: list[AcaoDoCatalogo] = Field(description="Catálogo de ações disponíveis")
 
 
 class Solucoes(Modelo):
     consulta: Consulta
     fonte: Literal["base_local"] = Field(description="A busca na internet fica desligada neste trabalho")
-    trechos: list[Trecho] = Field(description="Trechos mais próximos da consulta, do melhor para o pior")
+    trechos: list[Trecho] = Field(
+        max_length=LIMITE_DE_TRECHOS,
+        description=f"Até {LIMITE_DE_TRECHOS} trechos mais próximos da consulta, do melhor para o pior",
+    )
 
 
 # --- Ações -----------------------------------------------------------------------------------
@@ -289,7 +415,13 @@ class Proposta(Modelo):
     id: Texto = Field(description="Identificador da proposta, como prop-0001")
     incidente: Texto
     acao: NomeDeAcao
-    alvo: Texto
+    alvo: Texto = Field(description="Sobre o que a ação age. Na resposta à linha de decisão, com o rótulo neutro")
+    alvo_com_rotulo: Texto | None = Field(
+        description=(
+            "O alvo escrito com o rótulo neutro, como origem-1 ou admin@destino-1, quando veio assim: o servidor o "
+            "trocou pelo endereço em alvo. Nulo quando o alvo veio sem rótulo"
+        )
+    )
     parametros: dict[str, Any]
     justificativa: TextoLongo
     nova: bool = Field(description="Verdadeiro quando a ação não está no catálogo")
@@ -323,6 +455,39 @@ class Efeito(Modelo):
     observacao: TextoLongo
 
 
+class ResumoDoIncidente(Modelo):
+    """O incidente como o agente de decisão o vê: montado pelo servidor, sem endereço nenhum.
+
+    O agente de decisão pode estar num modelo de nuvem (arquitetura híbrida, decisão de
+    2026-10-10). Os endereços chegam a ele como rótulos neutros, na ordem em que apareceram no
+    incidente, e o rótulo de um endereço não muda quando o incidente é atualizado. `propor_acao`
+    aceita o rótulo como alvo, e o servidor o troca pelo endereço.
+    """
+
+    id: Texto = Field(description="Identificador do incidente, como inc-0001")
+    estado: Literal["aberto", "encerrado"]
+    ja_resolvido: bool = Field(
+        description="Verdadeiro quando a pessoa que opera a rede marcou o incidente como já resolvido: nada é proposto"
+    )
+    categoria: Categoria = Field(
+        description="Categoria depois da regra que separa DoS de DDoS pela quantidade de origens"
+    )
+    categoria_do_modelo: CategoriaDoModelo = Field(description="Categoria que o Random Forest atribuiu")
+    confianca: Proporcao = Field(description="Confiança do classificador, de 0 a 1")
+    duracao_s: float = Field(ge=0, description="Duração do incidente até agora, em segundos")
+    janelas: int = Field(ge=1, description="Quantidade de janelas reunidas no incidente")
+    origens_distintas: Contagem
+    distribuido: bool = Field(description="Verdadeiro quando o tráfego vem de várias origens")
+    origens: list[EnderecoRotulado] = Field(description="Origens com mais quadros, da maior para a menor")
+    destinos: list[EnderecoRotulado] = Field(description="Destinos com mais quadros, do maior para o menor")
+    features_principais: list[FeaturePrincipal] = Field(
+        description="Features que mais pesaram, com o valor de referência do tráfego benigno"
+    )
+    ultimo_efeito: Efeito | None = Field(
+        description="O último efeito verificado no incidente, depois de uma ação aplicada, ou nulo"
+    )
+
+
 class Ambiente(Modelo):
     """Medidas ativas no ambiente simulado. Ação desfeita não aparece."""
 
@@ -337,6 +502,10 @@ class Ambiente(Modelo):
 
 
 class EntradaObterIncidente(Modelo):
+    id: str = Field(description="Identificador do incidente, como inc-0001")
+
+
+class EntradaObterResumo(Modelo):
     id: str = Field(description="Identificador do incidente, como inc-0001")
 
 
@@ -368,7 +537,11 @@ class EntradaProporAcao(Modelo):
         )
     )
     alvo: str = Field(
-        description=f"Sobre o que a ação age, em até {TEXTO_CURTO} caracteres. O formato depende da ação"
+        description=(
+            f"Sobre o que a ação age, em até {TEXTO_CURTO} caracteres. O formato depende da ação. Um endereço do "
+            "incidente é escrito com o rótulo neutro do resumo, como origem-1, destino-1 ou admin@destino-1; o "
+            "agente de decisão não escreve endereço"
+        )
     )
     parametros: dict[str, Any] = Field(
         default_factory=dict,
@@ -411,9 +584,9 @@ class Tool(NamedTuple):
 
 TOOLS = (
     Tool(
-        "obter_incidente", ("triagem", "decisao"),
-        "Devolve o resumo do incidente: categoria, confiança do classificador, período, quantidade de "
-        "janelas, origens, destinos e as features que mais pesaram.",
+        "obter_incidente", ("triagem",),
+        "Devolve o incidente: categoria, confiança do classificador, período, quantidade de janelas, "
+        "origens, destinos e as features que mais pesaram.",
         EntradaObterIncidente, Incidente,
     ),
     Tool(
@@ -421,6 +594,14 @@ TOOLS = (
         f"Devolve até `limite` janelas do incidente, espaçadas ao longo dele, com as 39 features de cada "
         f"uma. O limite máximo é {LIMITE_DE_JANELAS}. Use quando o resumo não bastar.",
         EntradaObterJanelas, FatiaDeJanelas,
+    ),
+    Tool(
+        "obter_resumo", ("decisao",),
+        "Devolve o resumo do incidente montado pelo servidor, sem endereço nenhum: categorias, confiança, "
+        "contagens, features com a referência do tráfego benigno, estado, último efeito verificado, a marca de "
+        "já resolvido e os rótulos neutros das origens e dos destinos (origem-1, destino-1), que são o que "
+        "propor_acao aceita como alvo.",
+        EntradaObterResumo, ResumoDoIncidente,
     ),
     Tool(
         "consultar_mitigacoes", ("decisao",),
@@ -437,12 +618,14 @@ TOOLS = (
     Tool(
         "propor_acao", ("decisao",),
         "Registra a proposta de uma ação do catálogo ou de uma ação nova e devolve o nível de risco e se "
-        "ela exige aprovação humana. Ação nova é sempre de risco alto e precisa trazer em `parametros` "
-        "a descrição, os passos, o efeito esperado e como desfazer.",
+        "ela exige aprovação humana. O alvo usa o rótulo neutro do resumo, como origem-1: o servidor o troca "
+        "pelo endereço e calcula o risco sobre ele. Ação nova é sempre de risco alto e precisa trazer em "
+        "`parametros` a descrição, os passos, o efeito esperado e como desfazer. Incidente marcado como já "
+        "resolvido não recebe proposta.",
         EntradaProporAcao, Proposta,
     ),
     Tool(
-        "verificar_efeito", ("decisao", "execucao"),
+        "verificar_efeito", ("execucao",),
         "Diz se o incidente cessou, diminuiu ou persiste depois de uma ação aplicada.",
         EntradaVerificarEfeito, Efeito,
     ),
@@ -466,11 +649,11 @@ TOOLS = (
 
 
 def tools_do_agente(agente):
-    """Nomes das tools que o agente enxerga. Sem agente, todas."""
-    if agente is None:
+    """Nomes das tools que o agente enxerga. Com `TODOS`, todas: é preciso pedir, não é o padrão."""
+    if agente == TODOS:
         return tuple(tool.nome for tool in TOOLS)
     if agente not in AGENTES:
-        raise ValueError(f"agente desconhecido: {agente!r}")
+        raise ValueError(f"agente desconhecido: {agente!r}. Diga {', '.join(AGENTES)} ou {TODOS}")
     return tuple(tool.nome for tool in TOOLS if agente in tool.agentes)
 
 
@@ -479,7 +662,9 @@ def tools_do_agente(agente):
 
 class LoteDeJanelas(Modelo):
     janelas: Contagem = Field(description="Janelas do lote que saiu do classificador")
-    por_categoria: dict[Categoria, Contagem]
+    por_categoria: dict[CategoriaDoModelo, Contagem] = Field(
+        description="Janelas do lote em cada uma das 7 categorias do modelo"
+    )
 
 
 class ChamadaDeLLM(Modelo):
@@ -511,7 +696,22 @@ class Decisao(Modelo):
 
     proposta: Texto
     canal: Literal["terminal", "interface"]
+    usuario: Texto = Field(description="Usuário do sistema que registrou a decisão")
     motivo: TextoLongo | None
+
+
+class MarcaDeResolvido(Modelo):
+    """A pessoa que opera a rede diz que já resolveu o incidente por conta própria.
+
+    É o botão "Já resolvido" da interface, ou o comando de terminal (decisão de 2026-10-10). Com a
+    marca, o servidor não registra nem executa proposta do incidente, nem a já aprovada: os agentes
+    só explicam o que aconteceu.
+    """
+
+    incidente: Texto
+    canal: Literal["terminal", "interface"]
+    usuario: Texto = Field(description="Usuário do sistema que marcou o incidente")
+    motivo: TextoLongo | None = Field(description="O que a pessoa fez, quando ela disser")
 
 
 class Promocao(Modelo):
@@ -531,6 +731,7 @@ class Recusa(Modelo):
 EVENTOS = (
     ("EventoDeJanelas", ("janelas_classificadas",), LoteDeJanelas),
     ("EventoDeIncidente", ("incidente_aberto", "incidente_atualizado", "incidente_encerrado"), Incidente),
+    ("EventoDeMarca", ("incidente_marcado_resolvido",), MarcaDeResolvido),
     ("EventoDeLLM", ("llm_chamada",), ChamadaDeLLM),
     ("EventoDeTool", ("tool_chamada",), ChamadaDeTool),
     ("EventoDeRecomendacao", ("recomendacao_emitida",), Recomendacao),
