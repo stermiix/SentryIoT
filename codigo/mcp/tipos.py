@@ -42,6 +42,10 @@ VERSAO = "0.3.0"
 # Máximo de janelas que o agente recebe por chamada. Um flood tem milhares de janelas, e mandar
 # todas para a LLM custaria tokens demais.
 LIMITE_DE_JANELAS = 20
+# Máximo de trechos da base por resposta: em consultar_mitigacoes e em pesquisar_solucoes. Numa base
+# grande, a resposta sem teto viraria milhões de caracteres para o modelo.
+LIMITE_DE_MITIGACOES = 10
+LIMITE_DE_TRECHOS = 3
 ARQUIVO_DO_CONTRATO = Path(__file__).with_name("contrato.json")
 AGENTES = ("triagem", "decisao", "execucao")
 # O nome que expõe todas as tools em um processo só. Serve só para desenvolvimento e precisa ser dito.
@@ -366,14 +370,20 @@ class Trecho(Modelo):
 
 class Mitigacoes(Modelo):
     categoria: Categoria
-    mitigacoes: list[Trecho] = Field(description="Medidas recomendadas que o catálogo de ações cobre")
+    mitigacoes: list[Trecho] = Field(
+        max_length=LIMITE_DE_MITIGACOES,
+        description=f"Medidas recomendadas que o catálogo de ações cobre, até {LIMITE_DE_MITIGACOES}",
+    )
     acoes: list[AcaoDoCatalogo] = Field(description="Catálogo de ações disponíveis")
 
 
 class Solucoes(Modelo):
     consulta: Consulta
     fonte: Literal["base_local"] = Field(description="A busca na internet fica desligada neste trabalho")
-    trechos: list[Trecho] = Field(description="Trechos mais próximos da consulta, do melhor para o pior")
+    trechos: list[Trecho] = Field(
+        max_length=LIMITE_DE_TRECHOS,
+        description=f"Até {LIMITE_DE_TRECHOS} trechos mais próximos da consulta, do melhor para o pior",
+    )
 
 
 # --- Ações -----------------------------------------------------------------------------------

@@ -2202,10 +2202,11 @@
           "type": "string"
         },
         "mitigacoes": {
-          "description": "Medidas recomendadas que o catálogo de ações cobre",
+          "description": "Medidas recomendadas que o catálogo de ações cobre, até 10",
           "items": {
             "$ref": "#/$defs/Trecho"
           },
+          "maxItems": 10,
           "type": "array"
         },
         "acoes": {
@@ -2706,10 +2707,11 @@
           "type": "string"
         },
         "trechos": {
-          "description": "Trechos mais próximos da consulta, do melhor para o pior",
+          "description": "Até 3 trechos mais próximos da consulta, do melhor para o pior",
           "items": {
             "$ref": "#/$defs/Trecho"
           },
+          "maxItems": 3,
           "type": "array"
         }
       },
