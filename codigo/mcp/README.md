@@ -152,7 +152,8 @@ prompt:
   passa por um filtro que troca qualquer IPv4, IPv6 ou MAC que tenha sobrado em texto livre (num
   documento da base, numa ação promovida, no eco da consulta) por `[endereço]`. A recusa de um alvo
   escrito com rótulo repete o rótulo, e não o endereço. A busca é larga de propósito e não olha o que
-  vem antes ou depois do endereço: um IPv4 com zero à esquerda, octal ou fora da faixa, um IPv6
+  vem antes ou depois do endereço: um IPv4 com zero à esquerda, octal, fora da faixa, desarmado
+  (`203.0.113[.]7`) ou com dígitos de largura total, um IPv6 de um grupo só (`fe80::`, `::1`),
   depois de `src:` ou colado a uma letra e o MAC sem zero à esquerda também viram o marcador. As
   buscas não retrocedem, e o custo é linear no tamanho do texto. A falha é fechada: se a resposta
   filtrada sai do contrato (um título que passa de 200 caracteres com o marcador, por exemplo),
@@ -523,9 +524,11 @@ de aprovação, ao log e, pelos parâmetros de uma ação nova, ao agente de exe
   acento, números, ponto, hífen e sublinhado, tem até 64 caracteres e não começa por ponto nem
   por hífen.
 - A mensagem de recusa mostra no máximo um trecho escapado do que veio. Os endereços desse trecho
-  viram o marcador antes do corte, para que nenhum pedaço de endereço sobre dele e para que a
-  contagem do corte não diga o tamanho de um endereço. Quando o alvo veio com o rótulo, a recusa
-  repete o que o agente escreveu, com o rótulo, e nunca o endereço em que o servidor o trocou.
+  viram o marcador antes do corte final, para que nenhum pedaço de endereço sobre dele. O valor
+  grande é cortado primeiro com folga (64 caracteres além do trecho, mais que qualquer endereço), e
+  só essa janela passa pelo filtro, que troca também o pedaço de endereço que o corte deixar no fim
+  dela: um argumento de megabytes não prende a trava do log. Quando o alvo veio com o rótulo, a
+  recusa repete o que o agente escreveu, com o rótulo, e nunca o endereço em que o servidor o trocou.
 
 Os limites de texto não estão no esquema de entrada de `propor_acao`, só na descrição dos
 campos. É de propósito: quem confere é o servidor, e não o SDK, para que a tentativa fique
@@ -827,13 +830,17 @@ O que mais fica de fora deste trabalho:
   pendentes e liberadas valem na hora de propor, e a leitura do log não os confere.
 - **O filtro de endereços é uma rede de proteção, não a garantia.** A garantia é a linha de
   decisão não ter tool que devolva endereço. O filtro pega IPv4 em quatro grupos de um a quatro
-  dígitos separados por ponto; IPv6 com `::`, com seis ou mais dois-pontos ou que `ipaddress`
-  reconhece, mesmo colado a letra ou depois de `nome:` (a letra hexadecimal colada vai junto para o
-  marcador); e MAC de seis grupos de um ou dois dígitos com dois-pontos ou hífen, ou de três grupos
-  de quatro com pontos. Não pega endereço escrito como inteiro ou em hexadecimal (`0xc0a88914`),
-  IPv4 com hífens (`ip-192-168-137-20`), MAC sem separador, nome de host nem endereço por extenso
+  dígitos separados por ponto, inclusive o IPv4 "desarmado" (`203.0.113[.]7`, `203(.)0(.)113(.)7`);
+  IPv6 com `::` e ao menos um dígito (inclusive `fe80::` e `::1`), com seis ou mais dois-pontos ou
+  que `ipaddress` reconhece, mesmo colado a letra ou depois de `nome:` (a letra hexadecimal colada
+  vai junto para o marcador); e MAC de seis grupos de um ou dois dígitos com dois-pontos ou hífen,
+  ou de três grupos de quatro com pontos. A busca corre sobre uma cópia do texto normalizada pela
+  NFKC, só nos caracteres que viram dígito ou pontuação de endereço: os dígitos de largura total
+  (`２０３．０．１１３．７`) são pegos, e o resto do texto sai como veio. Não pega endereço escrito
+  como inteiro ou em hexadecimal (`0xc0a88914`), IPv4 com hífens (`ip-192-168-137-20`), IPv6
+  desarmado com colchetes nos dois-pontos, MAC sem separador, nome de host nem endereço por extenso
   em palavras. Como a busca é larga, troca também o que só parece endereço: uma versão em quatro
-  grupos (`1.2.3.4`) ou uma sequência de seis números separados por hífen.
+  grupos (`1.2.3.4`), uma sequência de seis números separados por hífen ou o `d::` de `std::vector`.
 - **O texto da triagem e o orquestrador.** O veredito da triagem é texto livre escrito por um
   modelo local, e quem o entrega ao agente de decisão é o orquestrador, ainda não escrito. Ele
   precisa passar esse texto pelo mesmo filtro (`tipos.mascarar_enderecos`) antes de mandá-lo à
