@@ -194,9 +194,16 @@ h1, h2, h3 { font-family: "Space Grotesk", "DM Sans", sans-serif; }
 .page-footer { display: flex; justify-content: space-between; margin-top: 24px; padding: 12px 0 0; border-top: 1px solid #e7ebf0; color: #9aa3b0; font-size: 12px; }
 .footer-separator { padding: 0 3px; }
 
-/* Avisos da leitura do log e horários. */
+/* Avisos da leitura do log, controle do replay e horários. */
 .warning-banner { display: grid; gap: 6px; margin: 16px 0; padding: 14px; border: 1px solid #f0dca8; border-radius: 8px; color: #7a5a14; background: #fffaeb; font-size: 13px; }
 .warning-banner ul { display: grid; gap: 4px; max-height: 180px; overflow-y: auto; margin: 0; padding-left: 18px; }
+.replay-control { display: grid; grid-template-columns: auto minmax(120px, 1fr) auto; align-items: center; gap: 16px; margin-bottom: 22px; padding: 12px 14px; border: 1px solid #e5e9ef; border-radius: 10px; background: white; }
+.replay-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.replay-buttons button { padding: 6px 11px; border: 1px solid #dbe2f3; border-radius: 6px; color: #3d4f8f; background: #f4f6ff; cursor: pointer; font-size: 13px; font-weight: 600; }
+.replay-buttons button:disabled { border-color: #eceff3; color: #a7b0c0; background: #f7f8fa; cursor: default; }
+.replay-range { width: 100%; accent-color: var(--blue); }
+.replay-position { display: grid; gap: 3px; justify-items: end; color: #5c687a; font-size: 13px; }
+.replay-position strong { color: #273448; }
 .event-id { padding: 1px 5px; border-radius: 4px; color: #3d4f8f; background: #eef1fb; font: 600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; }
 .instante { color: #6d788a; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .timeline li > .instante { width: 60px; flex: 0 0 auto; }
@@ -253,6 +260,8 @@ h1, h2, h3 { font-family: "Space Grotesk", "DM Sans", sans-serif; }
   .tabela-incidentes { min-width: 720px; }
   .queue-footnote { min-width: 720px; }
   .detail-grid, .lower-grid { grid-template-columns: 1fr; }
+  .replay-control { grid-template-columns: 1fr; }
+  .replay-position { justify-items: start; }
   .action-list li { grid-template-columns: auto auto minmax(0, 1fr); }
   .action-description { grid-column: 1 / -1; white-space: normal; }
   .panel { padding: 14px; }

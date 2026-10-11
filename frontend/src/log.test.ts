@@ -260,3 +260,13 @@ describe("estado das propostas (C2)", () => {
     expect(resultado.avisos.join(" ")).toContain("prop-0099 não confere com o próprio risco");
   });
 });
+
+describe("replay passo a passo", () => {
+  it("só mostra o incidente depois do evento de abertura", () => {
+    const { eventos } = lerLog(texto(base));
+    const abertura = eventos.findIndex((evento) => evento.tipo === "incidente_aberto");
+    expect(agregar(eventos.slice(0, abertura)).incidentes).toEqual([]);
+    expect(agregar(eventos.slice(0, abertura + 1)).incidentes).toHaveLength(1);
+    expect(agregar(eventos.slice(0, abertura + 1)).incidentes[0].incidente.estado).toBe("aberto");
+  });
+});

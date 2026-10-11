@@ -3,7 +3,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 interface Props {
   /** O que não pôde ser mostrado, para a mensagem. */
   parte: string;
-  /** Quando muda (outro incidente, por exemplo), a parte é desenhada de novo. */
+  /** Quando muda (outro incidente, outro passo do replay), a parte é desenhada de novo. */
   chave: string;
   children: ReactNode;
 }

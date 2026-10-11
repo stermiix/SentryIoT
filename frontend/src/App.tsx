@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import ControleDoReplay from "./components/ControleDoReplay";
 import DetalheDoIncidente from "./components/DetalheDoIncidente";
 import FilaDeIncidentes from "./components/FilaDeIncidentes";
 import LimiteDeErro from "./components/LimiteDeErro";
@@ -9,6 +10,7 @@ import type { Evento } from "./types";
 export default function App() {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [avisos, setAvisos] = useState<string[]>([]);
+  const [passo, setPasso] = useState(0);
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -16,24 +18,28 @@ export default function App() {
   useEffect(() => {
     carregarLog()
       .then((lido) => {
+        // Os avisos valem para o log inteiro; o replay começa no estado final.
         const final = agregar(lido.eventos);
         setEventos(lido.eventos);
         setAvisos([...lido.avisos, ...final.avisos]);
+        setPasso(lido.eventos.length);
         setSelecionadoId(final.incidentes[0]?.id ?? null);
       })
       .catch((erroCarregado: Error) => setErro(erroCarregado.message))
       .finally(() => setCarregando(false));
   }, []);
 
+  // O estado das telas é o dos eventos até o passo atual do replay.
   const agregado = useMemo((): { valor: Agregado } | { falha: string } => {
     try {
-      return { valor: agregar(eventos) };
+      return { valor: agregar(eventos.slice(0, passo)) };
     } catch (falha) {
       return { falha: (falha as Error).message };
     }
-  }, [eventos]);
+  }, [eventos, passo]);
   const resumo = "valor" in agregado ? agregado.valor.resumo : null;
   const incidentes = "valor" in agregado ? agregado.valor.incidentes : [];
+  // Se o incidente escolhido ainda não abriu neste passo, o detalhe mostra o primeiro da fila.
   const selecionado = incidentes.find((view) => view.id === selecionadoId) ?? incidentes[0] ?? null;
 
   return (
@@ -90,6 +96,7 @@ export default function App() {
             </div>
           )}
           {carregando && <div className="loading-state">Carregando execução demonstrativa…</div>}
+          {!carregando && !erro && eventos.length > 0 && <ControleDoReplay eventos={eventos} passo={passo} onMudar={setPasso} />}
           {!carregando && !erro && resumo && (
             <>
               <ResumoMetricas resumo={resumo} incidentes={incidentes} />
@@ -97,13 +104,13 @@ export default function App() {
                 <div><h2>Fila de incidentes</h2><p>Alertas agrupados para análise e resposta</p></div>
                 <span className="table-count">{incidentes.length} incidente{incidentes.length === 1 ? "" : "s"}</span>
               </div>
-              <LimiteDeErro parte="a fila de incidentes" chave={String(eventos.length)}>
+              <LimiteDeErro parte="a fila de incidentes" chave={String(passo)}>
                 <FilaDeIncidentes resumo={resumo} incidentes={incidentes} selecionadoId={selecionado?.id ?? null} onSelecionar={setSelecionadoId} />
               </LimiteDeErro>
             </>
           )}
           {selecionado && (
-            <LimiteDeErro parte={`o detalhe do incidente ${selecionado.id}`} chave={selecionado.id}>
+            <LimiteDeErro parte={`o detalhe do incidente ${selecionado.id}`} chave={`${selecionado.id}:${passo}`}>
               <DetalheDoIncidente key={selecionado.id} incidente={selecionado} />
             </LimiteDeErro>
           )}
