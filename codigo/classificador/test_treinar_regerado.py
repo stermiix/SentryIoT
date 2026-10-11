@@ -61,6 +61,8 @@ def quadro_regerado():
     quadro["ips_origem"] = quadro["Label"].map(lambda rotulo: IPS.get(rotulo, 1))
     quadro["ips_destino"] = 1
     quadro["atacante"] = (quadro["Label"] != "BenignTraffic").astype(int)
+    quadro["quadros_atacante"] = quadro["atacante"] * 3
+    quadro["macs_atacante"] = quadro["atacante"]
     return quadro[list(CABECALHO)]
 
 
@@ -146,6 +148,20 @@ def test_ler_janela_junta_os_csvs_do_rotulo_em_ordem_de_arquivo_e_indice(tmp_pat
     benigno = quadro[quadro["Label"] == "BenignTraffic"]
     assert benigno["arquivo"].tolist() == ["BenignTraffic.pcap"] * 25 + ["BenignTraffic1.pcap"] * 15
     assert benigno["indice"].astype(int).tolist() == list(range(25)) + list(range(15))
+
+
+def test_ler_janela_le_os_csvs_de_antes_das_colunas_novas(tmp_path):
+    pasta = preparar_regeracao(tmp_path)
+    novo, _ = ler_janela(pasta / "regerado", 2)
+    assert novo["quadros_atacante"].dtype == np.int64 and novo["macs_atacante"].max() == 1
+    # Os CSVs gravados antes da versão 2 da regra não têm as duas colunas, e são lidos como antes.
+    for caminho in (pasta / "regerado" / "janela_2").glob("*.csv.gz"):
+        quadro = pd.read_csv(caminho, dtype=str)
+        with gzip.open(caminho, "wt", encoding="utf-8", newline="") as arquivo:
+            quadro.drop(columns=["quadros_atacante", "macs_atacante"]).to_csv(arquivo, index=False, lineterminator="\n")
+    antigo, _ = ler_janela(pasta / "regerado", 2)
+    assert "quadros_atacante" not in antigo.columns
+    assert antigo.equals(novo.drop(columns=["quadros_atacante", "macs_atacante"]))
 
 
 def test_limitar_sorteia_ate_o_teto_por_rotulo_com_semente(tmp_path):

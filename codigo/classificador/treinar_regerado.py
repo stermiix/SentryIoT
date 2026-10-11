@@ -98,6 +98,8 @@ DIVISAO = "tempo"
 TETO = 50_000
 CLASSES = tuple(ALVOS[ALVO].classes)
 EXTRAS = ("indice", "ips_origem", "ips_destino", "atacante")
+# Colunas que os CSVs regerados a partir da versão 2 da regra trazem e os anteriores não trazem.
+EXTRAS_OPCIONAIS = ("quadros_atacante", "macs_atacante")
 # Quantas features o relatório lista, das mais importantes.
 FEATURES_LISTADAS = 10
 
@@ -121,7 +123,7 @@ def ler_janela(destino, janela, teto=None, semente=SEMENTE):
         faltam = [coluna for coluna in ("arquivo", *EXTRAS) if coluna not in parte.columns]
         if faltam:
             raise ValueError(f"{arquivo.name}: faltam as colunas {', '.join(faltam)}")
-        for coluna in EXTRAS:
+        for coluna in (*EXTRAS, *(c for c in EXTRAS_OPCIONAIS if c in parte.columns)):
             parte[coluna] = parte[coluna].astype(np.int64)
         for rotulo, quantas in parte["Label"].value_counts().items():
             resumo["regeradas"][rotulo] = resumo["regeradas"].get(rotulo, 0) + int(quantas)

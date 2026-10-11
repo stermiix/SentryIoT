@@ -16,22 +16,32 @@ partir dos pcaps, com o nosso extrator (decisão de 10/10/2026 no `ROADMAP.md`):
 
 Saída, fora do git: `dados/processed/regerado/janela_<W>/<rotulo>.csv.gz`, com as 39 features,
 `Label`, o arquivo de origem, o índice da janela no arquivo, a quantidade de IPs de origem e de
-destino distintos e se havia atacante. O arquivo de cada rótulo é a junção das partes de cada
-pcap (`partes/<pcap>.csv.gz`), e por isso um pcap novo entra sem refazer os outros. O manifesto,
-versionado em `experimentos/resultados/manifesto_regeracao.json`, guarda por pcap o tamanho, a
-data de modificação, o SHA-256 e as janelas extraídas, mantidas e descartadas, por janela. Numa
-execução seguinte, só os pcaps novos, alterados ou sem saída são lidos de novo; os que sumiram
-da pasta saem da saída e do manifesto.
+destino distintos, se havia atacante, quantos quadros da janela têm um MAC atacante na origem ou
+no destino e quantos MACs atacantes distintos aparecem nela. O arquivo de cada rótulo é a junção
+das partes de cada pcap (`partes/<pcap>.csv.gz`), e por isso um pcap novo entra sem refazer os
+outros. As janelas descartadas, sem nenhum quadro do atacante, ficam à parte, com as mesmas
+colunas e o rótulo do arquivo, em `descartadas/<pcap>.csv.gz`: não entram no arquivo do rótulo,
+e servem para medir o que o modelo faz com o tráfego de fundo das capturas de ataque.
+
+O manifesto, versionado em `experimentos/resultados/manifesto_regeracao.json`, guarda por pcap o
+tamanho, a data de modificação, o SHA-256 e as janelas extraídas, mantidas e descartadas, por
+janela, e guarda também o SHA-256 do código do extrator, as opções com que ele mediu os quadros e
+a versão da regra. Numa execução seguinte, só os pcaps novos, alterados ou sem saída são lidos de
+novo; os que sumiram da pasta saem da saída e do manifesto. Uma mudança no extrator, nas opções
+ou na regra invalida tudo, e `--refazer` força a leitura de todos os pcaps.
 
 Uso, a partir da raiz do repositório:
     python -m codigo.classificador.regerar
     python -m codigo.classificador.regerar --dataset /caminho/CICIoT2023 --janelas 10,100
+    python -m codigo.classificador.regerar --processos 3
 """
 import argparse
 import csv
 import datetime
 import gzip
+import hashlib
 import json
+import multiprocessing
 import os
 import platform
 import shutil
@@ -40,6 +50,7 @@ from pathlib import Path
 
 import dpkt
 
+from codigo.captura import extrator
 from codigo.captura.extrator import COLUNAS, _texto
 from codigo.classificador.atacantes import (
     ATACANTES,
@@ -57,18 +68,31 @@ from codigo.classificador.mapeamento import CATEGORIA_DO_ROTULO
 MANIFESTO = "manifesto_regeracao.json"
 DESTINO = "dados/processed/regerado"
 PARTES = "partes"
-COLUNAS_EXTRAS = ("Label", "arquivo", "indice", "ips_origem", "ips_destino", "atacante")
+DESCARTADAS = "descartadas"
+# As colunas novas ficam no fim, para que quem lê as colunas pela posição continue lendo as mesmas.
+COLUNAS_EXTRAS = (
+    "Label", "arquivo", "indice", "ips_origem", "ips_destino", "atacante", "quadros_atacante", "macs_atacante",
+)
 CABECALHO = (*COLUNAS, *COLUNAS_EXTRAS)
 # Nível de compressão do gzip: o padrão (9) é lento, e a diferença de tamanho é pequena.
 COMPRESSAO = 6
+# Versão da regra de rótulo e do formato da saída. Muda quando a regra ou as colunas mudam, e
+# invalida o reaproveitamento das partes gravadas por outra versão.
+# 2: janelas descartadas gravadas à parte e as colunas quadros_atacante e macs_atacante.
+VERSAO_DA_REGRA = 2
+
+
+def codigo_do_extrator():
+    """SHA-256 do arquivo do extrator: uma correção nele invalida as partes gravadas antes."""
+    return hashlib.sha256(Path(extrator.__file__).read_bytes()).hexdigest()
 
 
 def nome_da_pasta(janela):
     return f"janela_{janela}"
 
 
-def _parte(destino, janela, arquivo):
-    return Path(destino) / nome_da_pasta(janela) / PARTES / f"{Path(arquivo).stem}.csv.gz"
+def _parte(destino, janela, arquivo, pasta=PARTES):
+    return Path(destino) / nome_da_pasta(janela) / pasta / f"{Path(arquivo).stem}.csv.gz"
 
 
 def _do_rotulo(destino, janela, rotulo):
@@ -76,51 +100,61 @@ def _do_rotulo(destino, janela, rotulo):
 
 
 class _Partes:
-    """As partes de um pcap, uma por janela, gravadas sem cabeçalho e em arquivo provisório."""
+    """As partes de um pcap, uma por janela e por destino (mantidas e descartadas), gravadas sem
+    cabeçalho e em arquivo provisório."""
 
     def __init__(self, destino, janelas, arquivo):
-        self.caminhos = {janela: _parte(destino, janela, arquivo) for janela in janelas}
-        self._arquivos, self._escritores, self.linhas = {}, {}, dict.fromkeys(janelas, 0)
+        self.caminhos = {
+            (janela, pasta): _parte(destino, janela, arquivo, pasta) for janela in janelas for pasta in (PARTES, DESCARTADAS)
+        }
+        self._arquivos, self._escritores = {}, {}
+        self.linhas = dict.fromkeys(self.caminhos, 0)
 
     def __enter__(self):
-        for janela, caminho in self.caminhos.items():
+        for chave, caminho in self.caminhos.items():
             caminho.parent.mkdir(parents=True, exist_ok=True)
             arquivo = gzip.open(caminho.with_name(caminho.name + ".parcial"), "wt", encoding="utf-8", newline="",
                                 compresslevel=COMPRESSAO)
-            self._arquivos[janela] = arquivo
-            self._escritores[janela] = csv.writer(arquivo, lineterminator="\n")
+            self._arquivos[chave] = arquivo
+            self._escritores[chave] = csv.writer(arquivo, lineterminator="\n")
         return self
 
-    def gravar(self, janela, campos):
-        self._escritores[janela].writerow(campos)
-        self.linhas[janela] += 1
+    def gravar(self, janela, campos, pasta=PARTES):
+        self._escritores[(janela, pasta)].writerow(campos)
+        self.linhas[(janela, pasta)] += 1
 
     def __exit__(self, tipo, *_):
-        for janela, arquivo in self._arquivos.items():
+        for chave, arquivo in self._arquivos.items():
             arquivo.close()
-            provisorio = self.caminhos[janela].with_name(self.caminhos[janela].name + ".parcial")
+            provisorio = self.caminhos[chave].with_name(self.caminhos[chave].name + ".parcial")
             if tipo is None:
-                os.replace(provisorio, self.caminhos[janela])
+                os.replace(provisorio, self.caminhos[chave])
             else:
                 provisorio.unlink(missing_ok=True)
 
 
-def regerar_pcap(caminho, rotulo, janelas, destino, atacantes=ATACANTES):
+def regerar_pcap(caminho, rotulo, janelas, destino, atacantes=ATACANTES, opcoes=None):
     """Extrai um pcap com cada janela, aplica a regra de rótulo e grava as partes dele.
 
-    Devolve o registro do pcap para o manifesto.
+    As janelas mantidas vão para `partes/` e as descartadas, sem nenhum quadro do atacante, para
+    `descartadas/`, com as mesmas colunas. `opcoes` são as do extrator (`percorrer`). Devolve o
+    registro do pcap para o manifesto.
     """
+    caminho = Path(caminho)
     benigno = e_benigno(rotulo)
 
-    def ao_fechar(janela, indice, linha, enderecos, com_atacante):
-        if benigno or com_atacante:
-            partes.gravar(janela, [
-                *(_texto(linha[coluna]) for coluna in COLUNAS),
-                rotulo, caminho.name, indice, enderecos.ips_origem, enderecos.ips_destino, int(com_atacante),
-            ])
+    def ao_fechar(janela, indice, linha, enderecos, com_atacante, quadros_atacante):
+        macs_atacante = len(atacantes & (enderecos.macs_origem | enderecos.macs_destino))
+        partes.gravar(janela, [
+            *(_texto(linha[coluna]) for coluna in COLUNAS),
+            rotulo, caminho.name, indice, enderecos.ips_origem, enderecos.ips_destino, int(com_atacante),
+            quadros_atacante, macs_atacante,
+        ], PARTES if benigno or com_atacante else DESCARTADAS)
 
     with _Partes(destino, janelas, caminho.name) as partes:
-        registro = percorrer(caminho, janelas, ao_fechar=ao_fechar, atacantes=atacantes)
+        registro = percorrer(
+            caminho, janelas, ao_fechar=ao_fechar, atacantes=atacantes, contar_quadros=True, opcoes=opcoes,
+        )
     return {
         "arquivo": caminho.name,
         "rotulo": rotulo,
@@ -134,8 +168,8 @@ def regerar_pcap(caminho, rotulo, janelas, destino, atacantes=ATACANTES):
         "janelas": {
             str(janela): {
                 "extraidas": contagem["extraidas"],
-                "mantidas": partes.linhas[janela],
-                "descartadas": contagem["extraidas"] - partes.linhas[janela],
+                "mantidas": partes.linhas[(janela, PARTES)],
+                "descartadas": partes.linhas[(janela, DESCARTADAS)],
                 "com_atacante": contagem["com_atacante"],
                 "incompletas": contagem["incompletas"],
             }
@@ -144,8 +178,22 @@ def regerar_pcap(caminho, rotulo, janelas, destino, atacantes=ATACANTES):
     }
 
 
-def _ler_manifesto(caminho, janelas, destino):
-    """Os registros do manifesto anterior, por arquivo, se ele vale para esta execução."""
+def _regerar_tarefa(tarefa):
+    """`regerar_pcap` com os argumentos num par só, para a leitura em vários processos."""
+    return regerar_pcap(*tarefa)
+
+
+def descrever_extrator(opcoes=None):
+    """O que o manifesto guarda do extrator: o SHA-256 do código e as opções com que mediu os quadros."""
+    return {"sha256": codigo_do_extrator(), "opcoes": dict(sorted((opcoes or {}).items()))}
+
+
+def _ler_manifesto(caminho, janelas, destino, opcoes=None):
+    """Os registros do manifesto anterior, por arquivo, se ele vale para esta execução.
+
+    Vale se as janelas, os atacantes e o destino são os mesmos, e se as partes saíram do mesmo
+    código do extrator, com as mesmas opções e a mesma versão da regra.
+    """
     try:
         anterior = json.loads(Path(caminho).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -154,6 +202,8 @@ def _ler_manifesto(caminho, janelas, destino):
         anterior.get("janelas") != list(janelas)
         or sorted(anterior.get("atacantes", [])) != sorted(ATACANTES)
         or anterior.get("destino") != str(destino)
+        or anterior.get("versao_da_regra") != VERSAO_DA_REGRA
+        or anterior.get("extrator") != descrever_extrator(opcoes)
     ):
         return {}
     return {registro["arquivo"]: registro for registro in anterior.get("pcaps", [])}
@@ -165,7 +215,9 @@ def _vale(anterior, caminho, janelas, destino):
         return False
     if {chave: anterior.get(chave) for chave in ("bytes", "modificado_ns")} != _identidade(caminho):
         return False
-    return all(_parte(destino, janela, caminho.name).exists() for janela in janelas)
+    return all(
+        _parte(destino, janela, caminho.name, pasta).exists() for janela in janelas for pasta in (PARTES, DESCARTADAS)
+    )
 
 
 def _juntar(destino, janela, rotulo, arquivos):
@@ -189,7 +241,7 @@ def _limpar(destino, janelas, registros):
     rotulos = {registro["rotulo"] for registro in registros}
     for janela in janelas:
         pasta = Path(destino) / nome_da_pasta(janela)
-        for caminho in pasta.glob(f"{PARTES}/*.csv.gz"):
+        for caminho in [*pasta.glob(f"{PARTES}/*.csv.gz"), *pasta.glob(f"{DESCARTADAS}/*.csv.gz")]:
             if caminho.name[:-len(".csv.gz")] not in partes:
                 caminho.unlink()
         for caminho in pasta.glob("*.csv.gz"):
@@ -199,24 +251,38 @@ def _limpar(destino, janelas, registros):
         caminho.unlink()
 
 
-def rodar(dataset, janelas=JANELAS, destino=DESTINO, anteriores=None, ao_terminar=None):
+def rodar(dataset, janelas=JANELAS, destino=DESTINO, anteriores=None, ao_terminar=None, opcoes=None, processos=1):
     """Regera os pcaps da pasta que precisam, junta os arquivos por rótulo e devolve os registros.
+
+    Com mais de um processo, os pcaps são lidos em paralelo, dos maiores para os menores; cada
+    processo grava as partes do seu pcap, e o resultado é o mesmo da leitura em sequência.
 
     Devolve os registros dos pcaps, em ordem de nome, os registros por rótulo e quantos pcaps
     foram lidos nesta execução.
     """
     anteriores = anteriores or {}
-    registros, lidos = [], 0
+    registros, tarefas = [], []
     for caminho, rotulo in listar_pcaps(dataset):
         anterior = anteriores.get(caminho.name)
         if _vale(anterior, caminho, janelas, destino):
             registros.append(anterior)
-            continue
-        registro = regerar_pcap(caminho, rotulo, janelas, destino)
-        registros.append(registro)
-        lidos += 1
-        if ao_terminar is not None:
-            ao_terminar(registro)
+        else:
+            tarefas.append((caminho, rotulo, janelas, destino, ATACANTES, opcoes))
+    if processos > 1 and len(tarefas) > 1:
+        tarefas.sort(key=lambda tarefa: -tarefa[0].stat().st_size)
+        with multiprocessing.get_context("spawn").Pool(min(processos, len(tarefas))) as grupo:
+            novos = grupo.imap_unordered(_regerar_tarefa, tarefas)
+            for registro in novos:
+                registros.append(registro)
+                if ao_terminar is not None:
+                    ao_terminar(registro)
+    else:
+        for tarefa in tarefas:
+            registro = _regerar_tarefa(tarefa)
+            registros.append(registro)
+            if ao_terminar is not None:
+                ao_terminar(registro)
+    lidos = len(tarefas)
     registros.sort(key=lambda registro: registro["arquivo"])
     _limpar(destino, janelas, registros)
     rotulos = []
@@ -236,7 +302,7 @@ def rodar(dataset, janelas=JANELAS, destino=DESTINO, anteriores=None, ao_termina
     return registros, rotulos, lidos
 
 
-def montar_manifesto(registros, rotulos, dataset, janelas, destino):
+def montar_manifesto(registros, rotulos, dataset, janelas, destino, opcoes=None):
     return {
         "descricao": (
             "Dados de treino regerados dos pcaps do CICIoT2023 com o extrator do projeto, em janela única, com o "
@@ -251,9 +317,12 @@ def montar_manifesto(registros, rotulos, dataset, janelas, destino):
         "atacantes": sorted(ATACANTES),
         "regra": (
             "pcap benigno: toda janela é BenignTraffic; pcap de ataque: a janela recebe o rótulo do arquivo se tem "
-            "quadro com MAC de atacante na origem ou no destino, senão é descartada"
+            "quadro com MAC de atacante na origem ou no destino, senão é descartada e gravada à parte"
         ),
+        "versao_da_regra": VERSAO_DA_REGRA,
+        "extrator": descrever_extrator(opcoes),
         "colunas": list(CABECALHO),
+        "pastas": {"mantidas": PARTES, "descartadas": DESCARTADAS},
         "rotulos": rotulos,
         "pcaps": registros,
     }
@@ -276,6 +345,16 @@ def _relatar(registro):
     )
 
 
+def _processos(texto):
+    try:
+        valor = int(texto)
+    except ValueError:
+        raise argparse.ArgumentTypeError("a quantidade de processos precisa ser um número inteiro") from None
+    if valor < 1:
+        raise argparse.ArgumentTypeError("a quantidade de processos precisa ser de ao menos 1")
+    return valor
+
+
 def main(argv=None):
     analisador = argparse.ArgumentParser(
         prog="python -m codigo.classificador.regerar",
@@ -289,17 +368,32 @@ def main(argv=None):
         "--janelas", type=_janelas_da_opcao, default=JANELAS,
         help="tamanhos de janela, separados por vírgula (padrão: 10,100)",
     )
+    analisador.add_argument(
+        "--processos", type=_processos, default=1,
+        help="pcaps lidos ao mesmo tempo, cada um num processo (padrão: 1)",
+    )
+    analisador.add_argument(
+        "--refazer", action="store_true", help="lê todos os pcaps de novo, sem reaproveitar as partes gravadas",
+    )
     try:
         argumentos = analisador.parse_args(argv)
     except SystemExit as encerramento:
         return encerramento.code
     saida = Path(argumentos.saida)
+    opcoes = {}
     try:
-        anteriores = _ler_manifesto(saida / MANIFESTO, argumentos.janelas, argumentos.destino)
+        anteriores = (
+            {} if argumentos.refazer
+            else _ler_manifesto(saida / MANIFESTO, argumentos.janelas, argumentos.destino, opcoes)
+        )
         registros, rotulos, lidos = rodar(
             argumentos.dataset, argumentos.janelas, argumentos.destino, anteriores, ao_terminar=_relatar,
+            opcoes=opcoes, processos=argumentos.processos,
         )
-        gravar(montar_manifesto(registros, rotulos, argumentos.dataset, argumentos.janelas, argumentos.destino), saida)
+        gravar(
+            montar_manifesto(registros, rotulos, argumentos.dataset, argumentos.janelas, argumentos.destino, opcoes),
+            saida,
+        )
     except (OSError, ValueError, KeyError) as erro:
         print(f"erro: {erro}", file=sys.stderr)
         return 1
