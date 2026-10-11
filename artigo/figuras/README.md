@@ -15,6 +15,16 @@ partir da raiz do repositório, com o ambiente do `requirements.txt` ativo.
 
 A numeração segue a ordem em que o `artigo/esqueleto.md` cita as figuras.
 
+As capturas da interface ainda não têm número, porque o esqueleto não as cita:
+
+| Captura | Como foi gerada | Dados usados | Como refazer |
+|---|---|---|---|
+| `interface_fila.png`: tela 1, resumo e fila de incidentes | Interface em modo replay, janela de 1440 px de largura e resolução 2x | `frontend/public/dados/incidente_flood.jsonl`, cópia do log de exemplo do MCP | Em `frontend/`, `npm ci` e `npm run dev`; capturar de `http://localhost:5173` até o fim da fila |
+| `interface_detalhe.png`: tela 2, detalhe do `inc-0001` | Igual à anterior, só a seção de detalhe, com o primeiro incidente da fila selecionado | Igual à anterior | Igual à anterior, com o `inc-0001` selecionado |
+
+Os números das capturas são ilustrativos, do roteiro do stub MCP, como a própria tela avisa, e não
+podem ser citados como resultado. As horas aparecem no fuso de quem abre a página.
+
 **A matriz de confusão é provisória.** O modelo final ainda não está fechado (proporção das
 classes no treino e mais sementes, ver `ROADMAP.md`). Quando `python -m
 codigo.classificador.treinar_regerado` regravar o CSV, basta rodar `matriz_confusao.py` de novo.
