@@ -397,7 +397,7 @@ def test_tela_mostra_cada_campo_da_proposta(stub, capsys):
 
 
 def test_tela_mostra_todos_os_motivos_do_risco_alto_com_o_codigo_e_a_frase(stub, capsys, monkeypatch):
-    # Bloqueio sem prazo do gateway, que na varredura é um dos destinos: três motivos.
+    # Bloqueio sem prazo do gateway, que na varredura é um dos destinos: quatro motivos.
     stub.chamar(
         "propor_acao", id="inc-0003", acao="bloquear_ip", alvo="192.168.137.1", parametros={},
         justificativa="Destino da varredura.",
@@ -407,19 +407,19 @@ def test_tela_mostra_todos_os_motivos_do_risco_alto_com_o_codigo_e_a_frase(stub,
         "  motivos do risco alto:",
         *(
             f"    - {codigo}: {MOTIVOS_DE_RISCO_ALTO[codigo]}"
-            for codigo in ("prazo_acima_do_limite", "alvo_e_destino_do_incidente", "alvo_protegido")
+            for codigo in ("prazo_acima_do_limite", "alvo_e_destino_do_incidente", "alvo_na_rede_local", "alvo_protegido")
         ),
         "  ação: bloquear_ip (do catálogo)",
     ]
     # Na lista, na tela de confirmação da aprovação e na rejeição.
     assert aprovar(stub) == 0
-    assert capsys.readouterr().out.splitlines()[2:8] == esperadas
+    assert capsys.readouterr().out.splitlines()[2:2 + len(esperadas)] == esperadas
     vistos = {}
     Terminal(monkeypatch, "n", antes_de_responder=lambda: vistos.update(tela=capsys.readouterr().out))
     assert aprovar(stub, "prop-0001") == 1
-    assert vistos["tela"].splitlines()[:6] == esperadas
+    assert vistos["tela"].splitlines()[:len(esperadas)] == esperadas
     assert aprovar(stub, "prop-0001", "--rejeitar") == 0
-    assert capsys.readouterr().out.splitlines()[:6] == esperadas
+    assert capsys.readouterr().out.splitlines()[:len(esperadas)] == esperadas
 
 
 def acrescentar_proposta(stub, **trocas):

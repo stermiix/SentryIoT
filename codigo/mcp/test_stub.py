@@ -26,6 +26,7 @@ SAIDA = {tool.nome: tool.saida for tool in TOOLS}
 POR_NOME = {cenario.nome: cenario for cenario in CENARIOS}
 # Uma ação de risco baixo e uma de risco alto para o alvo de cada cenário.
 BLOQUEIO = {"acao": "bloquear_ip", "parametros": {"duracao": 10}, "justificativa": "Origem do tráfego."}
+LIMITE = {"acao": "limitar_taxa", "parametros": {"duracao": 10}, "justificativa": "Origem do tráfego."}
 ISOLAMENTO = {"acao": "isolar_dispositivo", "parametros": {}, "justificativa": "Dispositivo sob ataque."}
 SYN_COOKIES = {"acao": "ativar_syn_cookies", "parametros": ACAO_NOVA, "justificativa": "O bloqueio não resolveu."}
 
@@ -140,19 +141,21 @@ def test_cada_tool_devolve_dados_validos_pelo_contrato(stub, cenario):
     solucoes = chamar(stub, "pesquisar_solucoes", consulta="limitar taxa de pacotes")
     assert solucoes.fonte == "base_local" and solucoes.trechos
 
-    proposta = chamar(stub, "propor_acao", id=identificador, alvo=incidente.origens[0].endereco, **BLOQUEIO)
+    # A origem do falso positivo é a câmera, da rede local: bloqueá-la é de risco alto, e limitar a taxa não.
+    acao, grupo = (LIMITE, "limites") if cenario.nome == "falso_positivo" else (BLOQUEIO, "bloqueios")
+    proposta = chamar(stub, "propor_acao", id=identificador, alvo=incidente.origens[0].endereco, **acao)
     assert (proposta.incidente, proposta.risco, proposta.exige_aprovacao) == (identificador, "baixo", False)
 
     execucao = chamar(stub, "executar_acao", id_proposta=proposta.id)
     assert (execucao.proposta, execucao.estado) == (proposta.id, "aplicada")
-    assert chamar(stub, "consultar_estado").bloqueios == [execucao]
+    assert getattr(chamar(stub, "consultar_estado"), grupo) == [execucao]
 
     efeito = chamar(stub, "verificar_efeito", id_execucao=execucao.id)
     assert (efeito.execucao, efeito.incidente, efeito.resultado) == (execucao.id, identificador, cenario.efeitos[0])
 
     desfeita = chamar(stub, "desfazer_acao", id_execucao=execucao.id)
     assert desfeita.estado == "desfeita"
-    assert chamar(stub, "consultar_estado").bloqueios == []
+    assert getattr(chamar(stub, "consultar_estado"), grupo) == []
 
 
 def test_mitigacoes_recomendadas_vem_da_base_local_com_a_acao_do_catalogo(stub):
@@ -301,8 +304,8 @@ def test_bloquear_o_destino_do_incidente_exige_aprovacao_e_limitar_a_taxa_dele_n
 def test_resposta_de_propor_acao_e_o_log_dizem_por_que_o_risco_e_alto(stub):
     antes = len(stub.registro.ler())
     proposta = chamar(stub, "propor_acao", id="inc-0003", alvo="192.168.137.1", **BLOQUEIO | {"parametros": {}})
-    # Na varredura, o gateway é um dos destinos. Bloqueio sem prazo, do destino, em endereço protegido.
-    esperados = ["prazo_acima_do_limite", "alvo_e_destino_do_incidente", "alvo_protegido"]
+    # Na varredura, o gateway é um dos destinos. Bloqueio sem prazo, do destino, na rede local, em endereço protegido.
+    esperados = ["prazo_acima_do_limite", "alvo_e_destino_do_incidente", "alvo_na_rede_local", "alvo_protegido"]
     assert [motivo.codigo for motivo in proposta.motivos_de_risco_alto] == esperados
     assert [motivo.descricao for motivo in proposta.motivos_de_risco_alto] == [MOTIVOS_DE_RISCO_ALTO[c] for c in esperados]
 

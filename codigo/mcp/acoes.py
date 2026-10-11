@@ -192,10 +192,17 @@ _ORIGENS_E_DESTINOS = "origens_e_destinos"
 ALVOS_DE_RISCO_BAIXO = (_SO_ORIGENS, _ORIGENS_E_DESTINOS)
 _LIMITES = "limites"
 _MEDIDAS = "medidas_de_risco_baixo_por_incidente"
+_MEDIDAS_NO_TOTAL = "medidas_de_risco_baixo_no_total"
 _PENDENTES = "propostas_aguardando_aprovacao_por_incidente"
 _REDE = "rede"
 _PROTEGIDOS = "enderecos_protegidos"
+_CRITICOS = "enderecos_criticos"
 _REDES_LOCAIS = "redes_locais"
+# Prefixos IPv6 que levam um IPv4 dentro deles: NAT64 (64:ff9b::/96) e SIIT (::ffff:0:0:0/96). O IPv4
+# compatível (::/96) e o 6to4 (2002::/16) são tratados à parte, em `_ipv4_embutido`.
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_SIIT = ipaddress.ip_network("::ffff:0:0:0/96")
+_COMPATIVEL = ipaddress.ip_network("::/96")
 
 
 # --- política de risco -----------------------------------------------------------------------
@@ -210,11 +217,16 @@ class Politica:
     acoes: dict
     # Máximo de medidas de risco baixo ativas ao mesmo tempo em um incidente.
     medidas_de_risco_baixo_por_incidente: int
+    # Máximo de medidas de risco baixo ativas ao mesmo tempo, somando todos os incidentes.
+    medidas_de_risco_baixo_no_total: int
     # Máximo de propostas de um incidente aguardando aprovação ao mesmo tempo. A seguinte é recusada.
     propostas_aguardando_aprovacao_por_incidente: int
-    # Endereços em que qualquer ação é de risco alto, na forma canônica.
+    # Endereços em que qualquer ação é de risco alto, na forma canônica: o gateway e a captura.
     enderecos_protegidos: frozenset
-    # Redes locais: o endereço de rede e o de broadcast de cada uma não são aceitos como alvo.
+    # Endereços dos serviços de que o sistema depende, tratados como protegidos.
+    enderecos_criticos: frozenset
+    # Redes locais: o endereço de rede e o de broadcast de cada uma não são aceitos como alvo, e
+    # bloquear um endereço delas é de risco alto.
     redes_locais: tuple
 
 
@@ -292,22 +304,32 @@ def carregar_politica(caminho=POLITICA_PADRAO):
             )
         regras[nome] = {"risco": regra["risco"], _PRAZO: prazo, _ALVOS: alvos}
 
-    limites = secao(_LIMITES, (_MEDIDAS, _PENDENTES))
+    limites = secao(_LIMITES, (_MEDIDAS, _MEDIDAS_NO_TOTAL, _PENDENTES))
     medidas = limites.get(_MEDIDAS)
     if type(medidas) is not int or medidas < 0:
         raise invalida(f"{_MEDIDAS} precisa ser um número inteiro, a partir de 0")
+    no_total = limites.get(_MEDIDAS_NO_TOTAL)
+    if type(no_total) is not int or no_total < 0:
+        raise invalida(f"{_MEDIDAS_NO_TOTAL} precisa ser um número inteiro, a partir de 0")
     pendentes = limites.get(_PENDENTES)
     # Com zero, nenhuma proposta de risco alto chegaria à pessoa.
     if type(pendentes) is not int or pendentes < 1:
         raise invalida(f"{_PENDENTES} precisa ser um número inteiro, a partir de 1")
 
-    rede = secao(_REDE, (_PROTEGIDOS, _REDES_LOCAIS))
-    protegidos, redes = [], []
-    for texto in lista_de_textos(rede, _PROTEGIDOS):
-        try:
-            protegidos.append(endereco_canonico(texto.strip()))
-        except ValueError:
-            raise invalida(f"{_PROTEGIDOS} traz {texto!r}, que não é um endereço IP") from None
+    rede = secao(_REDE, (_PROTEGIDOS, _CRITICOS, _REDES_LOCAIS))
+
+    def enderecos(chave):
+        lidos = []
+        for texto in lista_de_textos(rede, chave):
+            try:
+                lidos.append(endereco_canonico(texto.strip()))
+            except ValueError:
+                raise invalida(f"{chave} traz {texto!r}, que não é um endereço IP") from None
+        return frozenset(lidos)
+
+    protegidos = enderecos(_PROTEGIDOS)
+    criticos = enderecos(_CRITICOS)
+    redes = []
     for texto in lista_de_textos(rede, _REDES_LOCAIS):
         try:
             redes.append(ipaddress.ip_network(texto.strip()))
@@ -318,8 +340,10 @@ def carregar_politica(caminho=POLITICA_PADRAO):
     return Politica(
         acoes=regras,
         medidas_de_risco_baixo_por_incidente=medidas,
+        medidas_de_risco_baixo_no_total=no_total,
         propostas_aguardando_aprovacao_por_incidente=pendentes,
-        enderecos_protegidos=frozenset(protegidos),
+        enderecos_protegidos=protegidos,
+        enderecos_criticos=criticos,
         redes_locais=tuple(redes),
     )
 
@@ -353,15 +377,60 @@ def _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros):
         # alvo de risco baixo.
         if endereco in destinos and regra[_ALVOS] != _ORIGENS_E_DESTINOS:
             valem.add("alvo_e_destino_do_incidente")
+        # Na ação que só é de risco baixo sobre quem ataca, um endereço da rede local não conta como
+        # atacante: num flood UDP ou ICMP a origem é forjável, e bloquear um dispositivo interno
+        # equivale a isolá-lo.
+        if regra[_ALVOS] == _SO_ORIGENS and _na_rede_local(politica, endereco):
+            valem.add("alvo_na_rede_local")
         if _medidas_de_risco_baixo(estado, incidente) >= politica.medidas_de_risco_baixo_por_incidente:
             valem.add("orcamento_de_risco_baixo_esgotado")
+        # Cada incidente aberto com origens forjadas teria o seu limite: há também o do sistema todo.
+        if _medidas_de_risco_baixo(estado) >= politica.medidas_de_risco_baixo_no_total:
+            valem.add("orcamento_global_de_risco_baixo_esgotado")
     # O que se diz do alvo vale para toda ação de base, inclusive a que já é sempre de risco alto: quem
     # aprova o isolamento de um dispositivo precisa saber que ele é o gateway, ou que é alheio ao incidente.
     if endereco not in origens and endereco not in destinos:
         valem.add("alvo_fora_do_incidente")
-    if endereco in politica.enderecos_protegidos:
+    if _protegido(politica, endereco):
         valem.add("alvo_protegido")
     return [codigo for codigo in MOTIVOS_DE_RISCO_ALTO if codigo in valem]
+
+
+def _ipv4_embutido(endereco):
+    """O IPv4 que um endereço IPv6 leva dentro dele, ou None.
+
+    São as formas em que um IPv6 chega ao mesmo dispositivo que um IPv4: o IPv4 compatível
+    (`::a.b.c.d`), o SIIT (`::ffff:0:a.b.c.d`), o NAT64 (`64:ff9b::a.b.c.d`) e o 6to4
+    (`2002:AABB:CCDD::`). O IPv4 escrito como IPv6 (`::ffff:a.b.c.d`) já vira o IPv4 na leitura.
+    """
+    ip = ipaddress.ip_address(endereco)
+    if ip.version != 6:
+        return None
+    if ip.sixtofour is not None:
+        return str(ip.sixtofour)
+    # O compatível exclui :: e ::1, que são o endereço não especificado e o loopback do IPv6.
+    if ip in _NAT64 or ip in _SIIT or (ip in _COMPATIVEL and int(ip) > 1):
+        return str(ipaddress.IPv4Address(int(ip) & 0xFFFF_FFFF))
+    return None
+
+
+def _formas(endereco):
+    """O endereço e, quando ele é um IPv6 que leva um IPv4, também esse IPv4."""
+    embutido = _ipv4_embutido(endereco)
+    return (endereco,) if embutido is None else (endereco, embutido)
+
+
+def _protegido(politica, endereco):
+    """O endereço é protegido ou crítico, escrito direto ou dentro de um IPv6."""
+    return any(forma in politica.enderecos_protegidos | politica.enderecos_criticos for forma in _formas(endereco))
+
+
+def _na_rede_local(politica, endereco):
+    """O endereço está numa das redes locais, escrito direto ou dentro de um IPv6."""
+    return any(
+        ipaddress.ip_address(forma) in rede for forma in _formas(endereco) for rede in politica.redes_locais
+        if ipaddress.ip_address(forma).version == rede.version
+    )
 
 
 def _enderecos_do_incidente(estado, incidente):
@@ -375,11 +444,11 @@ def _enderecos_do_incidente(estado, incidente):
     )
 
 
-def _medidas_de_risco_baixo(estado, incidente):
-    """Quantas medidas aplicadas sem aprovação humana estão ativas no incidente."""
+def _medidas_de_risco_baixo(estado, incidente=None):
+    """Quantas medidas aplicadas sem aprovação humana estão ativas no incidente, ou em todos."""
     return sum(
         1 for execucao in estado.execucoes.values()
-        if execucao.incidente == incidente and execucao.estado == "aplicada"
+        if incidente in (None, execucao.incidente) and execucao.estado == "aplicada"
         and execucao.proposta not in estado.aprovadas
     )
 
@@ -390,15 +459,16 @@ def _regra(politica, acao):
         return _REGRA_DE_RISCO_ALTO
     sem_prazo = "sem duracao, " if BASE[acao].duracao == "opcional" else ""
     if regra[_ALVOS] == _ORIGENS_E_DESTINOS:
-        papel, destino = "origem ou destino", ""
+        papel, destino = "origem ou destino do incidente", ""
     else:
-        papel, destino = "origem", "alvo que é destino do incidente, isto é, o dispositivo atacado, "
+        papel = "origem do incidente fora da rede local"
+        destino = "alvo que é destino do incidente, isto é, o dispositivo atacado, endereço da rede local, "
     return (
-        f"Risco baixo quando o alvo é {papel} do incidente, a duracao é de até {regra[_PRAZO]} "
-        f"minutos e o incidente tem menos de {politica.medidas_de_risco_baixo_por_incidente} medidas de risco "
-        f"baixo ativas: o agente de execução aplica sem aprovação. Fora disso ({sem_prazo}duracao maior, alvo "
-        f"que não consta do incidente, {destino}endereço protegido pela política ou limite de medidas atingido), "
-        "risco alto: só com aprovação humana."
+        f"Risco baixo quando o alvo é {papel}, a duracao é de até {regra[_PRAZO]} minutos, o incidente "
+        f"tem menos de {politica.medidas_de_risco_baixo_por_incidente} medidas de risco baixo ativas e o sistema, "
+        f"somando os incidentes, menos de {politica.medidas_de_risco_baixo_no_total}: o agente de execução aplica "
+        f"sem aprovação. Fora disso ({sem_prazo}duracao maior, alvo que não consta do incidente, {destino}"
+        "endereço protegido pela política ou limite de medidas atingido), risco alto: só com aprovação humana."
     )
 
 

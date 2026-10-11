@@ -92,8 +92,14 @@ MOTIVOS_DE_RISCO_ALTO = {
         "O alvo é destino do incidente, isto é, o dispositivo atacado, e esta ação só é de risco baixo sobre "
         "uma origem."
     ),
+    "alvo_na_rede_local": (
+        "O alvo é um endereço da rede local, e bloqueá-lo equivale a isolar um dispositivo interno."
+    ),
     "alvo_protegido": "O alvo é um endereço protegido pela política.",
     "orcamento_de_risco_baixo_esgotado": "O incidente já tem o máximo de medidas de risco baixo ativas.",
+    "orcamento_global_de_risco_baixo_esgotado": (
+        "O sistema já tem o máximo de medidas de risco baixo ativas, somando todos os incidentes."
+    ),
 }
 CodigoDeRiscoAlto = Literal[tuple(MOTIVOS_DE_RISCO_ALTO)]
 MotivoDeRecusa = Literal[

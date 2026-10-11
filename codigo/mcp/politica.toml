@@ -7,8 +7,10 @@
 #   - a ação está marcada aqui como de risco baixo e a duração pedida cabe no prazo máximo;
 #   - o alvo faz parte do incidente, no papel que a ação aceita (alvos_de_risco_baixo), e o
 #     incidente está aberto;
-#   - o alvo não é um endereço protegido;
-#   - o incidente ainda não atingiu o limite de medidas de risco baixo ativas.
+#   - na ação que só vale sobre origens, o alvo está fora das redes locais;
+#   - o alvo não é um endereço protegido nem crítico;
+#   - o incidente, e o sistema como um todo, ainda não atingiram o limite de medidas de risco
+#     baixo ativas.
 # Fora disso a proposta não é recusada: vira de risco alto e espera a aprovação.
 #
 # A equipe ajusta os valores sem mexer no código. Três regras não estão neste arquivo, porque
@@ -30,7 +32,8 @@ risco = "baixo"
 prazo_maximo_de_risco_baixo = 15
 # Bloquear um destino do incidente tira do ar o dispositivo atacado, que é o que o ataque quer.
 # Por isso o bloqueio só é de risco baixo sobre uma origem. O endereço que aparece nas origens e
-# nos destinos conta como destino.
+# nos destinos conta como destino. Origem que está numa das redes locais também é de risco alto:
+# num flood UDP ou ICMP a origem é forjável, e bloquear um dispositivo interno equivale a isolá-lo.
 alvos_de_risco_baixo = "origens"
 
 [isolar_dispositivo]
@@ -43,6 +46,9 @@ risco = "alto"
 # Máximo de medidas de risco baixo ativas ao mesmo tempo em um incidente. A seguinte vira de
 # risco alto. Medida aprovada por uma pessoa e medida já desfeita não entram na conta.
 medidas_de_risco_baixo_por_incidente = 5
+# Máximo de medidas de risco baixo ativas ao mesmo tempo, somando todos os incidentes. Origens
+# forjadas abrem incidentes, e cada um teria o seu limite: este teto vale para o sistema todo.
+medidas_de_risco_baixo_no_total = 10
 # Máximo de propostas de um incidente que esperam a decisão da pessoa ao mesmo tempo. A seguinte
 # é recusada, até que alguma das pendentes seja aprovada ou rejeitada. Sem este teto, um agente
 # enganado encheria a fila de aprovação. Proposta de risco baixo não entra na conta.
@@ -53,6 +59,11 @@ propostas_aguardando_aprovacao_por_incidente = 10
 # de exemplo: o gateway e a máquina que faz a captura na rede dos cenários do stub. Troque pelos
 # da rede real.
 enderecos_protegidos = ["192.168.137.1", "192.168.137.2"]
+# Endereços dos serviços de que a rede e o próprio sistema dependem, tratados como protegidos: o
+# resolvedor DNS, o host do modelo local e o servidor MCP. Um bloqueio forjado contra eles cortaria
+# a rede ou os próprios agentes. Os valores são de exemplo: o servidor MCP (192.168.137.3), o PC do
+# modelo local (192.168.137.4) e um resolvedor DNS externo (192.0.2.53). Troque pelos da rede real.
+enderecos_criticos = ["192.168.137.3", "192.168.137.4", "192.0.2.53"]
 # Redes locais. O endereço de rede e o de broadcast de cada uma são recusados como alvo, junto
 # com loopback, endereço não especificado, multicast e link-local, que o código já reconhece.
 redes_locais = ["192.168.137.0/24"]
