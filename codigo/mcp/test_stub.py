@@ -540,9 +540,9 @@ def test_cada_chamada_de_tool_fica_no_log_com_argumentos_resumo_e_duracao(stub):
     assert [evento.incidente for evento in chamadas] == ["inc-0002", "inc-0002"]
     primeira, segunda = (evento.dados for evento in chamadas)
     assert (primeira.agente, primeira.nome, primeira.argumentos) == (None, "obter_incidente", {"id": "inc-0002"})
-    assert primeira.resultado == {"estado": "aberto", "categoria": "BruteForce", "confianca": 0.91, "janelas": 180}
+    assert primeira.resultado == {"estado": "aberto", "categoria": "BruteForce", "confianca": 0.91, "janelas": 18}
     assert (segunda.nome, segunda.argumentos) == ("obter_janelas", {"id": "inc-0002", "limite": 3})
-    assert segunda.resultado == {"janelas": 3, "total": 180}
+    assert segunda.resultado == {"janelas": 3, "total": 18}
     # O relógio de teste avança 5 ms a cada leitura, e a chamada lê o relógio no começo e no fim.
     assert primeira.duracao_ms == segunda.duracao_ms == 5.0
 

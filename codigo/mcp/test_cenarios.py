@@ -74,6 +74,14 @@ class TestCadaCenario:
         assert 1 <= len(incidente.origens) <= incidente.origens_distintas
         assert incidente.distribuido == (incidente.origens_distintas > 1)
 
+    def test_janela_tem_100_quadros_e_fecha_com_a_taxa_e_a_duracao(self, cenario):
+        # A janela do sistema é de 100 quadros em todo o tráfego (decisão de 2026-10-10). Com a taxa
+        # típica do cenário, as janelas do incidente cobrem a duração dele.
+        incidente = cenario.incidente
+        assert cenario.quadros_por_janela == 100
+        cobertura = incidente.janelas * cenario.quadros_por_janela / cenario.perfil["Rate"]
+        assert cobertura == pytest.approx((incidente.fim - incidente.inicio).total_seconds(), rel=0.1)
+
     def test_categoria_segue_a_regra_das_origens(self, cenario):
         incidente = cenario.incidente
         if incidente.categoria_do_modelo == "DDoS+DoS":

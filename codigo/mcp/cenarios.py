@@ -38,7 +38,8 @@ class Cenario:
     lote: LoteDeJanelas
     # Resultado de `verificar_efeito` depois da primeira ação aplicada, da segunda etc.
     efeitos: tuple
-    # Tamanho da janela do extrator: 100 quadros nos floods e 10 nas demais classes.
+    # Tamanho da janela do extrator: 100 quadros em todo o tráfego, como no sistema (decisão de
+    # 2026-10-10). Com a taxa do perfil, as janelas cobrem a duração do incidente.
     quadros_por_janela: int
     # Valor típico, na janela, das features que não são zero nem calculadas a partir de outras.
     perfil: dict
@@ -108,7 +109,7 @@ CENARIOS = (
             confianca=0.91,
             inicio=_instante(15, 12, 4),
             fim=_instante(15, 14, 36),
-            janelas=180,
+            janelas=18,
             origens_distintas=1,
             distribuido=False,
             origens=_contados(("198.51.100.23", 912)),
@@ -117,9 +118,9 @@ CENARIOS = (
                 ("SSH", 1.0, 0.02), ("Rate", 11.8, 96.2), ("psh_flag_number", 0.4, 0.21), ("Tot size", 98.4, 310.5),
             ),
         ),
-        lote=LoteDeJanelas(janelas=244, por_categoria={"BruteForce": 180, "Benign": 64}),
+        lote=LoteDeJanelas(janelas=24, por_categoria={"BruteForce": 18, "Benign": 6}),
         efeitos=("cessou",),
-        quadros_por_janela=10,
+        quadros_por_janela=100,
         perfil={
             "Header_Length": 32.0, "Protocol Type": 6, "Time_To_Live": 64.0, "Rate": 11.8,
             "fin_flag_number": 0.1, "syn_flag_number": 0.1, "psh_flag_number": 0.4, "ack_flag_number": 0.9,
@@ -141,7 +142,7 @@ CENARIOS = (
             confianca=0.88,
             inicio=_instante(16, 40, 10),
             fim=_instante(16, 41, 9),
-            janelas=96,
+            janelas=10,
             origens_distintas=1,
             distribuido=False,
             origens=_contados(("192.0.2.45", 480)),
@@ -153,9 +154,9 @@ CENARIOS = (
                 ("Rate", 16.2, 96.2),
             ),
         ),
-        lote=LoteDeJanelas(janelas=147, por_categoria={"Recon": 96, "Benign": 51}),
+        lote=LoteDeJanelas(janelas=15, por_categoria={"Recon": 10, "Benign": 5}),
         efeitos=("diminuiu", "cessou"),
-        quadros_por_janela=10,
+        quadros_por_janela=100,
         perfil={
             "Header_Length": 22.0, "Protocol Type": 6, "Time_To_Live": 58.0, "Rate": 16.2,
             "syn_flag_number": 0.5, "rst_flag_number": 0.5, "ack_flag_number": 0.5,
