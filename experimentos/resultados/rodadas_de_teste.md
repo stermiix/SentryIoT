@@ -353,10 +353,10 @@ O Random Forest de 50 árvores, na mesma divisão e na mesma semente:
 ## Como os números foram obtidos
 
 - Comando: `python -m codigo.classificador.rodadas --nucleos 4`, a partir da raiz do repositório, depois de `python -m codigo.classificador.regerar`.
-- Dados: `dados/processed/regerado/janela_100/`, 72 arquivos (os CSVs de rótulo e as partes de `descartadas/`), com o SHA-256 de cada um em `manifesto_rodadas.json`. Manifesto da regeração `experimentos/resultados/manifesto_regeracao.json`, SHA-256 `b66d36a4ffcc85673ea15682100356cde10f891cb65326cbeb3a6f5391b7872b`; extrator com SHA-256 `803be8f9f324eea181f60dad9c2c5d0856f390b4e535acd70510f4b2db384213` e opções nenhuma.
+- Dados: `dados/processed/regerado/janela_100/`, 72 arquivos (os CSVs de rótulo e as partes de `descartadas/`), com o SHA-256 de cada um em `manifesto_rodadas.json`. Manifesto da regeração `experimentos/resultados/manifesto_regeracao.json`, SHA-256 `750f7b95ac998784f8fea98139a189a319069bdbcfe791aec51579e7b88713bf`; extrator com SHA-256 `d3c32142f46c9202bcc439ca49bb45238425004ebacec384bbd51deb82bade7d` e opções nenhuma.
 - Modelo salvo: `rf_regerado_janela_100.joblib`, SHA-256 `b67e9013e67acbc680c2d9312550b5e792f81665b4c755052ae84ecf23aa3986`.
 - Treinos: `RandomForestClassifier` do scikit-learn com 100 árvores e os demais parâmetros padrão, 4 núcleos (o modelo não depende disso), teto de 50.000 linhas por rótulo e corte de 70% das janelas de cada pcap, as mesmas funções de `treinar_regerado`. Predição com um núcleo, em ordem fixa.
 - Os números das tabelas são arredondados; os valores completos, com as contagens, estão no manifesto, e as
   tabelas em CSV começam com `rodadas_`.
-- Tempo total, na máquina em que rodou: 1.096,8 s.
+- Tempo desta execução, na máquina em que rodou: 14,8 s. Os treinos já guardados em `dados/processed/rodadas/` são reaproveitados e não entram nessa conta; somados, os treinos de que os números saem levaram 890,8 s.
 - Com as mesmas entradas e as mesmas sementes, os números saem iguais. Só mudam a data e os tempos.

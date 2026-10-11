@@ -86,10 +86,10 @@
  "entradas": {
   "regeracao": {
    "manifesto": "experimentos/resultados/manifesto_regeracao.json",
-   "sha256": "b66d36a4ffcc85673ea15682100356cde10f891cb65326cbeb3a6f5391b7872b",
+   "sha256": "750f7b95ac998784f8fea98139a189a319069bdbcfe791aec51579e7b88713bf",
    "destino": "dados/processed/regerado",
    "extrator": {
-    "sha256": "803be8f9f324eea181f60dad9c2c5d0856f390b4e535acd70510f4b2db384213",
+    "sha256": "d3c32142f46c9202bcc439ca49bb45238425004ebacec384bbd51deb82bade7d",
     "opcoes": {}
    },
    "extraidas": {
@@ -19989,5 +19989,5 @@
    }
   }
  },
- "duracao_segundos": 1096.7752067500005
+ "duracao_segundos": 14.794304874998488
 }
