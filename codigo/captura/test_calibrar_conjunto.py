@@ -237,7 +237,8 @@ def test_vizinho_mais_proximo_aponta_as_colunas_que_diferem(tmp_path):
 def montar_dataset(pasta):
     """Dois pcaps e um MERGED_CSV feito das linhas deles, com perdas, sobras e um arquivo truncado.
 
-    O Recon perde 3 linhas no MERGED_CSV; o flood ganha 40 linhas de outra captura do rótulo.
+    O Recon perde 3 linhas no MERGED_CSV e tem uma linha que aparece 3 vezes lá e 1 vez no pcap;
+    o flood ganha 40 linhas de outra captura do rótulo.
     """
     pasta.mkdir()
     recon = pcap_misto(pasta / "Recon-PingSweep.pcap", 400)
@@ -249,7 +250,8 @@ def montar_dataset(pasta):
     outras = linhas_flood.copy()
     outras[:, I["Rate"]] += 1.5
     (pasta / "MERGED_CSV").mkdir()
-    todas = [(l, "RECON-PINGSWEEP") for l in linhas_recon[3:]] + [(l, "DDOS-ICMP_FLOOD") for l in linhas_flood]
+    todas = [(l, "RECON-PINGSWEEP") for l in [*linhas_recon[3:], linhas_recon[5], linhas_recon[5]]]
+    todas += [(l, "DDOS-ICMP_FLOOD") for l in linhas_flood]
     todas += [(l, "DDoS-ICMP_Flood") for l in np.concatenate([outras] * 4)]
     meio = len(todas) // 2
     gravar_merged(pasta / "MERGED_CSV" / "Merged01.csv", todas[:meio])
@@ -277,8 +279,9 @@ def test_calibracao_de_conjunto_ponta_a_ponta(tmp_path, capsys):
     assert recon["formato_do_instante"] == "microssegundos" and int(recon["registros_menores_que_o_original"]) == 8
     assert int(recon["vizinho_examinadas"]) == 3
     rotulos = ler_tabela(tmp_path / "saida" / TABELA_ROTULOS)
-    assert int(rotulos["Recon-PingSweep"]["linhas_merged_cobertas"]) == int(rotulos["Recon-PingSweep"]["linhas_merged"])
-    assert float(rotulos["Recon-PingSweep"]["fracao_coberta"]) == 1.0
+    # A linha repetida no MERGED_CSV é coberta uma vez só, pela única cópia dela no pcap.
+    assert int(rotulos["Recon-PingSweep"]["linhas_merged"]) == n_recon - 3 + 2
+    assert int(rotulos["Recon-PingSweep"]["linhas_merged_cobertas"]) == n_recon - 3
     assert int(rotulos["DDoS-ICMP_Flood"]["linhas_merged"]) == 5 * n_flood
     assert float(rotulos["DDoS-ICMP_Flood"]["fracao_coberta"]) == pytest.approx(0.2, abs=1e-6)
     manifesto = json.loads((tmp_path / "saida" / MANIFESTO).read_text(encoding="utf-8"))
