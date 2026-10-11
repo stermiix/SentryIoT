@@ -1,8 +1,9 @@
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import textoDoExemplo from "../public/dados/incidente_flood.jsonl?raw";
 import { Pagina } from "./App";
+import ControleDoReplay from "./components/ControleDoReplay";
 import DetalheDoIncidente from "./components/DetalheDoIncidente";
 import FilaDeIncidentes from "./components/FilaDeIncidentes";
 import LimiteDeErro from "./components/LimiteDeErro";
@@ -325,6 +326,58 @@ describe("página no passo do replay", () => {
       <Pagina eventos={base} avisos={["Aviso de teste."]} passo={base.length} onMudarPasso={() => {}} selecionadoId={null} onSelecionar={() => {}} carregando={false} erro={null} />,
     );
     expect(textoDe(recorte(html, "warning-banner"))).toContain("Aviso de teste.");
+  });
+});
+
+describe("controle do replay", () => {
+  // O componente não tem estado: chamado como função, ele devolve os elementos, e o clique de cada
+  // botão pode ser chamado direto, sem navegador.
+  function botoes(passo: number, onMudar: (passo: number) => void) {
+    const encontrados: ReactElement<{ onClick: () => void; "aria-disabled": boolean; children: ReactNode }>[] = [];
+    const visitar = (no: ReactNode) => {
+      if (Array.isArray(no)) {
+        no.forEach(visitar);
+      } else if (no && typeof no === "object" && "props" in no) {
+        const elemento = no as ReactElement<{ children?: ReactNode }>;
+        if (elemento.type === "button") {
+          encontrados.push(elemento as (typeof encontrados)[number]);
+        }
+        visitar(elemento.props.children);
+      }
+    };
+    visitar(ControleDoReplay({ eventos: base, passo, onMudar }));
+    return new Map(encontrados.map((botao) => [String(botao.props.children), botao]));
+  }
+
+  it("cada botão leva ao passo certo", () => {
+    const meio = Math.floor(base.length / 2);
+    const esperado = new Map([
+      ["Início", 0],
+      ["◀ Anterior", meio - 1],
+      ["Próximo ▶", meio + 1],
+      ["Fim", base.length],
+    ]);
+    for (const [texto, destino] of esperado) {
+      const onMudar = vi.fn();
+      botoes(meio, onMudar).get(texto)!.props.onClick();
+      expect(onMudar, texto).toHaveBeenCalledWith(destino);
+    }
+  });
+
+  it("nas pontas, o botão fica inativo sem perder o foco e o clique não faz nada", () => {
+    for (const [passo, inativos] of [
+      [0, ["Início", "◀ Anterior"]],
+      [base.length, ["Próximo ▶", "Fim"]],
+    ] as const) {
+      const onMudar = vi.fn();
+      const mapa = botoes(passo, onMudar);
+      for (const texto of inativos) {
+        expect(mapa.get(texto)!.props["aria-disabled"]).toBe(true);
+        mapa.get(texto)!.props.onClick();
+      }
+      expect(onMudar).not.toHaveBeenCalled();
+    }
+    expect(renderToString(ControleDoReplay({ eventos: base, passo: 0, onMudar: () => {} }))).not.toContain("disabled=\"\"");
   });
 });
 
