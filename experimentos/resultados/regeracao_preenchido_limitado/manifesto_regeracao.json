@@ -7,7 +7,7 @@
     "dpkt": "1.9.8"
   },
   "dataset": "CICIoT2023",
-  "destino": "dados/processed/regerado_no_fio",
+  "destino": "dados/processed/regerado_preenchido_limitado",
   "janelas": [
     100
   ],
@@ -23,7 +23,7 @@
   "regra": "pcap benigno: toda janela é BenignTraffic; pcap de ataque: a janela recebe o rótulo do arquivo se tem quadro com MAC de atacante na origem ou no destino, senão é descartada e gravada à parte",
   "versao_da_regra": 2,
   "extrator": {
-    "sha256": "d3c32142f46c9202bcc439ca49bb45238425004ebacec384bbd51deb82bade7d",
+    "sha256": "8bd38fb392d5bec5a318699b2cef4a67a7c0c43461ecd01ce20be5b7db0b4a65",
     "opcoes": {
       "limitar": true,
       "preencher": true
@@ -438,7 +438,7 @@
       "modificado_ns": 1791662900496559627,
       "sha256": "7b0a7cb3a9c569939526e3bc97e29ddfd1599e2c7af099b0e04d50ca8a4e3bd8",
       "pacotes": 33414,
-      "segundos": 0.2511040410008718,
+      "segundos": 0.2539976670013857,
       "avisos": [],
       "janelas": {
         "100": {
@@ -459,7 +459,7 @@
       "modificado_ns": 1791661619534460782,
       "sha256": "549a89337f529412f2507f862d06394c95e5966b9c01aaa980511590657d1dc8",
       "pacotes": 3664164,
-      "segundos": 29.417228250000335,
+      "segundos": 29.083367375002126,
       "avisos": [],
       "janelas": {
         "100": {
@@ -480,7 +480,7 @@
       "modificado_ns": 1791661797921864300,
       "sha256": "7af057c6681e076151cc28e123a44ea6ff0e3b174d39d456ba7ccf1ac22d24c0",
       "pacotes": 2988642,
-      "segundos": 24.030753125000047,
+      "segundos": 23.869310250000126,
       "avisos": [],
       "janelas": {
         "100": {
@@ -501,7 +501,7 @@
       "modificado_ns": 1791673591892298932,
       "sha256": "ddafc1c1d3432bdde55340423196ceee79bba47b48b14179ae48d561cca341b8",
       "pacotes": 3138002,
-      "segundos": 24.907029040999987,
+      "segundos": 24.841146792001382,
       "avisos": [],
       "janelas": {
         "100": {
@@ -522,7 +522,7 @@
       "modificado_ns": 1791663140049626747,
       "sha256": "aeac45ba4fdb14575af2e8193d3ef99783e15760eea76696a9155655f5c99138",
       "pacotes": 59821,
-      "segundos": 0.4776223749995552,
+      "segundos": 0.4745124589971965,
       "avisos": [],
       "janelas": {
         "100": {
@@ -543,7 +543,7 @@
       "modificado_ns": 1791662879753936338,
       "sha256": "151c761536d530d8432589e35ed09f2162e51c78a28995fc2a7dbeae32082b13",
       "pacotes": 55741,
-      "segundos": 0.44335400000090885,
+      "segundos": 0.4305839170010586,
       "avisos": [],
       "janelas": {
         "100": {
@@ -564,7 +564,7 @@
       "modificado_ns": 1791669507298902736,
       "sha256": "004fc3523ca44423199a2deff0b83279f23c290d4efc9e60de1c935f23f96f69",
       "pacotes": 2503835,
-      "segundos": 18.61832954199963,
+      "segundos": 18.485570374999952,
       "avisos": [],
       "janelas": {
         "100": {
@@ -585,7 +585,7 @@
       "modificado_ns": 1791152251602446172,
       "sha256": "299c6f2180b3cf94ebb14e3e5aa5afe16ff51eac232f7f2c61a4384443eb7387",
       "pacotes": 2881005,
-      "segundos": 22.98618316699867,
+      "segundos": 22.398459665997507,
       "avisos": [],
       "janelas": {
         "100": {
@@ -606,7 +606,7 @@
       "modificado_ns": 1791664507381421740,
       "sha256": "0455a66ec4296eaafe6c344352b3c047e8863f9e6e07dd84848854380974155f",
       "pacotes": 26793240,
-      "segundos": 178.80390350000016,
+      "segundos": 177.60442958299973,
       "avisos": [],
       "janelas": {
         "100": {
@@ -627,7 +627,7 @@
       "modificado_ns": 1791672270734331047,
       "sha256": "2c7b656619d03091bfb708e8a6408cbf0b98c4b32c9550e92f00547428f40540",
       "pacotes": 2064692,
-      "segundos": 14.176749665999523,
+      "segundos": 14.125217583001358,
       "avisos": [],
       "janelas": {
         "100": {
@@ -648,7 +648,7 @@
       "modificado_ns": 1791672622771258649,
       "sha256": "ad455d997fb960ef54d78ec8d33e684fc8a69a56cf1b557742c37a5ff135b8a0",
       "pacotes": 26774357,
-      "segundos": 203.33533137500126,
+      "segundos": 200.80302683300033,
       "avisos": [],
       "janelas": {
         "100": {
@@ -669,7 +669,7 @@
       "modificado_ns": 1791672422889213431,
       "sha256": "35d4088099d0b74de066ae2ca8cae905c2c82c5de3d5b696f88016c64ec7c46e",
       "pacotes": 26686473,
-      "segundos": 205.56910433300072,
+      "segundos": 199.94634029100052,
       "avisos": [],
       "janelas": {
         "100": {
@@ -690,7 +690,7 @@
       "modificado_ns": 1791663765790247990,
       "sha256": "5e8124a87e12483af05cb5b4f36dc095c2a979b08f2ee4e18918c26ad3b041b8",
       "pacotes": 26597011,
-      "segundos": 201.69761941700017,
+      "segundos": 199.5084756670003,
       "avisos": [],
       "janelas": {
         "100": {
@@ -711,7 +711,7 @@
       "modificado_ns": 1791673277511898096,
       "sha256": "ff5c25cd6d5eb7fd15b599a93e5e53b3c74bc2d528b8f0429c95ab2114ef6fc5",
       "pacotes": 26715334,
-      "segundos": 204.52234220800165,
+      "segundos": 200.29772445900016,
       "avisos": [],
       "janelas": {
         "100": {
@@ -732,7 +732,7 @@
       "modificado_ns": 1791671866361310156,
       "sha256": "9dc14b610031d43366c302d4bc68e173a2d02bedd9470997cd9be6aa26d2eaea",
       "pacotes": 2351454,
-      "segundos": 18.55347491700013,
+      "segundos": 18.359312915999908,
       "avisos": [],
       "janelas": {
         "100": {
@@ -753,7 +753,7 @@
       "modificado_ns": 1791672816563778463,
       "sha256": "d2ef859ee93d34edce1d4bfc1de4ea234cf960a3bfd3cf374845a5ddb1d2767a",
       "pacotes": 26855630,
-      "segundos": 206.18435037500058,
+      "segundos": 201.30399491700155,
       "avisos": [],
       "janelas": {
         "100": {
@@ -774,7 +774,7 @@
       "modificado_ns": 1791664662067172082,
       "sha256": "39d7597311b1eacad9c46c0779f0493d9ee51b2e4b344ae6dd47221e5ad04cec",
       "pacotes": 26570958,
-      "segundos": 203.58598145900032,
+      "segundos": 198.24628849999863,
       "avisos": [],
       "janelas": {
         "100": {
@@ -795,7 +795,7 @@
       "modificado_ns": 1791663968504228589,
       "sha256": "541250a7494dca056bdf584e8c6705a346c85c8561319d251e3afc167c6c00c4",
       "pacotes": 26653551,
-      "segundos": 165.76982229200075,
+      "segundos": 162.6954825419998,
       "avisos": [],
       "janelas": {
         "100": {
@@ -816,7 +816,7 @@
       "modificado_ns": 1791672085596585481,
       "sha256": "dfa0770d74d06ce8ae2c57479877e11d41e5f0f616d4cbd30bc5e51364225cee",
       "pacotes": 2248843,
-      "segundos": 15.197553875000267,
+      "segundos": 15.019450165997114,
       "avisos": [],
       "janelas": {
         "100": {
@@ -837,7 +837,7 @@
       "modificado_ns": 1791662794934324478,
       "sha256": "edf47246de6b7e43bd27252ddf6716957952a736fafaa1b0060ca62f78d8c323",
       "pacotes": 1812557,
-      "segundos": 13.66463183399901,
+      "segundos": 13.756696166998154,
       "avisos": [],
       "janelas": {
         "100": {
@@ -858,7 +858,7 @@
       "modificado_ns": 1788466663424981236,
       "sha256": "09ad3cfabd139b950da3078fec0f0fd196fe36cd82237d898035437f4c69161b",
       "pacotes": 133138,
-      "segundos": 1.0558832910010096,
+      "segundos": 1.0258131670016155,
       "avisos": [],
       "janelas": {
         "100": {
@@ -879,7 +879,7 @@
       "modificado_ns": 1791153068041316605,
       "sha256": "2b7df8fce78461e435952e39cb2e33c445b137fa08ee7429d97fde6d93032d40",
       "pacotes": 3114983,
-      "segundos": 24.69398045900016,
+      "segundos": 24.900683332998597,
       "avisos": [],
       "janelas": {
         "100": {
@@ -900,7 +900,7 @@
       "modificado_ns": 1791663625557404984,
       "sha256": "3f45569b3438b1ee5fa9105922a423789e4de176a66d550082f5f082f6546ebd",
       "pacotes": 26261611,
-      "segundos": 204.71297412500098,
+      "segundos": 197.5738429999983,
       "avisos": [],
       "janelas": {
         "100": {
@@ -921,7 +921,7 @@
       "modificado_ns": 1791673451656797160,
       "sha256": "d35fd7510fb9985e478f91010249e45caa453e6e15b88b093c811d104e5c2dfd",
       "pacotes": 26405653,
-      "segundos": 199.08748204199946,
+      "segundos": 197.1728457499994,
       "avisos": [],
       "janelas": {
         "100": {
@@ -942,7 +942,7 @@
       "modificado_ns": 1791664896615796818,
       "sha256": "255b6f1cfabdb8c6a645ce40ab089d75df7b5eade61c29c5648ffc7281de3653",
       "pacotes": 26005549,
-      "segundos": 196.9202491670003,
+      "segundos": 194.3547161250026,
       "avisos": [],
       "janelas": {
         "100": {
@@ -963,7 +963,7 @@
       "modificado_ns": 1791664245720384626,
       "sha256": "346e9afbba2ed957598b6ae46e98eed62c56120800e67bf05d177117a5dfc74b",
       "pacotes": 16676370,
-      "segundos": 105.33287162499983,
+      "segundos": 103.0580391250005,
       "avisos": [],
       "janelas": {
         "100": {
@@ -984,7 +984,7 @@
       "modificado_ns": 1791662501156949644,
       "sha256": "da097ba27f5690cf4fe47b916c825735af8a829074a71202624740bf4b7cc196",
       "pacotes": 2491622,
-      "segundos": 19.761371291000614,
+      "segundos": 19.928474915999686,
       "avisos": [],
       "janelas": {
         "100": {
@@ -1005,7 +1005,7 @@
       "modificado_ns": 1791672950588650606,
       "sha256": "87f8de16e575f23fca6c159a94360c6dd2970c4d9a1711d46c9468f1cf724c0e",
       "pacotes": 3352569,
-      "segundos": 37.02271762500004,
+      "segundos": 36.41678129200227,
       "avisos": [],
       "janelas": {
         "100": {
@@ -1026,7 +1026,7 @@
       "modificado_ns": 1791153460148870636,
       "sha256": "5a77e5c663c31759d7834047bd85197dfd51f2cb7dcc22bfe0a8d1dbf1973742",
       "pacotes": 1196296,
-      "segundos": 11.496446999999534,
+      "segundos": 11.433063292002771,
       "avisos": [],
       "janelas": {
         "100": {
@@ -1047,7 +1047,7 @@
       "modificado_ns": 1791673090497666267,
       "sha256": "845a8c833c5841203b75d776a353526f55a7fbcd9ca3079b53848e85a62ed3a7",
       "pacotes": 3642269,
-      "segundos": 24.768469457999345,
+      "segundos": 24.453738791999058,
       "avisos": [],
       "janelas": {
         "100": {
@@ -1068,7 +1068,7 @@
       "modificado_ns": 1791663367327877790,
       "sha256": "34035ba8a3e6d9db4e2d03e8f78c350980e1cedaa8c1e30a9d7abb080c93e9d3",
       "pacotes": 1371112,
-      "segundos": 10.744779708998976,
+      "segundos": 10.381147041996883,
       "avisos": [],
       "janelas": {
         "100": {
@@ -1089,7 +1089,7 @@
       "modificado_ns": 1791663313578438986,
       "sha256": "8e99115ca67ea6c34fd68bd713c5ba5ae671a0a90a327568f732279494f804f0",
       "pacotes": 992241,
-      "segundos": 7.875073041999713,
+      "segundos": 7.745630541998253,
       "avisos": [],
       "janelas": {
         "100": {
@@ -1110,7 +1110,7 @@
       "modificado_ns": 1791663396457521780,
       "sha256": "1aaf410fcc6dbfefa48b680b401344f0fa7b6e04c2acc9af427b5b7728b0ee89",
       "pacotes": 22943,
-      "segundos": 0.1763310829992406,
+      "segundos": 0.17056741700071143,
       "avisos": [],
       "janelas": {
         "100": {
@@ -1131,7 +1131,7 @@
       "modificado_ns": 1788466641194790244,
       "sha256": "e13368bdc571a6ec53f8dd9e5491137dd0656c9d997bd62b323e957722bd4fc1",
       "pacotes": 831856,
-      "segundos": 6.643855832999179,
+      "segundos": 6.387541625001177,
       "avisos": [],
       "janelas": {
         "100": {
@@ -1152,7 +1152,7 @@
       "modificado_ns": 1791662840295584862,
       "sha256": "712750bd64f8250861bd8a76bd1c33a44a4fe8d3dc2f34e2043c208edc19bde7",
       "pacotes": 53462,
-      "segundos": 0.4160514579998562,
+      "segundos": 0.3934426249979879,
       "avisos": [],
       "janelas": {
         "100": {
@@ -1173,7 +1173,7 @@
       "modificado_ns": 1791662918183670845,
       "sha256": "13eb2c9478cb3d54921766436808cc89623f25179565241ece3c20a95ca71ee8",
       "pacotes": 12939,
-      "segundos": 0.10324212500017893,
+      "segundos": 0.09885487499923329,
       "avisos": [],
       "janelas": {
         "100": {
@@ -1194,7 +1194,7 @@
       "modificado_ns": 1791663043919102155,
       "sha256": "92321b9a016264f09a1f0bc487a91c88364dc41f2e67e73b10883c3fa3128439",
       "pacotes": 3802533,
-      "segundos": 28.907528457999433,
+      "segundos": 28.94844570799978,
       "avisos": [],
       "janelas": {
         "100": {
@@ -1215,7 +1215,7 @@
       "modificado_ns": 1791663111286688481,
       "sha256": "62a9d0ca316f3e5eb9c910fc8c21dc169ef76033bafa22d17f85f53e64809bf0",
       "pacotes": 40183,
-      "segundos": 0.30770216699966113,
+      "segundos": 0.3059277079992171,
       "avisos": [],
       "janelas": {
         "100": {
