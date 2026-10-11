@@ -1,6 +1,7 @@
 import io
 import math
 import struct
+import warnings
 from collections import Counter
 from decimal import Decimal
 from pathlib import Path
@@ -430,7 +431,7 @@ def test_main_recusa_janela_invalida_sem_abrir_a_saida(tmp_path, janela):
 
 
 def test_main_interrompido_pelo_teclado_sai_com_130(tmp_path, monkeypatch, capsys):
-    def leitura_interrompida(origem):
+    def leitura_interrompida(origem, contagem=None):
         yield 1.0, quadro_tcp()
         raise KeyboardInterrupt
 
@@ -799,3 +800,71 @@ def test_extrator_aceita_janela_inteira_de_outros_tipos():
     assert Extrator(janela=np.int64(100)).janela == 100
     assert type(Extrator(janela=np.int64(100)).janela) is int
     assert Extrator(janela=10_000).janela == 10_000
+
+
+# --- linha de comando: avisos e quadros que ficaram fora ---------------------------------------
+
+
+def test_main_so_mostra_como_aviso_o_da_leitura(tmp_path, monkeypatch, capsys):
+    def leitura_com_aviso_de_outro_codigo(origem, contagem=None):
+        warnings.warn("arquivo esquecido por outro código", ResourceWarning, stacklevel=1)
+        warnings.warn("biblioteca antiga", UserWarning, stacklevel=1)
+        yield 1.0, quadro_tcp()
+        warnings.warn("pacote 2 incompleto", CapturaIncompleta, stacklevel=1)
+
+    monkeypatch.setattr("codigo.captura.extrator.ler_pcap", leitura_com_aviso_de_outro_codigo)
+    # O aviso de outro código segue o caminho normal do Python, sem passar por aviso da leitura.
+    with pytest.warns(UserWarning, match="biblioteca antiga"):
+        assert main([str(tmp_path / "qualquer.pcap"), str(tmp_path / "saida.csv")]) == 0
+    erro = capsys.readouterr().err
+    assert "aviso: pacote 2 incompleto" in erro
+    assert "aviso: arquivo esquecido" not in erro and "aviso: biblioteca antiga" not in erro
+
+
+def com_etiqueta(quadro, tipo=0x8100):
+    """O quadro com uma etiqueta de VLAN depois dos MACs."""
+    return quadro[:12] + struct.pack(">HH", tipo, 100) + quadro[12:]
+
+
+def test_extrator_conta_os_quadros_ignorados_por_tipo():
+    extrator = Extrator(janela=100)
+    for quadro in [QUADRO_IPV6] * 2 + [com_etiqueta(quadro_tcp())] * 3 + [b"\x00" * 5, quadro_tcp()]:
+        extrator.alimentar(1.0, quadro)
+    assert extrator.ignorados == 6
+    assert extrator.ignorados_por_tipo == {0x86DD: 2, 0x8100: 3, -1: 1}
+
+
+def test_main_informa_os_quadros_fora_e_avisa_quando_a_maioria_tem_vlan(tmp_path, capsys):
+    entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
+    quadros = [com_etiqueta(quadro_tcp())] * 6 + [com_etiqueta(com_etiqueta(quadro_tcp()), 0x88A8)] * 2
+    entrada.write_bytes(pcap([(i, 0, q) for i, q in enumerate(quadros + [QUADRO_IPV6, quadro_tcp()])]))
+    assert main([str(entrada), str(saida)]) == 0
+    erro = capsys.readouterr().err
+    assert "9 quadros ficaram fora" in erro
+    assert "VLAN 802.1Q: 6" in erro and "VLAN 802.1ad (QinQ): 2" in erro and "IPv6: 1" in erro
+    assert "aviso: 8 dos 9 quadros fora têm etiqueta de VLAN" in erro
+    # Com poucos quadros de VLAN entre os de fora, só a contagem aparece.
+    entrada.write_bytes(pcap([(i, 0, q) for i, q in enumerate([com_etiqueta(quadro_tcp()), QUADRO_IPV6, QUADRO_IPV6])]))
+    assert main([str(entrada), str(saida)]) == 0
+    erro = capsys.readouterr().err
+    assert "3 quadros ficaram fora" in erro and "etiqueta de VLAN" not in erro
+
+
+def test_main_sem_quadros_fora_nao_fala_deles(tmp_path, capsys):
+    entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
+    entrada.write_bytes(pcap([(i, 0, quadro_tcp()) for i in range(10)]))
+    assert main([str(entrada), str(saida)]) == 0
+    erro = capsys.readouterr().err
+    assert "ficaram fora" not in erro and "aviso" not in erro
+
+
+def test_main_avisa_registro_gravado_menor_que_o_quadro_original(tmp_path, capsys):
+    entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
+    a = quadro_tcp()
+    dados = pcap([(1, 0, a)])
+    dados += struct.pack("<IIII", 2, 0, len(a), 1454) + a  # gravado com 54 de 1454 bytes
+    dados += struct.pack("<IIII", 3, 0, len(a), 1454) + a
+    entrada.write_bytes(dados)
+    assert main([str(entrada), str(saida)]) == 0
+    erro = capsys.readouterr().err
+    assert "aviso: 2 pacotes foram gravados com menos bytes que o quadro original" in erro and "-s 0" in erro

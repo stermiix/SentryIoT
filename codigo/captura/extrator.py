@@ -250,6 +250,9 @@ class Extrator:
     (linha, Enderecos), em vez de só a linha. `preencher` e `limitar` são as opções de
     `como_no_fio`, aplicadas a cada quadro entregue por `alimentar`; desligadas, o extrator
     reproduz o código dos autores.
+
+    `ignorados` conta os quadros que ficaram fora do filtro, e `ignorados_por_tipo` os separa
+    pelo tipo Ethernet, quando o quadro chega por `alimentar`.
     """
 
     def __init__(self, janela=10, enderecos=False, preencher=False, limitar=False):
@@ -265,6 +268,7 @@ class Extrator:
         self.preencher = preencher
         self.limitar = limitar
         self.ignorados = 0
+        self.ignorados_por_tipo = Counter()
         self._pendentes = []
         self._ts_anterior = None
 
@@ -273,7 +277,10 @@ class Extrator:
         ts = float(ts)
         if not math.isfinite(ts):
             raise ValueError("o instante do quadro precisa ser um número finito")
-        return self.acumular(medir_quadro(ts, quadro, self._ts_anterior, self.preencher, self.limitar))
+        medida = medir_quadro(ts, quadro, self._ts_anterior, self.preencher, self.limitar)
+        if medida is None:
+            self.ignorados_por_tipo[tipo_ethernet(quadro)] += 1
+        return self.acumular(medida)
 
     def acumular(self, medida):
         """Entrega um quadro já medido por `medir_quadro`, ou None se ele ficou fora do filtro.
@@ -305,7 +312,10 @@ class Extrator:
 def extrair(quadros, janela=10, enderecos=False, preencher=False, limitar=False):
     """Gera as janelas de uma sequência de (instante, quadro): as linhas de features ou, com
     `enderecos`, os pares (linha, Enderecos). `preencher` e `limitar` são as de `como_no_fio`."""
-    extrator = Extrator(janela, enderecos, preencher, limitar)
+    yield from _janelas(Extrator(janela, enderecos, preencher, limitar), quadros)
+
+
+def _janelas(extrator, quadros):
     for ts, quadro in quadros:
         linha = extrator.alimentar(ts, quadro)
         if linha is not None:
@@ -436,8 +446,70 @@ def gravar_csv(linhas, destino, a_cada=DESCARGA_LINHAS, segundos=DESCARGA_SEGUND
     return total
 
 
-def _mostrar_aviso(mensagem, *_resto, **_opcoes):
-    print(f"aviso: {mensagem}", file=sys.stderr)
+# Tipos Ethernet das etiquetas de VLAN: 802.1Q e 802.1ad (QinQ). O dpkt não as retira, e o quadro
+# com etiqueta fica fora do filtro, como no código dos autores.
+TIPOS_VLAN = (0x8100, 0x88A8)
+NOMES_DE_TIPO = {
+    0x0800: "IPv4", 0x0806: "ARP", 0x86DD: "IPv6", 0x8100: "VLAN 802.1Q", 0x88A8: "VLAN 802.1ad (QinQ)",
+    0x9000: "teste de enlace (loopback)",
+}
+
+
+def tipo_ethernet(quadro):
+    """O tipo Ethernet do quadro, ou -1 se ele tem menos de 14 bytes."""
+    return struct.unpack(">H", quadro[12:14])[0] if len(quadro) >= _CABECALHO_ETHERNET else -1
+
+
+def nome_do_tipo(tipo):
+    """Nome legível de um tipo Ethernet, para relatórios e mensagens."""
+    if tipo in NOMES_DE_TIPO:
+        return NOMES_DE_TIPO[tipo]
+    if tipo < 0:
+        return "quadro com menos de 14 bytes"
+    if tipo < 0x0600:
+        return "IEEE 802.3 com LLC (STP e afins)"
+    return f"0x{tipo:04x}"
+
+
+def _mostrar_avisos_da_leitura(mostrar_outros):
+    """Mostra o aviso da leitura do pcap como "aviso: ..." e entrega os demais ao Python."""
+
+    def mostrar(mensagem, categoria, *resto, **opcoes):
+        if issubclass(categoria, CapturaIncompleta):
+            print(f"aviso: {mensagem}", file=sys.stderr)
+        else:
+            mostrar_outros(mensagem, categoria, *resto, **opcoes)
+
+    return mostrar
+
+
+def _resumir_quadros(extrator, contagem):
+    """Mensagens do fim da extração: quadros fora do filtro, VLAN e limite de captura curto."""
+    mensagens = []
+    if extrator.ignorados:
+        partes = []
+        for tipo, quantos in extrator.ignorados_por_tipo.most_common():
+            nome = nome_do_tipo(tipo)
+            if tipo in (dpkt.ethernet.ETH_TYPE_IP, dpkt.ethernet.ETH_TYPE_ARP):
+                nome += " que não pôde ser decodificado"
+            partes.append(f"{nome}: {quantos}")
+        mensagens.append(
+            f"{extrator.ignorados} quadros ficaram fora (só IPv4 e ARP entram na conta): " + "; ".join(partes)
+        )
+        com_vlan = sum(extrator.ignorados_por_tipo[tipo] for tipo in TIPOS_VLAN)
+        if 2 * com_vlan > extrator.ignorados:
+            mensagens.append(
+                f"aviso: {com_vlan} dos {extrator.ignorados} quadros fora têm etiqueta de VLAN (802.1Q ou "
+                "802.1ad), que o código dos autores também descarta; retire as etiquetas na captura "
+                "(por exemplo, espelhando a porta sem a VLAN ou capturando na interface da VLAN)"
+            )
+    if contagem["menor_que_o_original"]:
+        mensagens.append(
+            f"aviso: {contagem['menor_que_o_original']} pacotes foram gravados com menos bytes que o quadro "
+            "original (limite de captura curto), e as colunas de tamanho saem menores do que no treino; "
+            "capture o quadro inteiro, com tcpdump -s 0"
+        )
+    return mensagens
 
 
 def _janela(texto):
@@ -483,23 +555,22 @@ def main(argv=None):
         argumentos = analisador.parse_args(argv)
     except SystemExit as encerramento:
         return encerramento.code
+    contagem = Counter()
+    extrator = Extrator(argumentos.janela, preencher=argumentos.preencher, limitar=argumentos.limitar)
     with warnings.catch_warnings():
-        warnings.simplefilter("always")
-        warnings.showwarning = _mostrar_aviso
+        # Só o aviso da leitura sai como "aviso: ..."; os de outro código seguem os filtros do Python.
+        warnings.simplefilter("always", CapturaIncompleta)
+        warnings.showwarning = _mostrar_avisos_da_leitura(warnings.showwarning)
         try:
             if _mesmo_arquivo(argumentos.entrada, argumentos.saida):
                 raise ValueError("a entrada e a saída são o mesmo arquivo")
             entrada = sys.stdin.buffer if argumentos.entrada == "-" else argumentos.entrada
             # Lê o primeiro quadro antes de abrir a saída: se a entrada não existe ou não é um
             # pcap, o arquivo de saída não chega a ser criado nem sobrescrito.
-            quadros = ler_pcap(entrada)
+            quadros = ler_pcap(entrada, contagem)
             primeiro = list(itertools.islice(quadros, 1))
             with open(argumentos.saida, "w", newline="") as saida:
-                linhas = extrair(
-                    itertools.chain(primeiro, quadros), argumentos.janela,
-                    preencher=argumentos.preencher, limitar=argumentos.limitar,
-                )
-                total = gravar_csv(linhas, saida)
+                total = gravar_csv(_janelas(extrator, itertools.chain(primeiro, quadros)), saida)
         except (OSError, ValueError) as erro:
             print(f"erro: {erro}", file=sys.stderr)
             return 1
@@ -507,6 +578,8 @@ def main(argv=None):
             print("interrompido: as linhas já gravadas ficam no arquivo de saída", file=sys.stderr)
             return 130
     print(f"{total} linhas gravadas em {argumentos.saida}", file=sys.stderr)
+    for mensagem in _resumir_quadros(extrator, contagem):
+        print(mensagem, file=sys.stderr)
     return 0
 
 
