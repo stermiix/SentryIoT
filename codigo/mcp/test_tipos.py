@@ -427,8 +427,9 @@ def test_motivos_de_recusa_do_contrato():
     motivos = contrato()["$defs"]["Recusa"]["properties"]["motivo"]["enum"]
     assert motivos == [
         "identificador_desconhecido", "argumentos_invalidos", "alvo_malformado", "alvo_nao_permitido",
-        "incidente_encerrado", "limite_de_propostas_pendentes", "acao_nova_incompleta", "proposta_nao_liberada",
-        "proposta_ja_executada", "acao_nao_aplicada", "tool_fora_da_linha",
+        "incidente_encerrado", "limite_de_propostas_pendentes", "limite_de_propostas_liberadas",
+        "acao_nova_incompleta", "proposta_nao_liberada", "proposta_ja_executada", "acao_nao_aplicada",
+        "tool_fora_da_linha",
     ]
     for motivo in motivos:
         assert validar_evento(evento("recusa", dados=DADOS_POR_TIPO["recusa"] | {"motivo": motivo})).dados.motivo == motivo

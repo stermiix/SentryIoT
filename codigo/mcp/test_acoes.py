@@ -131,7 +131,7 @@ def gravar_politica(tmp_path, trocas=None):
         "revogar_credencial": ['risco = "alto"'],
         "limites": [
             "medidas_de_risco_baixo_por_incidente = 5", "medidas_de_risco_baixo_no_total = 10",
-            "propostas_aguardando_aprovacao_por_incidente = 10",
+            "propostas_aguardando_aprovacao_por_incidente = 10", "propostas_liberadas_por_incidente = 10",
         ],
         "rede": [
             'enderecos_protegidos = ["192.168.137.1", "192.168.137.2"]',
@@ -163,6 +163,7 @@ def test_politica_padrao_e_a_tabela_da_especificacao():
         medidas_de_risco_baixo_por_incidente=5,
         medidas_de_risco_baixo_no_total=10,
         propostas_aguardando_aprovacao_por_incidente=10,
+        propostas_liberadas_por_incidente=10,
         # O gateway e a máquina de captura, com valores de exemplo.
         enderecos_protegidos=frozenset({"192.168.137.1", "192.168.137.2"}),
         # O servidor MCP, o host do modelo local e o resolvedor DNS, com valores de exemplo.
@@ -202,7 +203,7 @@ def test_a_equipe_ajusta_os_limites_no_arquivo_de_politica(tmp_path):
         "bloquear_ip": ['risco = "baixo"', "prazo_maximo_de_risco_baixo = 60", 'alvos_de_risco_baixo = "origens"'],
         "limites": [
             "medidas_de_risco_baixo_por_incidente = 1", "medidas_de_risco_baixo_no_total = 10",
-            "propostas_aguardando_aprovacao_por_incidente = 3",
+            "propostas_aguardando_aprovacao_por_incidente = 3", "propostas_liberadas_por_incidente = 4",
         ],
         "rede": [
             'enderecos_protegidos = ["192.168.137.20", "2001:DB8::1"]', 'enderecos_criticos = ["::FFFF:9.9.9.9"]',
@@ -213,7 +214,7 @@ def test_a_equipe_ajusta_os_limites_no_arquivo_de_politica(tmp_path):
     assert politica.enderecos_protegidos == frozenset({"192.168.137.20", "2001:db8::1"})
     assert (politica.enderecos_criticos, politica.medidas_de_risco_baixo_no_total) == (frozenset({"9.9.9.9"}), 10)
     assert (politica.medidas_de_risco_baixo_por_incidente, politica.redes_locais) == (1, ())
-    assert politica.propostas_aguardando_aprovacao_por_incidente == 3
+    assert (politica.propostas_aguardando_aprovacao_por_incidente, politica.propostas_liberadas_por_incidente) == (3, 4)
     mundo = Mundo(politica)
     assert mundo.propor("bloquear_ip", parametros={"duracao": 45}).risco == "baixo"
     assert mundo.propor("bloquear_ip", parametros={"duracao": 61}).risco == "alto"
@@ -270,24 +271,40 @@ def test_a_equipe_ajusta_os_limites_no_arquivo_de_politica(tmp_path):
     ({"limites": ['medidas_de_risco_baixo_por_incidente = "5"']}, "medidas_de_risco_baixo_por_incidente"),
     ({"limites": ["medidas_de_risco_baixo_por_incidente = 5", "outro = 1"]}, "outro"),
     # O teto de propostas que esperam a pessoa: obrigatório, inteiro e de ao menos 1.
-    ({"limites": ["medidas_de_risco_baixo_por_incidente = 5", "medidas_de_risco_baixo_no_total = 10"]},
-     "propostas_aguardando_aprovacao_por_incidente"),
+    ({"limites": [
+        "medidas_de_risco_baixo_por_incidente = 5", "medidas_de_risco_baixo_no_total = 10",
+        "propostas_liberadas_por_incidente = 10",
+    ]}, "propostas_aguardando_aprovacao_por_incidente"),
     *(
         ({"limites": [
             "medidas_de_risco_baixo_por_incidente = 5", "medidas_de_risco_baixo_no_total = 10",
-            f"propostas_aguardando_aprovacao_por_incidente = {valor}",
+            f"propostas_aguardando_aprovacao_por_incidente = {valor}", "propostas_liberadas_por_incidente = 10",
         ]}, "propostas_aguardando_aprovacao_por_incidente")
         for valor in ("0", "-1", '"10"', "2.5", "true")
     ),
     # O teto de medidas de risco baixo somando todos os incidentes: obrigatório e inteiro, a partir de 0.
-    ({"limites": ["medidas_de_risco_baixo_por_incidente = 5", "propostas_aguardando_aprovacao_por_incidente = 10"]},
-     "medidas_de_risco_baixo_no_total"),
+    ({"limites": [
+        "medidas_de_risco_baixo_por_incidente = 5", "propostas_aguardando_aprovacao_por_incidente = 10",
+        "propostas_liberadas_por_incidente = 10",
+    ]}, "medidas_de_risco_baixo_no_total"),
     *(
         ({"limites": [
             "medidas_de_risco_baixo_por_incidente = 5", f"medidas_de_risco_baixo_no_total = {valor}",
-            "propostas_aguardando_aprovacao_por_incidente = 10",
+            "propostas_aguardando_aprovacao_por_incidente = 10", "propostas_liberadas_por_incidente = 10",
         ]}, "medidas_de_risco_baixo_no_total")
         for valor in ("-1", '"10"', "2.5", "true")
+    ),
+    # O teto de propostas liberadas que ainda não foram executadas: obrigatório, inteiro e de ao menos 1.
+    ({"limites": [
+        "medidas_de_risco_baixo_por_incidente = 5", "medidas_de_risco_baixo_no_total = 10",
+        "propostas_aguardando_aprovacao_por_incidente = 10",
+    ]}, "propostas_liberadas_por_incidente"),
+    *(
+        ({"limites": [
+            "medidas_de_risco_baixo_por_incidente = 5", "medidas_de_risco_baixo_no_total = 10",
+            "propostas_aguardando_aprovacao_por_incidente = 10", f"propostas_liberadas_por_incidente = {valor}",
+        ]}, "propostas_liberadas_por_incidente")
+        for valor in ("0", "-1", '"10"', "2.5", "true")
     ),
     ({"rede": ["enderecos_criticos = []", "redes_locais = []"]}, "enderecos_protegidos"),
     ({"rede": ["enderecos_protegidos = []", "enderecos_criticos = []"]}, "redes_locais"),
@@ -1033,7 +1050,7 @@ def test_ha_um_teto_de_medidas_de_risco_baixo_somando_os_incidentes(tmp_path):
     # sem aprovação. O teto do sistema todo vem de politica.toml.
     politica = carregar_politica(gravar_politica(tmp_path, {"limites": [
         "medidas_de_risco_baixo_por_incidente = 5", "medidas_de_risco_baixo_no_total = 7",
-        "propostas_aguardando_aprovacao_por_incidente = 10",
+        "propostas_aguardando_aprovacao_por_incidente = 10", "propostas_liberadas_por_incidente = 10",
     ]}))
     mundo = Mundo(politica, incidente=INCIDENTE_COM_VARIAS_ORIGENS)
     mundo.aplicar([novo("incidente_aberto", INCIDENTE_COM_VARIAS_ORIGENS | {"id": "inc-0002"}, "inc-0002")])
@@ -1187,6 +1204,28 @@ def test_no_teto_o_pedido_malformado_continua_recusado_pelo_proprio_defeito(mund
     recusado("acao_nova_incompleta", mundo.propor, "ativar_syn_cookies", "192.168.137.20", {})
     recusado("argumentos_invalidos", mundo.propor, "isolar_dispositivo", "192.168.137.20", justificativa="")
     recusado("identificador_desconhecido", mundo.propor, "isolar_dispositivo", "192.168.137.20", incidente="inc-0099")
+
+
+def test_sao_no_maximo_10_propostas_liberadas_e_nao_executadas_por_incidente():
+    # A proposta de risco baixo não espera ninguém e fica liberada até ser executada. Sem teto, um agente
+    # enganado em laço registraria propostas sem fim, e o log cresceria com elas.
+    mundo = Mundo()
+    mundo.aplicar([novo("incidente_aberto", INCIDENTE_DA_ESPECIFICACAO | {"id": "inc-0002"}, "inc-0002")])
+    for _ in range(10):
+        assert mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10}).estado == "liberada"
+    mensagem = recusado("limite_de_propostas_liberadas", mundo.propor, "bloquear_ip", "203.0.113.7", {"duracao": 10})
+    assert "inc-0001" in mensagem and "10 propostas liberadas" in mensagem
+    assert len(mundo.estado.propostas) == 10
+    # A de risco alto vai para a fila da pessoa, que tem o seu teto, e o outro incidente tem a sua conta.
+    assert mundo.propor("isolar_dispositivo", "192.168.137.20").estado == "aguardando_aprovacao"
+    assert mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10}, incidente="inc-0002").estado == "liberada"
+    # A proposta aprovada e ainda não executada também ocupa vaga.
+    mundo.executar("prop-0001")
+    mundo.decidir("prop-0011")
+    recusado("limite_de_propostas_liberadas", mundo.propor, "limitar_taxa", "203.0.113.7", {"duracao": 10})
+    # Executada uma das liberadas, a vaga volta.
+    mundo.executar("prop-0002")
+    assert mundo.propor("limitar_taxa", "203.0.113.7", {"duracao": 10}).estado == "liberada"
 
 
 def test_medidas_que_passam_do_orcamento_tambem_param_no_teto_de_pendentes():

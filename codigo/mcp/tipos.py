@@ -109,6 +109,7 @@ MotivoDeRecusa = Literal[
     "alvo_nao_permitido",
     "incidente_encerrado",
     "limite_de_propostas_pendentes",
+    "limite_de_propostas_liberadas",
     "acao_nova_incompleta",
     "proposta_nao_liberada",
     "proposta_ja_executada",

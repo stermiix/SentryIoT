@@ -194,6 +194,7 @@ _LIMITES = "limites"
 _MEDIDAS = "medidas_de_risco_baixo_por_incidente"
 _MEDIDAS_NO_TOTAL = "medidas_de_risco_baixo_no_total"
 _PENDENTES = "propostas_aguardando_aprovacao_por_incidente"
+_LIBERADAS = "propostas_liberadas_por_incidente"
 _REDE = "rede"
 _PROTEGIDOS = "enderecos_protegidos"
 _CRITICOS = "enderecos_criticos"
@@ -221,6 +222,9 @@ class Politica:
     medidas_de_risco_baixo_no_total: int
     # Máximo de propostas de um incidente aguardando aprovação ao mesmo tempo. A seguinte é recusada.
     propostas_aguardando_aprovacao_por_incidente: int
+    # Máximo de propostas de um incidente liberadas e ainda não executadas. A seguinte de risco baixo é
+    # recusada.
+    propostas_liberadas_por_incidente: int
     # Endereços em que qualquer ação é de risco alto, na forma canônica: o gateway e a captura.
     enderecos_protegidos: frozenset
     # Endereços dos serviços de que o sistema depende, tratados como protegidos.
@@ -304,7 +308,7 @@ def carregar_politica(caminho=POLITICA_PADRAO):
             )
         regras[nome] = {"risco": regra["risco"], _PRAZO: prazo, _ALVOS: alvos}
 
-    limites = secao(_LIMITES, (_MEDIDAS, _MEDIDAS_NO_TOTAL, _PENDENTES))
+    limites = secao(_LIMITES, (_MEDIDAS, _MEDIDAS_NO_TOTAL, _PENDENTES, _LIBERADAS))
     medidas = limites.get(_MEDIDAS)
     if type(medidas) is not int or medidas < 0:
         raise invalida(f"{_MEDIDAS} precisa ser um número inteiro, a partir de 0")
@@ -315,6 +319,10 @@ def carregar_politica(caminho=POLITICA_PADRAO):
     # Com zero, nenhuma proposta de risco alto chegaria à pessoa.
     if type(pendentes) is not int or pendentes < 1:
         raise invalida(f"{_PENDENTES} precisa ser um número inteiro, a partir de 1")
+    liberadas = limites.get(_LIBERADAS)
+    # Com zero, nenhuma proposta de risco baixo seria registrada.
+    if type(liberadas) is not int or liberadas < 1:
+        raise invalida(f"{_LIBERADAS} precisa ser um número inteiro, a partir de 1")
 
     rede = secao(_REDE, (_PROTEGIDOS, _CRITICOS, _REDES_LOCAIS))
 
@@ -342,6 +350,7 @@ def carregar_politica(caminho=POLITICA_PADRAO):
         medidas_de_risco_baixo_por_incidente=medidas,
         medidas_de_risco_baixo_no_total=no_total,
         propostas_aguardando_aprovacao_por_incidente=pendentes,
+        propostas_liberadas_por_incidente=liberadas,
         enderecos_protegidos=protegidos,
         enderecos_criticos=criticos,
         redes_locais=tuple(redes),
@@ -826,6 +835,8 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa):
     motivos = _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros)
     if motivos:
         _conferir_fila_de_aprovacao(estado, politica, incidente)
+    else:
+        _conferir_propostas_liberadas(estado, politica, incidente)
     proposta = Proposta(
         id=f"prop-{len(estado.propostas) + 1:04d}",
         incidente=incidente,
@@ -862,6 +873,26 @@ def _conferir_fila_de_aprovacao(estado, politica, incidente):
             f"O incidente {incidente} já tem {quantas} aguardando aprovação, que é o máximo aceito pela "
             "política, e esta proposta não foi registrada. Uma nova proposta de risco alto só entra depois que "
             "uma pessoa aprovar ou rejeitar alguma das pendentes.",
+        )
+
+
+def _conferir_propostas_liberadas(estado, politica, incidente):
+    """Recusa a proposta de risco baixo quando o incidente já tem o máximo de propostas liberadas.
+
+    A proposta de risco baixo nasce liberada e assim fica até o agente de execução aplicá-la. Sem
+    o teto, um agente enganado em laço registraria propostas sem fim, e o log cresceria com elas.
+    Contam também as aprovadas e ainda não executadas.
+    """
+    liberadas = sum(
+        1 for proposta in estado.propostas.values() if proposta.incidente == incidente and proposta.estado == "liberada"
+    )
+    if liberadas >= politica.propostas_liberadas_por_incidente:
+        quantas = "1 proposta liberada" if liberadas == 1 else f"{liberadas} propostas liberadas"
+        raise PedidoRecusado(
+            "limite_de_propostas_liberadas",
+            f"O incidente {incidente} já tem {quantas} que ainda não foram executadas, que é o máximo aceito pela "
+            "política, e esta proposta não foi registrada. Uma nova proposta de risco baixo só entra depois que o "
+            "agente de execução aplicar alguma das liberadas.",
         )
 
 

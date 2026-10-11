@@ -53,6 +53,10 @@ medidas_de_risco_baixo_no_total = 10
 # é recusada, até que alguma das pendentes seja aprovada ou rejeitada. Sem este teto, um agente
 # enganado encheria a fila de aprovação. Proposta de risco baixo não entra na conta.
 propostas_aguardando_aprovacao_por_incidente = 10
+# Máximo de propostas de um incidente liberadas e ainda não executadas: as de risco baixo, que nascem
+# liberadas, e as aprovadas. A seguinte de risco baixo é recusada até que alguma seja executada. Sem
+# este teto, um agente enganado em laço registraria propostas liberadas sem fim.
+propostas_liberadas_por_incidente = 10
 
 [rede]
 # Endereços em que qualquer ação é de risco alto, mesmo que apareçam no incidente. Os valores são
