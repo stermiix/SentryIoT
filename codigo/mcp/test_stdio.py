@@ -11,7 +11,9 @@ from pathlib import Path
 from mcp import Client, StdioServerParameters
 
 from codigo.mcp import aprovar
-from codigo.mcp.eventos import ler
+from codigo.mcp.cenarios import CENARIOS
+from codigo.mcp.eventos import Registro, ler, novo
+from codigo.mcp.stub import Stub
 from codigo.mcp.test_acoes import ACAO_NOVA
 from codigo.mcp.tipos import TOOLS, Execucao, Incidente, Proposta, tools_do_agente
 
@@ -140,3 +142,41 @@ def test_incidente_inteiro_por_stdio_com_aprovacao_pelo_comando_de_terminal(tmp_
         "tool_chamada", "acao_desfeita",
         "tool_chamada",
     ]
+
+
+def test_recusa_pela_linha_de_decisao_nao_mostra_pedaco_do_endereco(tmp_path):
+    """Pelo servidor real: usuario@rótulo numa ação de alvo IP, com IPv4 e com IPv6.
+
+    Antes, a recusa repetia o alvo resolvido, cortado, e o agente de decisão lia os primeiros grupos
+    do endereço real e, pela contagem do corte, o tamanho dele.
+    """
+    log = tmp_path / "eventos.jsonl"
+    registro = Registro(log)
+    Stub(registro, agente="triagem").abrir_incidentes()
+    # A força bruta ganha uma origem IPv6, que vira origem-2.
+    incidente = next(cenario.incidente for cenario in CENARIOS if cenario.incidente.id == "inc-0002")
+    atualizado = incidente.model_dump(mode="json")
+    atualizado["origens"].append({"endereco": "2001:db8:85a3::8a2e:370:7334", "quadros": 10})
+    registro.gravar(novo("incidente_atualizado", atualizado, "inc-0002"))
+
+    casos = [("inc-0001", "origem-1", ["203.0", "0.113", "113.7"]), ("inc-0002", "origem-2", ["2001:db8", "85a3", "8a2e"])]
+
+    async def roteiro(cliente):
+        respostas = []
+        for incidente_id, rotulo, _ in casos:
+            for tamanho in (40, 45, 49, 50, 52, 55, 58, 60):
+                for acao, parametros in (("bloquear_ip", {"duracao": 10}), ("isolar_dispositivo", {})):
+                    resposta = await cliente.call_tool("propor_acao", {
+                        "id": incidente_id, "acao": acao, "alvo": "a" * tamanho + "@" + rotulo, "parametros": parametros,
+                        "justificativa": "j",
+                    })
+                    respostas.append((incidente_id, resposta))
+        return respostas
+
+    respostas = conversar(log, roteiro, "decisao")
+    assert len(respostas) == 32
+    pedacos = {incidente_id: pedacos for incidente_id, _, pedacos in casos}
+    for incidente_id, resposta in respostas:
+        texto = resposta.content[0].text
+        assert resposta.is_error and texto
+        assert not any(pedaco in texto for pedaco in pedacos[incidente_id]), texto

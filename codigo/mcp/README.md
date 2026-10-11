@@ -147,9 +147,10 @@ prompt:
   mostra o endereço de cada rótulo citado na proposta;
 - `verificar_efeito` não está na linha de decisão: ele grava o efeito e encerra ou atualiza o
   incidente. O agente de decisão lê o último efeito em `obter_resumo`;
-- toda resposta à linha de decisão, inclusive a mensagem de recusa, passa por um filtro que troca
-  qualquer IPv4, IPv6 ou MAC que tenha sobrado em texto livre (num documento da base, numa ação
-  promovida, no eco da consulta) por `[endereço]`. A busca é larga de propósito e não olha o que
+- toda resposta à linha de decisão, inclusive a mensagem de recusa, inteira e antes do corte,
+  passa por um filtro que troca qualquer IPv4, IPv6 ou MAC que tenha sobrado em texto livre (num
+  documento da base, numa ação promovida, no eco da consulta) por `[endereço]`. A recusa de um alvo
+  escrito com rótulo repete o rótulo, e não o endereço. A busca é larga de propósito e não olha o que
   vem antes ou depois do endereço: um IPv4 com zero à esquerda, octal ou fora da faixa, um IPv6
   depois de `src:` ou colado a uma letra e o MAC sem zero à esquerda também viram o marcador. As
   buscas não retrocedem, e o custo é linear no tamanho do texto. A falha é fechada: se a resposta
@@ -515,7 +516,10 @@ de aprovação, ao log e, pelos parâmetros de uma ação nova, ao agente de exe
   (`::ffff:192.168.137.1`) vira o IPv4. Em `revogar_credencial`, o usuário usa letras sem
   acento, números, ponto, hífen e sublinhado, tem até 64 caracteres e não começa por ponto nem
   por hífen.
-- A mensagem de recusa mostra no máximo um trecho escapado do que veio.
+- A mensagem de recusa mostra no máximo um trecho escapado do que veio. Os endereços desse trecho
+  viram o marcador antes do corte, para que nenhum pedaço de endereço sobre dele e para que a
+  contagem do corte não diga o tamanho de um endereço. Quando o alvo veio com o rótulo, a recusa
+  repete o que o agente escreveu, com o rótulo, e nunca o endereço em que o servidor o trocou.
 
 Os limites de texto não estão no esquema de entrada de `propor_acao`, só na descrição dos
 campos. É de propósito: quem confere é o servidor, e não o SDK, para que a tentativa fique

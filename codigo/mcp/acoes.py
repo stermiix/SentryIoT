@@ -104,12 +104,15 @@ _UMA_LINHA = (
 
 
 def resumir(valor, maximo=_MAIOR_TRECHO):
-    """Como um valor recebido aparece em uma mensagem: escapado e cortado.
+    """Como um valor recebido aparece em uma mensagem: sem endereço, escapado e cortado.
 
     A mensagem de recusa volta para o agente e vai para o log. Ela nunca devolve a entrada
-    inteira nem repete sequência de terminal ou quebra de linha que veio nela.
+    inteira nem repete sequência de terminal ou quebra de linha que veio nela. O filtro de
+    endereços vem antes do corte: nenhum pedaço de endereço sobra dele, e o tamanho contado é o
+    do texto já filtrado, que não diz o tamanho de endereço nenhum.
     """
     if isinstance(valor, str):
+        valor = mascarar_enderecos(valor)
         if len(valor) <= maximo:
             return repr(valor)
         return f"{valor[:maximo]!r} (cortado: {_milhar(len(valor))} caracteres)"
@@ -136,6 +139,9 @@ class PedidoRecusado(Exception):
     """
 
     def __init__(self, motivo, mensagem):
+        # Guardada antes do corte, para que um filtro aplicado depois (o da linha de decisão) venha
+        # antes do corte, e não sobre um pedaço.
+        self.inteira = mensagem
         mensagem = visivel(mensagem)[:TEXTO_LONGO]
         super().__init__(mensagem)
         self.motivo = motivo
@@ -528,11 +534,21 @@ def _motivo_de_endereco_recusado(politica, endereco):
     return None
 
 
-def _conferir_alvo_permitido(politica, acao, alvo):
-    """Recusa o alvo de uma ação de base quando o endereço dele é um dos endereços especiais."""
+def _conferir_alvo_permitido(politica, acao, alvo, com_rotulo=None):
+    """Recusa o alvo de uma ação de base quando o endereço dele é um dos endereços especiais.
+
+    Com `com_rotulo`, o alvo como o agente o escreveu, a mensagem cita o rótulo, e não o endereço
+    em que o servidor o trocou.
+    """
     endereco = alvo.rpartition("@")[2]
     motivo = _motivo_de_endereco_recusado(politica, endereco)
     if motivo is not None:
+        if com_rotulo is not None:
+            raise PedidoRecusado(
+                "alvo_nao_permitido",
+                f"O alvo de {acao} não pode ser {com_rotulo}: o endereço desse rótulo {motivo}. O alvo é o "
+                "endereço de um dispositivo.",
+            )
         raise PedidoRecusado(
             "alvo_nao_permitido",
             f"O alvo de {acao} não pode ser {endereco}: {motivo}. O alvo é o endereço de um dispositivo.",
@@ -958,8 +974,8 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa, s
         )
 
     if acao in BASE:
-        alvo = _alvo_de_base(acao, alvo)
-        _conferir_alvo_permitido(politica, acao, alvo)
+        alvo = _alvo_de_base(acao, alvo, alvo_com_rotulo)
+        _conferir_alvo_permitido(politica, acao, alvo, alvo_com_rotulo)
         parametros = _parametros_validos(acao, parametros)
     elif acao in estado.promovidas:
         # Os passos e a forma de desfazer são os do catálogo: a pessoa aprova o que foi promovido,
@@ -1087,8 +1103,29 @@ def _endereco(texto):
         return None
 
 
-def _alvo_de_base(acao, alvo):
+def _alvo_de_base(acao, alvo, com_rotulo=None):
+    """O alvo de uma ação de base na forma canônica, ou a recusa.
+
+    Com `com_rotulo`, o alvo veio escrito com o rótulo neutro, e `alvo` já é o endereço em que o
+    servidor o trocou. A recusa então repete o que o agente escreveu, com o rótulo, e nunca o
+    endereço: nem inteiro, nem um pedaço dele.
+    """
     definicao = BASE[acao]
+    if com_rotulo is not None:
+        usuario, arroba, _ = com_rotulo.rpartition("@")
+        if definicao.tipo_de_alvo == "ip" and arroba:
+            raise PedidoRecusado(
+                "alvo_malformado",
+                f"O alvo de {acao} é o rótulo de um endereço do incidente, como origem-1, sem usuário: o formato "
+                f"usuario@rótulo é só de revogar_credencial. Veio {resumir(com_rotulo)}.",
+            )
+        if definicao.tipo_de_alvo == "credencial" and (not arroba or not _USUARIO.fullmatch(usuario)):
+            raise PedidoRecusado(
+                "alvo_malformado",
+                f"O alvo de {acao} precisa ter o formato usuario@rótulo, como admin@destino-1. O usuário usa letras "
+                f"sem acento, números, ponto, hífen e sublinhado, e não começa por ponto nem por hífen. Veio "
+                f"{resumir(com_rotulo)}.",
+            )
     if definicao.tipo_de_alvo == "ip":
         endereco = _endereco(alvo)
         if endereco is None:

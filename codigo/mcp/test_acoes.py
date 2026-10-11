@@ -20,12 +20,14 @@ from codigo.mcp.acoes import (
     promover,
     propor,
     reconstruir,
+    resumir,
     resumo_do_incidente,
     usuario_do_sistema,
 )
 from codigo.mcp.eventos import LogInvalido, novo
 from codigo.mcp.test_tipos import INCIDENTE_DA_ESPECIFICACAO
 from codigo.mcp.tipos import (
+    MARCADOR_DE_ENDERECO,
     MOTIVOS_DE_RISCO_ALTO,
     Ambiente,
     Recusa,
@@ -1199,6 +1201,51 @@ def test_linha_de_decisao_nao_escreve_endereco_no_alvo(mundo, acao, alvo, parame
 def test_recusa_do_alvo_com_endereco_nao_repete_a_entrada(mundo):
     mensagem = recusado("alvo_malformado", mundo.propor, "a" * 100_000, "203.0.113.7", ACAO_NOVA, so_rotulos=True)
     assert len(mensagem) < 700 and "a" * 100 not in mensagem and "203.0.113.7" not in mensagem
+
+
+IPV6_DE_ORIGEM = "2001:db8:85a3::8a2e:370:7334"
+
+
+@pytest.mark.parametrize("origem,pedacos", [
+    ("203.0.113.7", ["203.0", "0.113", "113.7"]),
+    (IPV6_DE_ORIGEM, ["2001:db8", "db8:85a3", "85a3:", "8a2e", "370:7334"]),
+], ids=["ipv4", "ipv6"])
+def test_recusa_do_alvo_com_rotulo_nunca_mostra_o_endereco_resolvido(origem, pedacos):
+    # usuario@rótulo numa ação de alvo IP: antes, a recusa repetia o alvo resolvido, cortado em 60
+    # caracteres, e o pedaço que sobrava do corte não formava um endereço inteiro para o filtro pegar.
+    mundo = Mundo(incidente=INCIDENTE_DA_ESPECIFICACAO | {"origens": [{"endereco": origem, "quadros": 9120}]})
+    for acao, parametros in (("bloquear_ip", {"duracao": 10}), ("isolar_dispositivo", {}), ("limitar_taxa", {"duracao": 5})):
+        for tamanho in (1, 30, 45, 49, 50, 53, 55, 58, 60, 70, 150):
+            alvo = "a" * tamanho + "@origem-1"
+            mensagem = recusado("alvo_malformado", mundo.propor, acao, alvo, parametros, so_rotulos=True)
+            assert not any(pedaco in mensagem for pedaco in pedacos), mensagem
+            # Quando repete a entrada, a mensagem repete o que o agente escreveu, com o rótulo, e a
+            # contagem do corte é a do texto dele, e não a do endereço.
+            if "Veio" in mensagem:
+                assert "@origem-1" in mensagem or f"cortado: {len(alvo)} caracteres" in mensagem, mensagem
+    # O mesmo vale fora da linha de decisão: o rótulo foi o que o agente escreveu.
+    assert "203.0" not in recusado("alvo_malformado", mundo.propor, "bloquear_ip", "admin@origem-1", {"duracao": 10})
+    # revogar_credencial sem usuário, com o rótulo.
+    mensagem = recusado("alvo_malformado", mundo.propor, "revogar_credencial", "origem-1", so_rotulos=True)
+    assert "origem-1" in mensagem and not any(pedaco in mensagem for pedaco in pedacos)
+
+
+def test_rotulo_de_endereco_especial_e_recusado_sem_mostrar_o_endereco():
+    mundo = Mundo(incidente=INCIDENTE_DA_ESPECIFICACAO | {"origens": [{"endereco": "224.0.0.1", "quadros": 10}]})
+    mensagem = recusado("alvo_nao_permitido", mundo.propor, "bloquear_ip", "origem-1", {"duracao": 10}, so_rotulos=True)
+    assert "origem-1" in mensagem and "multicast" in mensagem and "224.0" not in mensagem
+    # Sem rótulo, quem escreveu o endereço o vê na mensagem, como antes.
+    assert "224.0.0.1" in recusado("alvo_nao_permitido", mundo.propor, "bloquear_ip", "224.0.0.1", {"duracao": 10})
+
+
+def test_resumo_de_um_valor_filtra_o_endereco_antes_de_cortar():
+    # O corte vem depois do filtro: nenhum pedaço de endereço sobra, e o tamanho contado é o do texto filtrado.
+    for endereco in ("203.0.113.7", IPV6_DE_ORIGEM, "aa:bb:cc:dd:ee:ff"):
+        for tamanho in range(40, 70):
+            resumido = resumir("a" * tamanho + "@" + endereco)
+            assert endereco[:4] not in resumido.split("@", 1)[-1], resumido
+            if "cortado" in resumido:
+                assert f"{tamanho + 1 + len(MARCADOR_DE_ENDERECO)} caracteres" in resumido
 
 
 def test_acao_nova_da_linha_de_decisao_aceita_alvo_em_texto_sem_endereco(mundo):
