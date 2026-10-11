@@ -28,6 +28,7 @@ from pydantic import (
     StringConstraints,
     WithJsonSchema,
     create_model,
+    model_validator,
 )
 from pydantic.json_schema import GenerateJsonSchema, models_json_schema
 from typing_extensions import TypedDict
@@ -35,7 +36,7 @@ from typing_extensions import TypedDict
 from codigo.captura.extrator import COLUNAS
 from codigo.classificador.mapeamento import CATEGORIAS
 
-VERSAO = "0.2.0"
+VERSAO = "0.3.0"
 # Máximo de janelas que o agente recebe por chamada. Um flood tem milhares de janelas, e mandar
 # todas para a LLM custaria tokens demais.
 LIMITE_DE_JANELAS = 20
@@ -58,7 +59,15 @@ _UMA_LINHA = rf"^[^\x00-\x1f{_ALEM_DO_ASCII}]*$"
 _PARAGRAFOS = rf"^[^\x00-\x09\x0b-\x1f{_ALEM_DO_ASCII}]*$"
 _NOME_DE_ACAO = rf"^[a-z][a-z0-9_]{{0,{MAIOR_NOME_DE_ACAO - 1}}}$"
 
+# As 7 categorias que o modelo do sistema responde. Ele não separa DDoS de DoS: as features descrevem
+# os pacotes, e não quantas máquinas atacam (decisão de 2026-10-04). A separação sai da quantidade de
+# origens do incidente, fora do modelo, e só existe em `Incidente.categoria`. Os nomes são os de
+# `ALVOS["7"]`, em `codigo/classificador/preparar.py`, e um teste confere que continuam iguais.
+DDOS_E_DOS = "DDoS+DoS"
+CATEGORIAS_DO_MODELO = (DDOS_E_DOS, *(nome for nome in CATEGORIAS if nome not in ("DDoS", "DoS")))
+
 Categoria = Literal[CATEGORIAS]
+CategoriaDoModelo = Literal[CATEGORIAS_DO_MODELO]
 Agente = Literal[AGENTES]
 Risco = Literal["baixo", "alto"]
 ResultadoDoEfeito = Literal["cessou", "diminuiu", "persiste"]
@@ -172,7 +181,9 @@ class Incidente(Modelo):
     categoria: Categoria = Field(
         description="Categoria depois da regra que separa DoS de DDoS pela quantidade de origens"
     )
-    categoria_do_modelo: Categoria = Field(description="Categoria que o Random Forest atribuiu")
+    categoria_do_modelo: CategoriaDoModelo = Field(
+        description="Categoria que o Random Forest atribuiu, entre as 7 do modelo, com DDoS e DoS juntos"
+    )
     confianca: Proporcao = Field(description="Confiança do classificador, de 0 a 1")
     inicio: AwareDatetime
     fim: AwareDatetime
@@ -184,6 +195,16 @@ class Incidente(Modelo):
     features_principais: list[FeaturePrincipal] = Field(
         description="Features que mais pesaram, com o valor de referência do tráfego benigno"
     )
+
+    @model_validator(mode="after")
+    def _categoria_cabe_no_que_o_modelo_disse(self):
+        # A regra das origens só separa DDoS de DoS. As outras categorias são as do modelo.
+        possiveis = ("DDoS", "DoS") if self.categoria_do_modelo == DDOS_E_DOS else (self.categoria_do_modelo,)
+        if self.categoria not in possiveis:
+            raise ValueError(
+                f"a categoria {self.categoria} não sai do que o modelo disse ({self.categoria_do_modelo})"
+            )
+        return self
 
 
 # As 39 features, com os nomes das colunas do extrator. O valor é nulo quando o extrator não
@@ -198,7 +219,7 @@ class Janela(Modelo):
 
     indice: Contagem = Field(description="Posição da janela dentro do incidente, a partir de 0")
     instante: AwareDatetime
-    categoria_do_modelo: Categoria
+    categoria_do_modelo: CategoriaDoModelo
     confianca: Proporcao
     origem: EnderecoIP = Field(description="Endereço de origem mais frequente na janela")
     destino: EnderecoIP = Field(description="Endereço de destino mais frequente na janela")
@@ -479,7 +500,9 @@ def tools_do_agente(agente):
 
 class LoteDeJanelas(Modelo):
     janelas: Contagem = Field(description="Janelas do lote que saiu do classificador")
-    por_categoria: dict[Categoria, Contagem]
+    por_categoria: dict[CategoriaDoModelo, Contagem] = Field(
+        description="Janelas do lote em cada uma das 7 categorias do modelo"
+    )
 
 
 class ChamadaDeLLM(Modelo):

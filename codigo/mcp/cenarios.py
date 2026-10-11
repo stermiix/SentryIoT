@@ -60,15 +60,15 @@ CENARIOS = (
     Cenario(
         nome="flood",
         descricao=(
-            "Flood de pacotes SYN contra um dispositivo, vindo de 37 origens. O modelo diz DoS, e a regra "
-            "das origens corrige para DDoS. Bloquear uma origem não resolve: a primeira ação aplicada "
-            "deixa o incidente como está, e só a segunda faz o tráfego cessar."
+            "Flood de pacotes SYN contra um dispositivo, vindo de 37 origens. O modelo responde DDoS+DoS, e a "
+            "regra das origens, com 37 delas, dá DDoS. Bloquear uma origem não resolve: a primeira ação "
+            "aplicada deixa o incidente como está, e só a segunda faz o tráfego cessar."
         ),
         incidente=Incidente(
             id="inc-0001",
             estado="aberto",
             categoria="DDoS",
-            categoria_do_modelo="DoS",
+            categoria_do_modelo="DDoS+DoS",
             confianca=0.97,
             inicio=_instante(14, 3, 11),
             fim=_instante(14, 3, 41),
@@ -85,7 +85,7 @@ CENARIOS = (
                 ("Tot size", 54.0, 310.5),
             ),
         ),
-        lote=LoteDeJanelas(janelas=10_946, por_categoria={"DoS": 10_734, "Benign": 212}),
+        lote=LoteDeJanelas(janelas=10_946, por_categoria={"DDoS+DoS": 10_734, "Benign": 212}),
         efeitos=("persiste", "cessou"),
         quadros_por_janela=100,
         perfil={
@@ -167,14 +167,14 @@ CENARIOS = (
         nome="falso_positivo",
         descricao=(
             "Falso positivo: uma câmera da rede envia vídeo para o servidor de costume, e o modelo aponta "
-            "DoS com confiança baixa. Não há ataque. O esperado é a triagem apontar a dúvida e nenhuma "
-            "ação de risco alto ser proposta."
+            "DDoS+DoS com confiança baixa; com uma origem só, a regra das origens dá DoS. Não há ataque. O "
+            "esperado é a triagem apontar a dúvida e nenhuma ação de risco alto ser proposta."
         ),
         incidente=Incidente(
             id="inc-0004",
             estado="aberto",
             categoria="DoS",
-            categoria_do_modelo="DoS",
+            categoria_do_modelo="DDoS+DoS",
             confianca=0.58,
             inicio=_instante(17, 25, 30),
             fim=_instante(17, 25, 33),
@@ -188,7 +188,7 @@ CENARIOS = (
                 ("syn_flag_number", 0.0, 0.06),
             ),
         ),
-        lote=LoteDeJanelas(janelas=152, por_categoria={"DoS": 9, "Benign": 143}),
+        lote=LoteDeJanelas(janelas=152, por_categoria={"DDoS+DoS": 9, "Benign": 143}),
         efeitos=("cessou",),
         quadros_por_janela=100,
         perfil={

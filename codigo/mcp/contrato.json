@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "titulo": "Contrato MCP do SentryIoT",
-  "versao": "0.2.0",
+  "versao": "0.3.0",
   "limite_de_janelas": 20,
   "motivos_de_risco_alto": {
     "acao_sempre_de_risco_alto": "A ação é sempre de risco alto, qualquer que seja o alvo ou o prazo.",
@@ -1843,10 +1843,9 @@
           "type": "string"
         },
         "categoria_do_modelo": {
-          "description": "Categoria que o Random Forest atribuiu",
+          "description": "Categoria que o Random Forest atribuiu, entre as 7 do modelo, com DDoS e DoS juntos",
           "enum": [
-            "DDoS",
-            "DoS",
+            "DDoS+DoS",
             "Mirai",
             "Recon",
             "Spoofing",
@@ -1938,8 +1937,7 @@
         },
         "categoria_do_modelo": {
           "enum": [
-            "DDoS",
-            "DoS",
+            "DDoS+DoS",
             "Mirai",
             "Recon",
             "Spoofing",
@@ -2007,10 +2005,10 @@
             "minimum": 0,
             "type": "integer"
           },
+          "description": "Janelas do lote em cada uma das 7 categorias do modelo",
           "propertyNames": {
             "enum": [
-              "DDoS",
-              "DoS",
+              "DDoS+DoS",
               "Mirai",
               "Recon",
               "Spoofing",

@@ -76,7 +76,7 @@ class TestCadaCenario:
 
     def test_categoria_segue_a_regra_das_origens(self, cenario):
         incidente = cenario.incidente
-        if incidente.categoria_do_modelo in ("DDoS", "DoS"):
+        if incidente.categoria_do_modelo == "DDoS+DoS":
             assert incidente.categoria == ("DDoS" if incidente.distribuido else "DoS")
         else:
             assert incidente.categoria == incidente.categoria_do_modelo
@@ -123,7 +123,7 @@ class TestCadaCenario:
 
 def test_flood_e_distribuido_e_o_modelo_nao_distingue_dos_de_ddos():
     incidente = FLOOD.incidente
-    assert (incidente.categoria_do_modelo, incidente.categoria) == ("DoS", "DDoS")
+    assert (incidente.categoria_do_modelo, incidente.categoria) == ("DDoS+DoS", "DDoS")
     assert incidente.origens_distintas == 37
     assert incidente.janelas > 10_000
     for janela in janelas(FLOOD, incidente, 5):

@@ -21,7 +21,7 @@ from codigo.mcp.tipos import TIPOS_DE_EVENTO, ChamadaDeLLM, Recomendacao
 
 RAIZ = Path(__file__).resolve().parents[2]
 INICIO = datetime(2026, 10, 20, 14, 3, 41, tzinfo=UTC)
-LOTE = {"janelas": 450, "por_categoria": {"DoS": 412, "Benign": 38}}
+LOTE = {"janelas": 450, "por_categoria": {"DDoS+DoS": 412, "Benign": 38}}
 CHAMADA = {
     "agente": "triagem", "modelo": "modelo-de-exemplo", "tokens_entrada": 812, "tokens_saida": 164,
     "duracao_ms": 2300.0,

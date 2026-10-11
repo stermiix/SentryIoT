@@ -10,6 +10,7 @@ from codigo.classificador.mapeamento import CATEGORIAS
 from codigo.mcp.tipos import (
     AGENTES,
     ARQUIVO_DO_CONTRATO,
+    CATEGORIAS_DO_MODELO,
     LIMITE_DE_JANELAS,
     MAIOR_NOME_DE_ACAO,
     MAXIMO_DE_PASSOS,
@@ -40,7 +41,7 @@ INCIDENTE_DA_ESPECIFICACAO = {
     "id": "inc-0001",
     "estado": "aberto",
     "categoria": "DDoS",
-    "categoria_do_modelo": "DDoS",
+    "categoria_do_modelo": "DDoS+DoS",
     "confianca": 0.97,
     "inicio": "2026-10-20T14:03:11Z",
     "fim": "2026-10-20T14:03:41Z",
@@ -61,7 +62,7 @@ def janela(**trocas):
     base = {
         "indice": 0,
         "instante": "2026-10-20T14:03:11Z",
-        "categoria_do_modelo": "DoS",
+        "categoria_do_modelo": "DDoS+DoS",
         "confianca": 0.97,
         "origem": "203.0.113.7",
         "destino": "192.168.137.20",
@@ -118,7 +119,7 @@ ACAO_PROMOVIDA = {
 }
 # Um exemplo de `dados` para cada tipo de evento do log.
 DADOS_POR_TIPO = {
-    "janelas_classificadas": {"janelas": 450, "por_categoria": {"DoS": 412, "Benign": 38}},
+    "janelas_classificadas": {"janelas": 450, "por_categoria": {"DDoS+DoS": 412, "Benign": 38}},
     "incidente_aberto": INCIDENTE_DA_ESPECIFICACAO,
     "incidente_atualizado": INCIDENTE_DA_ESPECIFICACAO,
     "incidente_encerrado": INCIDENTE_DA_ESPECIFICACAO | {"estado": "encerrado"},
@@ -236,6 +237,9 @@ def test_incidente_da_especificacao_e_valido():
 @pytest.mark.parametrize("trocas", [
     {"categoria": "Exfiltracao"},
     {"categoria_do_modelo": "ddos"},
+    {"categoria_do_modelo": "DDoS"},
+    {"categoria_do_modelo": "DoS"},
+    {"categoria": "Recon"},
     {"estado": "fechado"},
     {"confianca": 1.2},
     {"confianca": -0.1},
@@ -250,10 +254,41 @@ def test_incidente_fora_do_contrato_e_recusado(trocas):
         Incidente.model_validate(INCIDENTE_DA_ESPECIFICACAO | trocas)
 
 
-def test_categorias_do_contrato_sao_as_8_do_classificador():
+def test_categoria_do_incidente_sao_as_8_com_ddos_e_dos_separados():
     for categoria in CATEGORIAS:
-        Incidente.model_validate(INCIDENTE_DA_ESPECIFICACAO | {"categoria": categoria})
+        modelo = "DDoS+DoS" if categoria in ("DDoS", "DoS") else categoria
+        Incidente.model_validate(INCIDENTE_DA_ESPECIFICACAO | {"categoria": categoria, "categoria_do_modelo": modelo})
     assert contrato()["$defs"]["Incidente"]["properties"]["categoria"]["enum"] == list(CATEGORIAS)
+    assert contrato()["$defs"]["EntradaConsultarMitigacoes"]["properties"]["categoria"]["enum"] == list(CATEGORIAS)
+
+
+def test_categoria_do_modelo_sao_as_7_que_o_classificador_do_sistema_responde():
+    # O modelo do sistema não separa DDoS de DoS: responde DDoS+DoS, e a separação sai das origens.
+    preparar = pytest.importorskip("codigo.classificador.preparar")
+    assert CATEGORIAS_DO_MODELO == preparar.ALVOS["7"].classes == (
+        "DDoS+DoS", "Mirai", "Recon", "Spoofing", "Web", "BruteForce", "Benign",
+    )
+    definicoes = contrato()["$defs"]
+    assert definicoes["Incidente"]["properties"]["categoria_do_modelo"]["enum"] == list(CATEGORIAS_DO_MODELO)
+    assert definicoes["Janela"]["properties"]["categoria_do_modelo"]["enum"] == list(CATEGORIAS_DO_MODELO)
+    assert definicoes["LoteDeJanelas"]["properties"]["por_categoria"]["propertyNames"]["enum"] == list(
+        CATEGORIAS_DO_MODELO
+    )
+    for categoria in CATEGORIAS_DO_MODELO:
+        Janela.model_validate(janela(categoria_do_modelo=categoria))
+        validar_evento(evento("janelas_classificadas", dados={"janelas": 1, "por_categoria": {categoria: 1}}))
+    for categoria in ("DDoS", "DoS", "ddos+dos", "Exfiltracao"):
+        recusado_pelo_contrato(Janela, janela(categoria_do_modelo=categoria))
+        with pytest.raises(ValidationError):
+            validar_evento(evento("janelas_classificadas", dados={"janelas": 1, "por_categoria": {categoria: 1}}))
+
+
+def test_categoria_do_incidente_cabe_no_que_o_modelo_disse():
+    # A regra das origens só separa DDoS de DoS: as outras categorias passam como o modelo disse.
+    for categoria in ("DDoS", "DoS"):
+        Incidente.model_validate(INCIDENTE_DA_ESPECIFICACAO | {"categoria": categoria})
+    for categoria, modelo in (("Recon", "DDoS+DoS"), ("DDoS", "Mirai"), ("Web", "Recon"), ("DoS", "Benign")):
+        recusado_pelo_contrato(Incidente, INCIDENTE_DA_ESPECIFICACAO | {"categoria": categoria, "categoria_do_modelo": modelo})
 
 
 def test_janela_traz_exatamente_as_39_features_do_extrator():
