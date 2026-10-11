@@ -204,8 +204,15 @@ que aplica a medida e confere o efeito.
 O padrão que conecta uma LLM a ferramentas externas. É o que liga o nosso classificador aos
 agentes. Três peças: o **host** (a aplicação com a LLM), o **client** (quem mantém a conexão) e o
 **server** (quem expõe as capacidades). O servidor oferece **tools**, funções que o agente pode
-chamar. No SentryIoT, por exemplo, `obter_incidente` devolve o resumo de um incidente e
-`propor_acao` registra uma proposta de mitigação (`codigo/mcp/README.md`).
+chamar. No SentryIoT são dez, divididas entre os agentes: por exemplo, `obter_resumo` devolve ao
+agente de decisão o resumo de um incidente, sem endereço, e `propor_acao` registra uma proposta de
+mitigação (`codigo/mcp/README.md`).
+
+**Rótulo neutro**
+O nome que o servidor MCP põe no lugar de cada endereço no resumo do incidente: `origem-1`,
+`destino-1`. O agente de decisão, que pode rodar na nuvem, propõe a ação com o rótulo, e o
+servidor troca o rótulo pelo endereço antes de calcular o risco. Assim nenhum endereço da rede
+sai do ambiente.
 
 **Contrato da tool**
 O acordo escrito de o que a ferramenta recebe e o que devolve, em JSON. Fechar isso cedo permite
