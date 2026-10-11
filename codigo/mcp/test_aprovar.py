@@ -475,6 +475,16 @@ def test_tela_mostra_o_endereco_de_cada_rotulo_que_o_agente_de_decisao_escreveu(
     assert all(linha in tela for linha in esperadas)
 
 
+def test_tela_reconhece_o_rotulo_em_outra_grafia_no_texto(stub, capsys):
+    Stub(stub.registro, agente="decisao").chamar(
+        "propor_acao", id="inc-0001", acao="ativar_syn_cookies", alvo="o dispositivo atacado",
+        parametros=ACAO_NOVA | {"passos": ["Ativar SYN cookies em DESTINO-1.", "Conferir Origem-01 depois."]},
+        justificativa="O bloqueio não resolveu.",
+    )
+    assert aprovar(stub) == 0
+    assert "  rótulos citados: destino-1 = 192.168.137.20, origem-1 = 203.0.113.7" in capsys.readouterr().out.splitlines()
+
+
 def test_tela_mostra_todos_os_motivos_do_risco_alto_com_o_codigo_e_a_frase(stub, capsys, monkeypatch):
     # Bloqueio sem prazo do gateway, que na varredura é um dos destinos: quatro motivos.
     stub.chamar(

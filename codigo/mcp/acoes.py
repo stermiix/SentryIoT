@@ -237,6 +237,9 @@ _ISATAP = (bytes.fromhex("00005efe"), bytes.fromhex("02005efe"))
 _ULA = ipaddress.ip_network("fc00::/7")
 # Alvo escrito com o rótulo neutro de um endereço do incidente: o rótulo só, ou usuario@rótulo.
 _ALVO_COM_ROTULO = re.compile(r"(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,63}@)?(?:origem|destino)-[1-9][0-9]{0,5}")
+# O que parece um rótulo sem ser escrito como ele: outra caixa, zero à esquerda, espaço no lugar do
+# hífen, ou o rótulo no meio de um texto. Na linha de decisão, o alvo assim é recusado.
+_PARECE_ROTULO = re.compile(r"(?i)(?:origem|destino)[\s_-]*[0-9]")
 # O alvo da ação promovida: genérico, sem o endereço da proposta que deu origem a ela.
 _ALVO_DA_PROMOVIDA = (
     "Texto de uma linha que diga sobre o que a ação age. Um endereço do incidente vai com o rótulo neutro, "
@@ -991,14 +994,14 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa, s
     if _ALVO_COM_ROTULO.fullmatch(alvo.strip()):
         alvo_com_rotulo = alvo.strip()
         alvo = _resolver_rotulo(estado, incidente, alvo_com_rotulo)
-    elif so_rotulos and (acao in BASE or tem_endereco(alvo)):
+    elif so_rotulos and (acao in BASE or tem_endereco(alvo) or _PARECE_ROTULO.search(alvo)):
         # O nome só entra na mensagem quando é de uma ação de base: o de uma ação nova vem do agente.
         de_qual = f" de {acao}" if acao in BASE else ""
         raise PedidoRecusado(
             "alvo_malformado",
-            f"Na linha de decisão, o alvo{de_qual} é o rótulo neutro de um endereço do incidente, como origem-1, "
-            "destino-1 ou admin@destino-1, como vem em obter_resumo, e não um endereço. Uma ação nova também pode "
-            "descrever o alvo em texto, sem endereço.",
+            f"Na linha de decisão, o alvo{de_qual} é o rótulo neutro de um endereço do incidente, sozinho e escrito "
+            "como vem em obter_resumo, como origem-1, destino-1 ou admin@destino-1, e não um endereço. Uma ação "
+            "nova também pode descrever o alvo em texto, sem endereço e sem rótulo.",
         )
 
     if acao in BASE:

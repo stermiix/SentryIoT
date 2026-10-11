@@ -42,8 +42,9 @@ from codigo.mcp.eventos import CAMINHO_PADRAO, Registro
 from codigo.mcp.tipos import visivel
 
 _COMANDO = "python -m codigo.mcp.aprovar"
-# Rótulo neutro de um endereço, como o agente de decisão o escreve na proposta.
-_ROTULO_NO_TEXTO = re.compile(r"\b(?:origem|destino)-[1-9][0-9]{0,5}\b")
+# Rótulo neutro de um endereço, como o agente de decisão o escreve na proposta, também em outra caixa
+# ou com zero à esquerda: a tela mostra o endereço de qualquer grafia que aponte para um rótulo.
+_ROTULO_NO_TEXTO = re.compile(r"(?i)\b(origem|destino)-0*([1-9][0-9]{0,5})\b")
 _CONFIRMAM = ("s", "sim")
 
 
@@ -100,7 +101,8 @@ def descrever(proposta, rotulos=None):
     # O que sobrar aparece como está gravado. Nenhum parâmetro fica fora da tela.
     linhas.extend(f"  {visivel(nome)}: {_valor(valor)}" for nome, valor in parametros.items())
     escrito = _valor([proposta.alvo_com_rotulo or "", proposta.justificativa, proposta.parametros])
-    citados = [rotulo for rotulo in dict.fromkeys(_ROTULO_NO_TEXTO.findall(escrito)) if rotulo in (rotulos or {})]
+    grafias = (f"{papel.casefold()}-{numero}" for papel, numero in _ROTULO_NO_TEXTO.findall(escrito))
+    citados = [rotulo for rotulo in dict.fromkeys(grafias) if rotulo in (rotulos or {})]
     if citados:
         linhas.append("  rótulos citados: " + ", ".join(f"{rotulo} = {visivel(rotulos[rotulo])}" for rotulo in citados))
     return "\n".join(linhas)

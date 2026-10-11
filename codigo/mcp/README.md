@@ -142,7 +142,8 @@ prompt:
   `alvo`, com o endereço, e `alvo_com_rotulo`. Na resposta à linha de decisão, `alvo` volta com o
   rótulo. Da linha de decisão, alvo com endereço é recusado (`alvo_malformado`): o agente não
   conhece endereço, e o que vier com um foi copiado de texto de fora. A ação nova pode descrever
-  o alvo em texto, sem endereço;
+  o alvo em texto, sem endereço. O rótulo escrito de outro jeito (`DESTINO-1`, `destino-01`, "o
+  destino-1") também é recusado, porque não seria trocado pelo endereço;
 - o agente de execução, local, recebe o endereço real em `executar_acao`, e a tela de aprovação
   mostra o endereço de cada rótulo citado na proposta;
 - `verificar_efeito` não está na linha de decisão: ele grava o efeito e encerra ou atualiza o
@@ -299,7 +300,7 @@ dispositivo atacado não é recusado: volta com `"risco": "alto"`, `"exige_aprov
 Da linha de decisão, o alvo com endereço e o rótulo que não existe são recusados:
 
 ```
-Na linha de decisão, o alvo de bloquear_ip é o rótulo neutro de um endereço do incidente, como origem-1, destino-1 ou admin@destino-1, como vem em obter_resumo, e não um endereço. Uma ação nova também pode descrever o alvo em texto, sem endereço.
+Na linha de decisão, o alvo de bloquear_ip é o rótulo neutro de um endereço do incidente, sozinho e escrito como vem em obter_resumo, como origem-1, destino-1 ou admin@destino-1, e não um endereço. Uma ação nova também pode descrever o alvo em texto, sem endereço e sem rótulo.
 O rótulo 'origem-9' não existe no incidente inc-0001. Os rótulos dele são: origem-1, origem-2, origem-3, origem-4, origem-5, destino-1.
 ```
 
@@ -840,8 +841,9 @@ O que mais fica de fora deste trabalho:
   incidentes, e cada um custa chamadas.
 - **Rótulos em texto livre.** O agente de decisão pode citar rótulos nos passos de uma ação nova
   ("Ativar SYN cookies em destino-1"). O servidor só troca o rótulo que é o alvo inteiro; nos
-  passos, quem resolve é a pessoa, que vê o endereço de cada rótulo na tela de aprovação, e o
-  agente de execução, que recebe o alvo com o endereço.
+  passos, quem resolve é a pessoa, que vê o endereço de cada rótulo na tela de aprovação, também
+  quando ele vem em outra caixa ou com zero à esquerda, e o agente de execução, que recebe o alvo
+  com o endereço.
 - **Dependências transitivas.** O `requirements.txt` fixa as dependências diretas. As que elas
   trazem não estão fixadas nem conferidas por hash.
 - **Histórico do que já foi tentado.** O resumo traz o último efeito verificado, mas não há tool

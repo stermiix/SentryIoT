@@ -1270,6 +1270,16 @@ def test_resumo_de_um_valor_filtra_o_endereco_antes_de_cortar():
                 assert f"{tamanho + 1 + len(MARCADOR_DE_ENDERECO)} caracteres" in resumido
 
 
+@pytest.mark.parametrize("alvo", [
+    "DESTINO-1", "destino-01", "o destino-1", "Destino 1", "origem_2", "o dispositivo destino-1 atacado", "origem-0",
+], ids=ascii)
+def test_rotulo_escrito_de_outro_jeito_na_acao_nova_e_recusado_na_linha_de_decisao(mundo, alvo):
+    # Sem a recusa, o texto ia cru para Execucao.alvo, e a tela de aprovação não mostrava o endereço.
+    mensagem = recusado("alvo_malformado", mundo.propor, "ativar_syn_cookies", alvo, ACAO_NOVA, so_rotulos=True)
+    assert "rótulo" in mensagem and "destino-1" in mensagem
+    assert mundo.estado.propostas == {}
+
+
 def test_acao_nova_da_linha_de_decisao_aceita_alvo_em_texto_sem_endereco(mundo):
     proposta = mundo.propor("ativar_syn_cookies", "o dispositivo atacado", ACAO_NOVA, so_rotulos=True)
     assert (proposta.alvo, proposta.alvo_com_rotulo) == ("o dispositivo atacado", None)
