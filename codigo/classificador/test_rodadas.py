@@ -16,30 +16,39 @@ from codigo.classificador.regerar import CABECALHO, DESCARTADAS, nome_da_pasta
 from codigo.classificador.regerar import MANIFESTO as MANIFESTO_DA_REGERACAO
 from codigo.classificador.rodadas import (
     ATUAL,
+    CLASSES,
     MANIFESTO,
     MANIFESTO_DAS_CAPTURAS,
     RELATORIO,
     RELATORIO_DAS_CAPTURAS,
     Configuracao,
     Execucao,
+    _intervalos,
     alarmes,
     amostra,
     aplicar_limiar,
     autocorrelacao,
     blocos,
-    candidatos_do_limiar,
+    comparar,
     de_fora,
     lados,
     ler_dados,
     macro_f1,
     main,
-    montar_relatorio,
-    montar_relatorio_das_capturas,
+    medidas_da_confusao,
     no_teste,
-    passa_do_ruido,
     permutacao,
+    proporcao,
+    resumo_das_medidas,
     rodar_capturas,
     wilson,
+)
+from codigo.classificador.rodadas_relatorio import (
+    candidatos_do_limiar,
+    fundo_por_semente,
+    montar_relatorio,
+    montar_relatorio_das_capturas,
+    recall_fora,
 )
 from codigo.classificador.test_atacantes import captura_de_teste
 from codigo.classificador.treinar_regerado import ler_janela
@@ -252,15 +261,40 @@ def test_wilson_e_os_blocos():
     assert bloco[1] - bloco[0] > wilson(20, 40)[1] - wilson(20, 40)[0]
 
 
+def test_o_tamanho_do_bloco_muda_o_intervalo_quando_os_acertos_vem_em_sequencia():
+    # Sequências de 10 acertos e 10 erros: com blocos de 10, cada bloco é todo acerto ou todo erro, e o
+    # intervalo fica bem mais largo que o da reamostragem janela a janela.
+    acerto = np.tile(np.r_[np.ones(10), np.zeros(10)], 10)
+    largo = blocos(acerto, ["a"] * 200, 5, 2000, bloco=10)
+    estreito = blocos(acerto, ["a"] * 200, 5, 2000, bloco=1)
+    assert (largo[1] - largo[0]) > 2 * (estreito[1] - estreito[0])
+
+
+def test_intervalos_reamostram_dentro_de_cada_pcap():
+    # Um pcap todo certo e outro todo errado: sorteando blocos dentro de cada pcap, o recall é sempre 0,5.
+    y = np.array(["Web"] * 200 + ["Benign"] * 10, dtype=object)
+    previsto = np.array(["Web"] * 100 + ["Benign"] * 100 + ["Benign"] * 10, dtype=object)
+    arquivos = np.array(["XSS.pcap"] * 100 + ["SqlInjection.pcap"] * 100 + ["BenignTraffic.pcap"] * 10, dtype=object)
+    web = _intervalos(previsto, y, arquivos, 42)["Web"]
+    assert (web["janelas"], web["acertos"]) == (200, 100)
+    assert web["recall_blocos"] == pytest.approx((0.5, 0.5))
+    assert web["por_pcap"]["XSS.pcap"] == {"janelas": 100, "acertos": 100}
+
+
 def test_autocorrelacao_e_tamanho_efetivo():
     r, efetivo = autocorrelacao(np.r_[np.ones(10), np.zeros(10)], ["a"] * 20)
     assert r > 0.8 and efetivo < 2
     r, efetivo = autocorrelacao([1, 0] * 10, ["a"] * 20)
     assert r == pytest.approx(-1.0) and efetivo is None
-    # Cada pcap conta separado: a troca de pcap não é vizinhança.
-    r, _ = autocorrelacao([1, 1, 1, 0, 0, 0], ["a", "a", "a", "b", "b", "b"])
-    assert r == pytest.approx(1.0)
-    assert autocorrelacao([1, 1, 1, 0, 0, 0], ["a"] * 6)[0] < 0.7
+    # Dentro de cada pcap: a diferença de acerto entre pcaps não é vizinhança. Dois pcaps constantes, um
+    # todo certo e outro todo errado, não têm correlação nenhuma dentro deles.
+    assert autocorrelacao([1, 1, 1, 0, 0, 0], ["a", "a", "a", "b", "b", "b"]) == (None, None)
+    assert autocorrelacao([1, 1, 1, 0, 0, 0], ["a"] * 6)[0] > 0.3
+    # Pcaps com taxas diferentes e acerto sem sequência: centrado por pcap, perto de zero.
+    gerador = np.random.default_rng(0)
+    acerto = np.r_[gerador.random(500) < 0.9, gerador.random(500) < 0.1].astype(float)
+    r, _ = autocorrelacao(acerto, ["a"] * 500 + ["b"] * 500)
+    assert abs(r) < 0.1
 
 
 def test_permutacao_derruba_o_recall_so_na_feature_que_separa():
@@ -274,13 +308,114 @@ def test_permutacao_derruba_o_recall_so_na_feature_que_separa():
     assert abs(registro["quedas"]["b"][0]) < 0.05 and abs(registro["quedas"]["c"][0]) < 0.05
 
 
-def test_macro_f1_e_o_ruido_entre_sementes():
+def test_macro_f1():
     y = np.array(["A", "A", "B", "B"], dtype=object)
     assert macro_f1(y, y) == 1.0
     assert macro_f1(y, np.array(["A", "A", "A", "A"], dtype=object)) == pytest.approx((2 / 3 + 0) / 2)
-    assert passa_do_ruido([0.80, 0.81, 0.82], [0.83, 0.84])
-    assert not passa_do_ruido([0.80, 0.83], [0.82, 0.84])
-    assert not passa_do_ruido([], [0.5])
+
+
+def test_medidas_da_confusao_sao_as_do_avaliar():
+    gerador = np.random.default_rng(3)
+    rotulos = gerador.choice(["BenignTraffic", "XSS", "Recon-PortScan", "DDoS-ICMP_Flood"], 400)
+    categorias = ALVOS["7"].classe_do_rotulo
+    real = np.array([categorias[r] for r in rotulos], dtype=object)
+    previsto = np.where(gerador.random(400) < 0.7, real, gerador.choice(CLASSES, 400)).astype(object)
+    esperado = resumo_das_medidas(previsto, rotulos)
+    n = len(CLASSES)
+    celulas = np.array([CLASSES.index(c) for c in real]) * n + np.array([CLASSES.index(c) for c in previsto])
+    obtido = medidas_da_confusao(np.bincount(celulas, minlength=n * n).astype(float))
+    for chave in ("macro_f1", "acuracia", "benigno_como_ataque", "ataque_como_benigno"):
+        assert obtido[chave] == pytest.approx(esperado[chave])
+    for classe in ("Web", "Recon", "Benign"):
+        assert obtido[f"recall_{classe}"] == pytest.approx(esperado["por_classe"][classe]["recall"])
+        assert obtido[f"precisao_{classe}"] == pytest.approx(esperado["por_classe"][classe]["precisao"])
+
+
+def par(a, b, indice=None, grupo=None):
+    a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
+    indice = np.arange(len(a)) if indice is None else indice
+    return (np.zeros(len(a)) if grupo is None else grupo, indice, a, b)
+
+
+def test_comparar_so_conta_a_diferenca_cujo_intervalo_deixa_o_zero_de_fora():
+    gerador = np.random.default_rng(0)
+    base = (gerador.random(2000) < 0.5).astype(float)
+    # As mesmas predições nas duas condições: diferença zero, que não conta.
+    igual = comparar([par(base, base)] * 3, proporcao, 2, reamostragens=300)["valor"]
+    assert igual["diferenca"] == 0 and not igual["acima"]
+    # Uma condição acerta 30 pontos a mais, nas três sementes: conta, e o intervalo cobre a diferença.
+    melhor = np.where(gerador.random(2000) < 0.6, 1.0, base)
+    pares = [par(base, melhor)] * 3
+    diferenca = comparar(pares, proporcao, 2, reamostragens=300)["valor"]
+    assert diferenca["acima"] and diferenca["inferior"] < diferenca["diferenca"] < diferenca["superior"]
+    assert diferenca["diferenca"] == pytest.approx(melhor.mean() - base.mean())
+    assert diferenca["por_semente"] == pytest.approx([melhor.mean() - base.mean()] * 3)
+    # Uma diferença que muda de sinal de uma semente para outra não conta, mesmo grande em cada uma.
+    pior = 1.0 - melhor
+    oscila = comparar([par(base, melhor), par(base, pior), par(base, melhor), par(base, pior)], proporcao, 2,
+                      reamostragens=300)["valor"]
+    assert not oscila["acima"]
+    # Média longe do zero, mas sementes que discordam muito: a variação entre elas entra no intervalo.
+    pouco = (gerador.random(2000) < 0.2).astype(float)
+    muito, nada = (gerador.random(2000) < 0.8).astype(float), np.zeros(2000)
+    instavel = comparar([par(pouco, muito), par(pouco, nada), par(pouco, muito), par(pouco, nada)], proporcao, 2,
+                        reamostragens=300)["valor"]
+    assert instavel["diferenca"] > 0.15 and not instavel["acima"]
+
+
+def test_comparar_le_a_variacao_do_teste_nos_blocos():
+    # Diferença pequena em blocos inteiros de 10 janelas: com poucos blocos, o intervalo pega o zero.
+    a = np.zeros(100)
+    b = np.r_[np.ones(10), np.zeros(90)]
+    poucos = comparar([par(a, b)] * 3, proporcao, 2, reamostragens=500)["valor"]
+    assert not poucos["acima"]
+    # A mesma diferença espalhada por muitos blocos de muitos pcaps: o intervalo fica longe do zero.
+    a = np.zeros(10_000)
+    b = (np.arange(10_000) % 10 == 0).astype(float)
+    grupos = np.repeat(np.arange(10), 1000)
+    indices = np.tile(np.arange(1000), 10)
+    muitos = comparar([par(a, b, indices, grupos)] * 3, proporcao, 2, reamostragens=500)["valor"]
+    assert muitos["acima"] and muitos["diferenca"] == pytest.approx(0.1)
+
+
+def test_fundo_e_recall_com_o_pcap_fora_medem_a_parte_de_teste():
+    previstas = lambda benign, recon: {c: {"Benign": benign, "Recon": recon}.get(c, 0) for c in CLASSES}
+    resultado = {
+        "corte": {"42": {"fundo": [
+            {"categoria": "Recon", "teste": {"janelas": 10, "previstas": previstas(9, 1)},
+             "treino": {"janelas": 10, "previstas": previstas(2, 8)}},
+        ]}},
+        "fora": {"Recon-OSScan.pcap": {"42": {
+            "categoria": "Recon", "teste": {"janelas": 4, "previstas": previstas(3, 1)},
+            "inteiro": {"janelas": 20, "previstas": previstas(5, 15)},
+        }}},
+    }
+    assert fundo_por_semente(resultado, ["42"]) == [0.1]
+    assert fundo_por_semente(resultado, ["42"], "treino") == [0.8]
+    assert recall_fora(resultado, ["42"], "Recon") == [0.25]
+    assert recall_fora(resultado, ["42"], "Recon", trecho="inteiro") == [0.75]
+
+
+def test_a_chave_dos_treinos_guardados_inclui_o_codigo(tmp_path, monkeypatch):
+    import codigo.classificador.rodadas as modulo
+
+    regeracao = preparar_regerado(tmp_path)
+    dados = ler_dados(regeracao["destino"], regeracao)
+    antes = Execucao(ATUAL, dados, teto=30, trabalho=tmp_path / "t").trabalho.caminho
+    codigo = modulo.codigo_do_calculo()
+    assert set(codigo["arquivos"]) == set(modulo.MODULOS_DO_CALCULO)
+    codigo["arquivos"]["codigo/classificador/preparar.py"] = "0" * 64
+    monkeypatch.setattr(modulo, "codigo_do_calculo", lambda: codigo)
+    assert Execucao(ATUAL, dados, teto=30, trabalho=tmp_path / "t").trabalho.caminho != antes
+
+
+def test_execucao_sorteia_a_amostra_da_semente_pedida(tmp_path):
+    regeracao = preparar_regerado(tmp_path)
+    dados = ler_dados(regeracao["destino"], regeracao)
+    execucao = Execucao(ATUAL, dados, teto=30, trabalho=tmp_path / "t")
+    assert np.array_equal(execucao.amostra(1), amostra(dados, 1, 30))
+    assert not np.array_equal(execucao.amostra(1), amostra(dados, 42, 30))
+    assert np.array_equal(execucao.amostra(42), amostra(dados, 42, 30))
 
 
 def test_candidatos_do_limiar_sao_os_menores_limiares_dentro_de_cada_alvo():
@@ -308,6 +443,9 @@ def test_rodadas_gravam_manifesto_relatorio_e_tabelas(caso):
     assert set(r["rotacao"]) == {"1", "2"} and set(r["rotacao"]["1"]) == {"42", "1", "2"}
     assert set(r["fora"]) == set(FORA) and set(r["sem_ttl"]) == {"42", "1", "2"}
     assert m["entradas"]["modelo"]["arquivo"] == "rf_regerado_janela_100.joblib"
+    assert len(m["codigo"]["arquivos"]) == 8 and m["memoria_pico_bytes"] > 0
+    assert m["resultados"]["corte"]["42"]["detalhe"]["entradas"]["modelo_sha256"] == m["entradas"]["modelo"]["sha256"]
+    assert set(m["resultados"]["comparacoes"]) == {"dentro_e_fora", "sem_ttl"}
     assert len(m["entradas"]["arquivos"]) == 9 + len(PCAPS)
     relatorio = (caso / "resultados" / RELATORIO).read_text(encoding="utf-8")
     assert relatorio == montar_relatorio(m)
@@ -349,6 +487,13 @@ def test_fundo_separa_a_parte_de_treino_e_a_de_teste_pelo_mesmo_corte(caso):
     assert fundo["DDoS-SYN_Flood1.pcap"]["treino"]["janelas"] == 0 and fundo["DDoS-SYN_Flood1.pcap"]["teste"]["janelas"] == 1
     assert fundo["DDoS-SYN_Flood.pcap"]["teste"]["janelas"] == 0
     assert "BenignTraffic.pcap" not in fundo
+
+
+def test_regra_de_janelas_seguidas_usa_o_trecho_de_teste_com_o_fundo(caso):
+    ataques = ler_manifesto(caso)["resultados"]["corte"]["42"]["detalhe"]["seguidas"]["ataques"]
+    recon = next(a for a in ataques if a["arquivo"] == "Recon-PortScan.pcap")
+    # Do corte (janela 34) ao fim do arquivo (janela 47): 14 janelas, 12 com o atacante e 2 de fundo (39 e 45).
+    assert (recon["janelas"], recon["com_atacante"]) == (14, 12)
 
 
 def test_relatorio_mede_cada_semente_nas_janelas_dela(caso):
@@ -412,7 +557,7 @@ def test_comparacao_de_capturas_com_o_fundo_no_treino_e_sem_ttl(tmp_path, monkey
     assert list(m["entradas"]["pastas"]) == [regeracao["destino"]]
     texto = (tmp_path / "resultados" / RELATORIO_DAS_CAPTURAS).read_text(encoding="utf-8")
     assert texto == montar_relatorio_das_capturas(m)
-    for secao in ("## Tabela-resumo", "## Quais diferenças passam do ruído", "## Corte por tempo",
+    for secao in ("## Tabela-resumo", "## Quais diferenças contam", "## Corte por tempo",
                   "## c. Rotação do pcap benigno de fora", "## d. Tráfego de fundo", "## e. Pcap fora do treino"):
         assert secao in texto, secao
     with open(tmp_path / "resultados" / "rodadas_normalizadas_resumo.csv", encoding="utf-8", newline="") as arquivo:
@@ -457,7 +602,9 @@ def test_configuracao_que_pede_opcao_que_a_regeracao_nao_registra_e_recusada(tmp
 @pytest.mark.skipif(not (RESULTADOS / MANIFESTO).exists(), reason="rodadas ainda não rodadas")
 def test_relatorio_das_rodadas_versionado_sai_do_manifesto():
     m = json.loads((RESULTADOS / MANIFESTO).read_text(encoding="utf-8"))
-    assert (RESULTADOS / RELATORIO).read_text(encoding="utf-8") == montar_relatorio(m)
+    capturas = RESULTADOS / MANIFESTO_DAS_CAPTURAS
+    capturas = json.loads(capturas.read_text(encoding="utf-8")) if capturas.exists() else None
+    assert (RESULTADOS / RELATORIO).read_text(encoding="utf-8") == montar_relatorio(m, capturas)
     reproducao = m["resultados"]["corte"]["42"]["detalhe"]["reproducao"]
     assert reproducao["predicoes_diferentes_do_retreino"] == 0 and reproducao["medidas_diferentes"] == []
     regeracao = json.loads((RESULTADOS / MANIFESTO_DA_REGERACAO).read_text(encoding="utf-8"))

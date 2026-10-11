@@ -10,8 +10,7 @@ o que foi feito, traz os números e diz o que eles mostram, sem recomendar uma s
 
 Rodadas feitas: a, b, c, d, e, f, g, h e i. Em cada treino, a semente define ao mesmo tempo o sorteio do teto de 50.000 linhas por rótulo e o Random Forest. A rodada b usa as sementes 42, 1, 2, 3 e 4; as que treinam um modelo por rotação ou por pcap usam as 3 primeiras. Nas tabelas, um valor com parênteses é a média das sementes, com o menor e o maior entre parênteses.
 
-Uma diferença entre duas condições só é tratada como diferença quando as faixas das sementes não se
-cruzam; dentro delas, é "sem diferença".
+As diferenças entre duas condições (uma configuração e a de referência, o modelo com e sem um pcap no treino, com e sem o TTL) são pareadas: as duas usam a mesma semente e são medidas nas mesmas janelas. Em cada semente, a diferença ganha uma variância por reamostragem de blocos de 10 janelas vizinhas do mesmo pcap, sorteados juntos para as duas condições; a diferença publicada é a média das sementes, e a variância dela soma a média das variâncias por blocos (a do conjunto de teste) e a variância da diferença entre as sementes dividida pela quantidade delas (a do treino). A diferença só conta quando o intervalo de 95% não contém o zero; senão, é "sem diferença".
 
 ## Resumo
 
@@ -19,9 +18,9 @@ cruzam; dentro delas, é "sem diferença".
 - b. Entre 5 sementes, macro-F1 82,21% (82,09% a 82,29%) e benigno classificado como ataque 1,71% (1,60% a 1,86%).
 - c. Benigno classificado como ataque com cada pcap benigno fora do treino: `BenignTraffic2.pcap` 1,73% (1,65% a 1,87%); `BenignTraffic.pcap` 38,51% (38,21% a 38,84%); `BenignTraffic1.pcap` 1,48% (1,39% a 1,56%). No total dos três, 15,42% (15,36% a 15,53%).
 - d. Janelas de fundo dos pcaps de ataque, sem nenhum quadro do atacante, classificadas como ataque: 72,28% (72,20% a 72,38%) na parte de teste.
-- e. Recall com o pcap inteiro fora do treino, contra dentro da captura: Recon 31,53% (31,42% a 31,68%) contra 87,70% (87,65% a 87,77%); Web 31,25% (30,54% a 32,47%) contra 37,06% (36,99% a 37,20%); BruteForce 0,00% (0,00% a 0,00%) contra 34,80% (34,43% a 35,16%); Spoofing 96,95% (96,46% a 97,25%) contra 99,42% (99,41% a 99,44%).
+- e. Recall com o pcap inteiro fora do treino, contra dentro da captura: Recon 31,53% (31,42% a 31,68%) contra 87,70% (87,65% a 87,77%); Web 31,25% (30,54% a 32,47%) contra 37,06% (36,99% a 37,20%); BruteForce 0,00% (0,00% a 0,00%) contra 34,80% (34,43% a 35,16%); Spoofing 96,95% (96,46% a 97,25%) contra 99,42% (99,41% a 99,44%). No Spoofing, com o quadro menor que 60 bytes contado como 60, o recall com o pcap fora cai para 63,95% (`rodadas_normalizadas.md`).
 - f. Janelas com quadro menor que 60 bytes: DDoS+DoS 0,0%, Mirai 1,4%, Recon 0,0%, Spoofing 84,2%, Web 0,0%, BruteForce 0,0%, Benign 0,0%; com quadro maior que 1.514 bytes: DDoS+DoS 1,4%, Mirai 0,6%, Recon 27,9%, Spoofing 0,0%, Web 38,7%, BruteForce 32,9%, Benign 87,8%.
-- g. Pontos candidatos do limiar: t = 0,60 com 2,00% de benigno como ataque e 98,94% de recall de ataque; t = 0,75 com 0,75% de benigno como ataque e 98,19% de recall de ataque; t = 0,80 com 0,46% de benigno como ataque e 97,64% de recall de ataque.
+- g. Pontos candidatos do limiar, escolhidos no próprio teste (a escolha final precisa de uma parte de validação): t = 0,60 com 2,00% de benigno como ataque e 98,94% de recall de ataque; t = 0,75 com 0,75% de benigno como ataque e 98,19% de recall de ataque; t = 0,80 com 0,46% de benigno como ataque e 97,64% de recall de ataque.
 - h. Recall com o intervalo por blocos: Web 37,0% (31,1% a 43,1%); BruteForce 35,2% (19,2% a 52,0%); Recon 87,7% (86,6% a 88,7%); Spoofing 99,4% (99,0% a 99,7%).
 - i. Uma janela leva 1,63 ms para ser classificada sozinha e 0,015 ms num lote de 1.000; o modelo tem 184,5 MB.
 
@@ -63,11 +62,11 @@ cruzam; dentro delas, é "sem diferença".
 | F1 BruteForce | 51,75% | 51,59% | 0,32 p.p. | 51,09% a 51,89% |
 | F1 Benign | 91,42% | 91,44% | 0,06 p.p. | 91,40% a 91,54% |
 
-**O que os números mostram.** O macro-F1 varia 0,20 p.p. entre as sementes e o benigno classificado como ataque, 0,26 p.p. As categorias com poucas janelas de teste variam mais. É essa a faixa que as outras rodadas usam como ruído.
+**O que os números mostram.** O macro-F1 varia 0,20 p.p. entre as sementes e o benigno classificado como ataque, 0,26 p.p. As categorias com poucas janelas de teste variam mais. Essa faixa mede só o treino; as comparações das outras rodadas somam a ela a variação do conjunto de teste, pelo critério do começo do relatório.
 
 ## c. Rotação do pcap de fora do treino
 
-**O que foi feito.** Nos rótulos com mais de um pcap (o benigno e os dois SYN), um pcap fica inteiro fora do treino. A divisão publicada deixa de fora o último pela ordem do nome; aqui o pcap de fora anda uma posição a cada rotação, até cada pcap benigno ficar de fora uma vez. Os rótulos de um pcap só mantêm o corte por tempo. A medida é no pcap de fora inteiro, com todas as janelas dele, e não só nas que o teto sorteou.
+**O que foi feito.** Nos rótulos com mais de um pcap (o benigno e os dois SYN), um pcap fica inteiro fora do treino. A divisão publicada deixa de fora o último pelo sufixo numérico do nome; aqui o pcap de fora anda uma posição a cada rotação, até cada pcap benigno ficar de fora uma vez. Os rótulos de um pcap só mantêm o corte por tempo. A medida é no pcap de fora inteiro, com todas as janelas dele, e não só nas que o teto sorteou.
 
 | Rotação | Pcap benigno de fora | Janelas | Benigno como ataque | Como DDoS+DoS | Como Recon | Como Spoofing | Como Web | Outros pcaps de fora: na categoria | Macro-F1 no teste com teto |
 |---|---|---|---|---|---|---|---|---|---|
@@ -122,7 +121,7 @@ Somando as janelas dos 3 pcaps benignos, cada um com o modelo que não o viu, 15
 
 Juntando os pcaps, na parte de teste 72,28% (72,20% a 72,38%) das janelas de fundo viram ataque, e na de treino, 75,22% (75,01% a 75,39%). No pcap benigno de fora da divisão publicada, 1,73% (1,65% a 1,87%).
 
-Com o limiar da rodada g, na parte de teste e na semente principal: argmax: 72,38%; t = 0,55: 73,84%; t = 0,65: 67,83%; t = 0,75: 60,51%.
+Com os limiares candidatos da rodada g, na parte de teste e na semente principal: argmax: 72,38%; t = 0,6: 71,03%; t = 0,75: 60,51%; t = 0,8: 56,02%.
 
 Quantos quadros do atacante há na janela, na parte de teste e na semente principal: a fração na categoria do pcap, com as janelas entre parênteses. A coluna 0 é o fundo.
 
@@ -171,20 +170,22 @@ Somando os pcaps de cada categoria, nas janelas de teste:
 
 | Categoria | Pcaps | Recall dentro da captura | Recall com o pcap fora | Diferença |
 |---|---|---|---|---|
-| DDoS+DoS | 4 | 95,45% (95,41% a 95,47%) | 77,09% (76,91% a 77,38%) | -18,36 p.p., acima do ruído |
-| Mirai | 3 | 99,24% (99,24% a 99,25%) | 55,34% (55,33% a 55,34%) | -43,91 p.p., acima do ruído |
-| Recon | 5 | 87,70% (87,65% a 87,77%) | 31,53% (31,42% a 31,68%) | -56,17 p.p., acima do ruído |
-| Spoofing | 2 | 99,42% (99,41% a 99,44%) | 96,95% (96,46% a 97,25%) | -2,47 p.p., acima do ruído |
-| Web | 6 | 37,06% (36,99% a 37,20%) | 31,25% (30,54% a 32,47%) | -5,81 p.p., acima do ruído |
-| BruteForce | 1 | 34,80% (34,43% a 35,16%) | 0,00% (0,00% a 0,00%) | -34,80 p.p., acima do ruído |
+| DDoS+DoS | 4 | 95,45% (95,41% a 95,47%) | 77,09% (76,91% a 77,38%) | sem valor |
+| Mirai | 3 | 99,24% (99,24% a 99,25%) | 55,34% (55,33% a 55,34%) | sem valor |
+| Recon | 5 | 87,70% (87,65% a 87,77%) | 31,53% (31,42% a 31,68%) | sem valor |
+| Spoofing | 2 | 99,42% (99,41% a 99,44%) | 96,95% (96,46% a 97,25%) | sem valor |
+| Web | 6 | 37,06% (36,99% a 37,20%) | 31,25% (30,54% a 32,47%) | sem valor |
+| BruteForce | 1 | 34,80% (34,43% a 35,16%) | 0,00% (0,00% a 0,00%) | sem valor |
 
-**O que os números mostram.** O recall dentro da captura mede o reconhecimento de um trecho seguinte da mesma captura; o recall com o pcap fora mede o reconhecimento de uma captura que o modelo não viu. A distância entre os dois, por categoria, está na última coluna. Fora BruteForce, as maiores quedas por pcap são em `Mirai-udpplain.pcap` (-98,32 p.p.), `VulnerabilityScan.pcap` (-81,98 p.p.), `Recon-HostDiscovery.pcap` (-54,69 p.p.) e `DoS-UDP_Flood.pcap` (-43,07 p.p.).
+**O que os números mostram.** O recall dentro da captura mede o reconhecimento de um trecho seguinte da mesma captura; o recall com o pcap fora mede o reconhecimento de uma captura que o modelo não viu. A distância entre os dois, por categoria, está na última coluna.
+
+O recall de Spoofing com o pcap fora não mostra que o Spoofing é reconhecido numa captura nova: os dois pcaps de spoofing têm quadros menores que 60 bytes na maior parte das janelas (rodada f). Com o quadro menor que 60 bytes contado como 60, ele vai de 96,95% para 63,95% (configuração 1 de `rodadas_normalizadas.md`).
 
 ## f. Atalhos da captura
 
 ### Tamanho dos quadros
 
-**O que foi feito.** Em todas as janelas mantidas, a fração com algum quadro menor que 60 bytes (`Min`), que é o quadro sem o preenchimento do Ethernet, e com algum quadro maior que 1.514 bytes (`Max`), que só existe quando a captura é feita na máquina que envia, com segmentação feita pela placa de rede. Os dois dependem de como a captura foi gravada, e não do ataque.
+**O que foi feito.** Em todas as janelas mantidas, a fração com algum quadro menor que 60 bytes (`Min`) e com algum quadro maior que 1.514 bytes (`Max`). Quadro menor que 60 bytes não sai assim no fio: a placa de rede o completa antes de transmitir, e ele aparece no pcap quando a captura é feita na própria máquina que envia. Quadro maior que 1.514 bytes também não passa num enlace Ethernet de MTU 1.500: ele aparece quando a placa da máquina que captura junta segmentos TCP antes de entregá-los (offload de segmentação), ou numa rede com jumbo frames. Os pcaps não dizem qual foi o caso, e as duas medidas são compatíveis com capturas gravadas de jeitos diferentes. Elas também não separam a forma de gravar do ataque: um quadro ARP, que o spoofing usa, tem 42 bytes antes do preenchimento.
 
 | Categoria | Janelas | Com quadro menor que 60 bytes | Com quadro maior que 1.514 bytes |
 |---|---|---|---|
@@ -213,15 +214,15 @@ Os pcaps com algum quadro menor que 60 bytes, e os benignos:
 
 | Medida | 39 features | Sem `Time_To_Live` | Diferença |
 |---|---|---|---|
-| Macro-F1 | 82,20% (82,09% a 82,27%) | 81,91% (81,82% a 82,01%) | -0,29 p.p., acima do ruído |
-| Benigno classificado como ataque | 1,72% (1,62% a 1,86%) | 1,86% (1,70% a 1,97%) | +0,15 p.p., sem diferença |
-| Recall DDoS+DoS | 98,87% (98,85% a 98,88%) | 98,71% (98,66% a 98,78%) | -0,16 p.p., acima do ruído |
-| Recall Mirai | 99,24% (99,24% a 99,25%) | 99,23% (99,22% a 99,24%) | -0,02 p.p., sem diferença |
-| Recall Recon | 87,70% (87,65% a 87,77%) | 86,39% (86,22% a 86,55%) | -1,31 p.p., acima do ruído |
-| Recall Spoofing | 99,42% (99,41% a 99,44%) | 99,43% (99,40% a 99,47%) | +0,01 p.p., sem diferença |
-| Recall Web | 37,06% (36,99% a 37,20%) | 37,49% (36,56% a 38,49%) | +0,43 p.p., sem diferença |
-| Recall BruteForce | 34,80% (34,43% a 35,16%) | 34,68% (34,43% a 34,80%) | -0,12 p.p., sem diferença |
-| Pcap benigno de fora (`BenignTraffic2.pcap`) como ataque | 1,73% (1,65% a 1,87%) | 1,85% (1,79% a 1,89%) | +0,12 p.p., sem diferença |
+| Macro-F1 | 82,20% (82,09% a 82,27%) | 81,91% (81,82% a 82,01%) | sem valor |
+| Benigno classificado como ataque | 1,72% (1,62% a 1,86%) | 1,86% (1,70% a 1,97%) | sem valor |
+| Recall DDoS+DoS | 98,87% (98,85% a 98,88%) | 98,71% (98,66% a 98,78%) | sem valor |
+| Recall Mirai | 99,24% (99,24% a 99,25%) | 99,23% (99,22% a 99,24%) | sem valor |
+| Recall Recon | 87,70% (87,65% a 87,77%) | 86,39% (86,22% a 86,55%) | sem valor |
+| Recall Spoofing | 99,42% (99,41% a 99,44%) | 99,43% (99,40% a 99,47%) | sem valor |
+| Recall Web | 37,06% (36,99% a 37,20%) | 37,49% (36,56% a 38,49%) | sem valor |
+| Recall BruteForce | 34,80% (34,43% a 35,16%) | 34,68% (34,43% a 34,80%) | sem valor |
+| Pcap benigno de fora (`BenignTraffic2.pcap`) como ataque | 1,73% (1,65% a 1,87%) | 1,85% (1,79% a 1,89%) | sem valor |
 
 **Janelas benignas de TTL baixo.** As janelas de `BenignTraffic2.pcap`, que o modelo da divisão publicada não viu, pelo TTL médio da janela, e as mesmas janelas com o TTL trocado por um valor fixo:
 
@@ -359,4 +360,5 @@ O Random Forest de 50 árvores, na mesma divisão e na mesma semente:
 - Os números das tabelas são arredondados; os valores completos, com as contagens, estão no manifesto, e as
   tabelas em CSV começam com `rodadas_`.
 - Tempo desta execução, na máquina em que rodou: 14,8 s. Os treinos já guardados em `dados/processed/rodadas/` são reaproveitados e não entram nessa conta; somados, os treinos de que os números saem levaram 890,8 s.
-- Com as mesmas entradas e as mesmas sementes, os números saem iguais. Só mudam a data e os tempos.
+- Com as mesmas entradas, o mesmo código e as mesmas sementes, os números saem iguais. Só mudam a data e os
+  tempos.
