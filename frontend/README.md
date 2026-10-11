@@ -50,36 +50,62 @@ disso: usa só o log de exemplo já versionado em `codigo/mcp/exemplos/incidente
 ## Estado atual
 
 Implementado: um app estático (Vite + React + TypeScript), sem backend, que lê o log de exemplo
-e mostra as telas 1 e 2. O detalhe inclui o resumo do classificador, métricas do replay, timeline
-dos agentes, recomendações e ações históricas. Como é replay, não há controles para criar novas
-aprovações ou executar ações; a interface só apresenta o que já está no log.
+e mostra as telas 1 e 2 em modo replay.
 
-**Como rodar** (exige Node.js 18 ou mais recente):
+- **Leitura do log.** Cada linha é conferida contra o contrato (`codigo/mcp/contrato.json`) na
+  carga. Linha fora do contrato, evento com `id` repetido e última linha sem quebra de linha no
+  fim (que, no modo ao vivo, pode estar sendo gravada) são descartados, e o número da linha
+  aparece num aviso no topo da tela. Os eventos seguem a ordem do `id`, e não a do arquivo.
+- **Fila.** Um incidente só ganha linha se o log tem o evento de abertura dele. Eventos que citam
+  um incidente sem abertura ficam contados à parte, com aviso, e não somam em "Incidentes".
+- **Detalhe.** Veredito do classificador; rastro dos agentes com a hora de cada chamada (no fuso
+  de quem abre a página); recomendações com o agente e as propostas ligadas; o estado de cada
+  proposta, reconstruído como no `reconstruir` de `codigo/mcp/acoes.py` (risco, aprovação,
+  motivos do risco alto, decisões, execuções e efeitos); e o histórico de decisões e ações, com
+  hora e id em todas as linhas.
+- **Replay.** Abre no estado final e pode ser percorrido evento a evento.
+- **Antes do contrato.** A interface já mostra o evento `incidente_marcado_resolvido` e aceita a
+  categoria `DDoS+DoS` do modelo, que vão entrar no contrato em outro PR. O log de exemplo atual
+  não tem nenhum dos dois.
+
+Como é replay, não há controles para criar aprovações ou executar ações; a interface só apresenta
+o que já está no log.
+
+**Como rodar** (exige Node.js 20 ou mais recente):
 
 ```
 cd frontend
-npm install
-npm run sync:log    # copia codigo/mcp/exemplos/incidente_flood.jsonl para public/dados/
+npm ci
 npm run dev
 ```
 
-Abre em `http://localhost:5173`. Rode `npm run sync:log` de novo sempre que o log de exemplo for
-regenerado (`python -m codigo.mcp.roteiro --sobrescrever`). O replay funciona sem API e sem
-conexão externa; a tipografia usa fontes locais do sistema.
+Abre em `http://localhost:5173`. Use `npm ci`, e não `npm install`, para instalar exatamente o que
+está no `package-lock.json`. A cópia do log em `public/dados/` é versionada: rode
+`npm run sync:log` só depois de regenerar o log de exemplo
+(`python -m codigo.mcp.roteiro --sobrescrever`), e versione a cópia junto. O replay funciona sem
+API e sem conexão externa; a tipografia usa fontes locais do sistema.
 
-`npm run build` confere os tipos e gera a versão de produção em `dist/`; `npm run preview` serve
-essa versão para conferir antes de abrir PR. O CI roda o build a cada PR.
+`npm test` roda os testes (Vitest) da leitura do log, da agregação e das telas, com os casos
+adversariais da revisão: duplicados, ordem trocada, incidente trocado ou sem abertura, campo
+ausente, `toString` e `constructor`, HTML no log e última linha cortada. `npm run build` confere
+os tipos e gera a versão de produção em `dist/`; `npm run preview` serve essa versão. O CI roda,
+a cada PR, os testes, o `npm audit --omit=dev --audit-level=high` e o build.
 
 **Arquivos:**
 
 | Arquivo | Papel |
 |---|---|
-| `src/log.ts` | Lê o JSONL e agrega os eventos por incidente: contadores da tela 1, veredito, rastro, recomendação e histórico de ações da tela 2 |
-| `src/types.ts` | Os campos do log que a interface usa (não é o contrato inteiro de `codigo/mcp/tipos.py`) |
+| `src/contrato.ts` | Confere cada linha do log contra o contrato, tipo de evento por tipo de evento |
+| `src/log.ts` | Lê o JSONL (descarte, ordem, avisos) e agrega os eventos: contadores da tela 1, incidentes, propostas e marca de já resolvido |
+| `src/types.ts` | Os tipos do log, como união discriminada por `tipo`, e o que a interface monta a partir deles |
+| `src/rotulos.ts`, `src/formato.ts` | Como cada valor do log aparece na tela; formato de números e horas |
 | `src/components/ResumoMetricas.tsx` | Cartões do resumo com janelas, incidentes, chamadas e tokens do replay |
 | `src/components/FilaDeIncidentes.tsx` | Tela 1 |
 | `src/components/DetalheDoIncidente.tsx` | Tela 2 |
-| `scripts/sync-log.mjs` | Copia o log de exemplo para `public/dados/`, de onde o app lê em tempo de execução |
+| `src/components/ControleDoReplay.tsx` | Avanço do replay evento a evento |
+| `src/components/LimiteDeErro.tsx` | Error boundary da fila e do detalhe |
+| `src/log.test.ts`, `src/telas.test.tsx` | Testes da leitura, da agregação e das telas |
+| `scripts/sync-log.mjs` | Copia o log de exemplo para `public/dados/`; recusa link simbólico |
 | `public/dados/incidente_flood.jsonl` | Cópia estática do replay versionado em `codigo/mcp/exemplos/` |
 
 **Não implementado, e por quê:** modo ao vivo (precisa da API fina lendo o backend de verdade,
