@@ -936,8 +936,15 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa, s
     if not isinstance(acao, str):
         raise PedidoRecusado("argumentos_invalidos", f"O nome da ação precisa ser um texto. Veio {resumir(acao)}.")
 
+    # O tamanho e o tipo do alvo vêm antes de qualquer expressão regular: um alvo de megabytes não
+    # chega a ser lido, e a trava do log não fica presa por ele.
+    if not isinstance(alvo, str) or len(alvo) > _MAIOR_ALVO:
+        raise PedidoRecusado(
+            "alvo_malformado",
+            f"O alvo de {_nome_na_mensagem(acao)} é um texto de até {_MAIOR_ALVO} caracteres. Veio {resumir(alvo)}.",
+        )
     alvo_com_rotulo = None
-    if isinstance(alvo, str) and _ALVO_COM_ROTULO.fullmatch(alvo.strip()):
+    if _ALVO_COM_ROTULO.fullmatch(alvo.strip()):
         alvo_com_rotulo = alvo.strip()
         alvo = _resolver_rotulo(estado, incidente, alvo_com_rotulo)
     elif so_rotulos and (acao in BASE or tem_endereco(alvo)):
@@ -1006,6 +1013,14 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa, s
         estado="aguardando_aprovacao" if motivos else "liberada",
     )
     return proposta, [novo("acao_proposta", proposta, incidente)]
+
+
+def _nome_na_mensagem(acao):
+    """O nome da ação como entra numa mensagem: inteiro se é um nome válido, e cortado se não é."""
+    try:
+        return _NOME_DE_ACAO.validate_python(acao)
+    except ValidationError:
+        return resumir(acao, 30)
 
 
 def _conferir_fila_de_aprovacao(estado, politica, incidente):

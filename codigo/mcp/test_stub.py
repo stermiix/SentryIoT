@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -964,6 +965,22 @@ def test_decisao_nao_propoe_com_endereco_e_a_recusa_nao_mostra_endereco(registro
     mensagem = recusado(decisao, "alvo_malformado", "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO)
     assert "rótulo" in mensagem and "203.0.113.7" not in mensagem
     assert "acao_proposta" not in [evento.tipo for evento in registro.ler()]
+
+
+@pytest.mark.parametrize("agente", ["decisao", "todos"])
+@pytest.mark.parametrize("acao", ["bloquear_ip", "revogar_credencial", "acao_qualquer"])
+def test_alvo_de_1_mb_e_recusado_sem_segurar_a_trava_do_log(registro, agente, acao):
+    # A chamada inteira acontece com o log travado: a triagem, a execução e o aprovar esperam por ela.
+    stub = Stub(registro, agente=agente)
+    stub.abrir_incidentes()
+    parametros = {"duracao": 10} if acao == "bloquear_ip" else ACAO_NOVA if acao == "acao_qualquer" else {}
+    for alvo in ("1:" * 500_000 + "g", "a" * 1_000_000 + "@origem-1", "origem-1" + " " * 1_000_000, "2001:db8::1 " * 90_000):
+        inicio = time.perf_counter()
+        with pytest.raises(PedidoRecusado) as captura:
+            stub.chamar("propor_acao", id="inc-0001", acao=acao, alvo=alvo, parametros=parametros, justificativa="j")
+        assert time.perf_counter() - inicio < 2.0
+        assert captura.value.motivo == "alvo_malformado" and len(captura.value.mensagem) < 700
+    assert "acao_proposta" not in tipos(stub)
 
 
 def test_decisao_le_o_catalogo_com_os_alvos_escritos_por_rotulo(registro):
