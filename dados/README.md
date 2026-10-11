@@ -446,7 +446,7 @@ As linhas marcadas com **(a criar)** ainda não existem.
 
 | Arquivo | O que faz |
 |---|---|
-| `extrator.py` | Lê um pcap, de arquivo ou de fluxo, e produz as 39 features a cada janela de quadros IPv4 ou ARP. O tamanho da janela vem de `--janela`, e o sistema usa 100 (decisão de 10/10/2026). `--preencher` e `--limitar`, desligadas por padrão, medem o quadro como no fio. A medição não depende da origem dos quadros, o que deixa caminho para captura ao vivo |
+| `extrator.py` | Lê um pcap, de arquivo ou de fluxo, e produz as 39 features a cada janela de quadros IPv4 ou ARP. O tamanho da janela vem de `--janela`, e o sistema usa 100 (decisão de 10/10/2026). `--preencher` e `--limitar`, desligadas por padrão, aproximam o tamanho do quadro do que passa no fio (preenchimento até 60 bytes e teto de 1.514). A medição não depende da origem dos quadros, o que deixa caminho para captura ao vivo |
 | `calibrar.py` | Refaz o fatiamento de 10 MB, roda o extrator e compara com o CSV oficial, bloco a bloco, nas 39 colunas. Gera `experimentos/resultados/calibracao.md` |
 | `calibrar_conjunto.py` | Confere os 38 pcaps contra o `MERGED_CSV` inteiro, linha a linha dentro de cada rótulo, e compara a leitura contínua com a fatiada. Gera `experimentos/resultados/calibracao_conjunto.md`, as tabelas e o manifesto |
 
@@ -511,7 +511,7 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `resultados/manifesto_regeracao.json` | O registro da regeração: regra de rótulo, colunas, e por pcap o hash, o tamanho e as janelas extraídas, mantidas e descartadas, por janela |
 | `resultados/regeracao.md` | O relatório do treino nos dados regerados, nas duas janelas: os dados, a divisão, as medidas por categoria, as matrizes de confusão, a fração de cada pcap na categoria esperada, os IPs de origem por janela em DDoS e DoS e o que ainda falta. `regeracao_metricas.csv` e `regeracao_por_arquivo.csv` trazem os números; `manifesto_treino_regerado.json`, tudo |
 | `resultados/rodadas_de_teste.md` | Os controles do modelo de janela de 100. As tabelas estão nos `rodadas_*.csv`, e tudo, em `manifesto_rodadas.json` |
-| `resultados/rodadas_normalizadas.md` | A comparação entre o modelo do sistema e os treinos com o quadro como no fio e com o fundo como benigno. As tabelas estão nos `rodadas_normalizadas_*.csv`, e tudo, em `manifesto_rodadas_normalizadas.json` |
+| `resultados/rodadas_normalizadas.md` | A comparação entre o modelo do sistema e os treinos com o quadro normalizado e com o fundo como benigno. As tabelas estão nos `rodadas_normalizadas_*.csv`, e tudo, em `manifesto_rodadas_normalizadas.json` |
 | `resultados/regeracao_preenchido/`, `resultados/regeracao_no_fio/` | Os manifestos das regerações com o quadro completado até 60 bytes e com o quadro como no fio |
 | `resultados/avaliacao_agentes.csv` | **(a criar)** A qualidade das recomendações, a tabela que ainda não tem métrica definida |
 | `resultados/custo_latencia.csv` | **(a criar)** Tokens e tempo de resposta por alerta |
