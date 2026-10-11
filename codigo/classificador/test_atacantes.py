@@ -69,10 +69,11 @@ def test_nome_que_nao_casa_com_rotulo_e_recusado(nome):
 
 
 def test_tem_atacante_olha_a_origem_e_o_destino():
-    assert tem_atacante(Enderecos(frozenset({ATACANTE}), frozenset({VITIMA}), 1, 1))
-    assert tem_atacante(Enderecos(frozenset({VITIMA}), frozenset({ATACANTE, OUTRO}), 1, 2))
-    assert not tem_atacante(Enderecos(frozenset({VITIMA, OUTRO}), frozenset({OUTRO}), 2, 1))
-    assert not tem_atacante(Enderecos(frozenset(), frozenset(), 0, 0))
+    um, dois = frozenset({"10.0.0.1"}), frozenset({"10.0.0.1", "10.0.0.2"})
+    assert tem_atacante(Enderecos(frozenset({ATACANTE}), frozenset({VITIMA}), um, um))
+    assert tem_atacante(Enderecos(frozenset({VITIMA}), frozenset({ATACANTE, OUTRO}), um, dois))
+    assert not tem_atacante(Enderecos(frozenset({VITIMA, OUTRO}), frozenset({OUTRO}), dois, um))
+    assert not tem_atacante(Enderecos(frozenset(), frozenset(), frozenset(), frozenset()))
 
 
 def captura_de_teste(caminho):
@@ -115,6 +116,27 @@ def test_percorrer_conta_macs_e_janelas_com_e_sem_atacante(tmp_path):
     de_cinco = [args for args in fechadas if args[0] == 5]
     assert [indice for _, indice, *_ in de_cinco] == [0, 1, 2]
     assert de_cinco[2][2]["Number"] == 2
+
+
+def test_percorrer_conta_os_quadros_do_atacante_em_cada_janela_quando_pedido(tmp_path):
+    # O atacante na origem, no destino e nas duas pontas: os três quadros contam.
+    registros = [
+        (1, 0, quadro(ATACANTE, VITIMA)), (2, 0, quadro(VITIMA, ATACANTE)), (3, 0, quadro(OUTRO, VITIMA)),
+        (4, 0, quadro(ATACANTE, ATACANTE)), (5, 0, quadro(OUTRO, VITIMA)), (6, 0, quadro(OUTRO, VITIMA)),
+        (7, 0, quadro(VITIMA, ATACANTE)),
+    ]
+    captura = tmp_path / "Recon-PortScan.pcap"
+    captura.write_bytes(pcap(registros))
+    fechadas = []
+    percorrer(captura, janelas=(2, 3), ao_fechar=lambda *args: fechadas.append(args), contar_quadros=True)
+    de_dois = [(args[1], args[4], args[5]) for args in fechadas if args[0] == 2]
+    assert de_dois == [(0, True, 2), (1, True, 1), (2, False, 0), (3, True, 1)]
+    de_tres = [(args[1], args[5]) for args in fechadas if args[0] == 3]
+    assert de_tres == [(0, 2), (1, 1), (2, 1)]
+    # Sem o pedido, a chamada continua com os cinco argumentos de antes.
+    fechadas.clear()
+    percorrer(captura, janelas=(2,), ao_fechar=lambda *args: fechadas.append(args))
+    assert {len(args) for args in fechadas} == {5}
 
 
 def test_percorrer_registra_captura_interrompida_e_faz_o_hash_do_arquivo_inteiro(tmp_path):

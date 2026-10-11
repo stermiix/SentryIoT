@@ -52,7 +52,7 @@ import numpy as np
 import pandas as pd
 import sklearn
 
-from codigo.captura.extrator import extrair, gravar_csv, ler_pcap
+from codigo.captura.extrator import CapturaIncompleta, extrair, gravar_csv, ler_pcap
 from codigo.classificador.avaliar import avaliar, contar, populacao_do_manifesto
 from codigo.classificador.experimento import (
     JANELA_DE_100,
@@ -192,7 +192,7 @@ def extrair_captura(pcap, janela, destino):
     destino.parent.mkdir(parents=True, exist_ok=True)
     inicio = time.perf_counter()
     with warnings.catch_warnings(record=True) as avisos:
-        warnings.simplefilter("always")
+        warnings.simplefilter("always", CapturaIncompleta)
         try:
             with open(destino, "w", encoding="utf-8", newline="") as saida:
                 janelas = gravar_csv(linhas(), saida)
@@ -209,7 +209,7 @@ def extrair_captura(pcap, janela, destino):
         "janelas": janelas,
         "janelas_incompletas": conta["incompletas"],
         "segundos": time.perf_counter() - inicio,
-        "avisos": [str(aviso.message) for aviso in avisos],
+        "avisos": [str(aviso.message) for aviso in avisos if issubclass(aviso.category, CapturaIncompleta)],
     }
 
 

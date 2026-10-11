@@ -1,6 +1,7 @@
 import csv
 import gzip
 import json
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -17,16 +18,20 @@ from codigo.classificador.test_preparar import quadro_sintetico
 from codigo.classificador.treinar import carregar_modelo
 from codigo.classificador.treinar_regerado import (
     ALVO,
+    CLASSES,
     MANIFESTO,
     METRICAS,
     POR_ARQUIVO,
     RELATORIO,
     TETO,
+    arquivos_inteiros_no_teste,
+    ataque_como_benigno,
     ips_de_origem,
     ler_janela,
     limitar,
     main,
     montar_relatorio,
+    reponderada,
 )
 
 JANELAS = (2, 5)
@@ -57,6 +62,8 @@ def quadro_regerado():
     quadro["ips_origem"] = quadro["Label"].map(lambda rotulo: IPS.get(rotulo, 1))
     quadro["ips_destino"] = 1
     quadro["atacante"] = (quadro["Label"] != "BenignTraffic").astype(int)
+    quadro["quadros_atacante"] = quadro["atacante"] * 3
+    quadro["macs_atacante"] = quadro["atacante"]
     return quadro[list(CABECALHO)]
 
 
@@ -107,6 +114,10 @@ def executar(pasta, *extras):
     ])
 
 
+def pct(valor):
+    return f"{100 * valor:.2f}%".replace(".", ",")
+
+
 def ler_csv(caminho):
     with open(caminho, encoding="utf-8", newline="") as arquivo:
         return list(csv.DictReader(arquivo))
@@ -138,6 +149,20 @@ def test_ler_janela_junta_os_csvs_do_rotulo_em_ordem_de_arquivo_e_indice(tmp_pat
     benigno = quadro[quadro["Label"] == "BenignTraffic"]
     assert benigno["arquivo"].tolist() == ["BenignTraffic.pcap"] * 25 + ["BenignTraffic1.pcap"] * 15
     assert benigno["indice"].astype(int).tolist() == list(range(25)) + list(range(15))
+
+
+def test_ler_janela_le_os_csvs_de_antes_das_colunas_novas(tmp_path):
+    pasta = preparar_regeracao(tmp_path)
+    novo, _ = ler_janela(pasta / "regerado", 2)
+    assert novo["quadros_atacante"].dtype == np.int64 and novo["macs_atacante"].max() == 1
+    # Os CSVs gravados antes da versão 2 da regra não têm as duas colunas, e são lidos como antes.
+    for caminho in (pasta / "regerado" / "janela_2").glob("*.csv.gz"):
+        quadro = pd.read_csv(caminho, dtype=str)
+        with gzip.open(caminho, "wt", encoding="utf-8", newline="") as arquivo:
+            quadro.drop(columns=["quadros_atacante", "macs_atacante"]).to_csv(arquivo, index=False, lineterminator="\n")
+    antigo, _ = ler_janela(pasta / "regerado", 2)
+    assert "quadros_atacante" not in antigo.columns
+    assert antigo.equals(novo.drop(columns=["quadros_atacante", "macs_atacante"]))
 
 
 def test_limitar_sorteia_ate_o_teto_por_rotulo_com_semente(tmp_path):
@@ -249,21 +274,49 @@ def test_os_numeros_sao_os_mesmos_em_outra_execucao(treino):
     antes = ler_manifesto(treino)
     assert executar(treino, "--teto", "30") == 0
     depois = ler_manifesto(treino)
-    # A rodada anterior fica registrada como referência; fora isso, nada muda.
-    assert len(depois["rodadas_anteriores"]) == len(antes["rodadas_anteriores"]) + 1
-    resumo = depois["rodadas_anteriores"][-1]
+    # Com os mesmos pcaps, a execução anterior não vira rodada anterior, e nada muda.
+    assert depois["rodadas_anteriores"] == antes["rodadas_anteriores"] == []
+    assert depois.pop("memoria_pico_bytes") > 0 and antes.pop("memoria_pico_bytes") > 0
+    assert sem_variaveis(depois) == sem_variaveis(antes)
+    texto = (treino / "resultados" / RELATORIO).read_text(encoding="utf-8")
+    assert "## Rodadas anteriores, como referência" not in texto
+    assert "Pico de memória do processo" in texto
+
+
+def test_a_rodada_anterior_fica_registrada_quando_os_pcaps_mudam(tmp_path):
+    pasta = preparar_regeracao(tmp_path)
+    assert executar(pasta, "--teto", "30") == 0
+    antes = ler_manifesto(pasta)
+    caminho = pasta / "resultados" / MANIFESTO_DA_REGERACAO
+    regeracao = json.loads(caminho.read_text(encoding="utf-8"))
+    regeracao["pcaps"][0]["sha256"] = "1" * 64  # um pcap trocado por outro com o mesmo nome
+    caminho.write_text(json.dumps(regeracao, ensure_ascii=False), encoding="utf-8")
+    assert executar(pasta, "--teto", "30") == 0
+    depois = ler_manifesto(pasta)
+    assert len(depois["rodadas_anteriores"]) == 1
+    resumo = depois["rodadas_anteriores"][0]
     assert resumo["pcaps"] == 9 and len(resumo["rotulos"]) == 8 and resumo["rotulos_sem_pcap"] == 26
     assert resumo["janelas"][0]["macro_f1"] == antes["janelas"][0]["avaliacao"]["amostra"]["macro_f1"]
     assert set(resumo["janelas"][0]["por_classe"]) == set(ALVOS[ALVO].classes)
-    rodadas = len(depois["rodadas_anteriores"])
-    depois.pop("rodadas_anteriores"), antes.pop("rodadas_anteriores")
-    assert sem_variaveis(depois) == sem_variaveis(antes)
-    texto = (treino / "resultados" / RELATORIO).read_text(encoding="utf-8")
+    texto = (pasta / "resultados" / RELATORIO).read_text(encoding="utf-8")
     assert "## Rodadas anteriores, como referência" in texto
     assert "Nenhum rótulo entrou" in texto and "Pcaps: de 9 para 9" in texto
     # Refazer o relatório não acrescenta rodada.
-    assert executar(treino, "--refazer-relatorio") == 0
-    assert len(ler_manifesto(treino)["rodadas_anteriores"]) == rodadas
+    assert executar(pasta, "--refazer-relatorio") == 0
+    assert len(ler_manifesto(pasta)["rodadas_anteriores"]) == 1
+
+
+def test_ler_janela_em_pedacos_da_o_mesmo_que_ler_tudo(tmp_path, monkeypatch):
+    import codigo.classificador.treinar_regerado as modulo
+
+    pasta = preparar_regeracao(tmp_path)
+    inteiro, resumo_inteiro = ler_janela(pasta / "regerado", 2, teto=30, semente=7)
+    # Pedaços de 7 linhas: cortam os rótulos e os arquivos em lugares quaisquer.
+    monkeypatch.setattr(modulo, "PEDACO", 7)
+    em_pedacos, resumo = ler_janela(pasta / "regerado", 2, teto=30, semente=7)
+    assert em_pedacos.equals(inteiro) and resumo == resumo_inteiro
+    assert list(em_pedacos.dtypes[list(COLUNAS)].unique()) == [np.float64]
+    assert em_pedacos["indice"].dtype == np.int64
 
 
 def test_avaliacao_nos_arquivos_inteiros_de_teste(treino):
@@ -310,3 +363,112 @@ def test_teto_padrao_vale_quando_nao_e_dado(tmp_path):
     m = ler_manifesto(pasta)
     assert m["teto"] == TETO and m["janelas"][0]["linhas"]["amostra"] == 320
     assert np.isclose(sum(r["amostra"] for r in m["janelas"][0]["por_rotulo"]), 320)
+
+
+def test_arquivos_inteiros_no_teste_seguem_o_sufixo_numerico():
+    amostra = pd.DataFrame({
+        "Label": ["BenignTraffic"] * 3 + ["Recon-PortScan"] + ["DoS-SYN_Flood"] * 2,
+        "arquivo": ["BenignTraffic.pcap", "BenignTraffic2.pcap", "BenignTraffic10.pcap", "Recon-PortScan.pcap",
+                    "DoS-SYN_Flood.pcap", "DoS-SYN_Flood1.pcap"],
+    })
+    assert arquivos_inteiros_no_teste(amostra) == ["BenignTraffic10.pcap", "DoS-SYN_Flood1.pcap"]
+
+
+def test_o_corte_e_sobre_o_total_de_janelas_extraidas_e_nao_sobre_as_mantidas(tmp_path):
+    # Recon-PortScan tem 40 janelas mantidas (índices 0 a 39) de 50 extraídas: o corte de 70% fica na
+    # janela 35, e vão 5 para o teste. Com o corte nas mantidas, iriam 12 (índices 28 a 39).
+    pasta = preparar_regeracao(tmp_path)
+    caminho = pasta / "resultados" / MANIFESTO_DA_REGERACAO
+    regeracao = json.loads(caminho.read_text(encoding="utf-8"))
+    recon = next(p for p in regeracao["pcaps"] if p["arquivo"] == "Recon-PortScan.pcap")
+    for contagem in recon["janelas"].values():
+        contagem["extraidas"], contagem["descartadas"] = 50, 10
+    caminho.write_text(json.dumps(regeracao, ensure_ascii=False), encoding="utf-8")
+    assert executar(pasta, "--teto", "1000") == 0
+    for j in ler_manifesto(pasta)["janelas"]:
+        linha = next(r for r in j["por_rotulo"] if r["rotulo"] == "Recon-PortScan")
+        assert (linha["treino"], linha["teste"]) == (35, 5)
+        # Os outros pcaps têm 3 janelas descartadas além das 40 mantidas: corte em int(0,7 x 43 + 0,5) = 30.
+        outro = next(r for r in j["por_rotulo"] if r["rotulo"] == "Mirai-udpplain")
+        assert (outro["treino"], outro["teste"]) == (30, 10)
+
+
+def janela_de_mentira(contagem, regeradas):
+    """O registro de uma janela no manifesto do treino, só com a matriz por rótulo e as linhas regeradas."""
+    rotulos = list(contagem)
+    return {
+        "avaliacao": {"matriz_por_rotulo": {"classes": list(CLASSES), "rotulos": rotulos,
+                                            "contagem": [contagem[r] for r in rotulos]}},
+        "por_rotulo": [{"rotulo": r, "regeradas": regeradas[r]} for r in rotulos],
+    }
+
+
+def test_reponderada_pesa_cada_rotulo_pelas_janelas_regeradas():
+    # Colunas na ordem de CLASSES: DDoS+DoS, Mirai, Recon, Spoofing, Web, BruteForce, Benign.
+    j = janela_de_mentira(
+        {
+            "Recon-PortScan": [0, 0, 8, 0, 0, 0, 2],
+            "VulnerabilityScan": [0, 0, 1, 0, 0, 0, 9],
+            "BenignTraffic": [0, 0, 1, 0, 0, 0, 9],
+        },
+        {"Recon-PortScan": 10, "VulnerabilityScan": 100, "BenignTraffic": 10},
+    )
+    r = reponderada(j)
+    # Recon junta dois rótulos: (8 + 10 x 1) / (10 + 100), contra 9 / 20 na mistura do teste.
+    assert np.isclose(r["por_classe"]["Recon"]["recall"], 18 / 110)
+    # O benigno é um rótulo só: o recall e o benigno classificado como ataque não mudam.
+    assert np.isclose(r["por_classe"]["Benign"]["recall"], 0.9)
+    assert np.isclose(r["falso_positivo_benigno"], 0.1)
+    # Ataque classificado como benigno: das 110 janelas de ataque reponderadas, 2 + 90 viram Benign.
+    assert np.isclose(ataque_como_benigno(r), 92 / 110)
+
+
+def test_relatorio_traz_o_ataque_perdido_com_o_nome_certo_e_as_medidas_reponderadas(treino):
+    m = ler_manifesto(treino)
+    texto = montar_relatorio(m)
+    j = m["janelas"][0]
+    a = j["avaliacao"]["amostra"]
+    assert "| Categoria | Linhas de teste | Precisão | Recall | F1 | Falso positivo da categoria |" in texto
+    assert "Na linha Benign, ele é o ataque classificado como benigno" in texto
+    perdido = a["por_classe"]["Benign"]["taxa_falso_positivo"]
+    assert ataque_como_benigno(a) == perdido
+    assert f"Ataque classificado como benigno: {pct(perdido)}." in texto
+    r = reponderada(j)
+    assert f"macro-F1 {pct(r['macro_f1'])}" in texto
+    assert "| Macro-F1 reponderado |" in texto and "| Ataque classificado como benigno |" in texto
+    assert "Recall reponderado" in texto
+
+
+def test_janela_sem_benigno_no_teste_nao_conta_como_zero(treino):
+    m = ler_manifesto(treino)
+    m["janelas"][1]["avaliacao"]["amostra"]["falso_positivo_benigno"] = 0.5
+    m["janelas"][0]["avaliacao"]["amostra"]["falso_positivo_benigno"] = None
+    texto = " ".join(montar_relatorio(m).split())
+    # Com o "or 0" antigo, a janela de 2, sem valor, seria a de menor taxa.
+    assert "a menor taxa de tráfego benigno classificado como ataque é a da janela de 5" in texto
+    m["janelas"][1]["avaliacao"]["amostra"]["falso_positivo_benigno"] = None
+    texto = " ".join(montar_relatorio(m).split())
+    assert "nenhuma janela tem tráfego benigno no teste" in texto
+
+
+# --- os resultados versionados ---------------------------------------------------------------
+
+RESULTADOS = Path(__file__).resolve().parents[2] / "experimentos" / "resultados"
+
+
+@pytest.mark.skipif(not (RESULTADOS / MANIFESTO).exists(), reason="treino regerado ainda não rodado")
+def test_resultados_versionados_da_regeracao_saem_do_manifesto():
+    m = json.loads((RESULTADOS / MANIFESTO).read_text(encoding="utf-8"))
+    assert (RESULTADOS / RELATORIO).read_text(encoding="utf-8") == montar_relatorio(m)
+    metricas = {(linha["janela"], linha["classe"]): linha for linha in ler_csv(RESULTADOS / METRICAS)}
+    for j in m["janelas"]:
+        for classe, medida in j["avaliacao"]["amostra"]["por_classe"].items():
+            linha = metricas[(str(j["janela"]), classe)]
+            assert linha["recall"] == ("" if medida["recall"] is None else f"{medida['recall']:.6f}")
+            assert int(linha["suporte"]) == medida["suporte"]
+        confusao = pd.read_csv(RESULTADOS / "matrizes_confusao" / f"regerado_janela_{j['janela']}_por_rotulo.csv",
+                               index_col=0)
+        assert confusao.to_numpy().tolist() == j["avaliacao"]["matriz_por_rotulo"]["contagem"]
+        por_arquivo = [l for l in ler_csv(RESULTADOS / POR_ARQUIVO) if l["janela"] == str(j["janela"])]
+        assert [l["arquivo"] for l in por_arquivo] == [p["arquivo"] for p in j["por_arquivo"]]
+        assert sum(int(l["janelas_de_teste"]) for l in por_arquivo) == j["linhas"]["teste"]
