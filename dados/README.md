@@ -278,10 +278,12 @@ dados de treino são gerados de novo, a partir dos pcaps, com o nosso extrator (
 
 **Os atacantes.** São os sete Raspberry Pi da Tabela 1 do artigo do dataset, identificados pelo
 MAC (`codigo/classificador/atacantes.py`). A lista foi confirmada nos pcaps pela contagem de
-quadros por MAC: todos os sete atacam no Mirai e no DDoS, e só `dc:a6:32:dc:27:d5` nos demais,
-com `dc:a6:32:c9:e5:a4` em volume menor nos ataques Web. Os outros Raspberry Pi da rede são
-vítimas. O MAC `dc:a6:32:dc:27:d5` também aparece em cerca de 1% dos quadros dos pcaps benignos:
-o dispositivo que ataca gera tráfego comum, e a regra de rótulo não usa a lista nos pcaps benignos.
+quadros por MAC: os sete atacam no Mirai e em quase todos os pcaps de DDoS (em
+`DDoS-SYN_Flood.pcap`, `dc:a6:32:c9:e5:a4` fica abaixo de 1% dos quadros), e só
+`dc:a6:32:dc:27:d5` nos demais, com `dc:a6:32:c9:e5:a4` em volume menor nos ataques Web. Os outros
+Raspberry Pi da rede são vítimas. O MAC `dc:a6:32:dc:27:d5` também aparece em cerca de 1% dos
+quadros dos pcaps benignos: o dispositivo que ataca gera tráfego comum, e a regra de rótulo não
+usa a lista nos pcaps benignos.
 
 **A regra de rótulo.** O rótulo de cada pcap vem do nome do arquivo, sem o sufixo numérico
 (`DoS-HTTP_Flood1.pcap` é `DoS-HTTP_Flood`); nome que não casa com nenhum dos 34 rótulos é
@@ -296,11 +298,12 @@ pode estar contaminado.
     python -m codigo.classificador.regerar            # extrai, rotula e grava os CSVs regerados
     python -m codigo.classificador.treinar_regerado --nucleos 4   # treina e avalia nas duas janelas
 
-Os três comandos aceitam `--dataset` para apontar outra pasta de pcaps. Os dois primeiros guardam
-no manifesto o tamanho e a data de modificação de cada pcap, e numa execução seguinte só leem os
-pcaps novos ou alterados; um pcap que sumiu da pasta sai da saída. Quando chegar um pcap novo,
-basta rodar os três de novo. Os pcaps grandes levam de um a quatro minutos cada um, conforme a
-quantidade de pacotes.
+Os dois primeiros aceitam `--dataset` para apontar outra pasta de pcaps; o terceiro lê o manifesto
+da regeração (`--manifesto-da-regeracao`) e os CSVs regerados (`--destino`). Os dois primeiros
+guardam no manifesto o tamanho e a data de modificação de cada pcap, e numa execução seguinte só
+leem os pcaps novos ou alterados; um pcap que sumiu da pasta sai da saída. Quando chegar um pcap
+novo, basta rodar os três de novo. Os pcaps grandes levam de um a quatro minutos cada um, conforme
+a quantidade de pacotes.
 
 **O que sai.** `dados/processed/regerado/janela_<W>/<rotulo>.csv.gz`, fora do git, com as 39
 features, `Label`, o arquivo de origem, o índice da janela no arquivo, a quantidade de IPs de
@@ -314,8 +317,9 @@ teto de 50.000 linhas por rótulo e semente 42, como no treino exploratório. Tr
 divididos por tempo: dentro de cada pcap, as primeiras 70% das janelas vão para o treino e as
 últimas 30% para o teste, para não deixar janelas vizinhas dos dois lados; um rótulo com mais de
 um pcap tem o último arquivo, em ordem de nome, inteiro no teste. As métricas, nas duas janelas,
-estão em `experimentos/resultados/regeracao.md`, que também diz quais categorias e rótulos ainda
-não têm pcap: os números são parciais até os outros pcaps chegarem.
+estão em `experimentos/resultados/regeracao.md`. Os 34 rótulos têm pcap desde 10/10/2026, e o
+relatório guarda as rodadas parciais anteriores como referência. A janela do sistema é a de 100
+(decisão de 10/10/2026); a de 10 fica no relatório só como referência.
 
 ---
 
@@ -372,13 +376,15 @@ CICIoT2023/
 └── README_CSV.pdf                   documentação da parte de CSVs
 ```
 
-### O que vamos criar — no repositório (versionado)
+### No repositório (versionado): o que existe e o que falta criar
+
+As linhas marcadas com **(a criar)** ainda não existem.
 
 **Frente de captura** — `codigo/captura/`
 
 | Arquivo | O que faz |
 |---|---|
-| `extrator.py` | Lê um pcap, de arquivo ou de fluxo, e produz as 39 features a cada janela de quadros IPv4 ou ARP (10 por padrão). A medição não depende da origem dos quadros, o que deixa caminho para captura ao vivo |
+| `extrator.py` | Lê um pcap, de arquivo ou de fluxo, e produz as 39 features a cada janela de quadros IPv4 ou ARP. O tamanho da janela vem de `--janela`, e o sistema usa 100 (decisão de 10/10/2026). A medição não depende da origem dos quadros, o que deixa caminho para captura ao vivo |
 | `calibrar.py` | Refaz o fatiamento de 10 MB, roda o extrator e compara com o CSV oficial, bloco a bloco, nas 39 colunas. Gera `experimentos/resultados/calibracao.md` |
 
 **Frente de dados e classificador** — `codigo/classificador/`
@@ -386,10 +392,10 @@ CICIoT2023/
 | Arquivo | O que faz |
 |---|---|
 | `mapeamento.py` | Os 34 rótulos na grafia dos autores, a normalização da grafia (o `MERGED_CSV` usa MAIÚSCULAS e `BENIGN`) e o agrupamento em 8 categorias e em ataque ou benigno, igual ao `dict_7classes` e ao `dict_2classes` |
-| `amostrar.py` | Percorre os 63 arquivos do `MERGED_CSV` em fluxo, guarda todas as linhas das classes raras e sorteia no máximo 50.000 das demais. **Semente fixa.** Grava `dados/processed/amostra.csv.gz`, com as 39 features, `Label` e `Categoria`, e o manifesto da amostra |
+| `amostrar.py` | Para o treino exploratório: percorre os 63 arquivos do `MERGED_CSV` em fluxo, guarda todas as linhas das classes raras e sorteia no máximo 50.000 das demais. **Semente fixa.** Grava `dados/processed/amostra.csv.gz`, com as 39 features, `Label` e `Categoria`, e o manifesto da amostra |
 | `explorar.py` | Lê o `MERGED_CSV` inteiro e gera `experimentos/resultados/exploracao.md` |
 | `preparar.py` | Lê a amostra, escolhe as features (as 39, ou 33 sem as que dependem da janela) e o alvo (34 classes, 8 categorias, 7 com DDoS e DoS fundidas, ou ataque e benigno) e separa treino e teste, por sorteio estratificado de linhas, por grupos de vetores idênticos ou, nos dados regerados, por tempo dentro de cada pcap. **Semente fixa** |
-| `treinar.py` | Treina o Random Forest com os parâmetros padrão do scikit-learn e salva o modelo em `modelos/`, fora do git, com as features, o alvo e a divisão usados. Sem `StandardScaler` |
+| `treinar.py` | No treino exploratório, treina o Random Forest com os parâmetros padrão do scikit-learn e salva o modelo em `modelos/`, fora do git, com as features, o alvo e a divisão usados. Sem `StandardScaler` |
 | `avaliar.py` | Acurácia, macro-F1, precisão, recall e F1 por classe, matriz de confusão, taxa de falso positivo, teto, importância das features, tempo de inferência e tamanho do modelo. Mede na distribuição da amostra e reponderado para a do conjunto completo. Também pontua um CSV de fora com as 39 colunas e o rótulo conhecido, como a saída do extrator |
 | `experimento.py` | Roda o treino exploratório: execuções que combinam features, divisão, alvo e proporção das classes no treino, com três sementes. Grava o relatório, as tabelas, as matrizes de confusão e o manifesto do experimento |
 | `janela.py` | Roda o teste direto do atalho da janela: extrai cinco pcaps com janela de 10 e de 100, em leitura contínua, treina os quatro modelos de 7 categorias (39 ou 33 features, priori da amostra ou natural), pontua cada extração e grava o relatório, a tabela e o manifesto do teste |
@@ -413,11 +419,13 @@ CICIoT2023/
 | `mcp/stub.py` | O servidor MCP de mentira: responde às nove tools com os cenários, para a frente de agentes trabalhar antes de o modelo existir |
 | `mcp/aprovar.py` | O comando de terminal com que a pessoa aprova, rejeita ou promove uma proposta de ação |
 | `mcp/roteiro.py` | Gera `mcp/exemplos/incidente_flood.jsonl`, o log de exemplo de um incidente inteiro, insumo do modo replay da interface web |
-| `mcp/servidor.py` | O servidor MCP de verdade, que expõe o classificador pelas mesmas tools do contrato |
-| `agente/agentes.py` | O sistema multiagente: triagem, decisão e execução |
-| `agente/prompts/` | Os prompts de cada agente, em arquivos separados |
-| `agente/acionamento.py` | A política de acionamento: agrega, deduplica e decide quando vale chamar a LLM. Sem isso, um DDoS gera milhares de chamadas por segundo |
-| `agente/teste_tool_poisoning.py` | O experimento de segurança do MCP: uma tool com descrição envenenada, para medir se o agente cai |
+| `mcp/exemplos/` | O log de exemplo e o seu README, que explica o incidente passo a passo |
+| `mcp/servidor.py` | **(a criar)** O servidor MCP de verdade, que expõe o classificador pelas mesmas tools do contrato |
+| `agente/skills/` | As instruções dos agentes de triagem e de decisão: triagem do alerta, análise por categoria e recomendação de mitigação. A do agente de execução ainda não foi escrita |
+| `agente/agentes.py` | **(a criar)** O sistema multiagente: triagem, decisão e execução |
+| `agente/prompts/` | **(a criar)** Os prompts de cada agente, em arquivos separados |
+| `agente/acionamento.py` | **(a criar)** A política de acionamento: agrega, deduplica e decide quando vale chamar a LLM. Sem isso, um flood geraria centenas de chamadas por segundo |
+| `agente/teste_tool_poisoning.py` | **(a criar)** O experimento de segurança do MCP: uma tool com descrição envenenada, para medir se o agente cai |
 
 **Resultados** — `experimentos/`
 
@@ -437,8 +445,8 @@ CICIoT2023/
 | `resultados/janelas_sem_atacante.md` | A confirmação dos MACs dos atacantes em cada pcap e, por pcap e por janela, quantas janelas não têm nenhum quadro de atacante. `janelas_sem_atacante.csv` tem os números por pcap e janela; `janelas_sem_atacante_macs.csv`, as contagens por MAC; `manifesto_janelas_sem_atacante.json`, tudo, com hash e tamanho de cada pcap |
 | `resultados/manifesto_regeracao.json` | O registro da regeração: regra de rótulo, colunas, e por pcap o hash, o tamanho e as janelas extraídas, mantidas e descartadas, por janela |
 | `resultados/regeracao.md` | O relatório do treino nos dados regerados, nas duas janelas: os dados, a divisão, as medidas por categoria, as matrizes de confusão, a fração de cada pcap na categoria esperada, os IPs de origem por janela em DDoS e DoS e o que ainda falta. `regeracao_metricas.csv` e `regeracao_por_arquivo.csv` trazem os números; `manifesto_treino_regerado.json`, tudo |
-| `resultados/avaliacao_agentes.csv` | A qualidade das recomendações — **a tabela que ainda não tem métrica definida** |
-| `resultados/custo_latencia.csv` | Tokens e tempo de resposta por alerta |
+| `resultados/avaliacao_agentes.csv` | **(a criar)** A qualidade das recomendações, a tabela que ainda não tem métrica definida |
+| `resultados/custo_latencia.csv` | **(a criar)** Tokens e tempo de resposta por alerta |
 | `notebooks/` | Exploração livre. Nada que vá para o artigo nasce aqui sem virar script |
 
 **Raiz do repositório**
@@ -446,7 +454,10 @@ CICIoT2023/
 | Arquivo | O que faz |
 |---|---|
 | `requirements.txt` | As dependências fixadas, para todo mundo rodar igual |
-| `.env.example` | Modelo das variáveis de ambiente (chave da LLM). O `.env` de verdade nunca entra no git |
+| `ruff.toml` | A configuração do `ruff`, o lint do CI |
+| `.github/workflows/` | O CI (`ci.yml`: lint, testes, auditoria das dependências e build do frontend) e o CodeQL (`codeql.yml`) |
+| `frontend/` | A interface web, com o seu próprio README |
+| `.env.example` | **(a criar)** Modelo das variáveis de ambiente (chave da LLM). O `.env` de verdade nunca entra no git |
 
 ### Ordem em que essas coisas nascem
 
