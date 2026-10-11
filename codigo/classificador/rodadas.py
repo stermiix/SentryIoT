@@ -1650,6 +1650,21 @@ def _secao_d(m):
             *_tabela(["Categoria", "0 (fundo)", *(str(de) if de == ate else f"{de} a {ate}" for de, ate in FAIXAS_DE_QUADROS)],
                      por_categoria),
         ]
+    grandes = []
+    for arquivo, registros in por_pcap.items():
+        janelas = registros[0]["teste"]["janelas"]
+        if janelas >= 100:
+            grandes.append((_media([_fracao(p["teste"]["previstas"][p["categoria"]], janelas) for p in registros]),
+                            arquivo, janelas))
+    grandes.sort(reverse=True)
+    secao += [
+        "",
+        (
+            "Entre os pcaps com ao menos 100 janelas de fundo na parte de teste, as maiores frações na categoria do "
+            "próprio pcap são as de " + _enumerar(f"`{arquivo}` ({_pct(fracao, 1)} de {_milhar(janelas)})"
+                                               for fracao, arquivo, janelas in grandes[:4]) + "."
+        ) if grandes else "",
+    ]
     secao += [
         "",
         (
@@ -1690,6 +1705,15 @@ def _secao_e(m):
             continue
         dentro, fora = recall_dentro(r, controle, categoria, arquivos), recall_fora(r, controle, categoria)
         categorias.append([categoria, len(arquivos), _com_faixa(dentro), _com_faixa(fora), _leitura(dentro, fora)])
+    quedas = []
+    for arquivo, por_semente in r["fora"].items():
+        unidades = _nas_sementes(por_semente, controle)
+        categoria = unidades[0]["categoria"]
+        fora = [_fracao(u["teste"]["previstas"][categoria], u["teste"]["janelas"]) for u in unidades]
+        dentro = recall_dentro(r, controle, categoria, [arquivo])
+        if categoria != "BruteForce" and passa_do_ruido(dentro, fora):
+            quedas.append((_media(dentro) - _media(fora), arquivo))
+    maiores = sorted(quedas, reverse=True)[:4]
     return [
         "## e. Pcap inteiro fora do treino",
         "",
@@ -1715,6 +1739,8 @@ def _secao_e(m):
             "**O que os números mostram.** O recall dentro da captura mede o reconhecimento de um trecho seguinte "
             "da mesma captura; o recall com o pcap fora mede o reconhecimento de uma captura que o modelo não viu. A "
             "distância entre os dois, por categoria, está na última coluna."
+            + (" Fora BruteForce, as maiores quedas por pcap são em "
+               + _enumerar(f"`{arquivo}` ({_pp(-queda)} p.p.)" for queda, arquivo in maiores) + "." if maiores else "")
         ),
     ]
 
@@ -1819,7 +1845,7 @@ def _secao_f(m):
                 f"com até {_milhar(SUBAMOSTRA_DA_PERMUTACAO)} janelas da categoria. A queda é a do recall, em pontos."
             ),
             "",
-            *_tabela(["Categoria (recall de base, janelas)", "Features que mais derrubam o recall (p.p.)"], linhas),
+            *_tabela(["Categoria", "Recall de base (janelas)", "Features que mais derrubam o recall (p.p.)"], linhas),
             "",
             (
                 "No macro-F1, numa subamostra com até a mesma quantidade de janelas de cada categoria: "
