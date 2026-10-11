@@ -939,9 +939,11 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa, s
         alvo_com_rotulo = alvo.strip()
         alvo = _resolver_rotulo(estado, incidente, alvo_com_rotulo)
     elif so_rotulos and (acao in BASE or tem_endereco(alvo)):
+        # O nome só entra na mensagem quando é de uma ação de base: o de uma ação nova vem do agente.
+        de_qual = f" de {acao}" if acao in BASE else ""
         raise PedidoRecusado(
             "alvo_malformado",
-            f"Na linha de decisão, o alvo de {acao} é o rótulo neutro de um endereço do incidente, como origem-1, "
+            f"Na linha de decisão, o alvo{de_qual} é o rótulo neutro de um endereço do incidente, como origem-1, "
             "destino-1 ou admin@destino-1, como vem em obter_resumo, e não um endereço. Uma ação nova também pode "
             "descrever o alvo em texto, sem endereço.",
         )

@@ -1196,6 +1196,11 @@ def test_linha_de_decisao_nao_escreve_endereco_no_alvo(mundo, acao, alvo, parame
     assert mundo.estado.propostas == {}
 
 
+def test_recusa_do_alvo_com_endereco_nao_repete_a_entrada(mundo):
+    mensagem = recusado("alvo_malformado", mundo.propor, "a" * 100_000, "203.0.113.7", ACAO_NOVA, so_rotulos=True)
+    assert len(mensagem) < 700 and "a" * 100 not in mensagem and "203.0.113.7" not in mensagem
+
+
 def test_acao_nova_da_linha_de_decisao_aceita_alvo_em_texto_sem_endereco(mundo):
     proposta = mundo.propor("ativar_syn_cookies", "o dispositivo atacado", ACAO_NOVA, so_rotulos=True)
     assert (proposta.alvo, proposta.alvo_com_rotulo) == ("o dispositivo atacado", None)
