@@ -1,7 +1,8 @@
 # Dados — como montar o ambiente
 
-O dataset **não é versionado no git** (são ~17 GB). O repositório guarda o código e as decisões;
-os dados são uma dependência que se instala — mesma lógica do `node_modules`.
+O dataset **não é versionado no git**: o `MERGED_CSV` tem 8,7 GB, e os 38 pcaps usados na
+regeração somam cerca de 46 GB. O repositório guarda o código e as decisões; os dados são uma
+dependência que se instala, na mesma lógica do `node_modules`.
 
 Este arquivo é a receita. Seguindo ele, qualquer integrante chega ao mesmo ponto.
 
@@ -20,7 +21,8 @@ demais para manter lá. Cada pessoa baixa da fonte oficial só o que a sua taref
 | Rodar os testes (`pytest`) | Nada. Os testes que dependem do dataset são pulados | 0 |
 | Regerar os dados de treino e treinar o classificador | Os pcaps, ao menos um por classe (ver "Regeração dos dados de treino") | de 3 MB a 2 GB por pcap |
 | Treinar na amostra do `MERGED_CSV` (treino exploratório) | `MERGED_CSV/` | 8,7 GB |
-| Recalibrar o extrator (opcional) | O pcap do ataque e a pasta de CSV por ataque correspondente | de 39 MB a cerca de 0,6 GB por pcap |
+| Recalibrar o extrator (opcional) | O pcap do ataque e a pasta de CSV por ataque correspondente | de 39 MB a 1,5 GB por pcap |
+| Refazer a calibração de conjunto (opcional) | Os 38 pcaps e o `MERGED_CSV/` | cerca de 46 GB e 8,7 GB |
 
 Não usar re-uploads de terceiros (Kaggle e afins): não dá para citar a origem no artigo e não há
 garantia de que o conteúdo bate com o oficial.
@@ -32,8 +34,8 @@ Já está no `.gitignore`.
 
 ```
 TCC/CICIoT2023/
-├── MERGED_CSV/                  <- o dataset oficial de treino (63 arquivos, 8,7 GB), usado no
-│                                   treino exploratório e na exploração
+├── MERGED_CSV/                  <- o conjunto oficial em CSV (63 arquivos, 8,7 GB), usado na
+│                                   exploração e no treino exploratório
 ├── <34 pastas, uma por ataque>/ <- CSVs por ataque, sem rótulo. OPCIONAIS: só servem para
 │                                   recalibrar o extrator (a calibração já foi feita)
 ├── *.pcap                       <- os pcaps, de um a três por classe, de onde os dados de treino
@@ -46,9 +48,11 @@ TCC/CICIoT2023/
 
 ---
 
-## O dataset de treino: `MERGED_CSV/`
+## O conjunto oficial em CSV: `MERGED_CSV/`
 
-**É este que se usa para treinar.** 63 arquivos, cerca de 45,0 milhões de linhas no total, 8,7 GB.
+**Desde 10/10/2026 não é a fonte do treino do sistema**, que usa os dados regerados dos pcaps (ver
+"Regeração dos dados de treino a partir dos pcaps"). O `MERGED_CSV` serve à exploração e ao
+treino exploratório. São 63 arquivos, cerca de 45,0 milhões de linhas no total, 8,7 GB.
 
 - **40 colunas: as 39 features + `Label`** (com L maiúsculo).
 - As 39 features são **idênticas** às dos CSVs por ataque e às que o `pcap2csv` produz,
@@ -57,7 +61,7 @@ TCC/CICIoT2023/
 - Já vem mesclado entre ataques e embaralhado: cada arquivo contém linhas de todas as 34 classes.
 
 **Por que 63 arquivos e não um só:** é saída do PySpark (cada trabalhador grava a sua parte), e
-8,7 GB num arquivo único seria inabrível. Cada pedaço tem ~137 MB e cabe na memória.
+8,7 GB num arquivo único seria inabrível. Cada pedaço tem cerca de 140 MB e cabe na memória.
 
 **Nove arquivos oficiais estão truncados** (`Merged42`, `Merged44` e `Merged46` a `Merged52`):
 terminam no meio de uma linha, e os dois últimos têm só 44 MB e 14 MB. A cópia tem 45.019.234 linhas
@@ -68,7 +72,8 @@ oficial: em 04/10/2026 os doze foram baixados de novo e vieram idênticos, byte 
 tínhamos. A linha incompleta de cada um fica fora das contagens e da amostra. Os números estão em
 `experimentos/resultados/exploracao.md`.
 
-**Cada arquivo é representativo do conjunto todo** (verificado em 05/09/2026):
+**Cada arquivo é representativo do conjunto todo** (contagem feita à mão em 05/09/2026, sem
+script versionado):
 
 | | Linhas | DDOS-ICMP | BENIGN | BruteForce | PortScan |
 |---|---|---|---|---|---|
@@ -76,16 +81,16 @@ tínhamos. A linha incompleta de cada um fica fora das contagens e da amostra. O
 | Merged32 | 704.067 | 15,24% | 2,34% | 193 | 1.205 |
 | Merged63 | 428.161 | 15,33% | 2,38% | 116 | 726 |
 
-### Como amostrar para treinar
+### Como amostrar para o treino exploratório
 
-8,7 GB não cabem na memória, e Random Forest precisa de tudo junto. A estratégia:
+8,7 GB não cabem na memória, e o treino exploratório precisa de tudo junto. A estratégia:
 
 **percorrer os 63 arquivos guardando TODAS as linhas das classes raras e só uma fatia das
 classes gigantes** (um teto de 50 mil por classe). Isso derruba de 45,0 milhões para 1.288.479
 linhas e ataca o desbalanceamento ao mesmo tempo.
 
 Nas classes raras, usar os 63 arquivos faz diferença real: `DICTIONARYBRUTEFORCE` sai de 204
-exemplos (1 arquivo) para ~12 mil (63 arquivos).
+exemplos (1 arquivo) para 12.522 (63 arquivos).
 
 ⚠ O script de amostragem **precisa ficar versionado, com semente fixa**, e a estratégia precisa
 ir para a metodologia do artigo. Sem isso o resultado não é reproduzível.
@@ -115,20 +120,26 @@ atacante** (10/10/2026). O `MERGED_CSV` fica como referência e como fonte do tr
 O motivo e a receita estão em "Regeração dos dados de treino", abaixo.
 
 **Usamos as 39 features do `MERGED_CSV`.** Treino e operação partem do mesmo conjunto de colunas,
-e o extrator reproduz os valores oficiais nos cinco pcaps calibrados, com janela de 10 e de 100. A
+e o extrator reproduz os valores oficiais nos cinco pcaps calibrados, com janela de 10 e de 100;
+a calibração de conjunto confirma o cálculo nos 38 pcaps (ver "Calibração do extrator"). A
 leitura é de arquivo pcap; a captura ao vivo ainda não foi entregue. (Havia uma versão de 46
 features; as 7 extras não saem do código publicado pelos autores, porque as linhas que as
 calculariam estão comentadas no `Feature_extraction.py`, linhas 132 e 171. Por isso ela foi
 descartada.)
 
-**Classificamos em 8 categorias, não em 34 variantes.** O F1 é bem melhor, e os agentes não
-precisam da variante exata — a mitigação de um `DDoS-ICMP_Flood` e de um `DDoS-UDP_Flood` é a
-mesma. Usar o `dict_7classes` do `example.ipynb` (célula 14) tal como está: agrupamento oficial
-dos autores, citável.
+**Classificamos em 7 categorias, não em 34 variantes** (decisão de 04/10/2026). O ponto de
+partida é o `dict_7classes` do `example.ipynb` (célula 14), o agrupamento oficial dos autores, que
+tem 8 categorias contando o tráfego benigno; aqui, DDoS e DoS viram uma categoria só. As 39
+features descrevem os pacotes, e não quantas máquinas atacam: 29,5% das linhas do `MERGED_CSV`
+têm o vetor igual ao de uma linha de outra categoria, quase sempre o mesmo flood rotulado como
+DDoS e como DoS. A separação entre os dois sai da quantidade de IPs de origem do incidente, fora
+do modelo. Os agentes não precisam da variante exata: a mitigação de um `DDoS-ICMP_Flood` e a de
+um `DDoS-UDP_Flood` são a mesma.
 
-**Não gastar semanas no classificador.** Os autores já publicaram o benchmark (RF entre os dois
-melhores, com a rede neural). Reproduzir e seguir — a contribuição do trabalho é a camada
-MCP + agentes.
+**Não gastar semanas no classificador.** O benchmark dos autores põe o RF entre os dois melhores
+modelos, com a rede neural. Seguimos essa escolha sem reproduzir o resultado deles, porque o
+código do treino do RF não foi publicado (ver a seção seguinte): a contribuição do trabalho é a
+camada MCP com os agentes.
 
 ---
 
@@ -160,8 +171,8 @@ com os CSVs oficiais e grava o resultado em `experimentos/resultados/calibracao.
 
     python -m codigo.captura.calibrar
 
-Como o CSV oficial é gerado (lido no código dos autores, confirmado nos dois pcaps e descrito no
-artigo do dataset):
+Como o CSV oficial é gerado (lido no código dos autores, confirmado nos cinco pcaps calibrados e
+descrito no artigo do dataset):
 
 1. O pcap é fatiado com `tcpdump`, em pedaços de 10 MB.
 2. Cada pedaço é processado sozinho. Só entram quadros Ethernet de tipo IPv4 ou ARP.
@@ -197,6 +208,43 @@ pcap à pasta do dataset para conferir outra classe.
 O pcap de Mirai declara no cabeçalho um limite de captura de 1500 bytes e traz quadros maiores.
 A libpcap, usada pelo `tcpdump` com que os autores fatiam o arquivo, entrega esses quadros
 cortados no limite. O extrator faz o mesmo, e só assim as linhas oficiais são reproduzidas.
+
+**Calibração de conjunto** (11/10/2026, detalhes em
+`experimentos/resultados/calibracao_conjunto.md`). Os CSVs por ataque não estão mais na nossa
+cópia do dataset, e a calibração acima cobre só os cinco pcaps que tinham o seu. A de conjunto
+confere os 38 pcaps contra o `MERGED_CSV` inteiro: cada pcap é extraído como os autores
+extraíram, em pedaços de 10 MB e com a janela da classe, e cada linha nossa é procurada entre as
+linhas do mesmo rótulo no `MERGED_CSV`, com os 39 valores iguais até cerca de 9 algarismos
+significativos. A prova de que o cálculo é o dos autores é a cobertura: em 15 rótulos, toda
+linha do `MERGED_CSV` tem par entre as nossas, e uma divergência do extrator em qualquer janela
+deles deixaria uma linha sem par. Do nosso lado, entre 95,53% e 99,00% das linhas de cada pcap
+têm par; o que falta vem dos arquivos truncados na fonte oficial. Nos floods e no benigno a
+cobertura do rótulo é baixa porque temos uma ou duas partes de capturas maiores: 20 dos 38 pcaps
+têm cerca de 2.048.000.000 bytes, o tamanho em que o `tcpdump -C 2048` corta o arquivo.
+
+    python -m codigo.captura.calibrar_conjunto --dataset CICIoT2023 --processos 3
+
+O índice do `MERGED_CSV` chega a cerca de 4,3 GB de memória, e a execução completa levou 27
+minutos. Os dados intermediários ficam em `dados/processed/calibracao_conjunto`, fora do git, e
+são reaproveitados enquanto os arquivos e o código que os gera não mudarem.
+
+**O quadro como no fio.** O extrator tem duas opções, desligadas por padrão, que medem o tamanho
+do quadro como ele passa no fio, e não como a máquina que capturou o gravou: `--preencher` conta
+como 60 bytes o quadro menor que isso, gravado sem o preenchimento do Ethernet, e `--limitar`
+conta como 1.514 bytes o quadro maior, que só existe com segmentação feita pela placa da máquina
+que capturou. No CICIoT2023, `DNS_Spoofing.pcap`, `MITM-ArpSpoofing.pcap` e
+`Mirai-greip_flood21.pcap` têm quadros menores que 60 bytes, e 35 dos 38 pcaps têm quadros
+maiores que 1.514. As duas opções ficam desligadas na calibração, que reproduz os autores, e no
+modelo do sistema: a comparação com elas ligadas está em
+`experimentos/resultados/rodadas_normalizadas.md` e não foi adotada (`ROADMAP.md`, decisões em
+aberto).
+
+**Avisos da extração.** No fim, a linha de comando do extrator diz quantos quadros ficaram fora
+do filtro, por tipo, e avisa em dois casos que mudam os números: quando a maior parte dos quadros
+fora tem etiqueta de VLAN (802.1Q ou 802.1ad), que o código dos autores também descarta, e quando
+a captura gravou pacotes com menos bytes que o quadro original (limite de captura curto), o que
+deixa as colunas de tamanho menores do que no treino. Nos dois casos a correção é na captura:
+espelhar a porta sem a VLAN, ou capturar o quadro inteiro, com `tcpdump -s 0`.
 
 ---
 
@@ -269,10 +317,13 @@ dados de treino são gerados de novo, a partir dos pcaps, com o nosso extrator (
 
 **Os atacantes.** São os sete Raspberry Pi da Tabela 1 do artigo do dataset, identificados pelo
 MAC (`codigo/classificador/atacantes.py`). A lista foi confirmada nos pcaps pela contagem de
-quadros por MAC: todos os sete atacam no Mirai e no DDoS, e só `dc:a6:32:dc:27:d5` nos demais,
-com `dc:a6:32:c9:e5:a4` em volume menor nos ataques Web. Os outros Raspberry Pi da rede são
-vítimas. O MAC `dc:a6:32:dc:27:d5` também aparece em cerca de 1% dos quadros dos pcaps benignos:
-o dispositivo que ataca gera tráfego comum, e a regra de rótulo não usa a lista nos pcaps benignos.
+quadros por MAC: os sete atacam no Mirai e em quase todos os pcaps de DDoS (em
+`DDoS-SYN_Flood.pcap`, `dc:a6:32:c9:e5:a4` fica abaixo de 1% dos quadros), e só
+`dc:a6:32:dc:27:d5` nos demais, com `dc:a6:32:c9:e5:a4` em volume menor nos ataques Web. Os outros
+Raspberry Pi da rede são vítimas. O MAC `dc:a6:32:dc:27:d5` também aparece em cerca de 1% dos
+quadros dos pcaps benignos, e 27,1% das janelas de 100 desses pcaps (5,5% das de 10) têm ao
+menos um quadro de um MAC da lista: o dispositivo que ataca gera tráfego comum, e a regra de
+rótulo não usa a lista nos pcaps benignos.
 
 **A regra de rótulo.** O rótulo de cada pcap vem do nome do arquivo, sem o sufixo numérico
 (`DoS-HTTP_Flood1.pcap` é `DoS-HTTP_Flood`); nome que não casa com nenhum dos 34 rótulos é
@@ -286,17 +337,35 @@ pode estar contaminado.
     python -m codigo.classificador.atacantes          # confirma os MACs e mede as janelas sem atacante
     python -m codigo.classificador.regerar            # extrai, rotula e grava os CSVs regerados
     python -m codigo.classificador.treinar_regerado --nucleos 4   # treina e avalia nas duas janelas
+    python -m codigo.classificador.rodadas --nucleos 4            # rodadas de teste da janela de 100
 
-Os três comandos aceitam `--dataset` para apontar outra pasta de pcaps. Os dois primeiros guardam
-no manifesto o tamanho e a data de modificação de cada pcap, e numa execução seguinte só leem os
-pcaps novos ou alterados; um pcap que sumiu da pasta sai da saída. Quando chegar um pcap novo,
-basta rodar os três de novo. Os pcaps grandes levam de um a quatro minutos cada um, conforme a
-quantidade de pacotes.
+Os dois primeiros aceitam `--dataset` para apontar outra pasta de pcaps; o terceiro lê o manifesto
+da regeração (`--manifesto-da-regeracao`) e os CSVs regerados (`--destino`). Os dois primeiros
+guardam no manifesto o tamanho e a data de modificação de cada pcap, e numa execução seguinte só
+leem os pcaps novos ou alterados; um pcap que sumiu da pasta sai da saída. O manifesto da
+regeração guarda também o SHA-256 do extrator, as opções com que ele mediu os quadros e a versão
+da regra, e uma mudança em qualquer um deles faz ler todos os pcaps de novo. Quando chegar um pcap
+novo, basta rodar os comandos de novo. Os pcaps grandes levam de um a quatro minutos cada um,
+conforme a quantidade de pacotes.
+
+`regerar` aceita ainda `--processos` (quantos pcaps ler ao mesmo tempo, cada um num processo),
+`--refazer` (ler todos os pcaps de novo, sem reaproveitar as partes) e as opções do extrator
+`--preencher` e `--limitar`. A comparação com o quadro como no fio regera os pcaps em outras
+pastas e roda as rodadas com `--capturas`:
+
+    python -m codigo.classificador.regerar --janelas 100 --preencher --destino dados/processed/regerado_preenchido --saida experimentos/resultados/regeracao_preenchido
+    python -m codigo.classificador.regerar --janelas 100 --preencher --limitar --destino dados/processed/regerado_no_fio --saida experimentos/resultados/regeracao_no_fio
+    python -m codigo.classificador.rodadas --capturas --nucleos 4
 
 **O que sai.** `dados/processed/regerado/janela_<W>/<rotulo>.csv.gz`, fora do git, com as 39
 features, `Label`, o arquivo de origem, o índice da janela no arquivo, a quantidade de IPs de
-origem e de destino distintos e se havia atacante. O arquivo de cada rótulo é a junção das partes
-de cada pcap (`partes/`), e por isso um pcap novo entra sem refazer os outros. O manifesto
+origem e de destino distintos, se havia atacante, quantos quadros da janela têm um MAC atacante
+na origem ou no destino (`quadros_atacante`) e quantos MACs atacantes distintos aparecem nela
+(`macs_atacante`). O arquivo de cada rótulo é a junção das partes de cada pcap (`partes/`), e por
+isso um pcap novo entra sem refazer os outros. As janelas descartadas, sem nenhum quadro do
+atacante, ficam à parte, com as mesmas colunas e o rótulo do arquivo, em
+`descartadas/<pcap>.csv.gz`: não entram no treino e servem para medir o que o modelo faz com o
+tráfego de fundo das capturas de ataque. O manifesto
 `experimentos/resultados/manifesto_regeracao.json`, versionado, registra o hash e o tamanho de
 cada pcap e as janelas extraídas, mantidas e descartadas, por janela.
 
@@ -304,9 +373,15 @@ cada pcap e as janelas extraídas, mantidas e descartadas, por janela.
 teto de 50.000 linhas por rótulo e semente 42, como no treino exploratório. Treino e teste são
 divididos por tempo: dentro de cada pcap, as primeiras 70% das janelas vão para o treino e as
 últimas 30% para o teste, para não deixar janelas vizinhas dos dois lados; um rótulo com mais de
-um pcap tem o último arquivo, em ordem de nome, inteiro no teste. As métricas, nas duas janelas,
-estão em `experimentos/resultados/regeracao.md`, que também diz quais categorias e rótulos ainda
-não têm pcap: os números são parciais até os outros pcaps chegarem.
+um pcap tem o último arquivo, pelo sufixo numérico do nome, inteiro no teste. As métricas, nas
+duas janelas, estão em `experimentos/resultados/regeracao.md`. Os 34 rótulos têm pcap desde
+10/10/2026, e o relatório guarda as rodadas parciais anteriores como referência. A janela do
+sistema é a de 100 (decisão de 10/10/2026); a de 10 fica no relatório só como referência.
+
+Os controles do modelo de janela de 100 estão em `experimentos/resultados/rodadas_de_teste.md`:
+cinco sementes, rotação do pcap benigno de fora do treino, tráfego de fundo, pcap inteiro fora do
+treino, atalhos da captura, limiar sobre a probabilidade de benigno, intervalos de confiança das
+classes raras e custo. A comparação com o quadro como no fio está em `rodadas_normalizadas.md`.
 
 ---
 
@@ -332,7 +407,7 @@ Tudo que existe hoje e tudo que vamos criar. Quem for começar numa frente, proc
 
 ```
 CICIoT2023/
-├── MERGED_CSV/                      63 arquivos, 8,7 GB — O DATASET DE TREINO
+├── MERGED_CSV/                      63 arquivos, 8,7 GB: referência, exploração e treino exploratório
 │   └── Merged01.csv … Merged63.csv  39 features + Label, embaralhado
 │
 ├── *.pcap                           De um a três pcaps por classe, baixados da fonte oficial.
@@ -363,58 +438,65 @@ CICIoT2023/
 └── README_CSV.pdf                   documentação da parte de CSVs
 ```
 
-### O que vamos criar — no repositório (versionado)
+### No repositório (versionado): o que existe e o que falta criar
+
+As linhas marcadas com **(a criar)** ainda não existem.
 
 **Frente de captura** — `codigo/captura/`
 
 | Arquivo | O que faz |
 |---|---|
-| `extrator.py` | Lê um pcap, de arquivo ou de fluxo, e produz as 39 features a cada janela de quadros IPv4 ou ARP (10 por padrão). A medição não depende da origem dos quadros, o que deixa caminho para captura ao vivo |
+| `extrator.py` | Lê um pcap, de arquivo ou de fluxo, e produz as 39 features a cada janela de quadros IPv4 ou ARP. O tamanho da janela vem de `--janela`, e o sistema usa 100 (decisão de 10/10/2026). `--preencher` e `--limitar`, desligadas por padrão, aproximam o tamanho do quadro do que passa no fio (preenchimento até 60 bytes e teto de 1.514). A medição não depende da origem dos quadros, o que deixa caminho para captura ao vivo |
 | `calibrar.py` | Refaz o fatiamento de 10 MB, roda o extrator e compara com o CSV oficial, bloco a bloco, nas 39 colunas. Gera `experimentos/resultados/calibracao.md` |
+| `calibrar_conjunto.py` | Confere os 38 pcaps contra o `MERGED_CSV` inteiro, linha a linha dentro de cada rótulo, e compara a leitura contínua com a fatiada. Gera `experimentos/resultados/calibracao_conjunto.md`, as tabelas e o manifesto |
 
 **Frente de dados e classificador** — `codigo/classificador/`
 
 | Arquivo | O que faz |
 |---|---|
 | `mapeamento.py` | Os 34 rótulos na grafia dos autores, a normalização da grafia (o `MERGED_CSV` usa MAIÚSCULAS e `BENIGN`) e o agrupamento em 8 categorias e em ataque ou benigno, igual ao `dict_7classes` e ao `dict_2classes` |
-| `amostrar.py` | Percorre os 63 arquivos do `MERGED_CSV` em fluxo, guarda todas as linhas das classes raras e sorteia no máximo 50.000 das demais. **Semente fixa.** Grava `dados/processed/amostra.csv.gz`, com as 39 features, `Label` e `Categoria`, e o manifesto da amostra |
+| `amostrar.py` | Para o treino exploratório: percorre os 63 arquivos do `MERGED_CSV` em fluxo, guarda todas as linhas das classes raras e sorteia no máximo 50.000 das demais. **Semente fixa.** Grava `dados/processed/amostra.csv.gz`, com as 39 features, `Label` e `Categoria`, e o manifesto da amostra |
 | `explorar.py` | Lê o `MERGED_CSV` inteiro e gera `experimentos/resultados/exploracao.md` |
 | `preparar.py` | Lê a amostra, escolhe as features (as 39, ou 33 sem as que dependem da janela) e o alvo (34 classes, 8 categorias, 7 com DDoS e DoS fundidas, ou ataque e benigno) e separa treino e teste, por sorteio estratificado de linhas, por grupos de vetores idênticos ou, nos dados regerados, por tempo dentro de cada pcap. **Semente fixa** |
-| `treinar.py` | Treina o Random Forest com os parâmetros padrão do scikit-learn e salva o modelo em `modelos/`, fora do git, com as features, o alvo e a divisão usados. Sem `StandardScaler` |
+| `treinar.py` | No treino exploratório, treina o Random Forest com os parâmetros padrão do scikit-learn e salva o modelo em `modelos/`, fora do git, com as features, o alvo e a divisão usados. Sem `StandardScaler` |
 | `avaliar.py` | Acurácia, macro-F1, precisão, recall e F1 por classe, matriz de confusão, taxa de falso positivo, teto, importância das features, tempo de inferência e tamanho do modelo. Mede na distribuição da amostra e reponderado para a do conjunto completo. Também pontua um CSV de fora com as 39 colunas e o rótulo conhecido, como a saída do extrator |
 | `experimento.py` | Roda o treino exploratório: execuções que combinam features, divisão, alvo e proporção das classes no treino, com três sementes. Grava o relatório, as tabelas, as matrizes de confusão e o manifesto do experimento |
 | `janela.py` | Roda o teste direto do atalho da janela: extrai cinco pcaps com janela de 10 e de 100, em leitura contínua, treina os quatro modelos de 7 categorias (39 ou 33 features, priori da amostra ou natural), pontua cada extração e grava o relatório, a tabela e o manifesto do teste |
 | `atacantes.py` | Os MACs dos sete Raspberry Pi atacantes, o rótulo lido do nome do pcap e a medida das janelas sem atacante: lê cada pcap uma vez, conta os quadros por MAC e, com janela de 10 e de 100, as janelas sem nenhum quadro de atacante. Grava `janelas_sem_atacante.md`, as tabelas e o manifesto; numa execução seguinte só lê os pcaps novos ou alterados |
-| `regerar.py` | Regera os dados de treino: para cada pcap e cada janela, extrai as features com endereços, decide o rótulo da janela (benigno no pcap benigno; o rótulo do arquivo só na janela com atacante, senão descarta) e grava `dados/processed/regerado/janela_<W>/<rotulo>.csv.gz`. O manifesto guarda hash, tamanho e as janelas extraídas, mantidas e descartadas de cada pcap; só os pcaps novos ou alterados são lidos de novo |
+| `regerar.py` | Regera os dados de treino: para cada pcap e cada janela, extrai as features com endereços, decide o rótulo da janela (benigno no pcap benigno; o rótulo do arquivo só na janela com atacante, senão descarta) e grava `dados/processed/regerado/janela_<W>/<rotulo>.csv.gz`, com as descartadas à parte em `descartadas/`. O manifesto guarda hash, tamanho e as janelas extraídas, mantidas e descartadas de cada pcap, o SHA-256 do extrator, as opções e a versão da regra; só os pcaps novos ou alterados são lidos de novo |
 | `treinar_regerado.py` | Treina um Random Forest de 7 categorias por janela nos dados regerados, com teto de 50.000 linhas por rótulo, divisão por tempo e as 39 features; avalia na parte de teste e grava `regeracao.md`, as métricas, as matrizes de confusão e o manifesto. Os modelos ficam em `modelos/`, fora do git |
+| `rodadas.py` | Roda os controles do modelo de janela de 100 (sementes, rotação do pcap benigno de fora, tráfego de fundo, pcap fora do treino, atalhos da captura, limiar, intervalos e custo) e grava `rodadas_de_teste.md`; com `--capturas`, compara o modelo com os dados regerados com o quadro como no fio e grava `rodadas_normalizadas.md` |
 
 **Frente de MCP e agentes** — `codigo/mcp/` e `codigo/agente/`
 
 | Arquivo | O que faz |
 |---|---|
 | `mcp/README.md` | Por onde começar na frente de agentes: como subir o stub, ligar um cliente MCP, chamar cada tool, aprovar pelo terminal e ler o log de eventos |
-| `mcp/tipos.py` | Os tipos do contrato, numa fonte só: o que cada uma das nove tools recebe e devolve e o formato de cada linha do log de eventos |
+| `mcp/tipos.py` | Os tipos do contrato, numa fonte só: o que cada uma das dez tools recebe e devolve e o formato de cada linha do log de eventos |
 | `mcp/contrato.json` | O mesmo contrato em JSON Schema, gerado de `tipos.py`. Um teste falha se os dois divergirem. É ele que destrava as duas frentes em paralelo |
-| `mcp/acoes.py` | O catálogo de ações, as ações novas, a política de risco e o ambiente simulado, com desfazer |
+| `mcp/acoes.py` | O catálogo de ações, as ações novas, a política de risco, os rótulos neutros, o resumo do incidente e o ambiente simulado, com desfazer |
 | `mcp/politica.toml` | Os limites da política de risco, que a equipe ajusta sem mexer no código |
 | `mcp/base.py` | A leitura da base local de documentos e a busca usada por `pesquisar_solucoes` |
 | `mcp/base_provisoria/` | Os documentos da base local. Conteúdo provisório do stub, a substituir pelo levantamento de mitigações da equipe |
 | `mcp/eventos.py` | Gravação e leitura do log de eventos, que a interface web lê |
 | `mcp/cenarios.py` | Os quatro incidentes de exemplo do stub, com números ilustrativos: flood, força bruta, varredura de portas e falso positivo |
-| `mcp/stub.py` | O servidor MCP de mentira: responde às nove tools com os cenários, para a frente de agentes trabalhar antes de o modelo existir |
-| `mcp/aprovar.py` | O comando de terminal com que a pessoa aprova, rejeita ou promove uma proposta de ação |
+| `mcp/stub.py` | O servidor MCP de mentira: responde às dez tools com os cenários, para a frente de agentes trabalhar antes de o modelo existir |
+| `mcp/aprovar.py` | O comando de terminal com que a pessoa aprova, rejeita ou promove uma proposta de ação, e marca um incidente como já resolvido |
 | `mcp/roteiro.py` | Gera `mcp/exemplos/incidente_flood.jsonl`, o log de exemplo de um incidente inteiro, insumo do modo replay da interface web |
-| `mcp/servidor.py` | O servidor MCP de verdade, que expõe o classificador pelas mesmas tools do contrato |
-| `agente/agentes.py` | O sistema multiagente: triagem, decisão e execução |
-| `agente/prompts/` | Os prompts de cada agente, em arquivos separados |
-| `agente/acionamento.py` | A política de acionamento: agrega, deduplica e decide quando vale chamar a LLM. Sem isso, um DDoS gera milhares de chamadas por segundo |
-| `agente/teste_tool_poisoning.py` | O experimento de segurança do MCP: uma tool com descrição envenenada, para medir se o agente cai |
+| `mcp/exemplos/` | O log de exemplo e o seu README, que explica o incidente passo a passo |
+| `mcp/servidor.py` | **(a criar)** O servidor MCP de verdade, que expõe o classificador pelas mesmas tools do contrato |
+| `agente/skills/` | As instruções dos agentes de triagem e de decisão: triagem do alerta, análise por categoria e recomendação de mitigação. A do agente de execução ainda não foi escrita |
+| `agente/agentes.py` | **(a criar)** O sistema multiagente: triagem, decisão e execução |
+| `agente/prompts/` | **(a criar)** Os prompts de cada agente, em arquivos separados |
+| `agente/acionamento.py` | **(a criar)** A política de acionamento: agrega, deduplica e decide quando vale chamar a LLM. Sem isso, um flood geraria centenas de chamadas por segundo |
+| `agente/teste_tool_poisoning.py` | **(a criar)** O experimento de segurança do MCP: uma tool com descrição envenenada, para medir se o agente cai |
 
 **Resultados** — `experimentos/`
 
 | Arquivo | O que faz |
 |---|---|
 | `resultados/calibracao.md` | O relatório da calibração: o que bateu, o que divergiu e quanto |
+| `resultados/calibracao_conjunto.md` | A calibração dos 38 pcaps contra o `MERGED_CSV`: fração das nossas linhas com par, cobertura de cada rótulo, linhas sem par, leitura contínua contra fatiada e a captura de cada pcap. `calibracao_conjunto_pcaps.csv` e `calibracao_conjunto_rotulos.csv` trazem as tabelas; `manifesto_calibracao_conjunto.json`, tudo |
 | `resultados/exploracao.md` | A exploração do `MERGED_CSV` completo: linhas por classe e por categoria, janela por classe, valores vazios e infinitos, colunas redundantes e linhas repetidas |
 | `resultados/manifesto_amostra.json` | O registro da amostra: semente, teto, contagem por classe no conjunto e na amostra, hash dos arquivos lidos e hash da amostra |
 | `resultados/treino_exploratorio.md` | O relatório do treino exploratório: as execuções, as medidas por classe, a importância das features, o custo e o que os números dizem sobre as decisões em aberto |
@@ -428,8 +510,11 @@ CICIoT2023/
 | `resultados/janelas_sem_atacante.md` | A confirmação dos MACs dos atacantes em cada pcap e, por pcap e por janela, quantas janelas não têm nenhum quadro de atacante. `janelas_sem_atacante.csv` tem os números por pcap e janela; `janelas_sem_atacante_macs.csv`, as contagens por MAC; `manifesto_janelas_sem_atacante.json`, tudo, com hash e tamanho de cada pcap |
 | `resultados/manifesto_regeracao.json` | O registro da regeração: regra de rótulo, colunas, e por pcap o hash, o tamanho e as janelas extraídas, mantidas e descartadas, por janela |
 | `resultados/regeracao.md` | O relatório do treino nos dados regerados, nas duas janelas: os dados, a divisão, as medidas por categoria, as matrizes de confusão, a fração de cada pcap na categoria esperada, os IPs de origem por janela em DDoS e DoS e o que ainda falta. `regeracao_metricas.csv` e `regeracao_por_arquivo.csv` trazem os números; `manifesto_treino_regerado.json`, tudo |
-| `resultados/avaliacao_agentes.csv` | A qualidade das recomendações — **a tabela que ainda não tem métrica definida** |
-| `resultados/custo_latencia.csv` | Tokens e tempo de resposta por alerta |
+| `resultados/rodadas_de_teste.md` | Os controles do modelo de janela de 100. As tabelas estão nos `rodadas_*.csv`, e tudo, em `manifesto_rodadas.json` |
+| `resultados/rodadas_normalizadas.md` | A comparação entre o modelo do sistema e os treinos com o quadro normalizado e com o fundo como benigno. As tabelas estão nos `rodadas_normalizadas_*.csv`, e tudo, em `manifesto_rodadas_normalizadas.json` |
+| `resultados/regeracao_preenchido/`, `resultados/regeracao_no_fio/` | Os manifestos das regerações com o quadro completado até 60 bytes e com o quadro como no fio |
+| `resultados/avaliacao_agentes.csv` | **(a criar)** A qualidade das recomendações, a tabela que ainda não tem métrica definida |
+| `resultados/custo_latencia.csv` | **(a criar)** Tokens e tempo de resposta por alerta |
 | `notebooks/` | Exploração livre. Nada que vá para o artigo nasce aqui sem virar script |
 
 **Raiz do repositório**
@@ -437,13 +522,16 @@ CICIoT2023/
 | Arquivo | O que faz |
 |---|---|
 | `requirements.txt` | As dependências fixadas, para todo mundo rodar igual |
-| `.env.example` | Modelo das variáveis de ambiente (chave da LLM). O `.env` de verdade nunca entra no git |
+| `ruff.toml` | A configuração do `ruff`, o lint do CI |
+| `.github/workflows/` | O CI (`ci.yml`: lint, testes, auditoria das dependências e build do frontend) e o CodeQL (`codeql.yml`) |
+| `frontend/` | A interface web, com o seu próprio README |
+| `.env.example` | **(a criar)** Modelo das variáveis de ambiente (chave da LLM). O `.env` de verdade nunca entra no git |
 
 ### Ordem em que essas coisas nascem
 
 1. `mcp/contrato.json` — destrava as duas frentes
-2. `captura/extrator.py` e `captura/calibrar.py` — caminho crítico
-3. `classificador/mapeamento.py` → `explorar.py` e `amostrar.py` → `preparar.py` → `treinar.py` → `avaliar.py` → `experimento.py` → `janela.py` → `atacantes.py` → `regerar.py` → `treinar_regerado.py`
+2. `captura/extrator.py` e `captura/calibrar.py`, o caminho crítico; depois, `captura/calibrar_conjunto.py`
+3. `classificador/mapeamento.py` → `explorar.py` e `amostrar.py` → `preparar.py` → `treinar.py` → `avaliar.py` → `experimento.py` → `janela.py` → `atacantes.py` → `regerar.py` → `treinar_regerado.py` → `rodadas.py`
 4. `mcp/stub.py` (em paralelo a tudo, desde o contrato) → `mcp/servidor.py`
 5. `agente/` — depois que o servidor responde
 6. `experimentos/resultados/` — as tabelas vazias devem existir **antes** dos experimentos

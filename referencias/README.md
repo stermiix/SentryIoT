@@ -17,6 +17,9 @@ Material de origem, na pasta-mãe `RoadMap_TCC/` (fora deste repositório):
 A lista completa, em ABNT, está no fim de `artigo/esqueleto.md`, com a situação de cada fonte
 (revisada por pares, *preprint* ou pendente de conferência). Fontes conferidas em 11/10/2026.
 
+Ainda a conferir antes de citar: o PDF de Doménech et al. (2025), sobre a recomendação de janela
+uniforme; e Ramkumar et al. (2024), se a equipe decidir citá-lo.
+
 ## Pedido da banca do TCC I
 
 Darktrace, Netskope, Vectra AI e o ataque *Denial of Wallet* (DoW): uma fonte citável para cada,

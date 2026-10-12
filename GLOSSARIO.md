@@ -40,9 +40,16 @@ Cada linha do nosso CSV tem 39 features (números) e 1 classe (nome do ataque).
 Trinta e nove colunas de pergunta, uma coluna de resposta.
 
 **Extrator de features**
-O programa que transforma pacotes em números — o tradutor entre a rede, que fala "pacote",
-e o modelo, que fala "número". No CICIoT2023 ele agrupa os pacotes de 10 em 10 e escreve uma
-linha de features para cada grupo. Por isso 133.138 pacotes viram cerca de 13 mil linhas.
+O programa que transforma pacotes em números: o tradutor entre a rede, que fala "pacote", e o
+modelo, que fala "número". Ele agrupa os quadros em janelas de tamanho fixo e escreve uma linha
+de features por janela. Os autores do CICIoT2023 usaram janelas de 100 quadros nos floods e de 10
+nas demais classes; o SentryIoT usa 100 em todo o tráfego. Com janela de 10, os 133.138 pacotes
+do `DictionaryBruteForce.pcap` viram 13.064 linhas; com 100, 1.307.
+
+**Janela**
+Um grupo de quadros consecutivos que o extrator resume numa linha de 39 features. É a unidade
+que o classificador rotula. No SentryIoT, toda janela tem 100 quadros: um flood enche uma janela
+em milissegundos, e um ataque lento leva alguns segundos.
 
 **Calibrar o extrator**
 Provar que o nosso extrator está certo: rodamos ele no mesmo PCAP que os autores usaram e
@@ -69,9 +76,10 @@ Uma sequência de perguntas de sim ou não. "A velocidade passa de 20 mil? É tu
 pacotes têm menos de 100 bytes? → é flood."
 
 **Random Forest (floresta aleatória)**
-Centenas de árvores de decisão, cada uma olhando um recorte diferente das features e fazendo
-perguntas um pouco diferentes. Na hora de decidir, todas votam e a maioria ganha. Se uma árvore
-se confunde, as outras compensam — por isso é robusto e roda em hardware fraco.
+Muitas árvores de decisão (100, no nosso modelo), cada uma olhando um recorte diferente das
+features e fazendo perguntas um pouco diferentes. Na hora de decidir, todas votam e a maioria
+ganha. Se uma árvore se confunde, as outras compensam; por isso é robusto e roda em hardware
+fraco.
 
 **Treino, validação e teste**
 O dataset é dividido em três partes. O modelo **treina** numa, é ajustado olhando outra
@@ -80,12 +88,14 @@ treinou é como corrigir a prova com o gabarito na mão — o número sai ótimo
 
 **Baseline**
 O resultado de referência já publicado por outros. Serve para saber se o nosso está razoável.
-No CICIoT2023 o baseline do Random Forest é dos próprios autores do dataset.
+No CICIoT2023 o baseline do Random Forest é dos próprios autores do dataset. O código desse
+treino não foi publicado (o notebook dos autores não treina o RF), e por isso o resultado deles
+não é reproduzido aqui.
 
 **Desbalanceamento de classes**
-Quando umas classes têm muito mais exemplos que outras. No nosso caso é extremo: 89,5% do dataset
-é DDoS e DoS, enquanto `DictionaryBruteForce` tem 0,028% (319 amostras no conjunto de teste).
-Isso distorce as métricas — ver abaixo.
+Quando umas classes têm muito mais exemplos que outras. No nosso caso é extremo: 89,5% do
+`MERGED_CSV` é DDoS e DoS, enquanto `DictionaryBruteForce` tem 0,028% (12.522 de 45 milhões de
+linhas). Isso distorce as métricas (ver abaixo).
 
 ---
 
@@ -105,7 +115,8 @@ despercebido.
 **F1-score**
 Combina precisão e recall num número só. **É o que revela a verdade em dataset desbalanceado**:
 quando a acurácia está alta e o F1 baixo, o modelo acerta o que é fácil e abundante e erra o que
-é raro. No artigo dos autores, com 8 classes, a acurácia é alta mas o F1 fica em ~70%.
+é raro. No artigo dos autores, a acurácia é alta e o F1 bem mais baixo `[conferir os valores na
+tabela do artigo antes de citar]`.
 
 **Taxa de falso positivo (FPR)**
 Quanto tráfego normal foi acusado de ser ataque. Nosso artigo trata isso como o indicador
@@ -129,25 +140,28 @@ recomendação da banca do TCC I e é o enquadramento atual do SentryIoT.
 **Detecção por assinatura vs. por anomalia**
 Assinatura compara o tráfego com uma lista de padrões conhecidos: preciso, mas cego para ataque
 novo. Anomalia aprende como é o normal e alerta quando foge disso: pega ataque novo, mas gera
-mais alarme falso. Nosso trabalho é do segundo tipo.
+mais alarme falso. Nosso classificador é supervisionado: aprende as classes de ataque rotuladas
+do CICIoT2023 e o tráfego benigno, sem assinatura escrita à mão. Reconhece bem os tipos de ataque
+que viu no treino; o comportamento diante de um ataque novo não foi medido.
 
 **DDoS**
 Inundar um alvo com tráfego de milhares de aparelhos até ele cair. O aparelho IoT não é a
-vítima — é a arma. Nos nossos dados: 36.847 pacotes/s, todos minúsculos e idênticos.
+vítima, é a arma. Nos nossos dados, os floods são rajadas de pacotes pequenos e quase idênticos.
 
 **Port scan (varredura de portas)**
 Testar todas as portas de um alvo para ver quais estão abertas. É o ladrão testando cada porta e
-janela da casa. Ainda não é invasão, é sondagem. Nos nossos dados aparece pelo excesso de flags
-SYN (23% dos pacotes).
+janela da casa. Ainda não é invasão, é sondagem. Nos nossos dados aparece pelo excesso de
+pacotes com a flag SYN.
 
 **Brute force (força bruta)**
-Tentar senha após senha até uma funcionar. **Atenção:** nos nossos dados ele é *mais lento* que o
-tráfego normal (175 pacotes/s contra 1.415). Prova de que velocidade sozinha não detecta ataque.
+Tentar senha após senha até uma funcionar. **Atenção:** nos nossos dados ele manda *menos*
+pacotes por segundo que o tráfego normal. Prova de que velocidade sozinha não detecta ataque.
 
 **Exfiltração de dados**
 Roubo de informação: o invasor já está dentro e vai copiando dados para fora, devagar, para não
 ser notado. É o mais difícil de detectar, porque o tráfego parece legítimo.
-**O CICIoT2023 não tem essa classe** — decisão pendente com o orientador.
+**O CICIoT2023 não tem essa classe**, e por isso o cenário foi retirado da PoC em 10/10/2026, em
+decisão com o orientador (`ROADMAP.md`).
 
 **Mirai**
 Botnet que em 2016 sequestrou aparelhos IoT com senha de fábrica e derrubou boa parte da
@@ -167,7 +181,7 @@ quem transforma um alerta técnico em recomendação que um humano entende.
 
 **Token**
 O pedacinho de texto que a LLM processa, e a unidade pela qual se cobra. Importa muito para nós:
-num DDoS o classificador dispara milhares de alertas por segundo, e chamar a LLM em cada um é
+num flood o classificador rotula centenas de janelas por segundo, e chamar a LLM em cada uma é
 inviável em custo e em tempo de resposta.
 
 **Alucinação**
@@ -182,14 +196,23 @@ O padrão que estrutura esse ciclo: o agente **raciocina** sobre o que precisa, 
 uma ferramenta, olha o resultado e repete até concluir.
 
 **Sistema multiagente**
-Vários agentes com papéis diferentes (triagem, contexto, mitigação) trabalhando juntos, em vez
-de um só fazendo tudo.
+Vários agentes com papéis diferentes trabalhando juntos, em vez de um só fazendo tudo. No
+SentryIoT são três: triagem, que confere o alerta; decisão, que escolhe a mitigação; e execução,
+que aplica a medida e confere o efeito.
 
 **MCP (Model Context Protocol)**
 O padrão que conecta uma LLM a ferramentas externas. É o que liga o nosso classificador aos
 agentes. Três peças: o **host** (a aplicação com a LLM), o **client** (quem mantém a conexão) e o
-**server** (quem expõe as capacidades). O servidor oferece **tools** — funções que o agente pode
-chamar, como "classifique este fluxo".
+**server** (quem expõe as capacidades). O servidor oferece **tools**, funções que o agente pode
+chamar. No SentryIoT são dez, divididas entre os agentes: por exemplo, `obter_resumo` devolve ao
+agente de decisão o resumo de um incidente, sem endereço, e `propor_acao` registra uma proposta de
+mitigação (`codigo/mcp/README.md`).
+
+**Rótulo neutro**
+O nome que o servidor MCP põe no lugar de cada endereço no resumo do incidente: `origem-1`,
+`destino-1`. O agente de decisão, que pode rodar na nuvem, propõe a ação com o rótulo, e o
+servidor troca o rótulo pelo endereço antes de calcular o risco. Assim nenhum endereço da rede
+sai do ambiente.
 
 **Contrato da tool**
 O acordo escrito de o que a ferramenta recebe e o que devolve, em JSON. Fechar isso cedo permite
