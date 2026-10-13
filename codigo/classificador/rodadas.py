@@ -658,17 +658,28 @@ def sem_as_configuracoes(texto):
     return "".join(linhas[:inicio] + linhas[fim + 1:])
 
 
+def constantes_do_treino():
+    """O que as rodadas usam de `treinar_regerado`: só estas constantes, e não o treino do sistema."""
+    return {"ALVO": ALVO, "CLASSES": list(CLASSES), "EXTRAS": list(EXTRAS), "EXTRAS_OPCIONAIS": list(EXTRAS_OPCIONAIS),
+            "TETO": TETO}
+
+
 def codigo_da_chave():
     """O SHA-256 de cada módulo de que os números saem, como entra na chave dos treinos guardados.
 
-    É o de `codigo_do_calculo`, menos em `rodadas.py`, cujo SHA-256 deixa de fora a tabela de
-    configurações (`sem_as_configuracoes`). O manifesto registra o SHA-256 do arquivo inteiro.
+    É o de `codigo_do_calculo`, com duas exceções. Em `rodadas.py`, o SHA-256 deixa de fora a tabela
+    de configurações (`sem_as_configuracoes`). Em `treinar_regerado.py`, que treina o modelo do
+    sistema e muda com ele, entra só o SHA-256 das constantes que as rodadas usam
+    (`constantes_do_treino`). O manifesto registra o SHA-256 dos arquivos inteiros.
     """
     saida = {}
     for nome in MODULOS_DO_CALCULO:
         if nome == "codigo/classificador/rodadas.py":
             texto = sem_as_configuracoes((RAIZ / nome).read_text(encoding="utf-8"))
             saida[nome] = hashlib.sha256(texto.encode("utf-8")).hexdigest()
+        elif nome == "codigo/classificador/treinar_regerado.py":
+            constantes = json.dumps(constantes_do_treino(), sort_keys=True)
+            saida[nome] = hashlib.sha256(constantes.encode("utf-8")).hexdigest()
         else:
             saida[nome] = _sha256(RAIZ / nome)
     return saida

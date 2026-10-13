@@ -5,11 +5,15 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from codigo.classificador.operacao import PontoDeOperacao, ao_lado_do_modelo, ler
+from codigo.classificador.operacao import (
+    PontoDeOperacao,
+    ao_lado_do_modelo,
+    escolher_limiar,
+    ler,
+)
 from codigo.classificador.ponto_de_operacao import (
     MANIFESTO,
     RELATORIO,
-    escolher_limiar,
     inicios_da_validacao,
     lados_do_treino_reduzido,
     main,
@@ -151,11 +155,11 @@ def test_ponto_de_operacao_grava_manifesto_relatorio_e_tabelas(caso):
     assert list(r["configuracoes"]) == ["0", "5"]
     assert set(r["configuracoes"]["5"]["resultados"]) == {"0", "1", "2"}
     assert set(r["configuracoes"]["5"]["resultados"]["1"]) == {"42", "1", "2"}
-    assert set(r["comparacoes"]) == {"0:limiar-argmax", "5:limiar-argmax", "5-0:limiar"}
+    assert set(r["comparacoes"]) == {"0:limiar-argmax", "5:limiar-argmax", "5-0:ponto"}
     assert r["regra"] is not None and set(r["regra"]["condicoes"]) == {"a", "b", "c"}
     texto = (caso / "resultados" / RELATORIO).read_text(encoding="utf-8")
     assert texto == montar_relatorio(m)
-    for secao in ("## Resumo", "## O limiar escolhido na validação", "## No teste: corte por tempo",
+    for secao in ("## Resumo", "## A regra escolhida na validação", "## No teste: corte por tempo",
                   "## Benigno de fora: por janela e por alarme", "## Fundo virando ataque",
                   "## Pcaps de ataque no trecho de teste", "## Quais diferenças contam", "## Conferência",
                   "## Os modelos salvos", "## Como os números foram obtidos"):
@@ -164,15 +168,32 @@ def test_ponto_de_operacao_grava_manifesto_relatorio_e_tabelas(caso):
         assert (caso / "resultados" / f"ponto_de_operacao_{tabela}.csv").exists(), tabela
 
 
-def test_o_limiar_escolhido_atende_ao_alvo_na_validacao_e_e_o_menor(caso):
+def conferir_a_escolha(u):
+    """A regra escolhida cumpre a meta e reconhece pelo menos tanto ataque quanto o outro candidato que a cumpre."""
+    v = u["validacao"]
+    meta = 0.01 * v["janelas_benignas"]
+    melhor = v["curva"][str(u["melhor_limiar"])]
+    assert melhor["benigno_como_ataque"] <= meta
+    # O melhor limiar: nenhum outro limiar dentro da meta reconhece mais ataque.
+    assert all(c["ataque_reconhecido"] <= melhor["ataque_reconhecido"] for c in v["curva"].values()
+               if c["benigno_como_ataque"] <= meta)
+    candidatos = {"limiar": melhor}
+    if v["argmax"]["benigno_como_ataque"] <= meta:
+        candidatos["argmax"] = v["argmax"]
+    assert u["regra"] in candidatos
+    assert candidatos[u["regra"]]["ataque_reconhecido"] == max(c["ataque_reconhecido"] for c in candidatos.values())
+    assert u["limiar"] == (None if u["regra"] == "argmax" else u["melhor_limiar"])
+
+
+def test_a_regra_escolhida_na_validacao_e_a_de_mais_ataque_dentro_da_meta(caso):
     m = ler_manifesto(caso)
     for c in m["resultados"]["configuracoes"].values():
         for por_semente in c["resultados"].values():
             for u in por_semente.values():
-                v = u["validacao"]
-                curva = {float(t): n for t, n in v["benigno_como_ataque"].items()}
-                assert curva[u["limiar"]] <= 0.01 * v["janelas_benignas"]
-                assert all(n > 0.01 * v["janelas_benignas"] for t, n in curva.items() if t < u["limiar"])
+                conferir_a_escolha(u)
+                # O ponto de operação repete as medidas da regra escolhida.
+                if "medidas" in u:
+                    assert u["medidas"]["ponto"] == u["medidas"][u["regra"] if u["regra"] == "argmax" else "limiar"]
 
 
 def test_o_treino_inteiro_e_o_mesmo_das_rodadas_e_o_modelo_salvo_confere(caso):
@@ -183,7 +204,7 @@ def test_o_treino_inteiro_e_o_mesmo_das_rodadas_e_o_modelo_salvo_confere(caso):
                 assert u["conferencia"] is not None and not any(u["conferencia"].values())
     for nome in ("0", "5"):
         salvo = m["resultados"]["configuracoes"][nome]["resultados"]["0"]["42"]["modelo_salvo"]
-        assert salvo["diferentes_argmax"] == 0 and salvo["diferentes_limiar"] == 0
+        assert salvo["diferentes_argmax"] == salvo["diferentes_limiar"] == salvo["diferentes_ponto"] == 0
     # O argmax do ponto de operação dá as medidas do corte das rodadas.
     capturas = json.loads((caso / "resultados" / MANIFESTO_DAS_CAPTURAS).read_text(encoding="utf-8"))
     for nome in ("0", "5"):
@@ -202,7 +223,8 @@ def test_o_treino_do_sistema_e_o_de_referencia_sao_os_das_configuracoes_5_e_0(ca
     assert salvos["0"]["arquivo"] == "rf_regerado_janela_100_sem_fundo.joblib"
     for nome, salvo in salvos.items():
         unidade = m["resultados"]["configuracoes"][nome]["resultados"]["0"]["42"]
-        assert salvo["confere"] and salvo["ponto_gravado"] == {"limiar": unidade["limiar"], "seguidas": 3}
+        assert salvo["confere"]
+        assert salvo["ponto_gravado"] == {"regra": unidade["regra"], "limiar": unidade["limiar"], "seguidas": 3}
         assert ler(caso / "modelos" / salvo["arquivo"]) == PontoDeOperacao(unidade["limiar"], 3)
         conteudo = json.loads(ao_lado_do_modelo(caso / "modelos" / salvo["arquivo"]).read_text(encoding="utf-8"))
         assert conteudo["configuracao"] == nome and conteudo["semente"] == 42
@@ -259,8 +281,7 @@ def test_relatorio_versionado_sai_do_manifesto():
     for c in m["resultados"]["configuracoes"].values():
         for por_semente in c["resultados"].values():
             for u in por_semente.values():
-                v = u["validacao"]
-                assert v["benigno_como_ataque"][str(u["limiar"])] <= 0.01 * v["janelas_benignas"]
+                conferir_a_escolha(u)
                 assert u["conferencia"] is not None and not any(u["conferencia"].values())
     assert set(m["resultados"]["modelos_salvos"]) == set(m["resultados"]["configuracoes"])
     assert all(salvo["confere"] for salvo in m["resultados"]["modelos_salvos"].values())

@@ -1926,13 +1926,18 @@
         "treino_sha256": "d06acc78c3b93354613036e33fc6b3d20c45ac2c97589b8d2aefb6920f8940f3",
         "teste_sha256": "26ada8b1d406548b8133be11144ca311e80365e15a31178ce93d543822134d06"
       },
-      "treino_segundos": 17.200205583008938,
+      "treino_segundos": 16.254713749993243,
       "ponto_de_operacao": {
+        "regra": "limiar",
         "limiar": 0.93,
-        "seguidas": 3,
+        "melhor_limiar": 0.93,
         "janelas_benignas": 98665,
-        "como_ataque_no_limiar": 853,
-        "como_ataque_no_argmax": 11246,
+        "janelas_de_ataque": 3185477,
+        "argmax": {
+          "benigno_como_ataque": 11246,
+          "ataque_reconhecido": 3183547
+        },
+        "seguidas": 3,
         "validacao": {
           "Backdoor_Malware.pcap": [
             1915,
@@ -2076,108 +2081,408 @@
           ]
         },
         "linhas_do_treino_reduzido": 737883,
-        "treino_reduzido_segundos": 13.759746875002747,
+        "treino_reduzido_segundos": 13.492217499995604,
         "curva": {
-          "0.01": 80542,
-          "0.02": 74333,
-          "0.03": 70308,
-          "0.04": 67037,
-          "0.05": 64324,
-          "0.06": 61952,
-          "0.07": 59757,
-          "0.08": 57769,
-          "0.09": 55963,
-          "0.1": 54277,
-          "0.11": 52578,
-          "0.12": 51111,
-          "0.13": 49741,
-          "0.14": 48398,
-          "0.15": 47209,
-          "0.16": 46052,
-          "0.17": 44913,
-          "0.18": 43848,
-          "0.19": 42791,
-          "0.2": 41735,
-          "0.21": 40721,
-          "0.22": 39759,
-          "0.23": 38820,
-          "0.24": 37979,
-          "0.25": 37127,
-          "0.26": 36258,
-          "0.27": 35437,
-          "0.28": 34639,
-          "0.29": 33837,
-          "0.3": 33102,
-          "0.31": 32400,
-          "0.32": 31714,
-          "0.33": 30998,
-          "0.34": 30297,
-          "0.35": 29623,
-          "0.36": 28907,
-          "0.37": 28179,
-          "0.38": 27533,
-          "0.39": 26849,
-          "0.4": 26162,
-          "0.41": 25517,
-          "0.42": 24861,
-          "0.43": 24191,
-          "0.44": 23537,
-          "0.45": 22898,
-          "0.46": 22295,
-          "0.47": 21654,
-          "0.48": 21031,
-          "0.49": 20375,
-          "0.5": 19734,
-          "0.51": 19092,
-          "0.52": 18505,
-          "0.53": 17880,
-          "0.54": 17260,
-          "0.55": 16617,
-          "0.56": 16021,
-          "0.57": 15428,
-          "0.58": 14869,
-          "0.59": 14264,
-          "0.6": 13692,
-          "0.61": 13111,
-          "0.62": 12528,
-          "0.63": 11945,
-          "0.64": 11388,
-          "0.65": 10869,
-          "0.66": 10339,
-          "0.67": 9824,
-          "0.68": 9343,
-          "0.69": 8858,
-          "0.7": 8399,
-          "0.71": 7920,
-          "0.72": 7476,
-          "0.73": 7044,
-          "0.74": 6616,
-          "0.75": 6187,
-          "0.76": 5767,
-          "0.77": 5393,
-          "0.78": 5007,
-          "0.79": 4614,
-          "0.8": 4283,
-          "0.81": 3942,
-          "0.82": 3586,
-          "0.83": 3255,
-          "0.84": 2977,
-          "0.85": 2670,
-          "0.86": 2352,
-          "0.87": 2082,
-          "0.88": 1829,
-          "0.89": 1636,
-          "0.9": 1423,
-          "0.91": 1227,
-          "0.92": 1037,
-          "0.93": 853,
-          "0.94": 730,
-          "0.95": 587,
-          "0.96": 471,
-          "0.97": 358,
-          "0.98": 256,
-          "0.99": 182,
-          "1.0": 111
+          "0.01": {
+            "benigno_como_ataque": 80542,
+            "ataque_reconhecido": 3185477
+          },
+          "0.02": {
+            "benigno_como_ataque": 74333,
+            "ataque_reconhecido": 3185474
+          },
+          "0.03": {
+            "benigno_como_ataque": 70308,
+            "ataque_reconhecido": 3185473
+          },
+          "0.04": {
+            "benigno_como_ataque": 67037,
+            "ataque_reconhecido": 3185468
+          },
+          "0.05": {
+            "benigno_como_ataque": 64324,
+            "ataque_reconhecido": 3185468
+          },
+          "0.06": {
+            "benigno_como_ataque": 61952,
+            "ataque_reconhecido": 3185460
+          },
+          "0.07": {
+            "benigno_como_ataque": 59757,
+            "ataque_reconhecido": 3185457
+          },
+          "0.08": {
+            "benigno_como_ataque": 57769,
+            "ataque_reconhecido": 3185453
+          },
+          "0.09": {
+            "benigno_como_ataque": 55963,
+            "ataque_reconhecido": 3185448
+          },
+          "0.1": {
+            "benigno_como_ataque": 54277,
+            "ataque_reconhecido": 3185438
+          },
+          "0.11": {
+            "benigno_como_ataque": 52578,
+            "ataque_reconhecido": 3185428
+          },
+          "0.12": {
+            "benigno_como_ataque": 51111,
+            "ataque_reconhecido": 3185421
+          },
+          "0.13": {
+            "benigno_como_ataque": 49741,
+            "ataque_reconhecido": 3185416
+          },
+          "0.14": {
+            "benigno_como_ataque": 48398,
+            "ataque_reconhecido": 3185407
+          },
+          "0.15": {
+            "benigno_como_ataque": 47209,
+            "ataque_reconhecido": 3185397
+          },
+          "0.16": {
+            "benigno_como_ataque": 46052,
+            "ataque_reconhecido": 3185392
+          },
+          "0.17": {
+            "benigno_como_ataque": 44913,
+            "ataque_reconhecido": 3185384
+          },
+          "0.18": {
+            "benigno_como_ataque": 43848,
+            "ataque_reconhecido": 3185374
+          },
+          "0.19": {
+            "benigno_como_ataque": 42791,
+            "ataque_reconhecido": 3185361
+          },
+          "0.2": {
+            "benigno_como_ataque": 41735,
+            "ataque_reconhecido": 3185355
+          },
+          "0.21": {
+            "benigno_como_ataque": 40721,
+            "ataque_reconhecido": 3185343
+          },
+          "0.22": {
+            "benigno_como_ataque": 39759,
+            "ataque_reconhecido": 3185324
+          },
+          "0.23": {
+            "benigno_como_ataque": 38820,
+            "ataque_reconhecido": 3185314
+          },
+          "0.24": {
+            "benigno_como_ataque": 37979,
+            "ataque_reconhecido": 3185309
+          },
+          "0.25": {
+            "benigno_como_ataque": 37127,
+            "ataque_reconhecido": 3185300
+          },
+          "0.26": {
+            "benigno_como_ataque": 36258,
+            "ataque_reconhecido": 3185287
+          },
+          "0.27": {
+            "benigno_como_ataque": 35437,
+            "ataque_reconhecido": 3185277
+          },
+          "0.28": {
+            "benigno_como_ataque": 34639,
+            "ataque_reconhecido": 3185268
+          },
+          "0.29": {
+            "benigno_como_ataque": 33837,
+            "ataque_reconhecido": 3185251
+          },
+          "0.3": {
+            "benigno_como_ataque": 33102,
+            "ataque_reconhecido": 3185240
+          },
+          "0.31": {
+            "benigno_como_ataque": 32400,
+            "ataque_reconhecido": 3185225
+          },
+          "0.32": {
+            "benigno_como_ataque": 31714,
+            "ataque_reconhecido": 3185210
+          },
+          "0.33": {
+            "benigno_como_ataque": 30998,
+            "ataque_reconhecido": 3185196
+          },
+          "0.34": {
+            "benigno_como_ataque": 30297,
+            "ataque_reconhecido": 3185174
+          },
+          "0.35": {
+            "benigno_como_ataque": 29623,
+            "ataque_reconhecido": 3185146
+          },
+          "0.36": {
+            "benigno_como_ataque": 28907,
+            "ataque_reconhecido": 3185127
+          },
+          "0.37": {
+            "benigno_como_ataque": 28179,
+            "ataque_reconhecido": 3185098
+          },
+          "0.38": {
+            "benigno_como_ataque": 27533,
+            "ataque_reconhecido": 3185077
+          },
+          "0.39": {
+            "benigno_como_ataque": 26849,
+            "ataque_reconhecido": 3185047
+          },
+          "0.4": {
+            "benigno_como_ataque": 26162,
+            "ataque_reconhecido": 3185029
+          },
+          "0.41": {
+            "benigno_como_ataque": 25517,
+            "ataque_reconhecido": 3184997
+          },
+          "0.42": {
+            "benigno_como_ataque": 24861,
+            "ataque_reconhecido": 3184957
+          },
+          "0.43": {
+            "benigno_como_ataque": 24191,
+            "ataque_reconhecido": 3184923
+          },
+          "0.44": {
+            "benigno_como_ataque": 23537,
+            "ataque_reconhecido": 3184887
+          },
+          "0.45": {
+            "benigno_como_ataque": 22898,
+            "ataque_reconhecido": 3184854
+          },
+          "0.46": {
+            "benigno_como_ataque": 22295,
+            "ataque_reconhecido": 3184825
+          },
+          "0.47": {
+            "benigno_como_ataque": 21654,
+            "ataque_reconhecido": 3184780
+          },
+          "0.48": {
+            "benigno_como_ataque": 21031,
+            "ataque_reconhecido": 3184728
+          },
+          "0.49": {
+            "benigno_como_ataque": 20375,
+            "ataque_reconhecido": 3184685
+          },
+          "0.5": {
+            "benigno_como_ataque": 19734,
+            "ataque_reconhecido": 3184632
+          },
+          "0.51": {
+            "benigno_como_ataque": 19092,
+            "ataque_reconhecido": 3184583
+          },
+          "0.52": {
+            "benigno_como_ataque": 18505,
+            "ataque_reconhecido": 3184526
+          },
+          "0.53": {
+            "benigno_como_ataque": 17880,
+            "ataque_reconhecido": 3184469
+          },
+          "0.54": {
+            "benigno_como_ataque": 17260,
+            "ataque_reconhecido": 3184410
+          },
+          "0.55": {
+            "benigno_como_ataque": 16617,
+            "ataque_reconhecido": 3184350
+          },
+          "0.56": {
+            "benigno_como_ataque": 16021,
+            "ataque_reconhecido": 3184284
+          },
+          "0.57": {
+            "benigno_como_ataque": 15428,
+            "ataque_reconhecido": 3184225
+          },
+          "0.58": {
+            "benigno_como_ataque": 14869,
+            "ataque_reconhecido": 3184141
+          },
+          "0.59": {
+            "benigno_como_ataque": 14264,
+            "ataque_reconhecido": 3184066
+          },
+          "0.6": {
+            "benigno_como_ataque": 13692,
+            "ataque_reconhecido": 3183994
+          },
+          "0.61": {
+            "benigno_como_ataque": 13111,
+            "ataque_reconhecido": 3183885
+          },
+          "0.62": {
+            "benigno_como_ataque": 12528,
+            "ataque_reconhecido": 3183796
+          },
+          "0.63": {
+            "benigno_como_ataque": 11945,
+            "ataque_reconhecido": 3183706
+          },
+          "0.64": {
+            "benigno_como_ataque": 11388,
+            "ataque_reconhecido": 3183587
+          },
+          "0.65": {
+            "benigno_como_ataque": 10869,
+            "ataque_reconhecido": 3183492
+          },
+          "0.66": {
+            "benigno_como_ataque": 10339,
+            "ataque_reconhecido": 3183380
+          },
+          "0.67": {
+            "benigno_como_ataque": 9824,
+            "ataque_reconhecido": 3183260
+          },
+          "0.68": {
+            "benigno_como_ataque": 9343,
+            "ataque_reconhecido": 3183130
+          },
+          "0.69": {
+            "benigno_como_ataque": 8858,
+            "ataque_reconhecido": 3183010
+          },
+          "0.7": {
+            "benigno_como_ataque": 8399,
+            "ataque_reconhecido": 3182886
+          },
+          "0.71": {
+            "benigno_como_ataque": 7920,
+            "ataque_reconhecido": 3182734
+          },
+          "0.72": {
+            "benigno_como_ataque": 7476,
+            "ataque_reconhecido": 3182584
+          },
+          "0.73": {
+            "benigno_como_ataque": 7044,
+            "ataque_reconhecido": 3182427
+          },
+          "0.74": {
+            "benigno_como_ataque": 6616,
+            "ataque_reconhecido": 3182273
+          },
+          "0.75": {
+            "benigno_como_ataque": 6187,
+            "ataque_reconhecido": 3182121
+          },
+          "0.76": {
+            "benigno_como_ataque": 5767,
+            "ataque_reconhecido": 3181937
+          },
+          "0.77": {
+            "benigno_como_ataque": 5393,
+            "ataque_reconhecido": 3181722
+          },
+          "0.78": {
+            "benigno_como_ataque": 5007,
+            "ataque_reconhecido": 3181504
+          },
+          "0.79": {
+            "benigno_como_ataque": 4614,
+            "ataque_reconhecido": 3181280
+          },
+          "0.8": {
+            "benigno_como_ataque": 4283,
+            "ataque_reconhecido": 3181047
+          },
+          "0.81": {
+            "benigno_como_ataque": 3942,
+            "ataque_reconhecido": 3180792
+          },
+          "0.82": {
+            "benigno_como_ataque": 3586,
+            "ataque_reconhecido": 3180546
+          },
+          "0.83": {
+            "benigno_como_ataque": 3255,
+            "ataque_reconhecido": 3180265
+          },
+          "0.84": {
+            "benigno_como_ataque": 2977,
+            "ataque_reconhecido": 3179983
+          },
+          "0.85": {
+            "benigno_como_ataque": 2670,
+            "ataque_reconhecido": 3179639
+          },
+          "0.86": {
+            "benigno_como_ataque": 2352,
+            "ataque_reconhecido": 3179255
+          },
+          "0.87": {
+            "benigno_como_ataque": 2082,
+            "ataque_reconhecido": 3178864
+          },
+          "0.88": {
+            "benigno_como_ataque": 1829,
+            "ataque_reconhecido": 3178332
+          },
+          "0.89": {
+            "benigno_como_ataque": 1636,
+            "ataque_reconhecido": 3177821
+          },
+          "0.9": {
+            "benigno_como_ataque": 1423,
+            "ataque_reconhecido": 3177278
+          },
+          "0.91": {
+            "benigno_como_ataque": 1227,
+            "ataque_reconhecido": 3176652
+          },
+          "0.92": {
+            "benigno_como_ataque": 1037,
+            "ataque_reconhecido": 3175941
+          },
+          "0.93": {
+            "benigno_como_ataque": 853,
+            "ataque_reconhecido": 3175149
+          },
+          "0.94": {
+            "benigno_como_ataque": 730,
+            "ataque_reconhecido": 3174124
+          },
+          "0.95": {
+            "benigno_como_ataque": 587,
+            "ataque_reconhecido": 3172945
+          },
+          "0.96": {
+            "benigno_como_ataque": 471,
+            "ataque_reconhecido": 3171375
+          },
+          "0.97": {
+            "benigno_como_ataque": 358,
+            "ataque_reconhecido": 3169470
+          },
+          "0.98": {
+            "benigno_como_ataque": 256,
+            "ataque_reconhecido": 3166620
+          },
+          "0.99": {
+            "benigno_como_ataque": 182,
+            "ataque_reconhecido": 3161779
+          },
+          "1.0": {
+            "benigno_como_ataque": 111,
+            "ataque_reconhecido": 3150353
+          }
         },
         "arquivo": "rf_regerado_janela_10_sem_fundo.ponto_de_operacao.json"
       },
@@ -4786,13 +5091,18 @@
         "treino_sha256": "dc996d950d86294c413a89a4de6c7872770fe8e31a0fab986d847b8b57bad346",
         "teste_sha256": "73cc74fd4f94dade7a5c8c4ebcb2ba3a7676dc5c61fb0bd2f4f3aa0dec51e635"
       },
-      "treino_segundos": 13.045148834004067,
+      "treino_segundos": 12.71488045899605,
       "ponto_de_operacao": {
+        "regra": "limiar",
         "limiar": 0.68,
-        "seguidas": 3,
+        "melhor_limiar": 0.68,
         "janelas_benignas": 9866,
-        "como_ataque_no_limiar": 98,
-        "como_ataque_no_argmax": 132,
+        "janelas_de_ataque": 321428,
+        "argmax": {
+          "benigno_como_ataque": 132,
+          "ataque_reconhecido": 320895
+        },
+        "seguidas": 3,
         "validacao": {
           "Backdoor_Malware.pcap": [
             191,
@@ -4936,108 +5246,408 @@
           ]
         },
         "linhas_do_treino_reduzido": 483897,
-        "treino_reduzido_segundos": 10.592261834011879,
+        "treino_reduzido_segundos": 10.460531875010929,
         "curva": {
-          "0.01": 9006,
-          "0.02": 8059,
-          "0.03": 7154,
-          "0.04": 6368,
-          "0.05": 5678,
-          "0.06": 5080,
-          "0.07": 4565,
-          "0.08": 4171,
-          "0.09": 3834,
-          "0.1": 3518,
-          "0.11": 3234,
-          "0.12": 2994,
-          "0.13": 2769,
-          "0.14": 2561,
-          "0.15": 2395,
-          "0.16": 2224,
-          "0.17": 2092,
-          "0.18": 1974,
-          "0.19": 1847,
-          "0.2": 1741,
-          "0.21": 1643,
-          "0.22": 1565,
-          "0.23": 1465,
-          "0.24": 1387,
-          "0.25": 1324,
-          "0.26": 1234,
-          "0.27": 1173,
-          "0.28": 1118,
-          "0.29": 1054,
-          "0.3": 990,
-          "0.31": 945,
-          "0.32": 895,
-          "0.33": 860,
-          "0.34": 827,
-          "0.35": 777,
-          "0.36": 730,
-          "0.37": 681,
-          "0.38": 655,
-          "0.39": 616,
-          "0.4": 576,
-          "0.41": 550,
-          "0.42": 512,
-          "0.43": 479,
-          "0.44": 453,
-          "0.45": 432,
-          "0.46": 399,
-          "0.47": 382,
-          "0.48": 356,
-          "0.49": 336,
-          "0.5": 311,
-          "0.51": 287,
-          "0.52": 270,
-          "0.53": 261,
-          "0.54": 244,
-          "0.55": 234,
-          "0.56": 224,
-          "0.57": 211,
-          "0.58": 199,
-          "0.59": 187,
-          "0.6": 178,
-          "0.61": 169,
-          "0.62": 158,
-          "0.63": 146,
-          "0.64": 135,
-          "0.65": 127,
-          "0.66": 119,
-          "0.67": 110,
-          "0.68": 98,
-          "0.69": 89,
-          "0.7": 76,
-          "0.71": 70,
-          "0.72": 66,
-          "0.73": 58,
-          "0.74": 56,
-          "0.75": 51,
-          "0.76": 46,
-          "0.77": 41,
-          "0.78": 37,
-          "0.79": 33,
-          "0.8": 32,
-          "0.81": 28,
-          "0.82": 28,
-          "0.83": 25,
-          "0.84": 25,
-          "0.85": 24,
-          "0.86": 18,
-          "0.87": 15,
-          "0.88": 14,
-          "0.89": 13,
-          "0.9": 13,
-          "0.91": 13,
-          "0.92": 10,
-          "0.93": 7,
-          "0.94": 5,
-          "0.95": 4,
-          "0.96": 4,
-          "0.97": 3,
-          "0.98": 2,
-          "0.99": 2,
-          "1.0": 0
+          "0.01": {
+            "benigno_como_ataque": 9006,
+            "ataque_reconhecido": 321425
+          },
+          "0.02": {
+            "benigno_como_ataque": 8059,
+            "ataque_reconhecido": 321423
+          },
+          "0.03": {
+            "benigno_como_ataque": 7154,
+            "ataque_reconhecido": 321418
+          },
+          "0.04": {
+            "benigno_como_ataque": 6368,
+            "ataque_reconhecido": 321412
+          },
+          "0.05": {
+            "benigno_como_ataque": 5678,
+            "ataque_reconhecido": 321409
+          },
+          "0.06": {
+            "benigno_como_ataque": 5080,
+            "ataque_reconhecido": 321398
+          },
+          "0.07": {
+            "benigno_como_ataque": 4565,
+            "ataque_reconhecido": 321390
+          },
+          "0.08": {
+            "benigno_como_ataque": 4171,
+            "ataque_reconhecido": 321388
+          },
+          "0.09": {
+            "benigno_como_ataque": 3834,
+            "ataque_reconhecido": 321385
+          },
+          "0.1": {
+            "benigno_como_ataque": 3518,
+            "ataque_reconhecido": 321377
+          },
+          "0.11": {
+            "benigno_como_ataque": 3234,
+            "ataque_reconhecido": 321367
+          },
+          "0.12": {
+            "benigno_como_ataque": 2994,
+            "ataque_reconhecido": 321362
+          },
+          "0.13": {
+            "benigno_como_ataque": 2769,
+            "ataque_reconhecido": 321357
+          },
+          "0.14": {
+            "benigno_como_ataque": 2561,
+            "ataque_reconhecido": 321349
+          },
+          "0.15": {
+            "benigno_como_ataque": 2395,
+            "ataque_reconhecido": 321340
+          },
+          "0.16": {
+            "benigno_como_ataque": 2224,
+            "ataque_reconhecido": 321333
+          },
+          "0.17": {
+            "benigno_como_ataque": 2092,
+            "ataque_reconhecido": 321328
+          },
+          "0.18": {
+            "benigno_como_ataque": 1974,
+            "ataque_reconhecido": 321323
+          },
+          "0.19": {
+            "benigno_como_ataque": 1847,
+            "ataque_reconhecido": 321314
+          },
+          "0.2": {
+            "benigno_como_ataque": 1741,
+            "ataque_reconhecido": 321310
+          },
+          "0.21": {
+            "benigno_como_ataque": 1643,
+            "ataque_reconhecido": 321302
+          },
+          "0.22": {
+            "benigno_como_ataque": 1565,
+            "ataque_reconhecido": 321295
+          },
+          "0.23": {
+            "benigno_como_ataque": 1465,
+            "ataque_reconhecido": 321287
+          },
+          "0.24": {
+            "benigno_como_ataque": 1387,
+            "ataque_reconhecido": 321279
+          },
+          "0.25": {
+            "benigno_como_ataque": 1324,
+            "ataque_reconhecido": 321272
+          },
+          "0.26": {
+            "benigno_como_ataque": 1234,
+            "ataque_reconhecido": 321265
+          },
+          "0.27": {
+            "benigno_como_ataque": 1173,
+            "ataque_reconhecido": 321261
+          },
+          "0.28": {
+            "benigno_como_ataque": 1118,
+            "ataque_reconhecido": 321255
+          },
+          "0.29": {
+            "benigno_como_ataque": 1054,
+            "ataque_reconhecido": 321242
+          },
+          "0.3": {
+            "benigno_como_ataque": 990,
+            "ataque_reconhecido": 321236
+          },
+          "0.31": {
+            "benigno_como_ataque": 945,
+            "ataque_reconhecido": 321223
+          },
+          "0.32": {
+            "benigno_como_ataque": 895,
+            "ataque_reconhecido": 321217
+          },
+          "0.33": {
+            "benigno_como_ataque": 860,
+            "ataque_reconhecido": 321211
+          },
+          "0.34": {
+            "benigno_como_ataque": 827,
+            "ataque_reconhecido": 321202
+          },
+          "0.35": {
+            "benigno_como_ataque": 777,
+            "ataque_reconhecido": 321194
+          },
+          "0.36": {
+            "benigno_como_ataque": 730,
+            "ataque_reconhecido": 321187
+          },
+          "0.37": {
+            "benigno_como_ataque": 681,
+            "ataque_reconhecido": 321177
+          },
+          "0.38": {
+            "benigno_como_ataque": 655,
+            "ataque_reconhecido": 321160
+          },
+          "0.39": {
+            "benigno_como_ataque": 616,
+            "ataque_reconhecido": 321154
+          },
+          "0.4": {
+            "benigno_como_ataque": 576,
+            "ataque_reconhecido": 321141
+          },
+          "0.41": {
+            "benigno_como_ataque": 550,
+            "ataque_reconhecido": 321132
+          },
+          "0.42": {
+            "benigno_como_ataque": 512,
+            "ataque_reconhecido": 321119
+          },
+          "0.43": {
+            "benigno_como_ataque": 479,
+            "ataque_reconhecido": 321104
+          },
+          "0.44": {
+            "benigno_como_ataque": 453,
+            "ataque_reconhecido": 321095
+          },
+          "0.45": {
+            "benigno_como_ataque": 432,
+            "ataque_reconhecido": 321083
+          },
+          "0.46": {
+            "benigno_como_ataque": 399,
+            "ataque_reconhecido": 321067
+          },
+          "0.47": {
+            "benigno_como_ataque": 382,
+            "ataque_reconhecido": 321054
+          },
+          "0.48": {
+            "benigno_como_ataque": 356,
+            "ataque_reconhecido": 321043
+          },
+          "0.49": {
+            "benigno_como_ataque": 336,
+            "ataque_reconhecido": 321035
+          },
+          "0.5": {
+            "benigno_como_ataque": 311,
+            "ataque_reconhecido": 321025
+          },
+          "0.51": {
+            "benigno_como_ataque": 287,
+            "ataque_reconhecido": 321016
+          },
+          "0.52": {
+            "benigno_como_ataque": 270,
+            "ataque_reconhecido": 320999
+          },
+          "0.53": {
+            "benigno_como_ataque": 261,
+            "ataque_reconhecido": 320984
+          },
+          "0.54": {
+            "benigno_como_ataque": 244,
+            "ataque_reconhecido": 320972
+          },
+          "0.55": {
+            "benigno_como_ataque": 234,
+            "ataque_reconhecido": 320961
+          },
+          "0.56": {
+            "benigno_como_ataque": 224,
+            "ataque_reconhecido": 320945
+          },
+          "0.57": {
+            "benigno_como_ataque": 211,
+            "ataque_reconhecido": 320929
+          },
+          "0.58": {
+            "benigno_como_ataque": 199,
+            "ataque_reconhecido": 320909
+          },
+          "0.59": {
+            "benigno_como_ataque": 187,
+            "ataque_reconhecido": 320894
+          },
+          "0.6": {
+            "benigno_como_ataque": 178,
+            "ataque_reconhecido": 320882
+          },
+          "0.61": {
+            "benigno_como_ataque": 169,
+            "ataque_reconhecido": 320875
+          },
+          "0.62": {
+            "benigno_como_ataque": 158,
+            "ataque_reconhecido": 320862
+          },
+          "0.63": {
+            "benigno_como_ataque": 146,
+            "ataque_reconhecido": 320838
+          },
+          "0.64": {
+            "benigno_como_ataque": 135,
+            "ataque_reconhecido": 320814
+          },
+          "0.65": {
+            "benigno_como_ataque": 127,
+            "ataque_reconhecido": 320796
+          },
+          "0.66": {
+            "benigno_como_ataque": 119,
+            "ataque_reconhecido": 320779
+          },
+          "0.67": {
+            "benigno_como_ataque": 110,
+            "ataque_reconhecido": 320759
+          },
+          "0.68": {
+            "benigno_como_ataque": 98,
+            "ataque_reconhecido": 320737
+          },
+          "0.69": {
+            "benigno_como_ataque": 89,
+            "ataque_reconhecido": 320716
+          },
+          "0.7": {
+            "benigno_como_ataque": 76,
+            "ataque_reconhecido": 320692
+          },
+          "0.71": {
+            "benigno_como_ataque": 70,
+            "ataque_reconhecido": 320668
+          },
+          "0.72": {
+            "benigno_como_ataque": 66,
+            "ataque_reconhecido": 320640
+          },
+          "0.73": {
+            "benigno_como_ataque": 58,
+            "ataque_reconhecido": 320618
+          },
+          "0.74": {
+            "benigno_como_ataque": 56,
+            "ataque_reconhecido": 320582
+          },
+          "0.75": {
+            "benigno_como_ataque": 51,
+            "ataque_reconhecido": 320557
+          },
+          "0.76": {
+            "benigno_como_ataque": 46,
+            "ataque_reconhecido": 320527
+          },
+          "0.77": {
+            "benigno_como_ataque": 41,
+            "ataque_reconhecido": 320479
+          },
+          "0.78": {
+            "benigno_como_ataque": 37,
+            "ataque_reconhecido": 320449
+          },
+          "0.79": {
+            "benigno_como_ataque": 33,
+            "ataque_reconhecido": 320418
+          },
+          "0.8": {
+            "benigno_como_ataque": 32,
+            "ataque_reconhecido": 320385
+          },
+          "0.81": {
+            "benigno_como_ataque": 28,
+            "ataque_reconhecido": 320358
+          },
+          "0.82": {
+            "benigno_como_ataque": 28,
+            "ataque_reconhecido": 320311
+          },
+          "0.83": {
+            "benigno_como_ataque": 25,
+            "ataque_reconhecido": 320269
+          },
+          "0.84": {
+            "benigno_como_ataque": 25,
+            "ataque_reconhecido": 320224
+          },
+          "0.85": {
+            "benigno_como_ataque": 24,
+            "ataque_reconhecido": 320167
+          },
+          "0.86": {
+            "benigno_como_ataque": 18,
+            "ataque_reconhecido": 320102
+          },
+          "0.87": {
+            "benigno_como_ataque": 15,
+            "ataque_reconhecido": 320051
+          },
+          "0.88": {
+            "benigno_como_ataque": 14,
+            "ataque_reconhecido": 319976
+          },
+          "0.89": {
+            "benigno_como_ataque": 13,
+            "ataque_reconhecido": 319898
+          },
+          "0.9": {
+            "benigno_como_ataque": 13,
+            "ataque_reconhecido": 319804
+          },
+          "0.91": {
+            "benigno_como_ataque": 13,
+            "ataque_reconhecido": 319716
+          },
+          "0.92": {
+            "benigno_como_ataque": 10,
+            "ataque_reconhecido": 319619
+          },
+          "0.93": {
+            "benigno_como_ataque": 7,
+            "ataque_reconhecido": 319488
+          },
+          "0.94": {
+            "benigno_como_ataque": 5,
+            "ataque_reconhecido": 319342
+          },
+          "0.95": {
+            "benigno_como_ataque": 4,
+            "ataque_reconhecido": 319166
+          },
+          "0.96": {
+            "benigno_como_ataque": 4,
+            "ataque_reconhecido": 318973
+          },
+          "0.97": {
+            "benigno_como_ataque": 3,
+            "ataque_reconhecido": 318716
+          },
+          "0.98": {
+            "benigno_como_ataque": 2,
+            "ataque_reconhecido": 318368
+          },
+          "0.99": {
+            "benigno_como_ataque": 2,
+            "ataque_reconhecido": 317818
+          },
+          "1.0": {
+            "benigno_como_ataque": 0,
+            "ataque_reconhecido": 316386
+          }
         },
         "arquivo": "rf_regerado_janela_100_sem_fundo.ponto_de_operacao.json"
       },
@@ -7215,8 +7825,8 @@
       }
     }
   ],
-  "duracao_segundos": 214.47295633300382,
-  "memoria_pico_bytes": 2696839168,
+  "duracao_segundos": 316.5602452500025,
+  "memoria_pico_bytes": 2655027200,
   "rodadas_anteriores": [
     {
       "gerado_em": "2026-10-10",

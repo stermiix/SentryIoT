@@ -14,14 +14,15 @@ O que ele faz, por padrão, para o modelo do sistema (janela de 100, decisões d
    rótulo com mais de um pcap tem o último arquivo, pelo sufixo numérico do nome, inteiro no teste.
 3. Põe no treino, como Benign, as janelas de fundo da parte de treino de cada pcap de ataque (a
    configuração 5 de `rodadas_normalizadas.md`). O fundo da parte de teste não entra no teste.
-4. Escolhe o ponto de operação numa parte de validação (`operacao`): as últimas 15% da parte de
-   treino de cada pcap; um modelo treinado no resto escolhe o menor limiar t sobre 1 − P(Benign)
-   que deixa no máximo 1% do benigno da validação como ataque. O incidente abre com 3 janelas de
-   ataque seguidas.
+4. Escolhe o ponto de operação numa parte de validação (`operacao.escolher_regra`): as últimas
+   15% da parte de treino de cada pcap. Um modelo treinado no resto classifica as janelas da
+   validação, e os candidatos são a categoria mais provável (argmax) e os limiares t sobre
+   1 − P(Benign); vence, entre os que deixam no máximo 1% do benigno da validação como ataque, o de
+   maior recall de ataque na validação. O incidente abre com 3 janelas de ataque seguidas.
 5. Treina o Random Forest de 7 categorias, com DDoS e DoS juntos, nas 39 features, com os
-   parâmetros padrão do scikit-learn, e salva o modelo em `modelos/`, fora do git, com o t e o N
-   num JSON ao lado do `.joblib`.
-6. Mede na parte de teste, com a categoria mais provável e com o ponto de operação: precisão,
+   parâmetros padrão do scikit-learn, e salva o modelo em `modelos/`, fora do git, com a regra
+   escolhida e o N num JSON ao lado do `.joblib`.
+6. Mede na parte de teste, com o argmax e com o melhor limiar, e diz qual é o ponto de operação: precisão,
    recall e F1 por categoria, macro-F1, taxa de falso positivo do benigno, matriz de confusão e,
    por pcap, a fração das janelas de teste na categoria esperada. Resume também os IPs de origem
    distintos por janela nas classes de DDoS e DoS, que é a base da separação entre os dois fora do
@@ -83,7 +84,8 @@ from codigo.classificador.operacao import (
     LIMIARES,
     SEGUIDAS,
     PontoDeOperacao,
-    escolher_limiar,
+    escolher_regra,
+    para_a_escolha,
 )
 from codigo.classificador.operacao import gravar as gravar_ponto
 from codigo.classificador.preparar import (
@@ -93,7 +95,6 @@ from codigo.classificador.preparar import (
     SEMENTE,
     agrupar,
     alvo,
-    carregar,
     dividir_por_tempo,
     impressao_digital,
     matriz,
@@ -246,32 +247,45 @@ def probabilidades(modelo, X):
         modelo.n_jobs = nucleos
 
 
-def limiar_na_validacao(modelo, regeracao, destino, janela, validacao):
-    """O limiar escolhido nas janelas dos pcaps benignos da validação, todas, e não só as do teto."""
-    benignos = [p for p in regeracao["pcaps"] if p["benigno"] and p["arquivo"] in validacao]
-    p_ataque, argmax = [], 0
-    benigno = list(modelo.classes_).index(ALVOS[ALVO].benigno)
-    for rotulo in sorted({p["rotulo"] for p in benignos}):
-        quadro, _ = carregar(Path(destino) / nome_da_pasta(janela) / f"{rotulo}.csv.gz")
-        for p in (p for p in benignos if p["rotulo"] == rotulo):
-            inicio, fim = validacao[p["arquivo"]]
-            indices = quadro["indice"].to_numpy().astype(np.int64)
-            dentro = (quadro["arquivo"].to_numpy() == p["arquivo"]) & (indices >= inicio) & (indices < fim)
-            if not dentro.any():
-                continue
-            proba = probabilidades(modelo, matriz(quadro[dentro], FEATURES_39))
-            p_ataque.append(1.0 - proba[:, benigno])
-            argmax += int((proba.argmax(axis=1) != benigno).sum())
-        del quadro
-    if not p_ataque:
+def regra_na_validacao(modelo, regeracao, destino, janela, validacao):
+    """A regra escolhida na validação: as janelas dos pcaps benignos e as com o atacante dos pcaps de ataque.
+
+    Usa todas as janelas da validação, e não só as do teto, como as de `ponto_de_operacao`. Os CSVs
+    são lidos em pedaços, e só as janelas da validação são classificadas.
+    """
+    pasta = Path(destino) / nome_da_pasta(janela)
+    benignos = {p["arquivo"] for p in regeracao["pcaps"] if p["benigno"] and p["arquivo"] in validacao}
+    de_ataque = {p["arquivo"] for p in regeracao["pcaps"] if not p["benigno"] and p["arquivo"] in validacao}
+    rotulo = {p["arquivo"]: p["rotulo"] for p in regeracao["pcaps"]}
+    partes = {"benignas": ([], []), "de_ataque": ([], [])}
+    for rotulo_do_csv in sorted({rotulo[a] for a in benignos | de_ataque}):
+        caminho = pasta / f"{rotulo_do_csv}.csv.gz"
+        colunas = pd.read_csv(caminho, nrows=0).columns.tolist()
+        tipos = {coluna: np.float64 if coluna in FEATURES_39 else object for coluna in colunas}
+        for pedaco in pd.read_csv(caminho, dtype=tipos, float_precision="round_trip", chunksize=PEDACO):
+            arquivos = pedaco["arquivo"].to_numpy()
+            indices = pedaco["indice"].to_numpy().astype(np.int64)
+            for arquivo in pd.unique(arquivos):
+                if arquivo not in validacao:
+                    continue
+                inicio, fim = validacao[arquivo]
+                dentro = (arquivos == arquivo) & (indices >= inicio) & (indices < fim)
+                if not dentro.any():
+                    continue
+                proba = probabilidades(modelo, matriz(pedaco[dentro], FEATURES_39))
+                p_ataque, argmax = para_a_escolha(proba, modelo.classes_, ALVOS[ALVO].benigno)
+                destino_ = partes["benignas" if arquivo in benignos else "de_ataque"]
+                destino_[0].append(p_ataque)
+                destino_[1].append(argmax)
+    juntas = {nome: tuple(np.concatenate(lista) if lista else np.zeros(0) for lista in listas)
+              for nome, listas in partes.items()}
+    if not len(juntas["benignas"][0]):
         raise ValueError(f"janela de {janela}: a validação não tem nenhuma janela benigna")
-    limiar, curva = escolher_limiar(np.concatenate(p_ataque))
-    if limiar is None:
-        raise ValueError(f"janela de {janela}: nenhum limiar da grade deixa no máximo {ALARME_FALSO_MAXIMO} do benigno "
-                         "da validação como ataque")
-    janelas = int(sum(len(p) for p in p_ataque))
-    return {"limiar": limiar, "seguidas": SEGUIDAS, "janelas_benignas": janelas, "como_ataque_no_limiar": curva[limiar],
-            "como_ataque_no_argmax": argmax, "curva": {str(t): n for t, n in curva.items()}}
+    escolha = escolher_regra(juntas["benignas"], juntas["de_ataque"])
+    if escolha["regra"] is None:
+        raise ValueError(f"janela de {janela}: nem o argmax nem um limiar da grade deixa no máximo "
+                         f"{ALARME_FALSO_MAXIMO} do benigno da validação como ataque")
+    return {**escolha, "seguidas": SEGUIDAS}
 
 
 def ler_janela(destino, janela, teto=None, semente=SEMENTE):
@@ -461,8 +475,10 @@ def treinar_janela(regeracao, destino, janela, semente=SEMENTE, arvores=ARVORES,
     modelo, segundos_reduzido = treinar(X_reduzido, y_reduzido, semente, arvores, nucleos=nucleos)
     linhas_reduzido = len(y_reduzido)
     del X_reduzido, y_reduzido
-    ponto_escolhido = limiar_na_validacao(modelo, regeracao, destino, janela, validacao)
-    ponto = PontoDeOperacao(ponto_escolhido["limiar"], ponto_escolhido["seguidas"])
+    escolha = regra_na_validacao(modelo, regeracao, destino, janela, validacao)
+    ponto = PontoDeOperacao(escolha["limiar"], escolha["seguidas"])
+    melhor_limiar = None if escolha["melhor_limiar"] is None else PontoDeOperacao(escolha["melhor_limiar"],
+                                                                                  escolha["seguidas"])
     del modelo
     # 2. O treino inteiro, o do modelo salvo.
     X_treino, y_treino, fundo_no_treino = com_fundo(X[treino], y[treino], fundo, lados)
@@ -470,10 +486,11 @@ def treinar_janela(regeracao, destino, janela, semente=SEMENTE, arvores=ARVORES,
     del X_treino, y_treino
     X_teste = X[teste]
     previsto = prever(modelo, X_teste)
-    previsto_limiar = ponto.categorias(probabilidades(modelo, X_teste), modelo.classes_)
+    previsto_limiar = (None if melhor_limiar is None else
+                       melhor_limiar.categorias(probabilidades(modelo, X_teste), modelo.classes_))
     rotulos_de_teste = amostra["Label"].to_numpy()[teste]
     avaliacao = avaliar(previsto, rotulos_de_teste, ALVO, grupos=agrupar(X_teste))
-    avaliacao_limiar = avaliar(previsto_limiar, rotulos_de_teste, ALVO)
+    avaliacao_limiar = None if previsto_limiar is None else avaliar(previsto_limiar, rotulos_de_teste, ALVO)
     # A medida nos arquivos inteiros de teste: pcaps que o modelo não viu em nenhuma janela.
     inteiros = amostra["arquivo"].to_numpy()[teste]
     nos_inteiros = np.isin(inteiros, arquivos_de_teste)
@@ -489,7 +506,12 @@ def treinar_janela(regeracao, destino, janela, semente=SEMENTE, arvores=ARVORES,
     json_do_ponto = gravar_ponto(
         caminho, ponto, configuracao="5" if fundo_como_benigno else "0", janela=janela, semente=semente,
         escolha={"fracao_de_validacao": FRACAO_DE_VALIDACAO, "alarme_falso_maximo": ALARME_FALSO_MAXIMO,
-                 "grade": [LIMIARES[0], LIMIARES[-1], 0.01], "janelas_benignas_da_validacao": ponto_escolhido["janelas_benignas"]},
+                 "grade": [LIMIARES[0], LIMIARES[-1], 0.01], "criterio": "maior recall de ataque na validação",
+                 "janelas_benignas_da_validacao": escolha["janelas_benignas"],
+                 "janelas_de_ataque_da_validacao": escolha["janelas_de_ataque"],
+                 "argmax": escolha["argmax"], "melhor_limiar": escolha["melhor_limiar"],
+                 "no_melhor_limiar": (escolha["curva"][str(escolha["melhor_limiar"])]
+                                      if escolha["melhor_limiar"] is not None else None)},
         manifesto=f"experimentos/resultados/{nomes(fundo_como_benigno)['manifesto']}",
     )
     return {
@@ -504,10 +526,10 @@ def treinar_janela(regeracao, destino, janela, semente=SEMENTE, arvores=ARVORES,
         "divisao": {"treino_sha256": impressao_digital(treino), "teste_sha256": impressao_digital(teste)},
         "treino_segundos": segundos,
         "ponto_de_operacao": {
-            **{chave: valor for chave, valor in ponto_escolhido.items() if chave != "curva"},
+            **{chave: valor for chave, valor in escolha.items() if chave != "curva"},
             "validacao": {arquivo: list(par) for arquivo, par in validacao.items()},
             "linhas_do_treino_reduzido": linhas_reduzido, "treino_reduzido_segundos": segundos_reduzido,
-            "curva": ponto_escolhido["curva"], "arquivo": json_do_ponto.name,
+            "curva": escolha["curva"], "arquivo": json_do_ponto.name,
         },
         "avaliacao": avaliacao,
         "avaliacao_limiar": avaliacao_limiar,
@@ -671,9 +693,22 @@ def _por_rotulo_do_alvo(avaliacao):
     )
 
 
+def _avaliacao_do_ponto(j):
+    """A avaliação da regra escolhida na validação: a do argmax ou a do melhor limiar."""
+    po = j.get("ponto_de_operacao")
+    if po is None:
+        return None
+    return j["avaliacao"] if po["regra"] == "argmax" else j["avaliacao_limiar"]
+
+
 def _regras(j):
-    """As avaliações de uma janela: a da categoria mais provável e, se houver, a do ponto de operação."""
-    return [("argmax", j["avaliacao"]), *((("limiar", j["avaliacao_limiar"]),) if j.get("avaliacao_limiar") else ())]
+    """As avaliações de uma janela: a do argmax, a do melhor limiar e a do ponto de operação, a que venceu."""
+    saida = [("argmax", j["avaliacao"])]
+    if j.get("avaliacao_limiar"):
+        saida.append(("limiar", j["avaliacao_limiar"]))
+    if _avaliacao_do_ponto(j) is not None:
+        saida.append(("ponto", _avaliacao_do_ponto(j)))
+    return saida
 
 
 def gravar(manifesto, pasta):
@@ -709,7 +744,7 @@ def gravar(manifesto, pasta):
     )
     for j in manifesto["janelas"]:
         for regra, avaliacao in _regras(j):
-            nome = f"regerado_janela_{j['janela']}{arquivos['sufixo']}" + ("_limiar" if regra == "limiar" else "")
+            nome = f"regerado_janela_{j['janela']}{arquivos['sufixo']}" + ("" if regra == "argmax" else f"_{regra}")
             por_rotulo = _por_rotulo_do_alvo(avaliacao)
             por_rotulo.to_csv(pasta / MATRIZES / f"{nome}_por_rotulo.csv", index_label="rotulo", lineterminator="\n")
             matriz_de_confusao(por_rotulo, ALVO).to_csv(
@@ -756,9 +791,10 @@ def _cabecalho(m):
                 "Este relatório traz o modelo do sistema: o Random Forest de 7 categorias com janela de "
                 + _enumerar(_janelas(m)) + " quadros, treinado com as janelas de fundo da parte de treino de cada pcap "
                 "de ataque como Benign (a configuração 5 de `" + CAPTURAS + "`) e com o ponto de operação escolhido "
-                "numa parte de validação: a janela é ataque se 1 − P(Benign) ≥ t, e o incidente abre com "
-                f"{SEGUIDAS} janelas de ataque seguidas (decisões de 13/10/2026). As medidas são as da parte de "
-                "teste, com a categoria mais provável (argmax) e com o ponto de operação."
+                "numa parte de validação: entre a categoria mais provável (argmax) e os limiares t sobre "
+                "1 − P(Benign), a regra de maior recall de ataque na validação com no máximo 1% do benigno dela "
+                f"como ataque; o incidente abre com {SEGUIDAS} janelas de ataque seguidas (decisões de 13/10/2026). "
+                "As medidas são as da parte de teste, com o argmax e com o melhor limiar, lado a lado."
             ),
             "",
             (
@@ -920,19 +956,26 @@ def _treino_e_teste(m):
     return secao
 
 
+def _nome_da_regra(po):
+    return "argmax" if po["regra"] == "argmax" else f"limiar, t = {_decimal(po['limiar'], 2)}"
+
+
 def _validacao(m):
-    """Como o ponto de operação foi escolhido em cada janela: a validação, o limiar e o benigno da validação."""
+    """Como o ponto de operação foi escolhido em cada janela: a validação, os candidatos e a regra que venceu."""
     com_ponto = [j for j in m["janelas"] if j.get("ponto_de_operacao")]
     if not com_ponto:
         return []
     linhas = []
     for j in com_ponto:
         po = j["ponto_de_operacao"]
+        nb, na = po["janelas_benignas"], po["janelas_de_ataque"]
+        melhor = po["curva"][str(po["melhor_limiar"])] if po["melhor_limiar"] is not None else None
         linhas.append([
-            j["janela"], _milhar(po["linhas_do_treino_reduzido"]), _milhar(po["janelas_benignas"]),
-            _decimal(po["limiar"], 2), po["seguidas"],
-            f"{_milhar(po['como_ataque_no_limiar'])} ({_pct(po['como_ataque_no_limiar'] / po['janelas_benignas'])})",
-            f"{_milhar(po['como_ataque_no_argmax'])} ({_pct(po['como_ataque_no_argmax'] / po['janelas_benignas'])})",
+            j["janela"], _milhar(po["linhas_do_treino_reduzido"]), _milhar(nb), _milhar(na),
+            f"{_pct(po['argmax']['benigno_como_ataque'] / nb)} e {_pct(po['argmax']['ataque_reconhecido'] / na)}",
+            (f"{_decimal(po['melhor_limiar'], 2)}: {_pct(melhor['benigno_como_ataque'] / nb)} e "
+             f"{_pct(melhor['ataque_reconhecido'] / na)}") if melhor else "nenhum dentro da meta",
+            _nome_da_regra(po), po["seguidas"],
         ])
     return [
         "",
@@ -941,13 +984,17 @@ def _validacao(m):
             f"{_pct(FRACAO_DE_VALIDACAO, 0)} da parte de treino de cada pcap, por tempo, são a validação, e um modelo "
             "treinado no resto (o treino reduzido, com a mesma semente"
             + (" e com o fundo da parte reduzida" if _fundo_no_treino(m) else "")
-            + ") classifica todas as janelas dos pcaps benignos da validação, e não só as do teto. O limiar t é o "
-            f"menor da grade de 0,01 em 0,01 que deixa no máximo {_pct(ALARME_FALSO_MAXIMO, 0)} delas como ataque. "
-            "O modelo salvo é o do treino inteiro, com o t gravado ao lado."
+            + ") classifica todas as janelas da validação, e não só as do teto: as dos pcaps benignos e as com o "
+            "atacante dos pcaps de ataque. Os candidatos são a categoria mais provável (argmax) e os limiares t sobre "
+            "1 − P(Benign), de 0,01 em 0,01. Entre os que deixam no máximo "
+            f"{_pct(ALARME_FALSO_MAXIMO, 0)} das janelas benignas como ataque, vence o de maior recall de ataque na "
+            "validação. O melhor limiar é o que venceria entre os limiares; ele fica nas tabelas para comparação. O "
+            "modelo salvo é o do treino inteiro, com a regra gravada ao lado."
         ),
         "",
-        *_tabela(["Janela", "Treino reduzido", "Janelas benignas na validação", "t", "N",
-                  "Benigno da validação como ataque, no t", "Com o argmax"], linhas),
+        *_tabela(["Janela", "Treino reduzido", "Janelas benignas na validação", "Janelas de ataque na validação",
+                  "Argmax: benigno como ataque e recall de ataque", "Melhor limiar: benigno como ataque e recall de ataque",
+                  "Regra escolhida", "N"], linhas),
     ]
 
 
@@ -1070,7 +1117,7 @@ def _resultados(m, j):
         "",
         *_com_o_ponto(j),
         "Por pcap, a fração das janelas de teste na categoria esperada"
-        + (", com o argmax e com o ponto de operação," if limiar else "") + " e a categoria mais prevista"
+        + (", com o argmax e com o melhor limiar," if limiar else "") + " e a categoria mais prevista"
         + (" pelo argmax:" if limiar else ":"),
         "",
         *_tabela(["Arquivo", "Rótulo", "Categoria esperada", "Janelas de teste",
@@ -1084,11 +1131,13 @@ def _resultados(m, j):
 
 
 def _com_o_ponto(j):
-    """As medidas da parte de teste com o ponto de operação, ao lado das do argmax, e a matriz com o ponto."""
-    if not j.get("avaliacao_limiar"):
+    """As medidas da parte de teste com o argmax e com o melhor limiar, e qual dos dois é o ponto de operação."""
+    po = j.get("ponto_de_operacao")
+    if not po or not j.get("avaliacao_limiar"):
         return []
     a, b = j["avaliacao"]["amostra"], j["avaliacao_limiar"]["amostra"]
-    po = j["ponto_de_operacao"]
+    t_ = _decimal(po["melhor_limiar"], 2)
+    escolhido = lambda regra: " (ponto de operação)" if po["regra"] == regra else ""
     confusao = matriz_de_confusao(_por_rotulo_do_alvo(j["avaliacao_limiar"]), ALVO)
     globais = [
         ["Macro-F1", _pct(a["macro_f1"]), _pct(b["macro_f1"])],
@@ -1102,22 +1151,23 @@ def _com_o_ponto(j):
         for classe, me in a["por_classe"].items()
     ]
     return [
-        f"### Com o ponto de operação, janela de {j['janela']}",
+        f"### Argmax e limiar, janela de {j['janela']}",
         "",
         (
-            f"A mesma parte de teste, com a regra do sistema: ataque se 1 − P(Benign) ≥ {_decimal(po['limiar'], 2)}, na "
-            "categoria de ataque mais provável; senão, Benign. O limiar só decide entre Benign e ataque: a janela que "
-            "é ataque pelas duas regras fica na mesma categoria. A regra das "
+            f"A mesma parte de teste com as duas regras que concorreram na validação: o argmax e o melhor limiar, a "
+            f"janela ataque se 1 − P(Benign) ≥ {t_}, na categoria de ataque mais provável. O limiar só decide entre "
+            "Benign e ataque: a janela que é ataque pelas duas regras fica na mesma categoria. Na validação, venceu "
+            f"o {_nome_da_regra(po)}, e ele é o ponto de operação do modelo; o teste não entra na escolha. A regra das "
             f"{po['seguidas']} janelas seguidas vale para o alarme, e não para a janela; os alarmes estão em "
             f"`{PONTO_DE_OPERACAO}`."
         ),
         "",
-        *_tabela(["Medida", "Argmax", "Ponto de operação"], globais),
+        *_tabela(["Medida", f"Argmax{escolhido('argmax')}", f"Limiar, t = {t_}{escolhido('limiar')}"], globais),
         "",
         *_tabela(["Categoria", "Linhas de teste", "Precisão, argmax", "Precisão, limiar", "Recall, argmax",
                   "Recall, limiar", "F1, argmax", "F1, limiar"], por_classe),
         "",
-        "Matriz de confusão com o ponto de operação:",
+        f"Matriz de confusão com o limiar t = {t_}:",
         "",
         *_tabela(["Real \\ prevista", *CLASSES],
                  [[classe, *(_milhar(confusao.loc[classe, prevista]) for prevista in CLASSES)] for classe in CLASSES]),
@@ -1136,6 +1186,7 @@ def _o_que_mudou(m):
     janela = next((j for j in comuns if j["janela"] == JANELA_DO_SISTEMA), comuns[-1])
     antes = next(a for a in anterior["janelas"] if a["janela"] == janela["janela"])
     a, b = janela["avaliacao"]["amostra"], janela["avaliacao_limiar"]["amostra"]
+    po = janela["ponto_de_operacao"]
     linhas = [
         ["Macro-F1", _pct(antes["macro_f1"]), _pct(a["macro_f1"]), _pct(b["macro_f1"])],
         ["Acurácia", _pct(antes["acuracia"]), _pct(a["acuracia"]), _pct(b["acuracia"])],
@@ -1155,7 +1206,9 @@ def _o_que_mudou(m):
             "teste:"
         ),
         "",
-        *_tabela(["Medida", "Modelo anterior", "Este modelo, argmax", "Este modelo, ponto de operação"], linhas),
+        *_tabela(["Medida", "Modelo anterior", "Este modelo, argmax" + (" (ponto de operação)" if po["regra"] == "argmax" else ""),
+                  f"Este modelo, limiar t = {_decimal(po['melhor_limiar'], 2)}"
+                  + (" (ponto de operação)" if po["regra"] == "limiar" else "")], linhas),
         "",
         (
             "O corte por tempo não mostra o motivo da troca. Com o fundo no treino, cai o alarme falso no pcap benigno "
@@ -1433,7 +1486,8 @@ def _como_foram_obtidos(m):
             f"- `{nomes(_fundo_no_treino(m))['metricas']}` tem uma linha por janela, regra e categoria; "
             f"`{nomes(_fundo_no_treino(m))['por_arquivo']}`, uma por janela e pcap; "
             f"`{MATRIZES}/regerado_janela_<W>{nomes(_fundo_no_treino(m))['sufixo']}.csv` é a matriz de confusão com o "
-            "argmax, `_limiar.csv` a com o ponto de operação, e `_por_rotulo.csv` abre a classe real nos 34 rótulos."
+            "argmax, `_limiar.csv` a com o melhor limiar, `_ponto.csv` a da regra escolhida na validação, e "
+            "`_por_rotulo.csv` abre a classe real nos 34 rótulos."
         ),
         f"- Tempo total, na máquina em que rodou: {_decimal(m['duracao_segundos'])} s."
         + (f" Pico de memória do processo: {_decimal(m['memoria_pico_bytes'] / 1e9)} GB, que é o necessário para"
@@ -1458,7 +1512,7 @@ def _relatar(j):
     print(
         f"janela de {j['janela']}: {_milhar(j['linhas']['treino'])} linhas de treino, {_milhar(j['linhas']['teste'])} de "
         f"teste, treino em {_decimal(j['treino_segundos'])} s; macro-F1 {_pct(a['macro_f1'])}, benigno como ataque "
-        f"{_pct(a['falso_positivo_benigno'])}; t = {_decimal(j['ponto_de_operacao']['limiar'], 2)}",
+        f"{_pct(a['falso_positivo_benigno'])}; regra escolhida: {_nome_da_regra(j['ponto_de_operacao'])}",
         file=sys.stderr,
     )
 

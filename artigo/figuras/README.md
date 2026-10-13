@@ -10,7 +10,7 @@ ativo (`pip install -r requirements.txt -r requirements-figuras.txt`).
 |---|---|---|---|
 | 1. Arquitetura do sistema | `arquitetura.mmd` | ROADMAP.md e `codigo/mcp/README.md` (descrição, sem dados) | `python -m artigo.figuras.diagramas arquitetura` |
 | 2. Fluxo de um incidente | `fluxo_incidente.mmd` | eventos do contrato (`codigo/mcp/contrato.json`), na ordem do log `codigo/mcp/exemplos/incidente_flood.jsonl` | `python -m artigo.figuras.diagramas fluxo_incidente` |
-| 3. Matriz de confusão do modelo do sistema, no ponto de operação | `matriz_confusao.py` | `experimentos/resultados/matrizes_confusao/regerado_janela_100_limiar.csv` | `python -m artigo.figuras.matriz_confusao` |
+| 3. Matriz de confusão do modelo do sistema, no ponto de operação | `matriz_confusao.py` | `experimentos/resultados/matrizes_confusao/regerado_janela_100_ponto.csv` | `python -m artigo.figuras.matriz_confusao` |
 | 4. Teste da janela | `teste_da_janela.py` | `experimentos/resultados/teste_da_janela.csv` | `python -m artigo.figuras.teste_da_janela` |
 | 5. Janelas sem atacante | `janelas_sem_atacante.py` | `experimentos/resultados/janelas_sem_atacante.csv` | `python -m artigo.figuras.janelas_sem_atacante` |
 
@@ -28,8 +28,9 @@ podem ser citados como resultado. As horas aparecem no fuso de quem abre a pági
 
 **A matriz de confusão é a do modelo do sistema.** É o modelo da configuração 5, treinado com o
 fundo da parte de treino dos pcaps de ataque como benigno, no ponto de operação escolhido na
-validação (t = 0,61), na parte de teste do corte por tempo (decisões de 13/10/2026 no `ROADMAP.md`;
-`experimentos/resultados/regeracao.md`). A legenda precisa trazer as ressalvas dos controles: a
+validação, na parte de teste do corte por tempo (decisões de 13/10/2026 no `ROADMAP.md`;
+`experimentos/resultados/regeracao.md`). Na validação, a categoria mais provável (argmax) venceu o
+melhor limiar (t = 0,61), e a matriz é a do argmax. A legenda precisa trazer as ressalvas dos controles: a
 linha Benign é de um único pcap fora do treino, e o alarme falso muda conforme o pcap benigno que
 fica de fora (`ponto_de_operacao.md`); com o pcap inteiro fora do treino, o recall é menor que o
 da diagonal em todas as categorias com mais de um pcap, e bem menor em Recon, Spoofing e Mirai

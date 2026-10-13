@@ -436,6 +436,17 @@ def test_a_tabela_de_configuracoes_fica_fora_da_chave():
         RAIZ / "codigo" / "classificador" / "rodadas.py")
 
 
+def test_do_treino_do_sistema_so_as_constantes_entram_na_chave():
+    import codigo.classificador.rodadas as modulo
+
+    chave = modulo.codigo_da_chave()["codigo/classificador/treinar_regerado.py"]
+    assert chave == hashlib.sha256(json.dumps(modulo.constantes_do_treino(), sort_keys=True).encode("utf-8")).hexdigest()
+    assert modulo.constantes_do_treino()["TETO"] == 50_000 and modulo.constantes_do_treino()["ALVO"] == "7"
+    # O manifesto continua com o SHA-256 do arquivo inteiro.
+    assert modulo.codigo_do_calculo()["arquivos"]["codigo/classificador/treinar_regerado.py"] == modulo._sha256(
+        RAIZ / "codigo" / "classificador" / "treinar_regerado.py")
+
+
 def test_a_configuracao_5_e_a_0_com_o_fundo_como_benigno():
     import codigo.classificador.rodadas as modulo
 

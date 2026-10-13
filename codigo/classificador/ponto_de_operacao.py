@@ -11,14 +11,15 @@ sementes de controle das rodadas:
    tempo das rodadas), as últimas 15% dessas janelas, por tempo, são a validação, e o resto é o
    treino reduzido. Nos rótulos com um pcap inteiro no teste, a validação são as últimas 15% das
    janelas de cada pcap de treino. O teste não muda.
-2. Limiar. O modelo treinado no treino reduzido (a mesma amostra com teto, a mesma semente e, na
+2. Regra. O modelo treinado no treino reduzido (a mesma amostra com teto, a mesma semente e, na
    configuração com o fundo no treino, o fundo do treino reduzido) classifica todas as janelas da
-   validação. O limiar é o menor t da grade de 0,01 em 0,01 que deixa no máximo 1% das janelas dos
-   pcaps benignos da validação como ataque.
-3. Teste. O modelo treinado no treino inteiro, o mesmo do corte por tempo das rodadas, com o t
-   escolhido: as medidas por categoria no corte por tempo, o pcap benigno de fora por janela e por
+   validação. Os candidatos são o argmax e os limiares t de 0,01 em 0,01; entre os que deixam no
+   máximo 1% das janelas dos pcaps benignos da validação como ataque, vence o de maior recall de
+   ataque nas janelas com o atacante dos pcaps de ataque da validação (`operacao.escolher_regra`).
+3. Teste. O modelo treinado no treino inteiro, o mesmo do corte por tempo das rodadas, com o
+   argmax, com o melhor limiar e com a regra escolhida (o ponto de operação): as medidas por categoria no corte por tempo, o pcap benigno de fora por janela e por
    alarme, o fundo virando ataque e os pcaps de ataque que alarmam no trecho de teste. Nas rotações
-   do pcap benigno de fora, cada rotação escolhe o seu t na sua própria validação, porque a
+   do pcap benigno de fora, cada rotação escolhe a sua regra na sua própria validação, porque a
    validação da rotação 0 tem janelas do pcap que outra rotação deixa de fora.
 
 As diferenças entre o limiar e o argmax de hoje, e entre duas configurações no limiar, são pareadas
@@ -56,7 +57,8 @@ from codigo.classificador.operacao import (
     LIMIARES,
     SEGUIDAS,
     PontoDeOperacao,
-    escolher_limiar,
+    escolher_regra,
+    para_a_escolha,
 )
 from codigo.classificador.operacao import ler as ler_ponto
 from codigo.classificador.preparar import (
@@ -108,7 +110,8 @@ TRABALHO = "dados/processed/ponto_de_operacao"
 # Os modelos salvos por `treinar_regerado` que cada configuração reproduz na semente principal.
 MODELOS_SALVOS = {"0": nome_do_modelo(JANELA, fundo_como_benigno=False), "5": nome_do_modelo(JANELA)}
 # As duas regras medidas com o mesmo modelo: a do ponto de operação e a categoria mais provável de hoje.
-REGRAS = ("limiar", "argmax")
+# As regras medidas com o mesmo modelo: o melhor limiar, o argmax e o ponto de operação, a que venceu na validação.
+REGRAS = ("limiar", "argmax", "ponto")
 MODULOS = ("codigo/classificador/ponto_de_operacao.py", "codigo/classificador/operacao.py")
 
 
@@ -152,14 +155,11 @@ def na_validacao(meta, lados_da_divisao, inicios):
     return validacao & ~no_teste(meta, lados_da_divisao)
 
 
-def _p_ataque(proba, classes):
-    return 1.0 - proba[:, list(classes).index(BENIGNO)]
-
-
-def _regras(ponto, proba, classes):
-    """As categorias pelas duas regras, com as mesmas probabilidades: o limiar e o argmax de hoje."""
+def _regras(ponto, limiar, proba, classes):
+    """As categorias pelas três regras, com as mesmas probabilidades: o melhor limiar, o argmax e a escolhida."""
     classes = np.asarray(classes, dtype=object)
-    return {"limiar": ponto.categorias(proba, classes), "argmax": classes[proba.argmax(axis=1)].astype(object)}
+    return {"limiar": limiar.categorias(proba, classes), "argmax": classes[proba.argmax(axis=1)].astype(object),
+            "ponto": ponto.categorias(proba, classes)}
 
 
 def _alarmes(ponto, categorias, X):
@@ -238,7 +238,8 @@ class Ponto:
             resultado["memoria_pico_bytes"] = memoria_pico()
             self.trabalho.guardar(chave, resultado, predicoes)
             rodadas._relatar(f"ponto de operação, configuração {self.configuracao.nome}, rotação {rotacao}, semente "
-                             f"{semente}: t = {resultado['limiar']}, {_decimal(time.perf_counter() - inicio)} s")
+                             f"{semente}: regra {resultado['regra']}, melhor limiar {resultado['melhor_limiar']}, "
+                             f"{_decimal(time.perf_counter() - inicio)} s")
         return resultado
 
     def predicoes(self, chave):
@@ -259,10 +260,11 @@ class Ponto:
         del X, y
         validacao = self._validacao(modelo, lados_da_divisao, inicios, completa=rotacao == 0)
         del modelo
-        if validacao["limiar"] is None:
+        if validacao["regra"] is None or validacao["melhor_limiar"] is None:
             raise ValueError(f"configuração {self.configuracao.nome}, semente {semente}, rotação {rotacao}: nenhum "
                              f"limiar da grade deixa no máximo {ALARME_FALSO_MAXIMO} do benigno da validação como ataque")
         ponto = PontoDeOperacao(validacao["limiar"], SEGUIDAS)
+        limiar = PontoDeOperacao(validacao["melhor_limiar"], SEGUIDAS)
         # 2. O treino inteiro, o do corte por tempo (rotação 0) ou o da rotação, com o limiar escolhido.
         teste = no_teste(meta, lados_da_divisao)
         X, y = execucao._treino(posicoes, teste, lados_da_divisao)
@@ -272,9 +274,10 @@ class Ponto:
         benigno = next(a for a in de_fora(lados_da_divisao) if CATEGORIA[self._rotulo(a)] == BENIGNO)
         X_benigno, meta_benigno = dados.do_pcap(benigno)
         proba = probabilidades(modelo, execucao._X(X_benigno))
-        no_benigno = _regras(ponto, proba, modelo.classes_)
+        no_benigno = _regras(ponto, limiar, proba, modelo.classes_)
         resultado = {
-            "semente": semente, "rotacao": rotacao, "limiar": ponto.limiar, "seguidas": ponto.seguidas,
+            "semente": semente, "rotacao": rotacao, "regra": ponto.regra, "limiar": ponto.limiar,
+            "melhor_limiar": limiar.limiar, "seguidas": ponto.seguidas,
             "linhas": {"treino_reduzido": linhas_reduzido, "treino": linhas},
             "treino_segundos": segundos_reduzido + segundos,
             "validacao": validacao,
@@ -284,76 +287,81 @@ class Ponto:
                      **{f"benigno_{r}": codigos(no_benigno[r]) for r in REGRAS}}
         guardado = execucao.trabalho.obter("corte|" + str(semente) if rotacao == 0 else f"rotacao|{rotacao}|{semente}")
         if rotacao == 0:
-            medidas, mais = self._no_teste(modelo, ponto, posicoes, meta, teste, lados_da_divisao)
+            medidas, mais = self._no_teste(modelo, ponto, limiar, posicoes, meta, teste, lados_da_divisao)
             resultado.update(medidas)
             predicoes.update(mais)
         resultado["conferencia"] = self._conferencia(guardado, rotacao, semente, predicoes)
         if modelo_salvo is not None and rotacao == 0:
             del modelo
-            resultado["modelo_salvo"] = self._conferir_o_salvo(modelo_salvo, ponto, posicoes, teste, predicoes)
+            resultado["modelo_salvo"] = self._conferir_o_salvo(modelo_salvo, ponto, limiar, posicoes, teste, predicoes)
         return resultado, predicoes
 
     def _rotulo(self, arquivo):
         return next(p["rotulo"] for p in self.dados.regeracao["pcaps"] if p["arquivo"] == arquivo)
 
     def _validacao(self, modelo, lados_da_divisao, inicios, completa):
-        """O limiar escolhido no benigno da validação e, com `completa`, a regra no resto da validação."""
+        """A regra escolhida na validação e, com `completa`, a regra escolhida no resto da validação.
+
+        Os candidatos são o argmax e os limiares: as janelas benignas são as dos pcaps benignos, e as de
+        ataque, as com o atacante dos pcaps de ataque, todas, e não só as do teto.
+        """
         dados, execucao = self.dados, self.execucao
         totais = dados.totais
-        benignos, p_ataque, por_pcap = [], [], []
+        benignos, ataques, por_pcap = [], [], []
         for p in dados.regeracao["pcaps"]:
             arquivo = p["arquivo"]
-            if arquivo not in inicios or not p["benigno"]:
+            if arquivo not in inicios:
                 continue
             fim = totais[arquivo] if lados_da_divisao[arquivo] == "treino" else lados_da_divisao[arquivo]
-            X, meta = dados.do_pcap(arquivo)
-            dentro = (meta["indice"].to_numpy() >= inicios[arquivo]) & (meta["indice"].to_numpy() < fim)
-            proba = probabilidades(modelo, execucao._X(X[dentro]))
-            benignos.append((arquivo, X[dentro], proba))
-            p_ataque.append(_p_ataque(proba, modelo.classes_))
-        limiar, curva = escolher_limiar(np.concatenate(p_ataque))
-        saida = {
-            "inicios": inicios, "janelas_benignas": int(sum(len(p) for p in p_ataque)),
-            "benigno_como_ataque": {str(t): n for t, n in curva.items()}, "limiar": limiar,
-            "benigno_argmax": int(sum((prob.argmax(axis=1) != list(modelo.classes_).index(BENIGNO)).sum()
-                                      for _, _, prob in benignos)),
-        }
-        if not completa or limiar is None:
+            if p["benigno"]:
+                X, meta = dados.do_pcap(arquivo)
+                dentro = (meta["indice"].to_numpy() >= inicios[arquivo]) & (meta["indice"].to_numpy() < fim)
+                benignos.append((arquivo, X[dentro], probabilidades(modelo, execucao._X(X[dentro]))))
+            else:
+                X, com_atacante = _trecho(dados, arquivo, inicios[arquivo], fim)
+                if len(X):
+                    ataques.append((p, X, com_atacante, probabilidades(modelo, execucao._X(X))))
+
+        def escolha(partes, filtro):
+            p_ataque, argmax = zip(*(para_a_escolha(proba[filtro(parte)], modelo.classes_)
+                                     for parte, proba in partes)) if partes else ((), ())
+            return (np.concatenate(p_ataque) if p_ataque else np.zeros(0),
+                    np.concatenate(argmax) if argmax else np.zeros(0, bool))
+
+        escolhida = escolher_regra(
+            escolha([(None, proba) for _, _, proba in benignos], lambda _: slice(None)),
+            escolha([(com_atacante, proba) for _, _, com_atacante, proba in ataques], lambda filtro: filtro),
+        )
+        saida = {"inicios": inicios, **escolhida}
+        if not completa or escolhida["regra"] is None:
             return saida
-        ponto = PontoDeOperacao(limiar, SEGUIDAS)
+        ponto = PontoDeOperacao(escolhida["limiar"], SEGUIDAS)
         for arquivo, X, proba in benignos:
             por_pcap.append({"arquivo": arquivo, "categoria": BENIGNO, "com_atacante": 0,
                              **_alarmes(ponto, ponto.categorias(proba, modelo.classes_), X)})
         contagem = {classe: {"janelas": 0, "na_categoria": 0, "como_ataque": 0} for classe in CLASSES if classe != BENIGNO}
         fundo = {"janelas": 0, "como_ataque": 0}
-        for p in dados.regeracao["pcaps"]:
-            arquivo = p["arquivo"]
-            if arquivo not in inicios or p["benigno"]:
-                continue
-            fim = totais[arquivo] if lados_da_divisao[arquivo] == "treino" else lados_da_divisao[arquivo]
-            X, com_atacante = _trecho(dados, arquivo, inicios[arquivo], fim)
-            if not len(X):
-                continue
-            categorias = ponto.categorias(probabilidades(modelo, execucao._X(X)), modelo.classes_)
+        for p, X, com_atacante, proba in ataques:
+            categorias = ponto.categorias(proba, modelo.classes_)
             categoria = CATEGORIA[p["rotulo"]]
             contagem[categoria]["janelas"] += int(com_atacante.sum())
             contagem[categoria]["na_categoria"] += int((categorias[com_atacante] == categoria).sum())
             contagem[categoria]["como_ataque"] += int((categorias[com_atacante] != BENIGNO).sum())
             fundo["janelas"] += int((~com_atacante).sum())
             fundo["como_ataque"] += int((categorias[~com_atacante] != BENIGNO).sum())
-            por_pcap.append({"arquivo": arquivo, "categoria": categoria, "com_atacante": int(com_atacante.sum()),
+            por_pcap.append({"arquivo": p["arquivo"], "categoria": categoria, "com_atacante": int(com_atacante.sum()),
                              **_alarmes(ponto, categorias, X)})
         saida.update({"por_categoria": contagem, "fundo": fundo, "por_pcap": por_pcap})
         return saida
 
-    def _no_teste(self, modelo, ponto, posicoes, meta, teste, lados_da_divisao):
+    def _no_teste(self, modelo, ponto, limiar, posicoes, meta, teste, lados_da_divisao):
         """Na rotação 0: o corte por tempo, o fundo e o trecho de teste de cada pcap de ataque, pelas duas regras."""
         dados, execucao = self.dados, self.execucao
         rotulos = meta["Label"].to_numpy()[teste]
         arquivos = meta["arquivo"].to_numpy()[teste]
-        no_corte = _regras(ponto, probabilidades(modelo, execucao._X(dados.X[posicoes[teste]])), modelo.classes_)
+        no_corte = _regras(ponto, limiar, probabilidades(modelo, execucao._X(dados.X[posicoes[teste]])), modelo.classes_)
         fundo_teste = no_teste(dados.fundo_meta, lados_da_divisao)
-        no_fundo = _regras(ponto, probabilidades(modelo, execucao._X(dados.fundo_X)), modelo.classes_)
+        no_fundo = _regras(ponto, limiar, probabilidades(modelo, execucao._X(dados.fundo_X)), modelo.classes_)
         fundo_arquivos = dados.fundo_meta["arquivo"].to_numpy()
         fundo = {
             r: {"janelas": int(fundo_teste.sum()), "como_ataque": int((no_fundo[r][fundo_teste] != BENIGNO).sum()),
@@ -369,7 +377,7 @@ class Ponto:
             X, com_atacante = _trecho(dados, p["arquivo"], None if lado == "teste" else lado)
             if not len(X):
                 continue
-            categorias = _regras(ponto, probabilidades(modelo, execucao._X(X)), modelo.classes_)
+            categorias = _regras(ponto, limiar, probabilidades(modelo, execucao._X(X)), modelo.classes_)
             trechos.append({"arquivo": p["arquivo"], "categoria": CATEGORIA[p["rotulo"]],
                             "com_atacante": int(com_atacante.sum()),
                             **{r: _alarmes(ponto, categorias[r], X) for r in REGRAS}})
@@ -401,11 +409,11 @@ class Ponto:
             pares += [("teste_previsto", "teste_argmax"), ("fundo_previsto", "fundo_argmax")]
         return {nome: int((antes[nome] != predicoes[novo]).sum()) for nome, novo in pares}
 
-    def _conferir_o_salvo(self, caminho, ponto, posicoes, teste, predicoes):
+    def _conferir_o_salvo(self, caminho, ponto, limiar, posicoes, teste, predicoes):
         """O modelo salvo no corte por tempo, pelas duas regras, contra o retreino da mesma semente."""
         salvo = carregar_modelo(caminho)["modelo"]
         proba = probabilidades(salvo, self.execucao._X(self.dados.X[posicoes[teste]]))
-        regras = _regras(ponto, proba, salvo.classes_)
+        regras = _regras(ponto, limiar, proba, salvo.classes_)
         return {"arquivo": Path(caminho).name, "caminho": Path(caminho).as_posix(), "sha256": _sha256(caminho),
                 **{f"diferentes_{r}": int((codigos(regras[r]) != predicoes[f"teste_{r}"]).sum()) for r in REGRAS}}
 
@@ -487,8 +495,8 @@ def rodar(configuracoes, dados, sementes=SEMENTES, arvores=ARVORES, nucleos=TODO
         saida["comparacoes"][f"{nome}:limiar-argmax"] = comparar_pontos(Vista(ponto, "argmax"), Vista(ponto, "limiar"),
                                                                         controle, rotacoes_)
         if nome != referencia.nome:
-            saida["comparacoes"][f"{nome}-{referencia.nome}:limiar"] = comparar_pontos(
-                Vista(pontos[referencia.nome], "limiar"), Vista(ponto, "limiar"), controle, rotacoes_)
+            saida["comparacoes"][f"{nome}-{referencia.nome}:ponto"] = comparar_pontos(
+                Vista(pontos[referencia.nome], "ponto"), Vista(ponto, "ponto"), controle, rotacoes_)
     return saida
 
 
@@ -497,13 +505,15 @@ def conferir_modelo_salvo(unidade, caminho):
     salvo = unidade["modelo_salvo"]
     try:
         gravado = ler_ponto(caminho)
-        ponto = {"limiar": gravado.limiar, "seguidas": gravado.seguidas}
+        ponto = {"regra": gravado.regra, "limiar": gravado.limiar, "seguidas": gravado.seguidas}
     except (OSError, ValueError, KeyError):
         ponto = None
     return {
-        **salvo, "limiar_escolhido": unidade["limiar"], "seguidas": unidade["seguidas"], "ponto_gravado": ponto,
+        **salvo, "regra_escolhida": unidade["regra"], "limiar_escolhido": unidade["limiar"],
+        "seguidas": unidade["seguidas"], "ponto_gravado": ponto,
         "confere": (not any(salvo[f"diferentes_{r}"] for r in REGRAS) and ponto is not None
-                    and ponto["limiar"] == unidade["limiar"] and ponto["seguidas"] == unidade["seguidas"]),
+                    and (ponto["regra"], ponto["limiar"], ponto["seguidas"])
+                    == (unidade["regra"], unidade["limiar"], unidade["seguidas"])),
     }
 
 

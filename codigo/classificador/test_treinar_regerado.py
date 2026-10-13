@@ -250,8 +250,9 @@ def test_salva_um_modelo_por_janela(treino):
 def test_grava_as_tabelas_e_as_matrizes(treino):
     resultados = treino / "resultados"
     metricas = ler_csv(resultados / METRICAS)
-    assert len(metricas) == 2 * 2 * 7
-    assert {l["janela"] for l in metricas} == {"2", "5"} and {l["regra"] for l in metricas} == {"argmax", "limiar"}
+    assert len(metricas) == 2 * 3 * 7
+    assert {l["janela"] for l in metricas} == {"2", "5"}
+    assert {l["regra"] for l in metricas} == {"argmax", "limiar", "ponto"}
     recon = next(l for l in metricas if l["janela"] == "2" and l["classe"] == "Recon")
     assert set(recon) == {"janela", "regra", "classe", "precisao", "recall", "f1", "suporte", "taxa_falso_positivo"}
     assert 0 <= float(recon["recall"]) <= 1
@@ -260,7 +261,7 @@ def test_grava_as_tabelas_e_as_matrizes(treino):
     por_arquivo = ler_csv(resultados / POR_ARQUIVO)
     assert len(por_arquivo) == 2 * 9
     assert set(por_arquivo[0]) >= {"janela", "arquivo", "rotulo", "categoria_esperada", "janelas_de_teste", "na_esperada"}
-    for janela, sufixo in ((janela, sufixo) for janela in JANELAS for sufixo in ("", "_limiar")):
+    for janela, sufixo in ((janela, sufixo) for janela in JANELAS for sufixo in ("", "_limiar", "_ponto")):
         confusao = pd.read_csv(resultados / "matrizes_confusao" / f"regerado_janela_{janela}{sufixo}.csv", index_col=0)
         assert list(confusao.index) == list(ALVOS[ALVO].classes) == list(confusao.columns)
         por_rotulo = pd.read_csv(resultados / "matrizes_confusao" / f"regerado_janela_{janela}{sufixo}_por_rotulo.csv",
@@ -541,17 +542,26 @@ def test_o_ponto_de_operacao_sai_da_validacao_e_fica_ao_lado_do_modelo(treino):
         assert po["validacao"]["BenignTraffic.pcap"] == [24, 28] and po["janelas_benignas"] == 1
         assert "BenignTraffic1.pcap" not in po["validacao"]
         assert po["validacao"]["Recon-PortScan.pcap"] == [26, 30]
-        assert po["seguidas"] == 3 and po["como_ataque_no_limiar"] <= 0.01 * po["janelas_benignas"]
-        menores = [float(t) for t, n in po["curva"].items() if n > 0.01 * po["janelas_benignas"]]
-        assert all(t < po["limiar"] for t in menores)
+        # As janelas de ataque da validação: as mantidas de cada pcap de ataque, do início da validação ao corte.
+        assert po["janelas_de_ataque"] == 7 * 4 and po["seguidas"] == 3
+        # A regra vencedora cumpre a meta e reconhece pelo menos tanto ataque quanto o outro candidato.
+        meta = 0.01 * po["janelas_benignas"]
+        candidatos = {"argmax": po["argmax"]}
+        if po["melhor_limiar"] is not None:
+            candidatos["limiar"] = po["curva"][str(po["melhor_limiar"])]
+        dentro = {regra: c for regra, c in candidatos.items() if c["benigno_como_ataque"] <= meta}
+        assert po["regra"] in dentro
+        assert dentro[po["regra"]]["ataque_reconhecido"] == max(c["ataque_reconhecido"] for c in dentro.values())
+        assert po["limiar"] == (None if po["regra"] == "argmax" else po["melhor_limiar"])
         modelo = treino / "modelos" / f"rf_regerado_janela_{j['janela']}.joblib"
         assert ler(modelo) == PontoDeOperacao(po["limiar"], 3)
         assert ao_lado_do_modelo(modelo).name == po["arquivo"]
-        # As duas regras avaliam as mesmas janelas de teste.
+        # As regras avaliam as mesmas janelas de teste.
         argmax, limiar = j["avaliacao"]["amostra"]["por_classe"], j["avaliacao_limiar"]["amostra"]["por_classe"]
         assert all(argmax[c]["suporte"] == limiar[c]["suporte"] for c in CLASSES)
     texto = (treino / "resultados" / RELATORIO).read_text(encoding="utf-8")
-    assert "### Com o ponto de operação, janela de 2" in texto and "Janelas benignas na validação" in texto
+    assert "### Argmax e limiar, janela de 2" in texto and "Janelas de ataque na validação" in texto
+    assert "(ponto de operação)" in texto
 
 
 def test_o_treino_de_referencia_nao_mexe_no_do_sistema(tmp_path):
@@ -563,6 +573,7 @@ def test_o_treino_de_referencia_nao_mexe_no_do_sistema(tmp_path):
         assert next((pasta / "resultados").rglob(nome)).read_bytes() == conteudo, nome
     assert (pasta / "resultados" / "regeracao_sem_fundo.md").exists()
     assert (pasta / "resultados" / "matrizes_confusao" / "regerado_janela_5_sem_fundo_limiar.csv").exists()
+    assert (pasta / "resultados" / "matrizes_confusao" / "regerado_janela_5_sem_fundo_ponto.csv").exists()
     texto = (pasta / "resultados" / "regeracao_sem_fundo.md").read_text(encoding="utf-8")
     assert texto.startswith("# Treino sobre os dados regerados: referência sem o fundo")
     assert "a janela descartada não vira benigna" in texto

@@ -35,8 +35,8 @@ from codigo.classificador.rodadas_relatorio import (
     _versoes,
 )
 
-REGRAS = ("argmax", "limiar")
-NOME_DA_REGRA = {"argmax": "argmax (hoje)", "limiar": "limiar"}
+REGRAS = ("argmax", "limiar", "ponto")
+NOME_DA_REGRA = {"argmax": "argmax", "limiar": "melhor limiar", "ponto": "ponto de operação"}
 
 
 def _sementes(m):
@@ -86,7 +86,14 @@ def _faixa(valores, casas=1, por_cento=True):
 
 
 def _limiares(unidades):
-    return "; ".join(_decimal(u["limiar"], 2) for u in unidades)
+    """O melhor limiar de cada semente, o que concorreu com o argmax."""
+    return "; ".join(_decimal(u["melhor_limiar"], 2) for u in unidades)
+
+
+def _escolhas(unidades):
+    """A regra escolhida na validação de cada semente: o argmax ou o limiar, com o t."""
+    nomes = ["argmax" if u["regra"] == "argmax" else f"limiar {_decimal(u['limiar'], 2)}" for u in unidades]
+    return f"{nomes[0]} nas {len(nomes)} sementes" if len(set(nomes)) == 1 and len(nomes) > 1 else "; ".join(nomes)
 
 
 def _marca(texto, *comparacoes):
@@ -109,7 +116,7 @@ def _chave_limiar_argmax(nome):
 
 
 def _chave_contra_referencia(m, nome):
-    return f"{nome}-{_referencia(m)}:limiar"
+    return f"{nome}-{_referencia(m)}:ponto"
 
 
 def _por_hora(alarmes, segundos):
@@ -136,15 +143,16 @@ def _cabecalho(m):
             + f"; a configuração {_enumerar(outras)} entra para comparação."
         )
     return [
-        "# Ponto de operação: limiar e alarme escolhidos na validação",
+        "# Ponto de operação: regra e alarme escolhidos na validação",
         "",
         f"Gerado por `{m['gerado_por']}` em {_data(m)}, com {_versoes(m)}.",
         "",
         (
-            "A decisão da equipe: o limiar e a regra de janelas seguidas são escolhidos numa parte de validação, nunca "
-            "no teste. A regra: a janela é ataque se 1 − P(Benign) ≥ t, na categoria de ataque mais provável; senão, é "
-            f"Benign. Um incidente só abre com {p['seguidas']} janelas de ataque seguidas, na ordem do pcap. Os pontos "
-            "candidatos de `rodadas_de_teste.md` (rodada g) saíram do próprio teste e não são usados aqui."
+            "A decisão da equipe: a regra de decisão da janela é escolhida numa parte de validação, nunca no teste. "
+            "Concorrem a categoria mais provável (argmax) e o limiar, em que a janela é ataque se 1 − P(Benign) ≥ t, "
+            "na categoria de ataque mais provável, e senão é Benign. Um incidente só abre com "
+            f"{p['seguidas']} janelas de ataque seguidas, na ordem do pcap. Os pontos candidatos de "
+            "`rodadas_de_teste.md` (rodada g) saíram do próprio teste e não são usados aqui."
         ),
         "",
         (
@@ -156,18 +164,20 @@ def _cabecalho(m):
         ),
         "",
         (
-            "**Limiar.** O modelo treinado no treino reduzido, com a mesma amostra e a mesma semente, classifica todas "
-            f"as janelas da validação. O limiar t é o menor da grade de {_decimal(p['limiares'][0], 2)} a "
-            f"{_decimal(p['limiares'][-1], 2)}, de 0,01 em 0,01, que deixa no máximo "
-            f"{_pct(p['alarme_falso_maximo'], 0)} das janelas dos pcaps benignos da validação como ataque. Nas rotações do "
-            "pcap benigno de fora, cada rotação escolhe o seu t na sua validação: a validação da rotação 0 tem janelas "
-            "do pcap que a rotação 1 deixa de fora."
+            "**Regra.** O modelo treinado no treino reduzido, com a mesma amostra e a mesma semente, classifica todas "
+            "as janelas da validação: as dos pcaps benignos e as com o atacante dos pcaps de ataque. Os candidatos são "
+            f"o argmax e os limiares de {_decimal(p['limiares'][0], 2)} a {_decimal(p['limiares'][-1], 2)}, de 0,01 em "
+            f"0,01. Entre os que deixam no máximo {_pct(p['alarme_falso_maximo'], 0)} das janelas benignas da validação "
+            "como ataque, vence o de maior recall de ataque na validação; no empate, o de menos benigno como ataque. "
+            "O melhor limiar é o que venceria entre os limiares, e fica nas tabelas para comparação com o argmax. "
+            "Nas rotações do pcap benigno de fora, cada rotação escolhe a sua regra na sua validação: a validação "
+            "da rotação 0 tem janelas do pcap que a rotação 1 deixa de fora."
         ),
         "",
         (
-            "**Teste.** O modelo treinado no treino inteiro, o mesmo treino do corte por tempo das rodadas, com o t da "
-            "sua semente e rotação. As colunas \"argmax\" são o mesmo modelo com a categoria mais provável, a regra de "
-            f"hoje. {origem}"
+            "**Teste.** O modelo treinado no treino inteiro, o mesmo treino do corte por tempo das rodadas, com as três "
+            "regras: o argmax, o melhor limiar e o ponto de operação, que é a regra que venceu na validação da sua "
+            f"semente e rotação. {origem}"
         ),
         "",
         (
@@ -176,8 +186,8 @@ def _cabecalho(m):
             "pareadas como em `rodadas_normalizadas.md`: mesma semente e mesmas janelas, com a variância por "
             f"reamostragem de blocos de {BLOCO} janelas vizinhas somada à variância entre as sementes. A diferença só "
             "conta quando o intervalo de 95% não contém o zero; senão, é \"sem diferença\". Nas tabelas, † marca a "
-            "diferença entre o limiar e o argmax que conta, e * a diferença para a configuração "
-            f"{_referencia(m)} no limiar que conta."
+            "diferença entre o melhor limiar e o argmax que conta, e * a diferença para a configuração "
+            f"{_referencia(m)}, as duas no ponto de operação, que conta."
         ),
     ]
 
@@ -188,21 +198,22 @@ def _resumo(m):
         unidades = _unidades(m, nome)
         principal = unidades[0]
         benigno = [u["benigno_de_fora"] for u in unidades]
-        piores = _pior_benigno(m, nome, "limiar")
+        piores = _pior_benigno(m, nome, "ponto")
         trechos = [u["trechos_de_ataque"] for u in unidades]
-        com_alarme = [sum(1 for t in ts if t["limiar"]["alarmes"]) for ts in trechos]
+        com_alarme = [sum(1 for t in ts if t["ponto"]["alarmes"]) for ts in trechos]
+        regra = "o argmax" if principal["regra"] == "argmax" else f"o limiar t = {_decimal(principal['limiar'], 2)}"
         itens.append(
-            f"Configuração {nome}: t = {_decimal(principal['limiar'], 2)} na semente {principal['semente']} "
-            f"({_limiares(unidades)} nas sementes {_enumerar(_sementes(m))}), N = {principal['seguidas']}. No corte por "
-            f"tempo, macro-F1 {_faixa([u['medidas']['limiar']['macro_f1'] for u in unidades])} e benigno como ataque "
-            f"{_faixa([u['medidas']['limiar']['benigno_como_ataque'] for u in unidades], 2)} por janela; no "
-            f"`{benigno[0]['arquivo']}` inteiro, "
-            f"{_faixa([_fracao(b['limiar']['como_ataque'], b['limiar']['janelas']) for b in benigno], 2)} das janelas "
-            f"como ataque e {_faixa([b['limiar']['alarmes'] for b in benigno], 1, False)} alarmes "
-            f"({_faixa([_por_hora(b['limiar']['alarmes'], b['limiar']['segundos']) for b in benigno], 1, False)} por "
+            f"Configuração {nome}: na validação da semente {principal['semente']} venceu {regra} (rotação 0: "
+            f"{_escolhas(unidades)}; melhor limiar {_limiares(unidades)}), com N = {principal['seguidas']}. No ponto de "
+            f"operação, no corte por tempo, macro-F1 {_faixa([u['medidas']['ponto']['macro_f1'] for u in unidades])} e "
+            f"benigno como ataque {_faixa([u['medidas']['ponto']['benigno_como_ataque'] for u in unidades], 2)} por "
+            f"janela; no `{benigno[0]['arquivo']}` inteiro, "
+            f"{_faixa([_fracao(b['ponto']['como_ataque'], b['ponto']['janelas']) for b in benigno], 2)} das janelas "
+            f"como ataque, e alarmes com 3 janelas seguidas, {_faixa([b['ponto']['alarmes'] for b in benigno], 1, False)} "
+            f"({_faixa([_por_hora(b['ponto']['alarmes'], b['ponto']['segundos']) for b in benigno], 1, False)} por "
             "hora); pior pcap benigno de "
             f"fora (`{piores['arquivo']}`), {_faixa(piores['valores'])}; fundo virando ataque, "
-            f"{_faixa([_fracao(u['fundo']['limiar']['como_ataque'], u['fundo']['limiar']['janelas']) for u in unidades])}"
+            f"{_faixa([_fracao(u['fundo']['ponto']['como_ataque'], u['fundo']['ponto']['janelas']) for u in unidades])}"
             f"; pcaps de ataque com alarme no trecho de teste, {_faixa(com_alarme, 0, False)} de {len(trechos[0])}."
         )
     return ["## Resumo", "", *(f"- {item}" for item in itens)]
@@ -225,12 +236,16 @@ def _validacao(m):
         for rotacao in _rotacoes(m, nome):
             unidades = _unidades(m, nome, rotacao)
             v = [u["validacao"] for u in unidades]
+            melhor = [x["curva"][str(u["melhor_limiar"])] for u, x in zip(unidades, v)]
             linhas.append([
                 nome, f"{rotacao} (`{unidades[0]['benigno_de_fora']['arquivo']}` de fora)",
-                _faixa([x["janelas_benignas"] for x in v], 0, False),
+                _faixa([x["janelas_benignas"] for x in v], 0, False), _faixa([x["janelas_de_ataque"] for x in v], 0, False),
+                _faixa([_fracao(x["argmax"]["benigno_como_ataque"], x["janelas_benignas"]) for x in v], 2),
+                _faixa([_fracao(x["argmax"]["ataque_reconhecido"], x["janelas_de_ataque"]) for x in v], 2),
                 _limiares(unidades),
-                _faixa([_fracao(x["benigno_como_ataque"][str(x["limiar"])], x["janelas_benignas"]) for x in v], 2),
-                _faixa([_fracao(x["benigno_argmax"], x["janelas_benignas"]) for x in v], 2),
+                _faixa([_fracao(c["benigno_como_ataque"], x["janelas_benignas"]) for c, x in zip(melhor, v)], 2),
+                _faixa([_fracao(c["ataque_reconhecido"], x["janelas_de_ataque"]) for c, x in zip(melhor, v)], 2),
+                _escolhas(unidades),
             ])
     detalhe = []
     for nome in _configuracoes(m):
@@ -245,25 +260,28 @@ def _validacao(m):
         com_alarme = [sum(1 for p in a if p["alarmes"]) for a in ataques]
         sem = sorted({p["arquivo"] for a in ataques for p in a if not p["alarmes"]})
         detalhe.append(
-            f"- Configuração {nome}, rotação 0, no t de cada semente: recall na validação {recall}; fundo da validação "
-            f"como ataque {_faixa([_fracao(x['fundo']['como_ataque'], x['fundo']['janelas']) for x in v])}; nos trechos "
-            f"benignos da validação ({_decimal(_media(horas), 1)} h), {_faixa(benignos, 1, False)} alarmes com "
-            f"{m['parametros']['seguidas']} janelas seguidas; pcaps de ataque com alarme no trecho de validação, "
+            f"- Configuração {nome}, rotação 0, na regra escolhida em cada semente: recall na validação {recall}; fundo "
+            f"da validação como ataque {_faixa([_fracao(x['fundo']['como_ataque'], x['fundo']['janelas']) for x in v])}; "
+            f"alarmes com {m['parametros']['seguidas']} janelas seguidas nos trechos benignos da validação "
+            f"({_decimal(_media(horas), 1)} h), {_faixa(benignos, 1, False)}; pcaps de ataque com alarme no trecho de validação, "
             f"{_faixa(com_alarme, 0, False)} de {len(ataques[0])}"
             + (f" (sem alarme em alguma semente: {_enumerar(f'`{a}`' for a in sem)})." if sem else ".")
         )
     return [
-        "## O limiar escolhido na validação",
+        "## A regra escolhida na validação",
         "",
         (
-            "Em cada configuração, rotação e semente: as janelas dos pcaps benignos na validação, o t escolhido em cada "
-            "semente, a fração dessas janelas que o t deixa como ataque e a que o argmax deixaria."
+            "Em cada configuração, rotação e semente: as janelas da validação, o que o argmax e o melhor limiar fazem "
+            "com elas (benigno classificado como ataque e recall de ataque, a fração das janelas com o atacante "
+            "postas em alguma categoria de ataque) e a regra que venceu. Só concorre o candidato com no máximo "
+            f"{_pct(m['parametros']['alarme_falso_maximo'], 0)} das benignas como ataque."
         ),
         "",
-        *_tabela(["Configuração", "Rotação", "Janelas benignas na validação", "t (por semente)",
-                  "Benigno da validação como ataque, no t", "Com o argmax"], linhas),
+        *_tabela(["Configuração", "Rotação", "Janelas benignas", "Janelas de ataque", "Argmax: benigno como ataque",
+                  "Argmax: recall de ataque", "Melhor limiar (por semente)", "Limiar: benigno como ataque",
+                  "Limiar: recall de ataque", "Regra escolhida"], linhas),
         "",
-        "Na validação da rotação 0, a regra inteira (o t e as 3 janelas seguidas) no resto da validação:",
+        "Na validação da rotação 0, a regra escolhida e as 3 janelas seguidas no resto da validação:",
         "",
         *detalhe,
     ]
@@ -287,25 +305,26 @@ def _corte(m):
         celulas = [rotulo]
         for nome in nomes:
             unidades = _unidades(m, nome)
-            for regra in ("argmax", "limiar"):
+            for regra in REGRAS:
                 texto = _faixa([funcao(u["medidas"][regra]) for u in unidades])
                 if regra == "limiar":
-                    texto = _marca(texto, ("†", _comparacao(m, _chave_limiar_argmax(nome), "corte", chave)),
-                                   ("*", _comparacao(m, _chave_contra_referencia(m, nome), "corte", chave)))
+                    texto = _marca(texto, ("†", _comparacao(m, _chave_limiar_argmax(nome), "corte", chave)))
+                if regra == "ponto":
+                    texto = _marca(texto, ("*", _comparacao(m, _chave_contra_referencia(m, nome), "corte", chave)))
                 celulas.append(texto)
         linhas.append(celulas)
-    suporte = _unidades(m, nomes[0])[0]["medidas"]["limiar"]["por_classe"]
+    suporte = _unidades(m, nomes[0])[0]["medidas"]["ponto"]["por_classe"]
     return [
         "## No teste: corte por tempo",
         "",
         (
             "As janelas de teste da divisão publicada (o fim de cada pcap e o pcap inteiro de fora nos rótulos de vários "
-            "pcaps), com o mesmo modelo nas duas regras. Janelas de teste por categoria, na semente principal: "
+            "pcaps), com o mesmo modelo nas três regras; a coluna do ponto de operação repete a da regra que venceu na "
+            "validação de cada semente. Janelas de teste por categoria, na semente principal: "
             + ", ".join(f"{c} {_milhar(suporte[c]['suporte'])}" for c in CLASSES) + "."
         ),
         "",
-        *_tabela(["Medida", *(f"Configuração {n}, {NOME_DA_REGRA[r]}" for n in nomes for r in ("argmax", "limiar"))],
-                 linhas),
+        *_tabela(["Medida", *(f"Configuração {n}, {NOME_DA_REGRA[r]}" for n in nomes for r in REGRAS)], linhas),
     ]
 
 
@@ -315,34 +334,35 @@ def _benigno_de_fora(m):
         for rotacao in _rotacoes(m, nome):
             unidades = _unidades(m, nome, rotacao)
             b = [u["benigno_de_fora"] for u in unidades]
-            como_ataque = {r: [_fracao(x[r]["como_ataque"], x[r]["janelas"]) for x in b] for r in ("argmax", "limiar")}
-            alarmes = {r: [x[r]["alarmes"] for x in b] for r in ("argmax", "limiar")}
-            por_hora = [_por_hora(x["limiar"]["alarmes"], x["limiar"]["segundos"]) for x in b]
+            como_ataque = {r: [_fracao(x[r]["como_ataque"], x[r]["janelas"]) for x in b] for r in REGRAS}
+            alarmes = {r: [x[r]["alarmes"] for x in b] for r in REGRAS}
+            por_hora = [_por_hora(x["ponto"]["alarmes"], x["ponto"]["segundos"]) for x in b]
             linhas.append([
-                nome, f"`{b[0]['arquivo']}`", _milhar(b[0]["limiar"]["janelas"]), _limiares(unidades),
+                nome, f"`{b[0]['arquivo']}`", _milhar(b[0]["ponto"]["janelas"]), _escolhas(unidades),
                 _faixa(como_ataque["argmax"]),
-                _marca(_faixa(como_ataque["limiar"]),
-                       ("†", _comparacao(m, _chave_limiar_argmax(nome), "rotacao", rotacao)),
+                _marca(_faixa(como_ataque["limiar"]), ("†", _comparacao(m, _chave_limiar_argmax(nome), "rotacao", rotacao))),
+                _marca(_faixa(como_ataque["ponto"]),
                        ("*", _comparacao(m, _chave_contra_referencia(m, nome), "rotacao", rotacao))),
-                _faixa(alarmes["argmax"], 1, False), _faixa(alarmes["limiar"], 1, False), _faixa(por_hora, 1, False),
+                *(_faixa(alarmes[r], 1, False) for r in REGRAS), _faixa(por_hora, 1, False),
             ])
     piores = [f"configuração {nome}, `{p['arquivo']}` com {_faixa(p['valores'])}"
-              for nome in _configuracoes(m) for p in [_pior_benigno(m, nome, "limiar")]]
+              for nome in _configuracoes(m) for p in [_pior_benigno(m, nome, "ponto")]]
     seguidas = m["parametros"]["seguidas"]
     return [
         "## Benigno de fora: por janela e por alarme",
         "",
         (
-            "Cada pcap benigno inteiro, com o modelo da rotação que o deixa fora do treino e o t escolhido na validação "
-            f"dessa rotação: a fração das janelas classificada como ataque e os alarmes com {seguidas} janelas de ataque "
-            "seguidas, na ordem do pcap. A hora é a soma da duração das janelas do pcap."
+            "Cada pcap benigno inteiro, com o modelo da rotação que o deixa fora do treino e a regra escolhida na "
+            f"validação dessa rotação: a fração das janelas classificada como ataque e os alarmes com {seguidas} janelas "
+            "de ataque seguidas, na ordem do pcap, com o argmax, com o melhor limiar e no ponto de operação. A hora é a "
+            "soma da duração das janelas do pcap."
         ),
         "",
-        *_tabela(["Configuração", "Pcap de fora", "Janelas", "t (por semente)", "Como ataque, argmax", "Como ataque, limiar",
-                  f"Alarmes com {seguidas} seguidas, argmax", f"Alarmes com {seguidas} seguidas, limiar",
-                  "Alarmes por hora, limiar"], linhas),
+        *_tabela(["Configuração", "Pcap de fora", "Janelas", "Regra escolhida", "Como ataque, argmax",
+                  "Como ataque, melhor limiar", "Como ataque, ponto de operação", "Alarmes, argmax",
+                  "Alarmes, melhor limiar", "Alarmes, ponto de operação", "Alarmes por hora, ponto de operação"], linhas),
         "",
-        "Pior pcap benigno de fora, no limiar: " + "; ".join(piores) + ".",
+        "Pior pcap benigno de fora, no ponto de operação: " + "; ".join(piores) + ".",
     ]
 
 
@@ -350,19 +370,18 @@ def _fundo(m):
     linhas = []
     for nome in _configuracoes(m):
         unidades = _unidades(m, nome)
-        valores = {r: [_fracao(u["fundo"][r]["como_ataque"], u["fundo"][r]["janelas"]) for u in unidades]
-                   for r in ("argmax", "limiar")}
+        valores = {r: [_fracao(u["fundo"][r]["como_ataque"], u["fundo"][r]["janelas"]) for u in unidades] for r in REGRAS}
         linhas.append([
-            nome, _milhar(unidades[0]["fundo"]["limiar"]["janelas"]), _faixa(valores["argmax"]),
-            _marca(_faixa(valores["limiar"]), ("†", _comparacao(m, _chave_limiar_argmax(nome), "fundo")),
-                   ("*", _comparacao(m, _chave_contra_referencia(m, nome), "fundo"))),
+            nome, _milhar(unidades[0]["fundo"]["ponto"]["janelas"]), _faixa(valores["argmax"]),
+            _marca(_faixa(valores["limiar"]), ("†", _comparacao(m, _chave_limiar_argmax(nome), "fundo"))),
+            _marca(_faixa(valores["ponto"]), ("*", _comparacao(m, _chave_contra_referencia(m, nome), "fundo"))),
         ])
     return [
         "## Fundo virando ataque",
         "",
         "As janelas sem nenhum quadro do atacante na parte de teste dos pcaps de ataque, classificadas como algum ataque:",
         "",
-        *_tabela(["Configuração", "Janelas de fundo no teste", "Argmax", "Limiar"], linhas),
+        *_tabela(["Configuração", "Janelas de fundo no teste", "Argmax", "Melhor limiar", "Ponto de operação"], linhas),
     ]
 
 
@@ -371,7 +390,7 @@ def _trechos(m):
     linhas, sem_alarme = [], []
     for nome in _configuracoes(m):
         unidades = _unidades(m, nome)
-        for regra in ("argmax", "limiar"):
+        for regra in REGRAS:
             trechos = [u["trechos_de_ataque"] for u in unidades]
             com = [sum(1 for t in ts if t[regra]["alarmes"]) for ts in trechos]
             janelas = [float(np.median([t[regra]["primeira_janela"] for t in ts if t[regra]["primeira_janela"]]))
@@ -383,7 +402,7 @@ def _trechos(m):
                 _faixa([float(np.median(s)) for s in segundos if s], 2, False),
                 _faixa([max(s) for s in segundos if s], 1, False),
             ])
-            if regra == "limiar":
+            if regra == "ponto":
                 faltam = sorted({t["arquivo"] for ts in trechos for t in ts if not t[regra]["alarmes"]})
                 if faltam:
                     sem_alarme.append(f"configuração {nome}: {_enumerar(f'`{a}`' for a in faltam)}")
@@ -399,8 +418,8 @@ def _trechos(m):
         *_tabela(["Configuração", "Regra", "Pcaps com alarme", "Janelas até o primeiro alarme (mediana)",
                   "Segundos até o primeiro alarme (mediana)", "Segundos até o primeiro alarme (maior)"], linhas),
         "",
-        ("Pcaps sem alarme no limiar em alguma semente: " + "; ".join(sem_alarme) + "." if sem_alarme else
-         "No limiar, todos os pcaps de ataque com parte de teste alarmam, em todas as sementes."),
+        ("Pcaps sem alarme no ponto de operação em alguma semente: " + "; ".join(sem_alarme) + "." if sem_alarme else
+         "No ponto de operação, todos os pcaps de ataque com parte de teste alarmam, em todas as sementes."),
     ]
 
 
@@ -429,10 +448,11 @@ def _lista_de_diferencas(m, chave):
 def _diferencas(m):
     linhas = []
     for nome in _configuracoes(m):
-        linhas.append(f"- Configuração {nome}, limiar contra argmax: {_lista_de_diferencas(m, _chave_limiar_argmax(nome))}")
+        linhas.append(f"- Configuração {nome}, melhor limiar contra argmax: "
+                      f"{_lista_de_diferencas(m, _chave_limiar_argmax(nome))}")
     for nome in _configuracoes(m):
         if nome != _referencia(m):
-            linhas.append(f"- Configuração {nome} contra a {_referencia(m)}, as duas no limiar: "
+            linhas.append(f"- Configuração {nome} contra a {_referencia(m)}, as duas no ponto de operação: "
                           f"{_lista_de_diferencas(m, _chave_contra_referencia(m, nome))}")
     return ["## Quais diferenças contam", "", "A diferença com o intervalo de 95% entre parênteses:", "", *linhas]
 
@@ -458,6 +478,7 @@ def _modelos_salvos(m):
     salvos = m["resultados"].get("modelos_salvos", {})
     if not salvos:
         return []
+    regra = lambda regra_, limiar: "argmax" if regra_ == "argmax" else f"limiar {_decimal(limiar, 2)}"
     linhas = []
     for nome in _configuracoes(m):
         s = salvos.get(nome)
@@ -466,9 +487,9 @@ def _modelos_salvos(m):
         gravado = s["ponto_gravado"]
         linhas.append([
             nome, f"`{s['arquivo']}`", f"`{s['sha256'][:16]}…`",
-            f"{_milhar(s['diferentes_argmax'])} e {_milhar(s['diferentes_limiar'])}",
-            f"{_decimal(s['limiar_escolhido'], 2)} e {s['seguidas']}",
-            f"{_decimal(gravado['limiar'], 2)} e {gravado['seguidas']}" if gravado else "sem JSON",
+            " e ".join(_milhar(s[f"diferentes_{r}"]) for r in REGRAS),
+            f"{regra(s['regra_escolhida'], s['limiar_escolhido'])}, N = {s['seguidas']}",
+            f"{regra(gravado['regra'], gravado['limiar'])}, N = {gravado['seguidas']}" if gravado else "sem JSON",
             "sim" if s["confere"] else "não",
         ])
     return [
@@ -478,12 +499,13 @@ def _modelos_salvos(m):
             "Os modelos que `codigo.classificador.treinar_regerado` salva, com o ponto de operação num JSON ao lado, "
             "conferidos contra o treino inteiro da semente principal, no corte por tempo: o do sistema (configuração 5) "
             "e o de referência, de 10/10 (configuração 0, `--sem-fundo`). `codigo.classificador.operacao` lê o JSON, "
-            "recusa o de outro modelo e aplica a regra a uma janela (`PontoDeOperacao.categoria`, `Vigia`) e a uma "
-            "sequência (`PontoDeOperacao.aplicar`). A pasta `modelos/` fica fora do git."
+            "recusa o de outro modelo e aplica a regra, o argmax ou o limiar, a uma janela "
+            "(`PontoDeOperacao.categoria`, `Vigia`) e a uma sequência (`PontoDeOperacao.aplicar`). A pasta `modelos/` "
+            "fica fora do git."
         ),
         "",
-        *_tabela(["Configuração", "Modelo", "SHA-256", "Predições diferentes do retreino (argmax e limiar)",
-                  "t e N escolhidos aqui", "t e N no JSON", "Confere"], linhas),
+        *_tabela(["Configuração", "Modelo", "SHA-256", "Predições diferentes do retreino (argmax, melhor limiar e ponto)",
+                  "Regra escolhida aqui", "Regra no JSON", "Confere"], linhas),
     ]
 
 
@@ -558,9 +580,12 @@ def gravar(manifesto, pasta):
         for rotacao, por_semente in c["resultados"].items():
             for semente, u in por_semente.items():
                 v = u["validacao"]
-                limiar.append([nome, rotacao, semente, _campo(u["limiar"]), v["janelas_benignas"],
-                               v["benigno_como_ataque"][str(u["limiar"])], v["benigno_argmax"]])
-                curva += [[nome, rotacao, semente, t, n, v["janelas_benignas"]] for t, n in v["benigno_como_ataque"].items()]
+                melhor = v["curva"][str(u["melhor_limiar"])]
+                limiar.append([nome, rotacao, semente, u["regra"], _campo(u["limiar"]), _campo(u["melhor_limiar"]),
+                               v["janelas_benignas"], v["janelas_de_ataque"], v["argmax"]["benigno_como_ataque"],
+                               v["argmax"]["ataque_reconhecido"], melhor["benigno_como_ataque"], melhor["ataque_reconhecido"]])
+                curva += [[nome, rotacao, semente, t_, c["benigno_como_ataque"], c["ataque_reconhecido"],
+                           v["janelas_benignas"], v["janelas_de_ataque"]] for t_, c in v["curva"].items()]
                 b = u["benigno_de_fora"]
                 benigno += [[nome, rotacao, semente, b["arquivo"], regra, b[regra]["janelas"], b[regra]["como_ataque"],
                              b[regra]["alarmes"], _campo(b[regra]["segundos"])] for regra in REGRAS]
@@ -578,10 +603,13 @@ def gravar(manifesto, pasta):
                                  _campo(t[regra]["primeiro_segundos"])] for t in u["trechos_de_ataque"]]
                     teste.append([nome, semente, regra, "fundo_como_ataque", "",
                                   _campo(_fracao(u["fundo"][regra]["como_ataque"], u["fundo"][regra]["janelas"]))])
-    _gravar_csv(pasta / f"{PREFIXO}_limiar.csv", ["configuracao", "rotacao", "semente", "limiar", "janelas_benignas_validacao",
-                                                  "como_ataque_no_limiar", "como_ataque_no_argmax"], limiar)
-    _gravar_csv(pasta / f"{PREFIXO}_curva.csv", ["configuracao", "rotacao", "semente", "limiar", "como_ataque",
-                                                 "janelas_benignas_validacao"], curva)
+    _gravar_csv(pasta / f"{PREFIXO}_limiar.csv",
+                ["configuracao", "rotacao", "semente", "regra", "limiar", "melhor_limiar", "janelas_benignas_validacao",
+                 "janelas_de_ataque_validacao", "argmax_benigno_como_ataque", "argmax_ataque_reconhecido",
+                 "limiar_benigno_como_ataque", "limiar_ataque_reconhecido"], limiar)
+    _gravar_csv(pasta / f"{PREFIXO}_curva.csv", ["configuracao", "rotacao", "semente", "limiar", "benigno_como_ataque",
+                                                 "ataque_reconhecido", "janelas_benignas_validacao",
+                                                 "janelas_de_ataque_validacao"], curva)
     _gravar_csv(pasta / f"{PREFIXO}_teste.csv", ["configuracao", "semente", "regra", "medida", "classe", "valor"], teste)
     _gravar_csv(pasta / f"{PREFIXO}_benigno.csv", ["configuracao", "rotacao", "semente", "arquivo", "regra", "janelas",
                                                    "como_ataque", "alarmes", "segundos"], benigno)
