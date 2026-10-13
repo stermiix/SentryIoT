@@ -1218,6 +1218,39 @@ def _pior(m):
     return pcap_do_pior_benigno(m["resultados"]["0"], _controle(m))
 
 
+_POR_EXTENSO = {1: "uma", 2: "duas", 3: "três", 4: "quatro", 5: "cinco", 6: "seis", 7: "sete", 8: "oito"}
+
+
+def _por_extenso(numero):
+    return _POR_EXTENSO.get(numero, str(numero))
+
+
+def _com_fundo(configuracoes):
+    """As configurações que põem o fundo da parte de treino no treino como benigno."""
+    return [c for c in configuracoes if c.get("fundo_como_benigno")]
+
+
+def _frase_do_fundo_no_treino(configuracoes):
+    """O que as configurações com o fundo no treino fazem, e o que a comparação entre elas separa."""
+    com_fundo = _com_fundo(configuracoes)
+    if not com_fundo:
+        return ""
+    nomes = _enumerar(c["nome"] for c in com_fundo)
+    frase = (
+        f" {'Nas configurações' if len(com_fundo) > 1 else 'Na configuração'} {nomes}, as janelas de fundo da parte de "
+        "treino de cada pcap de ataque, sem nenhum quadro do atacante, entram no treino como Benign"
+    )
+    destinos = {c["destino"] for c in com_fundo}
+    if len(com_fundo) > 1 and len(destinos) == len(com_fundo):
+        frase += (
+            ": " + _enumerar(f"a {c['nome']} sobre os dados de `{c['destino']}`" for c in com_fundo)
+            + ". A comparação entre elas separa o efeito do fundo do efeito do tamanho do quadro."
+        )
+    else:
+        frase += "."
+    return frase
+
+
 def _cabecalho_das_capturas(m):
     p = m["parametros"]
     configuracoes = m["entradas"]["configuracoes"]
@@ -1238,8 +1271,9 @@ def _cabecalho_das_capturas(m):
         "",
         (
             "Este relatório lê as pastas regeradas antes por `regerar --preencher` e por `regerar --preencher "
-            "--limitar` e compara o modelo do sistema (configuração 0) com quatro alternativas, no corte por tempo e "
-            "nas rodadas c (rotação do pcap benigno de fora), d (tráfego de fundo) e e (pcap fora do treino)."
+            f"--limitar` e compara o modelo do sistema (configuração 0) com {_por_extenso(len(configuracoes) - 1)} "
+            "alternativas, no corte por tempo e nas rodadas c (rotação do pcap benigno de fora), d (tráfego de fundo) "
+            "e e (pcap fora do treino)." + _frase_do_fundo_no_treino(configuracoes)
         ),
         "",
         *_tabela(
@@ -1286,6 +1320,104 @@ def _tabela_resumo(m):
             "fora soma os pcaps da categoria, cada um medido nas suas janelas de teste com o modelo que não o viu. "
             "BruteForce tem um pcap só: com ele fora a categoria some do treino, o recall é zero por construção, e entre "
             "parênteses fica a fração vista como algum ataque."
+        ),
+    ]
+
+
+# --- a regra de adoção da configuração 5 --------------------------------------------------------
+#
+# A regra que a equipe definiu para a configuração 5 (o fundo como benigno sem a normalização do
+# quadro): ela passa a ser o modelo do sistema se, na média das sementes, (a) o benigno classificado
+# como ataque no pior pcap benigno de fora do treino fica abaixo de 10%, (b) o recall de DDoS+DoS no
+# corte por tempo fica em pelo menos 98% e (c) o recall do `Recon-PortScan.pcap` com o pcap fora do
+# treino não cai mais de 5 pontos em relação à configuração 0. Se uma condição falha, o modelo
+# continua o da configuração 0.
+
+CANDIDATA, REFERENCIA = "5", "0"
+PIOR_BENIGNO_ABAIXO_DE = 0.10
+RECALL_DE_DDOS_MINIMO = 0.98
+PCAP_DA_REGRA = "Recon-PortScan.pcap"
+QUEDA_MAXIMA_DO_PCAP = 0.05
+
+
+def atende_a_regra(pior_benigno, recall_de_ddos, diferenca_do_pcap):
+    """Se cada condição da regra é atendida: (a), (b) e (c), com os valores médios das sementes."""
+    return (
+        pior_benigno < PIOR_BENIGNO_ABAIXO_DE,
+        recall_de_ddos >= RECALL_DE_DDOS_MINIMO,
+        diferenca_do_pcap >= -QUEDA_MAXIMA_DO_PCAP,
+    )
+
+
+def _recall_do_pcap_fora(resultado, sementes, arquivo):
+    unidades = _nas_sementes(resultado.get("fora", {}).get(arquivo, {}), sementes)
+    return [_fracao(u["teste"]["previstas"][u["categoria"]], u["teste"]["janelas"]) for u in unidades]
+
+
+def regra_de_adocao(m):
+    """As medidas da regra na configuração candidata e na de referência, e o veredito, ou None sem as duas."""
+    r = m["resultados"]
+    if CANDIDATA not in r or REFERENCIA not in r:
+        return None
+    sementes = _controle(m)
+    medidas = {}
+    for nome in (REFERENCIA, CANDIDATA):
+        rotacoes_ = rotacoes_do_benigno(r[nome], sementes)
+        pior = max(rotacoes_, key=lambda rot: _media(rot["como_ataque"]))
+        medidas[nome] = {
+            "pior_benigno": _media(pior["como_ataque"]), "pcap_do_pior_benigno": pior["arquivo"],
+            "recall_de_ddos": _media(_do_corte(r[nome], sementes, lambda a: a["por_classe"]["DDoS+DoS"]["recall"])),
+            "recall_do_pcap": _media(_recall_do_pcap_fora(r[nome], sementes, PCAP_DA_REGRA)),
+        }
+    diferenca = medidas[CANDIDATA]["recall_do_pcap"] - medidas[REFERENCIA]["recall_do_pcap"]
+    condicoes = atende_a_regra(medidas[CANDIDATA]["pior_benigno"], medidas[CANDIDATA]["recall_de_ddos"], diferenca)
+    return {
+        "medidas": medidas, "diferenca_do_pcap": diferenca,
+        "comparacao_do_pcap": _no_caminho(r[CANDIDATA], "comparacao", "fora", "por_pcap", PCAP_DA_REGRA),
+        "condicoes": dict(zip("abc", condicoes)), "adotada": all(condicoes),
+    }
+
+
+def _regra_das_capturas(m):
+    regra = regra_de_adocao(m)
+    if regra is None:
+        return []
+    ref, nova = regra["medidas"][REFERENCIA], regra["medidas"][CANDIDATA]
+    sim = lambda condicao: "sim" if regra["condicoes"][condicao] else "não"
+    comparacao = regra["comparacao_do_pcap"]
+    linhas = [
+        ["(a) Benigno como ataque no pior pcap benigno de fora", f"abaixo de {_pct(PIOR_BENIGNO_ABAIXO_DE, 0)}",
+         f"{_pct(ref['pior_benigno'], 1)} (`{ref['pcap_do_pior_benigno']}`)",
+         f"{_pct(nova['pior_benigno'], 1)} (`{nova['pcap_do_pior_benigno']}`)", sim("a")],
+        ["(b) Recall DDoS+DoS no corte por tempo", f"pelo menos {_pct(RECALL_DE_DDOS_MINIMO, 0)}",
+         _pct(ref["recall_de_ddos"], 2), _pct(nova["recall_de_ddos"], 2), sim("b")],
+        [f"(c) Recall do `{PCAP_DA_REGRA}` com o pcap fora", f"queda de até {_decimal(100 * QUEDA_MAXIMA_DO_PCAP, 0)} p.p.",
+         _pct(ref["recall_do_pcap"], 1),
+         f"{_pct(nova['recall_do_pcap'], 1)} ({_pp(regra['diferenca_do_pcap'])} p.p.)", sim("c")],
+    ]
+    falham = [c for c, atende in regra["condicoes"].items() if not atende]
+    veredito = (
+        f"Pela regra, a configuração {CANDIDATA} passa a ser o modelo do sistema." if regra["adotada"] else
+        f"Pela regra, a configuração {CANDIDATA} não é adotada e o modelo continua o da configuração {REFERENCIA}: "
+        + ("falha a condição " if len(falham) == 1 else "falham as condições ") + _enumerar(f"({c})" for c in falham) + "."
+    )
+    return [
+        f"## Regra de adoção da configuração {CANDIDATA}",
+        "",
+        (
+            f"A regra definida pela equipe: a configuração {CANDIDATA} passa a ser o modelo do sistema se, na média das "
+            f"sementes, (a) o benigno classificado como ataque no pior pcap benigno de fora do treino fica abaixo de "
+            f"{_pct(PIOR_BENIGNO_ABAIXO_DE, 0)}, (b) o recall de DDoS+DoS no corte por tempo fica em pelo menos "
+            f"{_pct(RECALL_DE_DDOS_MINIMO, 0)} e (c) o recall do `{PCAP_DA_REGRA}` com o pcap fora do treino não cai mais "
+            f"de {_decimal(100 * QUEDA_MAXIMA_DO_PCAP, 0)} pontos em relação à configuração {REFERENCIA}. Se uma condição "
+            f"falha, o modelo continua o da configuração {REFERENCIA}. O pior pcap benigno é o de cada configuração."
+        ),
+        "",
+        *_tabela(["Condição", "Limite", f"Configuração {REFERENCIA}", f"Configuração {CANDIDATA}", "Atende"], linhas),
+        "",
+        veredito + (
+            f" A diferença da condição (c), com o intervalo de 95% das diferenças pareadas, é {_leitura(comparacao)}."
+            if comparacao else ""
         ),
     ]
 
@@ -1384,6 +1516,19 @@ def _rotacao_das_capturas(m):
     ]
 
 
+def _aviso_do_fundo_de_treino(m):
+    """Nas configurações com o fundo no treino, a parte de treino do fundo deixa de ser medida fora da amostra."""
+    com_fundo = _com_fundo(m["entradas"]["configuracoes"])
+    if not com_fundo:
+        return []
+    varias = len(com_fundo) > 1
+    return [
+        (f"{'Nas configurações' if varias else 'Na configuração'} {_enumerar(c['nome'] for c in com_fundo)} o fundo da "
+         "parte de treino entra no treino como benigno, e a coluna da parte de treino"),
+        "deixa de ser uma medida fora da amostra.",
+    ]
+
+
 def _fundo_das_capturas(m):
     r = m["resultados"]
     sementes = _controle(m)
@@ -1415,8 +1560,7 @@ def _fundo_das_capturas(m):
         "## d. Tráfego de fundo",
         "",
         "Fração das janelas sem nenhum quadro do atacante classificada como algum ataque, somando os pcaps de ataque.",
-        "Na configuração 4 o fundo da parte de treino entra no treino como benigno, e a coluna da parte de treino",
-        "deixa de ser uma medida fora da amostra.",
+        *_aviso_do_fundo_de_treino(m),
         "",
         *_tabela(["Configuração", "Parte de teste", "Parte de treino"], totais),
         "",
@@ -1530,7 +1674,7 @@ def montar_relatorio_das_capturas(m):
     """O relatório da comparação de capturas, a partir do manifesto."""
     secoes = [_cabecalho_das_capturas(m), _corte_das_capturas(m), _rotacao_das_capturas(m), _fundo_das_capturas(m),
               _fora_das_capturas(m), _tamanhos_das_capturas(m), _diferencas_das_capturas(m), _tabela_resumo(m),
-              _como_foram_obtidos_das_capturas(m)]
+              _regra_das_capturas(m), _como_foram_obtidos_das_capturas(m)]
     return "\n".join("\n".join(secao) + "\n" for secao in secoes if secao).rstrip("\n") + "\n"
 
 

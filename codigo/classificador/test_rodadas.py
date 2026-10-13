@@ -45,11 +45,14 @@ from codigo.classificador.rodadas import (
     wilson,
 )
 from codigo.classificador.rodadas_relatorio import (
+    atende_a_regra,
     candidatos_do_limiar,
     fundo_por_semente,
     montar_relatorio,
     montar_relatorio_das_capturas,
     recall_fora,
+    regra_de_adocao,
+    rotacoes_do_benigno,
 )
 from codigo.classificador.test_atacantes import captura_de_teste
 from codigo.classificador.treinar_regerado import ler_janela
@@ -599,6 +602,45 @@ def test_comparacao_de_capturas_com_o_fundo_no_treino_e_sem_ttl(tmp_path, monkey
     assert {linha["configuracao"] for linha in resumo} == {"0", "3", "4"}
 
 
+def test_regra_de_adocao_nos_limites():
+    # (a) abaixo de 10%, (b) pelo menos 98%, (c) queda de até 5 pontos.
+    assert atende_a_regra(0.0999, 0.98, -0.05) == (True, True, True)
+    assert atende_a_regra(0.10, 0.99, 0.0) == (False, True, True)
+    assert atende_a_regra(0.05, 0.9799, 0.0) == (True, False, True)
+    assert atende_a_regra(0.05, 0.99, -0.0501) == (True, True, False)
+    assert atende_a_regra(0.05, 0.99, 0.20) == (True, True, True)
+
+
+def test_relatorio_das_capturas_aplica_a_regra_a_configuracao_5(tmp_path, monkeypatch):
+    import codigo.classificador.rodadas as modulo
+
+    regeracao = preparar_regerado(tmp_path)
+    caminho = str(tmp_path / "resultados" / MANIFESTO_DA_REGERACAO)
+    configuracoes = (
+        Configuracao("0", "o modelo atual", regeracao["destino"], caminho),
+        Configuracao("5", "a 0 com o fundo da parte de treino como Benign", regeracao["destino"], caminho,
+                     fundo_como_benigno=True),
+    )
+    monkeypatch.setattr(modulo, "CONFIGURACOES", configuracoes)
+    monkeypatch.setattr(modulo, "PCAPS_FORA", FORA)
+    assert main(["--capturas", "--saida", str(tmp_path / "resultados"), "--trabalho", str(tmp_path / "trabalho"),
+                 "--sementes", "42,1,2", "--arvores", "3", "--teto", "30", "--nucleos", "1"]) == 0
+    m = ler_manifesto(tmp_path, MANIFESTO_DAS_CAPTURAS)
+    regra = regra_de_adocao(m)
+    nova = regra["medidas"]["5"]
+    # As medidas da regra são as médias das sementes, com o pior pcap benigno de cada configuração.
+    piores = [np.mean(r["como_ataque"]) for r in rotacoes_do_benigno(m["resultados"]["5"], ["42", "1", "2"])]
+    assert nova["pior_benigno"] == pytest.approx(max(piores))
+    assert nova["recall_de_ddos"] == pytest.approx(np.mean(
+        [m["resultados"]["5"]["corte"][s]["medidas"]["por_classe"]["DDoS+DoS"]["recall"] for s in ("42", "1", "2")]))
+    assert regra["diferenca_do_pcap"] == pytest.approx(nova["recall_do_pcap"] - regra["medidas"]["0"]["recall_do_pcap"])
+    assert regra["adotada"] == all(atende_a_regra(nova["pior_benigno"], nova["recall_de_ddos"], regra["diferenca_do_pcap"]))
+    texto = (tmp_path / "resultados" / RELATORIO_DAS_CAPTURAS).read_text(encoding="utf-8")
+    assert "## Regra de adoção da configuração 5" in texto and "Pela regra, a configuração 5 " in texto
+    assert "Na configuração 5, as janelas de fundo da parte de treino" in texto
+    assert texto.index("## Tabela-resumo") < texto.index("## Regra de adoção") < texto.index("## Como os números")
+
+
 def test_capturas_guardam_uma_pasta_por_vez_na_memoria(tmp_path):
     # A configuração 5 lê a pasta da 0 depois da pasta da 4: a pasta anterior já saiu da memória quando
     # a próxima é lida, e a comparação sai das predições guardadas.
@@ -684,7 +726,8 @@ def test_relatorio_das_rodadas_versionado_sai_do_manifesto():
 def test_relatorio_das_capturas_versionado_sai_do_manifesto():
     m = json.loads((RESULTADOS / MANIFESTO_DAS_CAPTURAS).read_text(encoding="utf-8"))
     assert (RESULTADOS / RELATORIO_DAS_CAPTURAS).read_text(encoding="utf-8") == montar_relatorio_das_capturas(m)
-    assert list(m["resultados"]) == ["0", "1", "2", "3", "4"]
+    assert list(m["resultados"]) == ["0", "1", "2", "3", "4", "5"]
+    assert regra_de_adocao(m) is not None
 
 
 @pytest.mark.skipif(
