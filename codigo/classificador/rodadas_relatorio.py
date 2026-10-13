@@ -1360,9 +1360,15 @@ def atende_a_regra(pior_benigno, recall_de_ddos, diferenca_do_pcap):
     )
 
 
-def _recall_do_pcap_fora(resultado, sementes, arquivo):
+def _recall_do_pcap_fora(resultado, sementes, arquivo, trecho="teste"):
+    """O recall de um pcap fora do treino, por semente: no trecho de teste dele ou no pcap inteiro."""
     unidades = _nas_sementes(resultado.get("fora", {}).get(arquivo, {}), sementes)
-    return [_fracao(u["teste"]["previstas"][u["categoria"]], u["teste"]["janelas"]) for u in unidades]
+    return [_fracao(u[trecho]["previstas"][u["categoria"]], u[trecho]["janelas"]) for u in unidades]
+
+
+def _janelas_do_pcap_fora(resultado, sementes, arquivo, trecho="teste"):
+    unidades = _nas_sementes(resultado.get("fora", {}).get(arquivo, {}), sementes)
+    return unidades[0][trecho]["janelas"] if unidades else None
 
 
 def regra_de_adocao(m):
@@ -1379,11 +1385,17 @@ def regra_de_adocao(m):
             "pior_benigno": _media(pior["como_ataque"]), "pcap_do_pior_benigno": pior["arquivo"],
             "recall_de_ddos": _media(_do_corte(r[nome], sementes, lambda a: a["por_classe"]["DDoS+DoS"]["recall"])),
             "recall_do_pcap": _media(_recall_do_pcap_fora(r[nome], sementes, PCAP_DA_REGRA)),
+            # O pcap inteiro, e não só o trecho de teste: a regra mede o trecho, e o inteiro fica por transparência.
+            "recall_do_pcap_inteiro": _media(_recall_do_pcap_fora(r[nome], sementes, PCAP_DA_REGRA, "inteiro")),
+            "janelas_do_trecho": _janelas_do_pcap_fora(r[nome], sementes, PCAP_DA_REGRA),
+            "janelas_do_pcap_inteiro": _janelas_do_pcap_fora(r[nome], sementes, PCAP_DA_REGRA, "inteiro"),
         }
     diferenca = medidas[CANDIDATA]["recall_do_pcap"] - medidas[REFERENCIA]["recall_do_pcap"]
+    diferenca_inteiro = medidas[CANDIDATA]["recall_do_pcap_inteiro"] - medidas[REFERENCIA]["recall_do_pcap_inteiro"]
     condicoes = atende_a_regra(medidas[CANDIDATA]["pior_benigno"], medidas[CANDIDATA]["recall_de_ddos"], diferenca)
     return {
-        "medidas": medidas, "diferenca_do_pcap": diferenca,
+        "medidas": medidas, "diferenca_do_pcap": diferenca, "diferenca_do_pcap_inteiro": diferenca_inteiro,
+        "c_pelo_pcap_inteiro": diferenca_inteiro >= -QUEDA_MAXIMA_DO_PCAP,
         "comparacao_do_pcap": _no_caminho(r[CANDIDATA], "comparacao", "fora", "por_pcap", PCAP_DA_REGRA),
         "condicoes": dict(zip("abc", condicoes)), "adotada": all(condicoes),
     }
@@ -1430,7 +1442,34 @@ def _regra_das_capturas(m):
             f" A diferença da condição (c), com o intervalo de 95% das diferenças pareadas, é {_leitura(comparacao)}."
             if comparacao else ""
         ),
+        "",
+        _trecho_da_condicao_c(regra),
     ]
+
+
+def _trecho_da_condicao_c(regra):
+    """Qual trecho do pcap a condição (c) mediu, e o que daria o pcap inteiro."""
+    ref, nova = regra["medidas"][REFERENCIA], regra["medidas"][CANDIDATA]
+    if ref.get("recall_do_pcap_inteiro") is None:
+        return ""
+    queda = -regra["diferenca_do_pcap_inteiro"]
+    texto = (
+        f"A condição (c) foi medida no trecho de teste do `{PCAP_DA_REGRA}` ({_milhar(nova['janelas_do_trecho'])} "
+        "janelas), com o pcap fora do treino: é a convenção de todas as medidas com o pcap fora deste relatório, e a que "
+        "estava na tabela quando a regra foi fixada. No pcap inteiro "
+        f"({_milhar(nova['janelas_do_pcap_inteiro'])} janelas), o recall vai de {_pct(ref['recall_do_pcap_inteiro'], 1)} "
+        f"para {_pct(nova['recall_do_pcap_inteiro'], 1)}, uma " + ("queda" if queda > 0 else "alta") + " de "
+        f"{_decimal(100 * abs(queda), 2)} pontos"
+    )
+    if regra["condicoes"]["c"] and not regra["c_pelo_pcap_inteiro"]:
+        texto += (
+            ", e pelo pcap inteiro a condição (c) falharia. A adoção foi mantida porque a regra foi aplicada como foi "
+            "fixada e porque o ganho no alarme falso é grande: no pior pcap benigno de fora, de "
+            f"{_pct(ref['pior_benigno'], 1)} para {_pct(nova['pior_benigno'], 1)}."
+        )
+    else:
+        texto += "."
+    return texto
 
 
 def _diferencas_das_capturas(m):

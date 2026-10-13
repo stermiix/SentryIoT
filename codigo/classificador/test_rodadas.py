@@ -651,6 +651,10 @@ def test_relatorio_das_capturas_aplica_a_regra_a_configuracao_5(tmp_path, monkey
     texto = (tmp_path / "resultados" / RELATORIO_DAS_CAPTURAS).read_text(encoding="utf-8")
     assert "## Regra de adoção da configuração 5" in texto and "Pela regra, a configuração 5 " in texto
     assert "Na configuração 5, as janelas de fundo da parte de treino" in texto
+    # A condição (c) diz qual trecho mediu e o que daria o pcap inteiro.
+    assert "A condição (c) foi medida no trecho de teste do `Recon-PortScan.pcap`" in texto and "No pcap inteiro" in texto
+    assert nova["janelas_do_pcap_inteiro"] > nova["janelas_do_trecho"] > 0
+    assert regra["c_pelo_pcap_inteiro"] == (regra["diferenca_do_pcap_inteiro"] >= -0.05)
     assert texto.index("## Tabela-resumo") < texto.index("## Regra de adoção") < texto.index("## Como os números")
 
 

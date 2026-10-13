@@ -183,6 +183,8 @@ A regra definida pela equipe: a configuração 5 passa a ser o modelo do sistema
 
 Pela regra, a configuração 5 passa a ser o modelo do sistema. A diferença da condição (c), com o intervalo de 95% das diferenças pareadas, é -3,53 p.p. (de -5,29 a -1,77), diferente de zero.
 
+A condição (c) foi medida no trecho de teste do `Recon-PortScan.pcap` (850 janelas), com o pcap fora do treino: é a convenção de todas as medidas com o pcap fora deste relatório, e a que estava na tabela quando a regra foi fixada. No pcap inteiro (3.783 janelas), o recall vai de 89,7% para 83,4%, uma queda de 6,26 pontos, e pelo pcap inteiro a condição (c) falharia. A adoção foi mantida porque a regra foi aplicada como foi fixada e porque o ganho no alarme falso é grande: no pior pcap benigno de fora, de 38,5% para 5,4%.
+
 ## Como os números foram obtidos
 
 - Comando: `python -m codigo.classificador.rodadas --capturas --nucleos 4`, a partir da raiz do repositório.
