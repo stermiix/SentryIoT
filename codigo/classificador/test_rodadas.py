@@ -1,5 +1,6 @@
 import csv
 import gzip
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -402,11 +403,44 @@ def test_a_chave_dos_treinos_guardados_inclui_o_codigo(tmp_path, monkeypatch):
     regeracao = preparar_regerado(tmp_path)
     dados = ler_dados(regeracao["destino"], regeracao)
     antes = Execucao(ATUAL, dados, teto=30, trabalho=tmp_path / "t").trabalho.caminho
-    codigo = modulo.codigo_do_calculo()
-    assert set(codigo["arquivos"]) == set(modulo.MODULOS_DO_CALCULO)
-    codigo["arquivos"]["codigo/classificador/preparar.py"] = "0" * 64
-    monkeypatch.setattr(modulo, "codigo_do_calculo", lambda: codigo)
+    codigo = modulo.codigo_da_chave()
+    assert set(codigo) == set(modulo.MODULOS_DO_CALCULO)
+    codigo["codigo/classificador/preparar.py"] = "0" * 64
+    monkeypatch.setattr(modulo, "codigo_da_chave", lambda: codigo)
     assert Execucao(ATUAL, dados, teto=30, trabalho=tmp_path / "t").trabalho.caminho != antes
+
+
+def test_a_tabela_de_configuracoes_fica_fora_da_chave():
+    import codigo.classificador.rodadas as modulo
+
+    inicio, fim = modulo.INICIO_DAS_CONFIGURACOES, modulo.FIM_DAS_CONFIGURACOES
+    texto = f'x = 1\n{inicio}\nA = "0"\n{fim}\ny = 2\n'
+    assert modulo.sem_as_configuracoes(texto) == "x = 1\ny = 2\n"
+    # Mudar uma configuração não muda o que entra na chave; mudar o código de fora, sim.
+    assert modulo.sem_as_configuracoes(texto.replace('A = "0"', 'A = "0"\nB = "5"')) == "x = 1\ny = 2\n"
+    assert modulo.sem_as_configuracoes(texto.replace("y = 2", "y = 3")) != modulo.sem_as_configuracoes(texto)
+    # A marca citada num texto não corta nada, e sem as duas marcas em ordem o código fica inteiro.
+    citada = f'M = "{inicio}"\nx = 1\n{fim}\n'
+    assert modulo.sem_as_configuracoes(citada) == citada
+    assert modulo.sem_as_configuracoes(f"{fim}\nx = 1\n{inicio}\n") == f"{fim}\nx = 1\n{inicio}\n"
+    # No módulo de verdade, a tabela inteira fica entre as marcas.
+    codigo = (RAIZ / "codigo" / "classificador" / "rodadas.py").read_text(encoding="utf-8")
+    sem = modulo.sem_as_configuracoes(codigo)
+    assert "CONFIGURACOES = (" not in sem and "def impressao_da_configuracao" in sem
+    assert modulo.codigo_da_chave()["codigo/classificador/rodadas.py"] == hashlib.sha256(sem.encode("utf-8")).hexdigest()
+    assert modulo.codigo_do_calculo()["arquivos"]["codigo/classificador/rodadas.py"] == modulo._sha256(
+        RAIZ / "codigo" / "classificador" / "rodadas.py")
+
+
+def test_a_configuracao_5_e_a_0_com_o_fundo_como_benigno():
+    import codigo.classificador.rodadas as modulo
+
+    assert [c.nome for c in modulo.CONFIGURACOES] == ["0", "1", "2", "3", "4", "5"]
+    quinta = modulo.CONFIGURACOES[5]
+    assert (quinta.destino, quinta.regeracao, quinta.sem, quinta.opcoes) == (ATUAL.destino, ATUAL.regeracao, (), ())
+    assert quinta.fundo_como_benigno and not ATUAL.fundo_como_benigno
+    quarta = modulo.CONFIGURACOES[4]
+    assert quarta.fundo_como_benigno and quarta.destino != quinta.destino
 
 
 def test_execucao_sorteia_a_amostra_da_semente_pedida(tmp_path):
@@ -563,6 +597,39 @@ def test_comparacao_de_capturas_com_o_fundo_no_treino_e_sem_ttl(tmp_path, monkey
     with open(tmp_path / "resultados" / "rodadas_normalizadas_resumo.csv", encoding="utf-8", newline="") as arquivo:
         resumo = list(csv.DictReader(arquivo))
     assert {linha["configuracao"] for linha in resumo} == {"0", "3", "4"}
+
+
+def test_capturas_guardam_uma_pasta_por_vez_na_memoria(tmp_path):
+    # A configuração 5 lê a pasta da 0 depois da pasta da 4: a pasta anterior já saiu da memória quando
+    # a próxima é lida, e a comparação sai das predições guardadas.
+    import gc
+    import weakref
+
+    a = preparar_regerado(tmp_path / "a")
+    b = preparar_regerado(tmp_path / "b", np.random.default_rng(1))
+    manifesto_a = str(tmp_path / "a" / "resultados" / MANIFESTO_DA_REGERACAO)
+    manifesto_b = str(tmp_path / "b" / "resultados" / MANIFESTO_DA_REGERACAO)
+    configuracoes = (
+        Configuracao("0", "o modelo atual", a["destino"], manifesto_a),
+        Configuracao("4", "outra pasta com o fundo", b["destino"], manifesto_b, fundo_como_benigno=True),
+        Configuracao("5", "a 0 com o fundo", a["destino"], manifesto_a, fundo_como_benigno=True),
+    )
+    lidos = []
+
+    def ler(destino, regeracao, ao_ler=None):
+        gc.collect()
+        assert not any(referencia() is not None for referencia in lidos), "a pasta anterior continua na memória"
+        dados = ler_dados(destino, regeracao, ao_ler)
+        lidos.append(weakref.ref(dados))
+        return dados
+
+    saida, entradas = rodar_capturas(configuracoes, sementes=(42, 1, 2), arvores=2, nucleos=1, teto=30,
+                                     trabalho=tmp_path / "t", pcaps_fora=("XSS.pcap",), ler=ler)
+    assert len(lidos) == 3 and list(entradas) == [a["destino"], b["destino"]]
+    assert list(saida) == ["0", "4", "5"] and "comparacao" in saida["5"] and "tamanhos" not in saida["5"]
+    # Fundo como benigno nos mesmos dados: o fundo da parte de treino passa a ser previsto como Benign.
+    treino = lambda nome: fundo_por_semente(saida[nome], ["42", "1", "2"], "treino")
+    assert max(treino("5")) < min(treino("0"))
 
 
 def test_o_fundo_entra_no_treino_como_benigno_so_na_parte_de_treino(tmp_path):
