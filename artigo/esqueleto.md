@@ -129,20 +129,23 @@ regeração, cada um dos 38 pcaps é extraído em janela única. Os 34 rótulos 
 arquivo, `DDoS-SYN_Flood` e `DoS-SYN_Flood` com dois cada e `BenignTraffic` com três. Numa captura
 benigna toda janela é benigna, e numa captura de ataque a janela só recebe o rótulo do arquivo se
 contém um quadro de um dos sete Raspberry Pi atacantes documentados pelos autores, e é descartada
-caso contrário. A divisão treino/teste é por tempo dentro de cada pcap (os primeiros 70% das
+caso contrário. As janelas descartadas, o tráfego de fundo das capturas de ataque, ficam à parte;
+no treino do modelo do sistema, as da parte de treino de cada pcap entram como benignas (seção
+3.3). A divisão treino/teste é por tempo dentro de cada pcap (os primeiros 70% das
 janelas para o treino) ou por arquivo inteiro quando o rótulo tem mais de um pcap (o último, pelo
 sufixo numérico do nome, fica no teste), o que evita que janelas vizinhas caiam dos dois lados. O teto de 50.000 janelas por rótulo e a semente 42 são
 mantidos (`codigo/classificador/regerar.py`, `experimentos/resultados/regeracao.md`).
 
 ### 3.3 Treino e avaliação do classificador
 
-As métricas do classificador são a precisão, o recall e o F1 de cada categoria, o macro-F1 e a
-taxa de falso positivo, com destaque para o tráfego benigno classificado como ataque. A acurácia
-global não é a métrica principal: DDoS e DoS somam 89,5% das linhas do `MERGED_CSV`, e um modelo
-que respondesse DDoS para tudo acertaria 72,3%. `[PENDENTE: a equipe ainda não escolheu qual
-medida do classificador do sistema é a principal no artigo: o corte por tempo, a rotação do pcap
-benigno de fora do treino ou o pcap inteiro fora do treino. Até lá, o corte por tempo vem
-primeiro, como no relatório da regeração, e os controles vêm em seguida, como resultados.]`
+As métricas do classificador são a precisão, o recall e o F1 de cada categoria e a taxa de falso
+positivo, com destaque para o tráfego benigno classificado como ataque. O resultado principal é a
+tabela por categoria no corte por tempo, no ponto de operação, com dois controles ao lado: o recall
+com o pcap inteiro fora do treino e o alarme falso com cada pcap benigno fora do treino (decisão de
+2026-10-13, `ROADMAP.md`). O macro-F1 é relatado, mas não é o número principal: dá o mesmo peso a
+categorias com 273 e com 214.373 janelas de teste e não mostra onde o modelo erra. A acurácia
+global também não é: DDoS e DoS somam 89,5% das linhas do `MERGED_CSV`, e um modelo que
+respondesse DDoS para tudo acertaria 72,3%.
 
 Na fase exploratória, o Random Forest (scikit-learn, 100 árvores, parâmetros padrão) foi treinado
 e avaliado na amostra do `MERGED_CSV` descrita acima, com 80% das linhas para o treino e 20% para
@@ -170,39 +173,52 @@ dependem do tamanho da janela não resolve. Foi esse resultado que levou à rege
 O classificador do sistema é treinado de outra forma, nos dados regerados (seção 3.2): um Random
 Forest de 100 árvores, com os parâmetros padrão do scikit-learn e sem busca de hiperparâmetros,
 nas 39 features, em 7 categorias, com janela de 100 quadros, teto de 50.000 janelas por rótulo,
-semente 42 e a divisão por tempo e por arquivo descrita na seção 3.2. São 567.732 janelas de
-treino e 273.566 de teste (`experimentos/resultados/regeracao.md`).
+semente 42 e a divisão por tempo e por arquivo descrita na seção 3.2. As janelas de fundo da parte
+de treino de cada pcap de ataque, sem nenhum quadro do atacante, entram no treino como benignas.
+São 567.732 janelas rotuladas e 40.966 de fundo no treino, e 273.566 janelas de teste
+(`experimentos/resultados/regeracao.md`).
 
-Nos dados regerados, os dois modelos (janela de 10 e de 100) foram treinados e comparados, e a
-janela de 100 quadros ficou como a do sistema (decisão de 2026-10-10). Com janela de 100, no corte
-por tempo: macro-F1 de 82,3%, acurácia de 98,3%, DDoS+DoS com F1 de 99,3%, Mirai 99,6%, Spoofing
-99,4%, Recon 87,3%; Web (47,1%) e BruteForce (51,8%) continuam fracos, com recall entre 35% e 37%,
-confundidos com Recon e com tráfego benigno. Nos três arquivos inteiros reservados para teste
-(`BenignTraffic2`, `DDoS-SYN_Flood1` e `DoS-SYN_Flood1`), que só têm tráfego benigno e floods de
-SYN, a acurácia é de 99,5%, e 1,9% das janelas benignas são classificadas como ataque, contra
-12,7% com janela de 10. A janela de 10 só tem recall maior em Recon e Mirai, por menos de um
-ponto, e F1 maior só em Mirai (`experimentos/resultados/regeracao.md`).
+A janela de 100 quadros foi escolhida em 2026-10-10, com os dois modelos treinados sem o fundo:
+macro-F1 de 82,3% contra 75,7% com janela de 10, e 1,9% contra 12,7% das janelas de um pcap
+benigno fora do treino classificadas como ataque (`experimentos/resultados/regeracao_sem_fundo.md`).
 
-O corte por tempo mede o reconhecimento de um trecho seguinte da mesma captura. Os controles a
-seguir medem o que ele não mostra (`experimentos/resultados/rodadas_de_teste.md`). Entre cinco
-sementes, o macro-F1 vai de 82,09% a 82,29%, e o tráfego benigno classificado como ataque, de
-1,60% a 1,86%. Com cada um dos três pcaps benignos fora do treino, um por vez, a fração
-classificada como ataque vai de 1,5% (`BenignTraffic1.pcap`) a 38,5% (`BenignTraffic.pcap`, em que
-32% das janelas viram Recon), e é de 15,4% somando os três: o 1,9% acima é o de uma das rotações.
-Com o pcap inteiro fora do treino, o recall de Recon cai de 87,7% para 31,5% e o de Web, de 37,1%
-para 31,3%; BruteForce tem um pcap só, e sem ele a categoria some do treino. As janelas de fundo
-dos pcaps de ataque, sem nenhum quadro do atacante, viram ataque em 72% dos casos na parte de
-teste. Como janelas vizinhas erram juntas, os intervalos de 95% foram calculados por blocos de
-janelas vizinhas: vão de 31,1% a 43,1% no recall de Web e de 19,2% a 52,0% no de BruteForce.
+O tráfego de fundo entrou no treino depois de medido o que o modelo fazia com ele. Treinado sem o
+fundo, o modelo classificava como ataque 72,3% das janelas de fundo da parte de teste e, com o
+`BenignTraffic.pcap` fora do treino, 38,5% das janelas desse pcap, 32% do pcap como Recon. Seis
+configurações de treino foram comparadas com três sementes (42, 1 e 2), por diferenças pareadas
+na mesma semente e nas mesmas janelas, com intervalo de 95% por reamostragem de blocos de 10
+janelas vizinhas (`experimentos/resultados/rodadas_normalizadas.md`). O fundo como benigno baixa os
+dois números para 13,3% e 5,4%; normalizar o tamanho do quadro não os baixa. A equipe fixou antes
+da medida a regra para adotar o fundo no treino: na média das sementes, (a) benigno classificado
+como ataque abaixo de 10% no pior pcap benigno fora do treino, (b) recall de DDoS+DoS de pelo menos
+98% no corte por tempo e (c) queda de no máximo 5 pontos no recall do `Recon-PortScan.pcap` com o
+pcap fora do treino. As três foram atendidas, com 5,4%, 98,37% e queda de 3,53 pontos, mas o
+intervalo de 95% da diferença em (c) vai de −5,29 a −1,77 pontos e passa do limite na ponta
+inferior (decisão de 2026-10-13).
 
-O Spoofing de 99,4% depende da captura. 84% das janelas de Spoofing têm quadro menor que 60 bytes,
-gravado sem o preenchimento do Ethernet, o que nas demais categorias quase não acontece, e o fundo
-dos dois pcaps de spoofing, sem quadro do atacante, cai na categoria Spoofing em 97,7% e 99,5% das
-janelas. Com o quadro medido como no fio, o recall de Spoofing cai para 88,2% no corte por tempo e
-para 66% com o pcap fora do treino (`experimentos/resultados/rodadas_normalizadas.md`). Ficam em
-aberto o tratamento do tráfego de fundo no treino e o ponto de operação, por limiar sobre a
-probabilidade de benigno e por janelas seguidas, a escolher numa parte de validação (`ROADMAP.md`,
-decisões em aberto).
+A decisão sobre cada janela usa um ponto de operação, e não a categoria mais provável: a janela é
+ataque se 1 − P(Benign) ≥ t, na categoria de ataque mais provável, e um incidente só abre com 3
+janelas de ataque seguidas. O limiar foi escolhido numa parte de validação, separada do teste: as
+últimas 15% da parte de treino de cada pcap, por tempo. Um modelo treinado no restante da parte de
+treino classifica todas as janelas benignas da validação (9.866), e t é o menor valor, de 0,01 em
+0,01, que deixa no máximo 1% delas como ataque: t = 0,61 na semente 42, e 0,59 e 0,61 nas outras
+duas. O modelo do sistema é o do treino inteiro, com t e N gravados ao lado dele
+(`codigo/classificador/operacao.py`, `experimentos/resultados/ponto_de_operacao.md`).
+
+Os controles medem o que o corte por tempo não mostra: o recall de cada pcap quando nenhuma janela
+dele entra no treino, o alarme falso com cada um dos três pcaps benignos fora do treino, um por
+vez, e o fundo da parte de teste classificado como ataque. Os resultados estão na seção 4. Os
+controles do modelo de 10/10 que não foram refeitos para o do sistema (cinco sementes, importância
+por permutação, intervalos das classes raras e custo) estão em
+`experimentos/resultados/rodadas_de_teste.md`.
+
+O Spoofing depende da captura. 84% das janelas de Spoofing têm quadro menor que 60 bytes, gravado
+sem o preenchimento do Ethernet, o que nas demais categorias quase não acontece. No modelo de
+10/10, o fundo dos dois pcaps de spoofing, sem quadro do atacante, caía na categoria Spoofing em
+97,7% e 99,5% das janelas, e com o quadro medido como no fio o recall de Spoofing caía de 99,4%
+para 88,2% no corte por tempo e de 97% para 66% com o pcap fora do treino
+(`experimentos/resultados/rodadas_normalizadas.md`). A medida como no fio não foi adotada, e o
+artefato fica como limitação (seção 5).
 
 ### 3.4 Justificativa do Random Forest
 
@@ -271,8 +287,9 @@ estava aplicado pode ser desfeito, e o agente de decisão, que vê a marca no re
 incidente. O log grava o instante de cada etapa, da janela à verificação (Figura 2), o que permite
 medir o tempo entre detecção e remediação, com e sem intervenção humana. Do lado da detecção, a
 janela de 100 quadros fecha, na mediana, em 5 ms em DDoS e DoS e entre 1,3 s e 2,5 s em Recon,
-BruteForce e Web, e a classificação de uma janela leva 1,6 ms
-(`experimentos/resultados/rodadas_de_teste.md`).
+BruteForce e Web, e a classificação de uma janela leva 1,6 ms no modelo de 10/10
+(`experimentos/resultados/rodadas_de_teste.md`); o modelo do sistema ocupa 365,6 MB em disco, o dobro
+do de 10/10, e a latência dele ainda não foi medida.
 
 ### 3.6 Avaliação da PoC e dos agentes
 
@@ -286,13 +303,67 @@ poisoning `[a escrever]`.
 
 ## 4. Resultados
 
-`[PENDENTE]` Consolidar aqui a versão final do classificador (Figura 3, matriz de confusão no
-corte por tempo; os números da janela de 100 nos dados regerados e os controles estão na seção
-3.3; falta escolher a medida principal, o tratamento do tráfego de fundo e o ponto de operação)
-e, quando disponíveis, as métricas dos agentes (qualidade da recomendação, custo em tokens, tempo
-entre detecção e remediação) e a comparação entre as configurações local, nuvem e híbrida. A
-legenda da Figura 3 precisa dizer que a linha Benign vem de um único pcap fora do treino e trazer
-as ressalvas de Recon e de Spoofing da seção 3.3.
+### 4.1 Classificador
+
+A Tabela 1 é o resultado principal: o modelo do sistema no ponto de operação (t = 0,61, N = 3),
+no corte por tempo, com o recall com o pcap inteiro fora do treino ao lado. A Tabela 2 traz o
+alarme falso com cada pcap benigno fora do treino.
+
+**Tabela 1.** Modelo do sistema por categoria. Precisão, recall e F1 no corte por tempo, no ponto
+de operação, na média das sementes 42, 1 e 2 (as faixas estão em `ponto_de_operacao.md`); janelas
+de teste da semente 42. Recall com o pcap fora: cada pcap sai inteiro do treino, um por vez, e é
+medido nas suas janelas de teste, somando os pcaps da categoria, com a categoria mais provável
+(`rodadas_normalizadas.md`, configuração 5); em DDoS+DoS, quatro pcaps foram retirados.
+
+| Categoria | Janelas de teste | Precisão | Recall | F1 | Recall com o pcap fora do treino |
+|---|---|---|---|---|---|
+| DDoS+DoS | 214.373 | 99,8% | 98,4% | 99,1% | 74,2% |
+| Mirai | 24.458 | 100,0% | 99,2% | 99,6% | 55,3% |
+| Recon | 10.982 | 83,8% | 50,4% | 63,0% | 24,9% |
+| Spoofing | 7.007 | 99,8% | 73,3% | 84,6% | 63,0% |
+| Web | 465 | 62,0% | 37,1% | 46,4% | 29,4% |
+| BruteForce | 273 | 97,0% | 35,0% | 51,5% | 0,0% (um pcap só; 56,9% vistas como algum ataque) |
+| Benign | 16.008 | 61,2% | 99,0% | 75,6% | Tabela 2 |
+
+**Tabela 2.** Benigno classificado como ataque com cada pcap benigno fora do treino, um por vez, no
+ponto de operação de cada rotação, na média das sementes 42, 1 e 2, e os alarmes com 3 janelas
+seguidas. A hora é a soma da duração das janelas do pcap (`ponto_de_operacao.md`).
+
+| Pcap fora do treino | Janelas | Como ataque | Alarmes | Alarmes por hora | Como ataque, modelo de 10/10 |
+|---|---|---|---|---|---|
+| `BenignTraffic2.pcap` | 31.032 | 1,1% | 8,7 | 1,1 | 1,1% |
+| `BenignTraffic.pcap` | 36.228 | 6,0% | 124,0 | 13,5 | 36,1% |
+| `BenignTraffic1.pcap` | 29.549 | 0,9% | 7,0 | 1,0 | 1,0% |
+
+No corte por tempo, DDoS+DoS e Mirai passam de 98% de recall e de precisão. Recon (50,4%), Web
+(37,1%) e BruteForce (35,0%) ficam bem abaixo, e o que eles perdem vai sobretudo para Benign
+(Figura 3), o que explica a precisão de 61,2% da categoria benigna. O macro-F1 é de 74,2% (de
+74,0% a 74,6% entre as sementes), e 1,0% das janelas benignas de teste viram ataque. Com o pcap
+inteiro fora do treino, o recall cai em todas as categorias com mais de um pcap: Recon fica em
+24,9% (0,5% no `VulnerabilityScan.pcap`), Spoofing em 63,0% (40,3% no `DNS_Spoofing.pcap`), Web em
+29,4%, Mirai em 55,3% (0% no `Mirai-udpplain.pcap`) e DDoS+DoS em 74,2% (39,8% no
+`DDoS-SlowLoris.pcap`). BruteForce tem um pcap só: sem ele, a categoria some do treino. O alarme
+falso depende do pcap benigno que fica de fora, de 0,9% a 6,0% das janelas, e com 3 janelas
+seguidas o pior pcap dá 13,5 alarmes por hora. O fundo da parte de teste classificado como ataque
+é de 10,2%. Dos 33 pcaps de ataque com trecho de teste, 32 alarmam com a regra das 3 janelas; o
+`Recon-PingSweep.pcap`, com 18 janelas de atacante no trecho, não alarma.
+
+Em relação ao modelo de 10/10, com o mesmo procedimento de ponto de operação, o modelo do sistema
+troca recall por alarme falso: o recall de Recon vai de 82,1% para 50,4% e o de Spoofing, de 99,4%
+para 73,3%, enquanto o alarme falso no `BenignTraffic.pcap` fora do treino vai de 36,1% para 6,0%
+e o fundo classificado como ataque, de 65,9% para 10,2% (`ponto_de_operacao.md`).
+
+**Figura 3.** Matriz de confusão do modelo do sistema no ponto de operação (t = 0,61), na parte de
+teste do corte por tempo, semente 42. Cada linha soma 100% das janelas de teste da categoria real.
+A linha Benign vem de um único pcap fora do treino, o `BenignTraffic2.pcap`; com os outros dois
+fora do treino, o alarme falso vai a 0,9% e a 6,0% (Tabela 2). Com o pcap inteiro fora do treino,
+o recall é menor que o da diagonal em todas as categorias com mais de um pcap, e bem menor em
+Recon, Spoofing e Mirai (Tabela 1); o Spoofing depende ainda de um artefato da captura (seção 5).
+
+### 4.2 Agentes
+
+`[PENDENTE]` As métricas dos agentes (qualidade da recomendação, custo em tokens, tempo entre
+detecção e remediação) e a comparação entre as configurações local, nuvem e híbrida.
 
 ## 5. Limitações
 
@@ -301,24 +372,28 @@ Rascunho a partir do que já foi medido:
   janela, não o comportamento do tráfego (seção 3.3; Figura 4). A regeração em janela única
   resolve isso ao custo de treinar só com os pcaps disponíveis, e os resultados valem para a
   janela de 100.
-- **Tráfego de fundo**: entre 33% e 87% das janelas de 10 dos pcaps de varredura, força bruta,
-  Web e spoofing não contêm nenhum quadro do atacante
-  (`experimentos/resultados/janelas_sem_atacante.md`; Figura 5). A regeração descarta essas
-  janelas, e por isso Web e BruteForce ficam com poucas janelas de treino e de teste.
-  Classificadas pelo modelo, 72% delas viram ataque, e nos pcaps de spoofing e no
-  `VulnerabilityScan.pcap` a maior parte cai na categoria da própria captura. Parte do fundo pode
-  conter efeito do ataque, e por isso essa fração é uma estimativa pessimista do alarme falso
-  durante um ataque.
-- **Web e BruteForce**: recall entre 35% e 37% no corte por tempo, confundidos com Recon e com
-  tráfego benigno, e com intervalos largos: por blocos, de 19,2% a 52,0% em BruteForce, que tem
-  um tamanho efetivo de 15 janelas de teste. Os pcaps dessas classes são curtos, e o grupo não tem
-  captura própria.
-- **Outra captura da mesma categoria**: com o pcap inteiro fora do treino, o recall de Recon cai
-  de 87,7% para 31,5% (5,8% no `VulnerabilityScan.pcap`), o de Mirai, de 99,2% para 55,3% (0% no
-  `Mirai-udpplain.pcap`), e o de Web, de 37,1% para 31,3%. Cada pcap de Recon e de Web é uma
-  técnica diferente, e tirar o pcap tira também a técnica do treino. BruteForce tem um pcap só.
+- **Tráfego de fundo no treino**: entre 33% e 87% das janelas de 10 dos pcaps de varredura, força
+  bruta, Web e spoofing não contêm nenhum quadro do atacante
+  (`experimentos/resultados/janelas_sem_atacante.md`; Figura 5). O treino do sistema põe as da
+  parte de treino como benignas, e parte delas pode conter efeito do ataque: o modelo aprende a
+  chamar de benigno o que se parece com elas, e o recall de Recon e o de Spoofing caem (seção 4.1).
+  O fundo da parte de teste não tem rótulo e fica fora do teste; o modelo classifica 10,2% dele
+  como ataque, uma estimativa do alarme durante um ataque, e não um erro medido.
+- **A regra que adotou o fundo no treino**: a condição sobre o `Recon-PortScan.pcap` foi atendida
+  pela média, com queda de 3,53 pontos, mas o intervalo de 95% da queda vai de 1,77 a 5,29 pontos
+  e não exclui uma queda acima do limite de 5.
+- **Web e BruteForce**: recall de 37,1% e de 35,0% no corte por tempo, no ponto de operação,
+  confundidos com Recon e com tráfego benigno. Os intervalos são largos: no modelo de 10/10, por
+  blocos, de 19,2% a 52,0% em BruteForce, que tem um tamanho efetivo de 15 janelas de teste. Os
+  pcaps dessas classes são curtos, e o grupo não tem captura própria.
+- **Outra captura da mesma categoria**: com o pcap inteiro fora do treino, o recall de Recon fica
+  em 24,9%, o de Spoofing em 63,0%, o de Mirai em 55,3% e o de Web em 29,4% (Tabela 1). Cada pcap
+  de Recon e de Web é uma técnica diferente, e tirar o pcap tira também a técnica do treino.
+  BruteForce tem um pcap só.
 - **Alarme falso conforme o pcap benigno**: com cada pcap benigno fora do treino, a fração
-  classificada como ataque vai de 1,5% a 38,5%.
+  classificada como ataque vai de 0,9% a 6,0% no ponto de operação (Tabela 2). O limiar foi
+  escolhido com no máximo 1% de alarme falso na validação, que vem dos outros dois pcaps
+  benignos, e o pcap de fora pode passar disso, como passa o `BenignTraffic.pcap`.
 - **Artefato de captura**: os pcaps não foram gravados todos do mesmo jeito. 84% das janelas de
   Spoofing têm quadro menor que 60 bytes, sem o preenchimento do Ethernet, e 88% das janelas
   benignas têm quadro maior que 1.514 bytes, que só existe com segmentação feita pela placa da
@@ -326,7 +401,8 @@ Rascunho a partir do que já foi medido:
   que mais derruba o recall do tráfego benigno quando permutada, e as janelas benignas com TTL
   médio até 64 viram ataque em 9,3% dos casos, contra 1,4% acima de 90. Medir o quadro como no
   fio foi testado e não adotado, porque piora as medidas com o pcap fora do treino sem melhorar o
-  alarme falso (seção 3.3).
+  alarme falso (seção 3.3), e o artefato fica declarado como limitação (decisão de 2026-10-13).
+  Os números do TTL são do modelo de 10/10.
 - **Cenários da PoC**: DDoS, port scan e brute force. O cenário de exfiltração foi retirado com o
   orientador (decisão de 2026-10-10): o CICIoT2023 não tem essa classe, e os datasets de referência
   também não a cobrem com dados rotulados suficientes. O dataset secundário foi dispensado pelo

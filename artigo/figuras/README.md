@@ -31,9 +31,10 @@ fundo da parte de treino dos pcaps de ataque como benigno, no ponto de operaçã
 validação (t = 0,61), na parte de teste do corte por tempo (decisões de 13/10/2026 no `ROADMAP.md`;
 `experimentos/resultados/regeracao.md`). A legenda precisa trazer as ressalvas dos controles: a
 linha Benign é de um único pcap fora do treino, e o alarme falso muda conforme o pcap benigno que
-fica de fora (`ponto_de_operacao.md`); o recall com o pcap inteiro fora do treino é bem menor que
-o da diagonal em Recon, Web e Spoofing (`rodadas_normalizadas.md`); e o Spoofing depende de um
-artefato da captura (`rodadas_de_teste.md`, rodada f). Quando `python -m
+fica de fora (`ponto_de_operacao.md`); com o pcap inteiro fora do treino, o recall é menor que o
+da diagonal em todas as categorias com mais de um pcap, e bem menor em Recon, Spoofing e Mirai
+(`rodadas_normalizadas.md`); e o Spoofing depende de um artefato da captura (`rodadas_de_teste.md`,
+rodada f). Quando `python -m
 codigo.classificador.treinar_regerado` regravar o CSV, basta rodar `matriz_confusao.py` de novo.
 
 ## Dependências

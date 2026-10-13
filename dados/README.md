@@ -119,6 +119,13 @@ Pôr o dicionário em maiúsculas também não resolve: o tráfego benigno apare
 atacante** (10/10/2026). O `MERGED_CSV` fica como referência e como fonte do treino exploratório.
 O motivo e a receita estão em "Regeração dos dados de treino", abaixo.
 
+**O modelo do sistema treina com o tráfego de fundo da parte de treino como benigno e decide pelo
+ponto de operação escolhido na validação** (13/10/2026). As janelas sem nenhum quadro do atacante
+que ficam na parte de treino de cada pcap de ataque entram no treino como `Benign`. A janela é
+ataque se 1 − P(Benign) ≥ t, com t escolhido numa parte de validação (t = 0,61), e o incidente só
+abre com 3 janelas de ataque seguidas. O treino de 10/10, sem o fundo, fica como referência.
+Detalhes em "O treino", abaixo, e os motivos no `ROADMAP.md`.
+
 **Usamos as 39 features do `MERGED_CSV`.** Treino e operação partem do mesmo conjunto de colunas,
 e o extrator reproduz os valores oficiais nos cinco pcaps calibrados, com janela de 10 e de 100;
 a calibração de conjunto confirma o cálculo nos 38 pcaps (ver "Calibração do extrator"). A
@@ -236,8 +243,8 @@ que capturou. No CICIoT2023, `DNS_Spoofing.pcap`, `MITM-ArpSpoofing.pcap` e
 `Mirai-greip_flood21.pcap` têm quadros menores que 60 bytes, e 35 dos 38 pcaps têm quadros
 maiores que 1.514. As duas opções ficam desligadas na calibração, que reproduz os autores, e no
 modelo do sistema: a comparação com elas ligadas está em
-`experimentos/resultados/rodadas_normalizadas.md` e não foi adotada (`ROADMAP.md`, decisões em
-aberto).
+`experimentos/resultados/rodadas_normalizadas.md` e não foi adotada; o artefato de captura fica
+como limitação declarada (`ROADMAP.md`, decisão de 13/10/2026).
 
 **Avisos da extração.** No fim, a linha de comando do extrator diz quantos quadros ficaram fora
 do filtro, por tipo, e avisa em dois casos que mudam os números: quando a maior parte dos quadros
@@ -329,18 +336,27 @@ rótulo não usa a lista nos pcaps benignos.
 (`DoS-HTTP_Flood1.pcap` é `DoS-HTTP_Flood`); nome que não casa com nenhum dos 34 rótulos é
 recusado. Num pcap benigno, toda janela é `BenignTraffic`. Num pcap de ataque, a janela recebe o
 rótulo do arquivo se contém um quadro com MAC de atacante na origem ou no destino, e é descartada
-se não contém. A janela descartada não vira benigna: o tráfego de fundo de uma captura de ataque
-pode estar contaminado.
+se não contém. A regeração não muda o rótulo da janela descartada: ela fica à parte, em
+`descartadas/`. Quem decide o que fazer com ela é o treino. Desde 13/10/2026, o treino do sistema
+põe como `Benign` as descartadas da parte de treino de cada pcap de ataque e deixa as da parte de
+teste fora do teste; até então elas ficavam fora do treino, porque o tráfego de fundo de uma
+captura de ataque pode conter efeito do ataque, e o treino de referência (`--sem-fundo`) continua
+assim.
 
 **A receita**, a partir da raiz do repositório, com os pcaps em `CICIoT2023/`:
 
     python -m codigo.classificador.atacantes          # confirma os MACs e mede as janelas sem atacante
     python -m codigo.classificador.regerar            # extrai, rotula e grava os CSVs regerados
-    python -m codigo.classificador.treinar_regerado --nucleos 4   # treina e avalia nas duas janelas
-    python -m codigo.classificador.rodadas --nucleos 4            # rodadas de teste da janela de 100
+    python -m codigo.classificador.treinar_regerado --nucleos 4               # o modelo do sistema, com t e N
+    python -m codigo.classificador.treinar_regerado --sem-fundo --nucleos 4   # o modelo de 10/10, como referência
+    python -m codigo.classificador.rodadas --nucleos 4            # rodadas de teste do modelo de 10/10
+    python -m codigo.classificador.rodadas --capturas --nucleos 4 # comparação das configurações 0 a 5
+    python -m codigo.classificador.ponto_de_operacao --nucleos 4  # ponto de operação nas configurações 0 e 5
 
-Os dois primeiros aceitam `--dataset` para apontar outra pasta de pcaps; o terceiro lê o manifesto
-da regeração (`--manifesto-da-regeracao`) e os CSVs regerados (`--destino`). Os dois primeiros
+Os dois primeiros aceitam `--dataset` para apontar outra pasta de pcaps; `treinar_regerado` lê o
+manifesto da regeração (`--manifesto-da-regeracao`) e os CSVs regerados (`--destino`). As rodadas
+usam o modelo de referência, e por isso o treino com `--sem-fundo` vem antes delas; o ponto de
+operação confere os dois modelos salvos contra o próprio retreino. Os dois primeiros
 guardam no manifesto o tamanho e a data de modificação de cada pcap, e numa execução seguinte só
 leem os pcaps novos ou alterados; um pcap que sumiu da pasta sai da saída. O manifesto da
 regeração guarda também o SHA-256 do extrator, as opções com que ele mediu os quadros e a versão
@@ -364,24 +380,36 @@ na origem ou no destino (`quadros_atacante`) e quantos MACs atacantes distintos 
 (`macs_atacante`). O arquivo de cada rótulo é a junção das partes de cada pcap (`partes/`), e por
 isso um pcap novo entra sem refazer os outros. As janelas descartadas, sem nenhum quadro do
 atacante, ficam à parte, com as mesmas colunas e o rótulo do arquivo, em
-`descartadas/<pcap>.csv.gz`: não entram no treino e servem para medir o que o modelo faz com o
-tráfego de fundo das capturas de ataque. O manifesto
+`descartadas/<pcap>.csv.gz`: as da parte de treino entram no treino do sistema como `Benign`, e
+todas servem para medir o que o modelo faz com o tráfego de fundo das capturas de ataque. O manifesto
 `experimentos/resultados/manifesto_regeracao.json`, versionado, registra o hash e o tamanho de
 cada pcap e as janelas extraídas, mantidas e descartadas, por janela.
 
-**O treino.** Um modelo por janela, de 7 categorias, com DDoS e DoS juntos, nas 39 features, com
-teto de 50.000 linhas por rótulo e semente 42, como no treino exploratório. Treino e teste são
-divididos por tempo: dentro de cada pcap, as primeiras 70% das janelas vão para o treino e as
-últimas 30% para o teste, para não deixar janelas vizinhas dos dois lados; um rótulo com mais de
-um pcap tem o último arquivo, pelo sufixo numérico do nome, inteiro no teste. As métricas, nas
-duas janelas, estão em `experimentos/resultados/regeracao.md`. Os 34 rótulos têm pcap desde
-10/10/2026, e o relatório guarda as rodadas parciais anteriores como referência. A janela do
-sistema é a de 100 (decisão de 10/10/2026); a de 10 fica no relatório só como referência.
+**O treino.** O modelo do sistema tem janela de 100 (decisão de 10/10/2026), 7 categorias, com
+DDoS e DoS juntos, e as 39 features, com teto de 50.000 linhas por rótulo e semente 42, como no
+treino exploratório. Treino e teste são divididos por tempo: dentro de cada pcap, as primeiras 70%
+das janelas vão para o treino e as últimas 30% para o teste, para não deixar janelas vizinhas dos
+dois lados; um rótulo com mais de um pcap tem o último arquivo, pelo sufixo numérico do nome,
+inteiro no teste. As janelas de fundo da parte de treino de cada pcap de ataque entram no treino
+como `Benign` (40.966 janelas). O ponto de operação sai de uma parte de validação: as últimas 15%
+da parte de treino de cada pcap, por tempo; um modelo treinado no resto escolhe o menor t, de 0,01
+em 0,01, que deixa no máximo 1% das janelas benignas da validação como ataque. O modelo salvo é o
+do treino inteiro, em `modelos/rf_regerado_janela_100.joblib`, com t e N num JSON ao lado
+(`rf_regerado_janela_100.ponto_de_operacao.json`); `codigo/classificador/operacao.py` lê o JSON,
+recusa o de outro modelo e aplica a regra a uma janela e a uma sequência de janelas. As medidas,
+com a categoria mais provável e com o ponto de operação, estão em
+`experimentos/resultados/regeracao.md`.
 
-Os controles do modelo de janela de 100 estão em `experimentos/resultados/rodadas_de_teste.md`:
-cinco sementes, rotação do pcap benigno de fora do treino, tráfego de fundo, pcap inteiro fora do
-treino, atalhos da captura, limiar sobre a probabilidade de benigno, intervalos de confiança das
-classes raras e custo. A comparação com o quadro como no fio está em `rodadas_normalizadas.md`.
+O treino de 10/10, sem o fundo e com as duas janelas, de 10 e de 100, fica como referência:
+`--sem-fundo` o refaz em `regeracao_sem_fundo.md`, com `_sem_fundo` no nome de tudo o que grava,
+e guarda as rodadas parciais anteriores aos 34 rótulos. A comparação das duas janelas que levou à
+de 100 está nesse relatório.
+
+Os controles do modelo do sistema estão em `rodadas_normalizadas.md` (a configuração 5 contra o
+modelo de 10/10, com três sementes: corte por tempo, rotação do pcap benigno de fora, tráfego de
+fundo e pcap inteiro fora do treino) e em `ponto_de_operacao.md` (o ponto de operação por janela e
+por alarme). Os demais controles, medidos no modelo de 10/10, estão em `rodadas_de_teste.md`:
+cinco sementes, atalhos da captura, intervalos de confiança das classes raras e custo.
 
 ---
 
@@ -464,8 +492,10 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `janela.py` | Roda o teste direto do atalho da janela: extrai cinco pcaps com janela de 10 e de 100, em leitura contínua, treina os quatro modelos de 7 categorias (39 ou 33 features, priori da amostra ou natural), pontua cada extração e grava o relatório, a tabela e o manifesto do teste |
 | `atacantes.py` | Os MACs dos sete Raspberry Pi atacantes, o rótulo lido do nome do pcap e a medida das janelas sem atacante: lê cada pcap uma vez, conta os quadros por MAC e, com janela de 10 e de 100, as janelas sem nenhum quadro de atacante. Grava `janelas_sem_atacante.md`, as tabelas e o manifesto; numa execução seguinte só lê os pcaps novos ou alterados |
 | `regerar.py` | Regera os dados de treino: para cada pcap e cada janela, extrai as features com endereços, decide o rótulo da janela (benigno no pcap benigno; o rótulo do arquivo só na janela com atacante, senão descarta) e grava `dados/processed/regerado/janela_<W>/<rotulo>.csv.gz`, com as descartadas à parte em `descartadas/`. O manifesto guarda hash, tamanho e as janelas extraídas, mantidas e descartadas de cada pcap, o SHA-256 do extrator, as opções e a versão da regra; só os pcaps novos ou alterados são lidos de novo |
-| `treinar_regerado.py` | Treina um Random Forest de 7 categorias por janela nos dados regerados, com teto de 50.000 linhas por rótulo, divisão por tempo e as 39 features; avalia na parte de teste e grava `regeracao.md`, as métricas, as matrizes de confusão e o manifesto. Os modelos ficam em `modelos/`, fora do git |
-| `rodadas.py` | Roda os controles do modelo de janela de 100 (sementes, rotação do pcap benigno de fora, tráfego de fundo, pcap fora do treino, atalhos da captura, limiar, intervalos e custo) e grava `rodadas_de_teste.md`; com `--capturas`, compara o modelo com os dados regerados com o quadro como no fio e grava `rodadas_normalizadas.md` |
+| `treinar_regerado.py` | Treina o modelo do sistema nos dados regerados: janela de 100, 7 categorias, teto de 50.000 linhas por rótulo, divisão por tempo, as 39 features e o fundo da parte de treino como `Benign`; escolhe o t na validação, salva o modelo em `modelos/`, fora do git, com t e N num JSON ao lado, e grava `regeracao.md`, as métricas, as matrizes de confusão e o manifesto. Com `--sem-fundo`, refaz o treino de 10/10 como referência (`regeracao_sem_fundo.md`) |
+| `operacao.py` | A regra do ponto de operação, para o sistema usar: a categoria de uma janela pelas probabilidades do modelo e o limiar, os incidentes de uma sequência de janelas com N seguidas, a `Vigia`, que aplica a regra janela a janela, a escolha do limiar na validação e a leitura e gravação do JSON ao lado do modelo. Só depende do numpy |
+| `rodadas.py` | Roda os controles do modelo de 10/10 (sementes, rotação do pcap benigno de fora, tráfego de fundo, pcap fora do treino, atalhos da captura, limiar, intervalos e custo) e grava `rodadas_de_teste.md`; com `--capturas`, compara as configurações 0 a 5 (o quadro como no fio e o fundo no treino) e grava `rodadas_normalizadas.md`, com a regra de adoção da configuração 5. `rodadas_relatorio.py` monta os dois relatórios a partir dos manifestos |
+| `ponto_de_operacao.py` | Mede o ponto de operação nas configurações 0 e 5, com três sementes e as três rotações do pcap benigno de fora: o t escolhido na validação, as medidas no teste, os alarmes com 3 janelas seguidas, o fundo virando ataque e as diferenças pareadas; confere os modelos salvos por `treinar_regerado`. Grava `ponto_de_operacao.md` (montado por `ponto_de_operacao_relatorio.py`), as tabelas e o manifesto |
 
 **Frente de MCP e agentes** — `codigo/mcp/` e `codigo/agente/`
 
@@ -509,9 +539,11 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `resultados/manifesto_teste_da_janela.json` | O registro do teste da janela: semente, parâmetros, versões, hash da amostra, tamanho e hash de cada pcap, as contagens de cada extração e todos os números |
 | `resultados/janelas_sem_atacante.md` | A confirmação dos MACs dos atacantes em cada pcap e, por pcap e por janela, quantas janelas não têm nenhum quadro de atacante. `janelas_sem_atacante.csv` tem os números por pcap e janela; `janelas_sem_atacante_macs.csv`, as contagens por MAC; `manifesto_janelas_sem_atacante.json`, tudo, com hash e tamanho de cada pcap |
 | `resultados/manifesto_regeracao.json` | O registro da regeração: regra de rótulo, colunas, e por pcap o hash, o tamanho e as janelas extraídas, mantidas e descartadas, por janela |
-| `resultados/regeracao.md` | O relatório do treino nos dados regerados, nas duas janelas: os dados, a divisão, as medidas por categoria, as matrizes de confusão, a fração de cada pcap na categoria esperada, os IPs de origem por janela em DDoS e DoS e o que ainda falta. `regeracao_metricas.csv` e `regeracao_por_arquivo.csv` trazem os números; `manifesto_treino_regerado.json`, tudo |
-| `resultados/rodadas_de_teste.md` | Os controles do modelo de janela de 100. As tabelas estão nos `rodadas_*.csv`, e tudo, em `manifesto_rodadas.json` |
-| `resultados/rodadas_normalizadas.md` | A comparação entre o modelo do sistema e os treinos com o quadro normalizado e com o fundo como benigno. As tabelas estão nos `rodadas_normalizadas_*.csv`, e tudo, em `manifesto_rodadas_normalizadas.json` |
+| `resultados/regeracao.md` | O relatório do treino do modelo do sistema: o que mudou em relação ao modelo de 10/10, os dados, a divisão, a escolha do t na validação, as medidas por categoria com a categoria mais provável e com o ponto de operação, as duas matrizes de confusão, a fração de cada pcap na categoria esperada e os IPs de origem por janela em DDoS e DoS. `regeracao_metricas.csv` e `regeracao_por_arquivo.csv` trazem os números; `matrizes_confusao/regerado_janela_100.csv` e `_limiar.csv`, as matrizes; `manifesto_treino_regerado.json`, tudo |
+| `resultados/regeracao_sem_fundo.md` | O treino de 10/10, de referência, nas duas janelas, com as rodadas parciais anteriores. Os arquivos dele levam `_sem_fundo` no nome |
+| `resultados/rodadas_de_teste.md` | Os controles do modelo de 10/10, que continuam valendo como referência. As tabelas estão nos `rodadas_*.csv`, e tudo, em `manifesto_rodadas.json` |
+| `resultados/rodadas_normalizadas.md` | A comparação entre o modelo de 10/10 e os treinos com o quadro normalizado e com o fundo como benigno, com a regra de adoção da configuração 5. As tabelas estão nos `rodadas_normalizadas_*.csv`, e tudo, em `manifesto_rodadas_normalizadas.json` |
+| `resultados/ponto_de_operacao.md` | O ponto de operação nas configurações 5 e 0: o t de cada semente e rotação, as medidas no teste com o limiar e com o argmax, os alarmes no pcap benigno de fora, o fundo, os pcaps de ataque que alarmam e a conferência dos modelos salvos. As tabelas estão nos `ponto_de_operacao_*.csv`, e tudo, em `manifesto_ponto_de_operacao.json` |
 | `resultados/regeracao_preenchido/`, `resultados/regeracao_no_fio/` | Os manifestos das regerações com o quadro completado até 60 bytes e com o quadro como no fio |
 | `resultados/avaliacao_agentes.csv` | **(a criar)** A qualidade das recomendações, a tabela que ainda não tem métrica definida |
 | `resultados/custo_latencia.csv` | **(a criar)** Tokens e tempo de resposta por alerta |
@@ -531,7 +563,7 @@ As linhas marcadas com **(a criar)** ainda não existem.
 
 1. `mcp/contrato.json` — destrava as duas frentes
 2. `captura/extrator.py` e `captura/calibrar.py`, o caminho crítico; depois, `captura/calibrar_conjunto.py`
-3. `classificador/mapeamento.py` → `explorar.py` e `amostrar.py` → `preparar.py` → `treinar.py` → `avaliar.py` → `experimento.py` → `janela.py` → `atacantes.py` → `regerar.py` → `treinar_regerado.py` → `rodadas.py`
+3. `classificador/mapeamento.py` → `explorar.py` e `amostrar.py` → `preparar.py` → `treinar.py` → `avaliar.py` → `experimento.py` → `janela.py` → `atacantes.py` → `regerar.py` → `treinar_regerado.py` → `rodadas.py` → `operacao.py` e `ponto_de_operacao.py`
 4. `mcp/stub.py` (em paralelo a tudo, desde o contrato) → `mcp/servidor.py`
 5. `agente/` — depois que o servidor responde
 6. `experimentos/resultados/` — as tabelas vazias devem existir **antes** dos experimentos
