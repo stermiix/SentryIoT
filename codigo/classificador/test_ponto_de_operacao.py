@@ -1,5 +1,6 @@
 import csv
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -237,3 +238,21 @@ def test_configuracoes_que_leem_pastas_diferentes_sao_recusadas(caso, capsys):
     assert main(["--configuracoes", "0,4", "--saida", str(caso / "resultados")]) == 1
     assert "mesma pasta" in capsys.readouterr().err
     assert main(["--configuracoes", "0,9", "--saida", str(caso / "resultados")]) == 1
+
+
+# --- os resultados versionados -----------------------------------------------------------------
+
+RESULTADOS = Path(__file__).resolve().parents[2] / "experimentos" / "resultados"
+
+
+@pytest.mark.skipif(not (RESULTADOS / MANIFESTO).exists(), reason="ponto de operação ainda não medido")
+def test_relatorio_versionado_sai_do_manifesto():
+    m = json.loads((RESULTADOS / MANIFESTO).read_text(encoding="utf-8"))
+    assert (RESULTADOS / RELATORIO).read_text(encoding="utf-8") == montar_relatorio(m)
+    for c in m["resultados"]["configuracoes"].values():
+        for por_semente in c["resultados"].values():
+            for u in por_semente.values():
+                v = u["validacao"]
+                assert v["benigno_como_ataque"][str(u["limiar"])] <= 0.01 * v["janelas_benignas"]
+                assert u["conferencia"] is not None and not any(u["conferencia"].values())
+    assert set(m["resultados"]["gravados"]) == set(m["resultados"]["configuracoes"])
