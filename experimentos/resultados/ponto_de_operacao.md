@@ -116,16 +116,15 @@ A diferença com o intervalo de 95% entre parênteses:
 
 - Configuração 5: em 9 de 9 treinos inteiros, as predições do argmax conferidas com as do mesmo treino guardado das rodadas (o corte por tempo, o fundo e o pcap benigno de fora) diferem em 0 janelas.
 - Configuração 0: em 9 de 9 treinos inteiros, as predições do argmax conferidas com as do mesmo treino guardado das rodadas (o corte por tempo, o fundo e o pcap benigno de fora) diferem em 0 janelas.
-- O modelo salvo do sistema, `rf_regerado_janela_100.joblib` (SHA-256 `b67e9013e67acbc680c2d9312550b5e792f81665b4c755052ae84ecf23aa3986`), dá no corte por tempo 0 predições diferentes do retreino da semente 42 com o argmax e 0 com o limiar.
 
-## O ponto de operação guardado
+## Os modelos salvos
 
-O t da semente principal, a do modelo do sistema, e o N ficam num JSON ao lado do `.joblib`, com o SHA-256 do modelo; `codigo.classificador.operacao` lê o JSON, recusa o de outro modelo e aplica a regra a uma janela (`PontoDeOperacao.categoria`, `Vigia`) e a uma sequência (`PontoDeOperacao.aplicar`). O modelo da configuração 0 é o modelo salvo do sistema; o das outras é gravado à parte e não o substitui. A pasta `modelos/` fica fora do git: os valores estão também no manifesto.
+Os modelos que `codigo.classificador.treinar_regerado` salva, com o ponto de operação num JSON ao lado, conferidos contra o treino inteiro da semente principal, no corte por tempo: o do sistema (configuração 5) e o de referência, de 10/10 (configuração 0, `--sem-fundo`). `codigo.classificador.operacao` lê o JSON, recusa o de outro modelo e aplica a regra a uma janela (`PontoDeOperacao.categoria`, `Vigia`) e a uma sequência (`PontoDeOperacao.aplicar`). A pasta `modelos/` fica fora do git.
 
-| Configuração | Modelo | t | N | JSON |
-|---|---|---|---|---|
-| 0 | `modelos/rf_regerado_janela_100.joblib` | 0,68 | 3 | `modelos/rf_regerado_janela_100.ponto_de_operacao.json` |
-| 5 | `modelos/rf_regerado_janela_100_configuracao_5.joblib` | 0,61 | 3 | `modelos/rf_regerado_janela_100_configuracao_5.ponto_de_operacao.json` |
+| Configuração | Modelo | SHA-256 | Predições diferentes do retreino (argmax e limiar) | t e N escolhidos aqui | t e N no JSON | Confere |
+|---|---|---|---|---|---|---|
+| 5 | `rf_regerado_janela_100.joblib` | `422fb3b4ca198039…` | 0 e 0 | 0,61 e 3 | 0,61 e 3 | sim |
+| 0 | `rf_regerado_janela_100_sem_fundo.joblib` | `44b0b970599a0062…` | 0 e 0 | 0,68 e 3 | 0,68 e 3 | sim |
 
 ## Como os números foram obtidos
 
@@ -134,8 +133,8 @@ O t da semente principal, a do modelo do sistema, e o N ficam num JSON ao lado d
 - Regra de adoção lida de `experimentos/resultados/manifesto_rodadas_normalizadas.json`, SHA-256 `570f6f17ca3ffb023c4dd08824eb39c6176101f03721766cef49682a877a12bf`.
 - Treinos: `RandomForestClassifier` com 100 árvores e os demais parâmetros padrão, teto de 50.000 linhas por rótulo, as funções de `rodadas` e `treinar_regerado`; dois treinos por semente e rotação, o reduzido e o inteiro. Predição com um núcleo, em ordem fixa.
 - As tabelas em CSV começam com `ponto_de_operacao_`; os valores completos, com as contagens, estão no manifesto.
-- Tempo desta execução, na máquina em que rodou: 516,2 s. Os treinos já guardados em `dados/processed/ponto_de_operacao/` são reaproveitados e não entram nessa conta; somados, os treinos de que os números saem levaram 414,6 s.
-- Código: o SHA-256 de cada módulo de que os números saem (`rodadas.py`, `preparar.py`, `treinar.py`, `avaliar.py`, `treinar_regerado.py`, `regerar.py`, `mapeamento.py`, `extrator.py`, `ponto_de_operacao.py` e `operacao.py`) está no manifesto e entra na chave dos treinos guardados; commit `09383a1ab139`.
+- Tempo desta execução, na máquina em que rodou: 504,1 s. Os treinos já guardados em `dados/processed/ponto_de_operacao/` são reaproveitados e não entram nessa conta; somados, os treinos de que os números saem levaram 405,3 s.
+- Código: o SHA-256 de cada módulo de que os números saem (`rodadas.py`, `preparar.py`, `treinar.py`, `avaliar.py`, `treinar_regerado.py`, `regerar.py`, `mapeamento.py`, `extrator.py`, `ponto_de_operacao.py` e `operacao.py`) está no manifesto e entra na chave dos treinos guardados; commit `ffedd52315c2`, com alterações ainda fora dele.
 - Memória: pico de 2,5 GB no processo, o necessário para reproduzir com a mesma quantidade de núcleos.
 - Com as mesmas entradas, o mesmo código e as mesmas sementes, os números saem iguais. Só mudam a data e os
   tempos.

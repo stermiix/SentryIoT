@@ -449,36 +449,41 @@ def _conferencia(m):
                 f"conferidas com as do mesmo treino guardado das rodadas (o corte por tempo, o fundo e o pcap benigno de "
                 f"fora) diferem em {_milhar(total)} janelas."
             )
-        salvo = _unidades(m, nome)[0].get("modelo_do_sistema")
-        if salvo:
-            linhas.append(
-                f"- O modelo salvo do sistema, `{salvo['arquivo']}` (SHA-256 `{salvo['sha256']}`), dá no corte por tempo "
-                f"{_milhar(salvo['diferentes_argmax'])} predições diferentes do retreino da semente "
-                f"{_unidades(m, nome)[0]['semente']} com o argmax e {_milhar(salvo['diferentes_limiar'])} com o limiar."
-            )
     if not linhas:
         return []
     return ["## Conferência", "", *linhas]
 
 
-def _guardados(m):
-    gravados = m["resultados"].get("gravados", {})
-    if not gravados:
+def _modelos_salvos(m):
+    salvos = m["resultados"].get("modelos_salvos", {})
+    if not salvos:
         return []
-    linhas = [[nome, f"`{g['modelo']}`", _decimal(g["limiar"], 2), g["seguidas"], f"`{g['ponto']}`"]
-              for nome, g in gravados.items()]
+    linhas = []
+    for nome in _configuracoes(m):
+        s = salvos.get(nome)
+        if s is None:
+            continue
+        gravado = s["ponto_gravado"]
+        linhas.append([
+            nome, f"`{s['arquivo']}`", f"`{s['sha256'][:16]}…`",
+            f"{_milhar(s['diferentes_argmax'])} e {_milhar(s['diferentes_limiar'])}",
+            f"{_decimal(s['limiar_escolhido'], 2)} e {s['seguidas']}",
+            f"{_decimal(gravado['limiar'], 2)} e {gravado['seguidas']}" if gravado else "sem JSON",
+            "sim" if s["confere"] else "não",
+        ])
     return [
-        "## O ponto de operação guardado",
+        "## Os modelos salvos",
         "",
         (
-            "O t da semente principal, a do modelo do sistema, e o N ficam num JSON ao lado do `.joblib`, com o SHA-256 "
-            "do modelo; `codigo.classificador.operacao` lê o JSON, recusa o de outro modelo e aplica a regra a uma janela "
-            "(`PontoDeOperacao.categoria`, `Vigia`) e a uma sequência (`PontoDeOperacao.aplicar`). O modelo da configuração "
-            f"{_referencia(m)} é o modelo salvo do sistema; o das outras é gravado à parte e não o substitui. A pasta "
-            "`modelos/` fica fora do git: os valores estão também no manifesto."
+            "Os modelos que `codigo.classificador.treinar_regerado` salva, com o ponto de operação num JSON ao lado, "
+            "conferidos contra o treino inteiro da semente principal, no corte por tempo: o do sistema (configuração 5) "
+            "e o de referência, de 10/10 (configuração 0, `--sem-fundo`). `codigo.classificador.operacao` lê o JSON, "
+            "recusa o de outro modelo e aplica a regra a uma janela (`PontoDeOperacao.categoria`, `Vigia`) e a uma "
+            "sequência (`PontoDeOperacao.aplicar`). A pasta `modelos/` fica fora do git."
         ),
         "",
-        *_tabela(["Configuração", "Modelo", "t", "N", "JSON"], linhas),
+        *_tabela(["Configuração", "Modelo", "SHA-256", "Predições diferentes do retreino (argmax e limiar)",
+                  "t e N escolhidos aqui", "t e N no JSON", "Confere"], linhas),
     ]
 
 
@@ -526,7 +531,7 @@ def _como_foram_obtidos(m):
 def montar_relatorio(m):
     """O relatório do ponto de operação, a partir do manifesto."""
     secoes = [_cabecalho(m), _resumo(m), _validacao(m), _corte(m), _benigno_de_fora(m), _fundo(m), _trechos(m),
-              _diferencas(m), _conferencia(m), _guardados(m), _como_foram_obtidos(m)]
+              _diferencas(m), _conferencia(m), _modelos_salvos(m), _como_foram_obtidos(m)]
     return "\n".join("\n".join(secao) + "\n" for secao in secoes if secao).rstrip("\n") + "\n"
 
 

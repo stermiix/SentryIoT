@@ -263,19 +263,19 @@
  },
  "codigo": {
   "arquivos": {
-   "codigo/classificador/rodadas.py": "56416c047381573dd416355a085bee0f63fc8d65a0ee3fd971083ce92473f065",
+   "codigo/classificador/rodadas.py": "68615e456e9d0115c627dddd3abd2120a6865922f32f5bffdaadc7610b72e465",
    "codigo/classificador/preparar.py": "230f12a936a60129987e5a0d8033a25c4e95177bb1815e549d2bd72c97e1bcb5",
    "codigo/classificador/treinar.py": "fc8f35e6b8e6388aa719c01fff699794b16445547e3c83812c3a4cd0e63a07e5",
    "codigo/classificador/avaliar.py": "093986840b739d5467e6c46e80c2eb0a6384708f56218678ca127dfc93a86d8a",
-   "codigo/classificador/treinar_regerado.py": "b58ef922bd01cc7f778fa1b0ef0eb54ea0ab366db509a2854ce0e0a1cc0a5693",
+   "codigo/classificador/treinar_regerado.py": "c866bbec91cd9635005d1a0d370b9e285f21683995fd996dfc5bdc55a0f16507",
    "codigo/classificador/regerar.py": "1bf502e7259db6d4aed884883ed6b073a7aab51b8ad4972cccdd7360313c48de",
    "codigo/classificador/mapeamento.py": "405813fcb527e1958d5c2ea6cd4c00e68e5405939a2e76c39ecbe1d674905008",
    "codigo/captura/extrator.py": "8bd38fb392d5bec5a318699b2cef4a67a7c0c43461ecd01ce20be5b7db0b4a65",
-   "codigo/classificador/ponto_de_operacao.py": "5bce468db34e0cc96ba2ced4b187698d334c2c1c54d47e004bde5386db0f2acb",
-   "codigo/classificador/operacao.py": "826ac4369a9bd3912daa61c2270ddd85d20c93917532ef12f4f2a8945faea7ed"
+   "codigo/classificador/ponto_de_operacao.py": "95e0b2634d969d40d694c69fa929d5e8f65b569e69f354c35c0ce4fc2ad47b49",
+   "codigo/classificador/operacao.py": "92ba0b2c5d6760adcf944f7dac7c9c26c6e49356602991292a10d697838ae8e1"
   },
-  "commit": "09383a1ab139e6d113e7fd35b32e035b9ba5dbbf",
-  "com_alteracoes_fora_do_commit": false
+  "commit": "ffedd52315c2a16963d3910abbb5c4cceac323b9",
+  "com_alteracoes_fora_do_commit": true
  },
  "resultados": {
   "configuracoes": {
@@ -294,7 +294,7 @@
         "treino_reduzido": 483897,
         "treino": 567732
        },
-       "treino_segundos": 19.942484375016647,
+       "treino_segundos": 21.478804083992145,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -1764,14 +1764,14 @@
         "teste_previsto": 0,
         "fundo_previsto": 0
        },
-       "modelo_do_sistema": {
-        "arquivo": "rf_regerado_janela_100.joblib",
-        "caminho": "modelos/rf_regerado_janela_100.joblib",
-        "sha256": "b67e9013e67acbc680c2d9312550b5e792f81665b4c755052ae84ecf23aa3986",
+       "modelo_salvo": {
+        "arquivo": "rf_regerado_janela_100_sem_fundo.joblib",
+        "caminho": "modelos/rf_regerado_janela_100_sem_fundo.joblib",
+        "sha256": "44b0b970599a00623097f7c899f8f330ce48f7c2b990a1e652759ede4fdb3052",
         "diferentes_limiar": 0,
         "diferentes_argmax": 0
        },
-       "memoria_pico_bytes": 2115698688
+       "memoria_pico_bytes": 2465464320
       },
       "1": {
        "semente": 1,
@@ -1782,7 +1782,7 @@
         "treino_reduzido": 483826,
         "treino": 567741
        },
-       "treino_segundos": 21.19273737599724,
+       "treino_segundos": 20.849632166995434,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -3252,7 +3252,7 @@
         "teste_previsto": 0,
         "fundo_previsto": 0
        },
-       "memoria_pico_bytes": 2115698688
+       "memoria_pico_bytes": 2465464320
       },
       "2": {
        "semente": 2,
@@ -3263,7 +3263,7 @@
         "treino_reduzido": 484140,
         "treino": 568092
        },
-       "treino_segundos": 22.100337625000975,
+       "treino_segundos": 21.715605583012803,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -4733,7 +4733,7 @@
         "teste_previsto": 0,
         "fundo_previsto": 0
        },
-       "memoria_pico_bytes": 2115698688
+       "memoria_pico_bytes": 2465464320
       }
      },
      "1": {
@@ -4746,7 +4746,7 @@
         "treino_reduzido": 482028,
         "treino": 565725
        },
-       "treino_segundos": 21.075100541987922,
+       "treino_segundos": 20.614843250004924,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -4913,7 +4913,7 @@
        "conferencia": {
         "benigno_previsto": 0
        },
-       "memoria_pico_bytes": 2115698688
+       "memoria_pico_bytes": 2465464320
       },
       "1": {
        "semente": 1,
@@ -4924,7 +4924,7 @@
         "treino_reduzido": 481388,
         "treino": 565122
        },
-       "treino_segundos": 20.684289376004017,
+       "treino_segundos": 21.37675962499634,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -5091,7 +5091,7 @@
        "conferencia": {
         "benigno_previsto": 0
        },
-       "memoria_pico_bytes": 2115698688
+       "memoria_pico_bytes": 2465464320
       },
       "2": {
        "semente": 2,
@@ -5102,7 +5102,7 @@
         "treino_reduzido": 481796,
         "treino": 565420
        },
-       "treino_segundos": 20.672450209007366,
+       "treino_segundos": 21.0556209179922,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -5269,7 +5269,7 @@
        "conferencia": {
         "benigno_previsto": 0
        },
-       "memoria_pico_bytes": 2115698688
+       "memoria_pico_bytes": 2465464320
       }
      },
      "2": {
@@ -5282,7 +5282,7 @@
         "treino_reduzido": 484480,
         "treino": 568397
        },
-       "treino_segundos": 21.64532241699635,
+       "treino_segundos": 21.620788166008424,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -5449,7 +5449,7 @@
        "conferencia": {
         "benigno_previsto": 0
        },
-       "memoria_pico_bytes": 2115698688
+       "memoria_pico_bytes": 2465464320
       },
       "1": {
        "semente": 1,
@@ -5460,7 +5460,7 @@
         "treino_reduzido": 484598,
         "treino": 568684
        },
-       "treino_segundos": 25.529666374990484,
+       "treino_segundos": 20.922808749994147,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -5627,7 +5627,7 @@
        "conferencia": {
         "benigno_previsto": 0
        },
-       "memoria_pico_bytes": 2115698688
+       "memoria_pico_bytes": 2465464320
       },
       "2": {
        "semente": 2,
@@ -5638,7 +5638,7 @@
         "treino_reduzido": 484756,
         "treino": 568852
        },
-       "treino_segundos": 20.19790370798728,
+       "treino_segundos": 20.136489750017063,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -5805,7 +5805,7 @@
        "conferencia": {
         "benigno_previsto": 0
        },
-       "memoria_pico_bytes": 2115698688
+       "memoria_pico_bytes": 2465464320
       }
      }
     }
@@ -5825,7 +5825,7 @@
         "treino_reduzido": 517271,
         "treino": 608698
        },
-       "treino_segundos": 24.673597125016386,
+       "treino_segundos": 24.440635000995826,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -7295,13 +7295,14 @@
         "teste_previsto": 0,
         "fundo_previsto": 0
        },
-       "modelo_gravado": {
-        "arquivo": "rf_regerado_janela_100_configuracao_5.joblib",
-        "caminho": "modelos/rf_regerado_janela_100_configuracao_5.joblib",
-        "sha256": "f2834b72159e2ee1f3cd49540969789dbae130189d1c707008264bcca27068bc",
-        "bytes": 365581510
+       "modelo_salvo": {
+        "arquivo": "rf_regerado_janela_100.joblib",
+        "caminho": "modelos/rf_regerado_janela_100.joblib",
+        "sha256": "422fb3b4ca19803926a81dcb9e3466dc7863f2da70494528956e7cf51464dd15",
+        "diferentes_limiar": 0,
+        "diferentes_argmax": 0
        },
-       "memoria_pico_bytes": 2180481024
+       "memoria_pico_bytes": 2500132864
       },
       "1": {
        "semente": 1,
@@ -7312,7 +7313,7 @@
         "treino_reduzido": 517200,
         "treino": 608707
        },
-       "treino_segundos": 24.74724020798749,
+       "treino_segundos": 24.4723670000094,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -8782,7 +8783,7 @@
         "teste_previsto": 0,
         "fundo_previsto": 0
        },
-       "memoria_pico_bytes": 2180481024
+       "memoria_pico_bytes": 2500132864
       },
       "2": {
        "semente": 2,
@@ -8793,7 +8794,7 @@
         "treino_reduzido": 517514,
         "treino": 609058
        },
-       "treino_segundos": 27.22520300000906,
+       "treino_segundos": 24.164472624994232,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -10263,7 +10264,7 @@
         "teste_previsto": 0,
         "fundo_previsto": 0
        },
-       "memoria_pico_bytes": 2180481024
+       "memoria_pico_bytes": 2500132864
       }
      },
      "1": {
@@ -10276,7 +10277,7 @@
         "treino_reduzido": 515330,
         "treino": 606598
        },
-       "treino_segundos": 24.27597791799053,
+       "treino_segundos": 23.044000291993143,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -10443,7 +10444,7 @@
        "conferencia": {
         "benigno_previsto": 0
        },
-       "memoria_pico_bytes": 2180481024
+       "memoria_pico_bytes": 2500132864
       },
       "1": {
        "semente": 1,
@@ -10454,7 +10455,7 @@
         "treino_reduzido": 514690,
         "treino": 605995
        },
-       "treino_segundos": 23.11455808399478,
+       "treino_segundos": 23.180098833006923,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -10621,7 +10622,7 @@
        "conferencia": {
         "benigno_previsto": 0
        },
-       "memoria_pico_bytes": 2180481024
+       "memoria_pico_bytes": 2500132864
       },
       "2": {
        "semente": 2,
@@ -10632,7 +10633,7 @@
         "treino_reduzido": 515098,
         "treino": 606293
        },
-       "treino_segundos": 23.568659459007904,
+       "treino_segundos": 23.272170875003212,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -10799,7 +10800,7 @@
        "conferencia": {
         "benigno_previsto": 0
        },
-       "memoria_pico_bytes": 2180481024
+       "memoria_pico_bytes": 2500132864
       }
      },
      "2": {
@@ -10812,7 +10813,7 @@
         "treino_reduzido": 517854,
         "treino": 609363
        },
-       "treino_segundos": 25.030500041990308,
+       "treino_segundos": 24.646260207984596,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -10979,7 +10980,7 @@
        "conferencia": {
         "benigno_previsto": 0
        },
-       "memoria_pico_bytes": 2180481024
+       "memoria_pico_bytes": 2500132864
       },
       "1": {
        "semente": 1,
@@ -10990,7 +10991,7 @@
         "treino_reduzido": 517972,
         "treino": 609650
        },
-       "treino_segundos": 24.576444999998785,
+       "treino_segundos": 24.044095541990828,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -11157,7 +11158,7 @@
        "conferencia": {
         "benigno_previsto": 0
        },
-       "memoria_pico_bytes": 2180481024
+       "memoria_pico_bytes": 2500132864
       },
       "2": {
        "semente": 2,
@@ -11168,7 +11169,7 @@
         "treino_reduzido": 518130,
         "treino": 609818
        },
-       "treino_segundos": 24.37798925000243,
+       "treino_segundos": 24.282056873998954,
        "validacao": {
         "inicios": {
          "Backdoor_Malware.pcap": 191,
@@ -11335,7 +11336,7 @@
        "conferencia": {
         "benigno_previsto": 0
        },
-       "memoria_pico_bytes": 2180481024
+       "memoria_pico_bytes": 2500132864
       }
      }
     }
@@ -12351,18 +12352,34 @@
     }
    }
   },
-  "gravados": {
+  "modelos_salvos": {
    "0": {
-    "modelo": "modelos/rf_regerado_janela_100.joblib",
-    "ponto": "modelos/rf_regerado_janela_100.ponto_de_operacao.json",
-    "limiar": 0.68,
-    "seguidas": 3
+    "arquivo": "rf_regerado_janela_100_sem_fundo.joblib",
+    "caminho": "modelos/rf_regerado_janela_100_sem_fundo.joblib",
+    "sha256": "44b0b970599a00623097f7c899f8f330ce48f7c2b990a1e652759ede4fdb3052",
+    "diferentes_limiar": 0,
+    "diferentes_argmax": 0,
+    "limiar_escolhido": 0.68,
+    "seguidas": 3,
+    "ponto_gravado": {
+     "limiar": 0.68,
+     "seguidas": 3
+    },
+    "confere": true
    },
    "5": {
-    "modelo": "modelos/rf_regerado_janela_100_configuracao_5.joblib",
-    "ponto": "modelos/rf_regerado_janela_100_configuracao_5.ponto_de_operacao.json",
-    "limiar": 0.61,
-    "seguidas": 3
+    "arquivo": "rf_regerado_janela_100.joblib",
+    "caminho": "modelos/rf_regerado_janela_100.joblib",
+    "sha256": "422fb3b4ca19803926a81dcb9e3466dc7863f2da70494528956e7cf51464dd15",
+    "diferentes_limiar": 0,
+    "diferentes_argmax": 0,
+    "limiar_escolhido": 0.61,
+    "seguidas": 3,
+    "ponto_gravado": {
+     "limiar": 0.61,
+     "seguidas": 3
+    },
+    "confere": true
    }
   },
   "regra": {
@@ -12400,6 +12417,6 @@
    "adotada": true
   }
  },
- "duracao_segundos": 516.1689721660077,
- "memoria_pico_bytes": 2504179712
+ "duracao_segundos": 504.14559237498906,
+ "memoria_pico_bytes": 2500132864
 }

@@ -6,8 +6,9 @@ ataque seguidas, na ordem em que o extrator as entrega: abre na janela que compl
 sequência que continua não abre outro, e a próxima sequência que chegar a N abre um novo.
 
 O limiar e o N de um modelo ficam num JSON ao lado do `.joblib` (`ao_lado_do_modelo`), gravado por
-`codigo.classificador.ponto_de_operacao`, que os escolhe numa parte de validação. O JSON leva o
-SHA-256 do modelo, e `ler` recusa o JSON de outro modelo.
+`codigo.classificador.treinar_regerado` junto com o modelo. O limiar é escolhido numa parte de
+validação, nunca no teste (`escolher_limiar`): o menor da grade que deixa no máximo 1% do benigno
+da validação como ataque. O JSON leva o SHA-256 do modelo, e `ler` recusa o JSON de outro modelo.
 
 Este módulo só depende do numpy, para que o sistema aplique a regra sem os módulos dos experimentos.
 É a mesma regra de `rodadas.aplicar_limiar` e `rodadas.alarmes`, que mediram os candidatos no teste.
@@ -29,6 +30,13 @@ import numpy as np
 
 BENIGNO = "Benign"
 SUFIXO = ".ponto_de_operacao.json"
+# A escolha do ponto de operação, decidida pela equipe em 13/10/2026: a validação são as últimas 15%
+# da parte de treino de cada pcap, por tempo; o limiar é o menor da grade que deixa no máximo 1% das
+# janelas benignas da validação como ataque; o incidente abre com 3 janelas de ataque seguidas.
+FRACAO_DE_VALIDACAO = 0.15
+ALARME_FALSO_MAXIMO = 0.01
+SEGUIDAS = 3
+LIMIARES = tuple(round(i / 100, 2) for i in range(1, 101))
 # O limiar é inclusivo mesmo com o arredondamento do ponto flutuante: 1 − 0,4 dá 0,6000000000000001.
 TOLERANCIA = 1e-12
 REGRA = (
@@ -85,6 +93,20 @@ class PontoDeOperacao:
         """A regra numa sequência de janelas, na ordem do extrator: a categoria de cada uma e onde abre incidente."""
         categorias = self.categorias(probabilidades, classes)
         return categorias, self.incidentes(categorias)
+
+
+def escolher_limiar(p_ataque, alvo_=ALARME_FALSO_MAXIMO, limiares=LIMIARES):
+    """O menor limiar da grade que deixa no máximo `alvo_` das janelas como ataque, e a curva da grade.
+
+    `p_ataque` é 1 − P(Benign) de cada janela benigna da validação. Devolve (limiar, curva), com a
+    curva em janelas como ataque por limiar; o limiar é None quando nenhum da grade atende.
+    """
+    p_ataque = np.asarray(p_ataque, dtype=float)
+    if not len(p_ataque):
+        raise ValueError("a validação não tem nenhuma janela benigna")
+    curva = {t: int((p_ataque >= t - TOLERANCIA).sum()) for t in limiares}
+    escolhido = next((t for t in limiares if curva[t] <= alvo_ * len(p_ataque)), None)
+    return escolhido, curva
 
 
 class Vigia:

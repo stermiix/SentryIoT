@@ -152,9 +152,10 @@ def caso(tmp_path_factory):
     """O caso sintético, o modelo salvo pelo treino regerado e as rodadas do modelo do sistema."""
     pasta = tmp_path_factory.mktemp("rodadas")
     preparar_regerado(pasta)
+    # As rodadas medem o modelo de 10/10, sem o fundo, que o treino de referência salva com `_sem_fundo` no nome.
     assert treinar_regerado([
         "--saida", str(pasta / "resultados"), "--modelos", str(pasta / "modelos"), "--arvores", "5", "--nucleos", "1",
-        "--teto", "30",
+        "--teto", "30", "--sem-fundo",
     ]) == 0
     (pasta / "dataset").mkdir()
     captura_de_teste(pasta / "dataset" / "Recon-PortScan.pcap")
@@ -171,7 +172,7 @@ def executar(pasta, *extras):
         return main([
             "--saida", str(pasta / "resultados"), "--trabalho", str(pasta / "trabalho"),
             "--manifesto-da-regeracao", str(pasta / "resultados" / MANIFESTO_DA_REGERACAO),
-            "--modelo", str(pasta / "modelos" / "rf_regerado_janela_100.joblib"), "--dataset", str(pasta / "dataset"),
+            "--modelo", str(pasta / "modelos" / "rf_regerado_janela_100_sem_fundo.joblib"), "--dataset", str(pasta / "dataset"),
             "--sementes", "42,1,2", "--arvores", "5", "--teto", "30", "--nucleos", "1", *extras,
         ])
     finally:
@@ -479,7 +480,8 @@ def test_rodadas_gravam_manifesto_relatorio_e_tabelas(caso):
     assert list(r["corte"]) == ["42", "1", "2"]
     assert set(r["rotacao"]) == {"1", "2"} and set(r["rotacao"]["1"]) == {"42", "1", "2"}
     assert set(r["fora"]) == set(FORA) and set(r["sem_ttl"]) == {"42", "1", "2"}
-    assert m["entradas"]["modelo"]["arquivo"] == "rf_regerado_janela_100.joblib"
+    assert m["entradas"]["modelo"]["arquivo"] == "rf_regerado_janela_100_sem_fundo.joblib"
+    assert m["entradas"]["treino_publicado"]["manifesto"].endswith("manifesto_treino_regerado_sem_fundo.json")
     assert len(m["codigo"]["arquivos"]) == 8 and m["memoria_pico_bytes"] > 0
     assert m["resultados"]["corte"]["42"]["detalhe"]["entradas"]["modelo_sha256"] == m["entradas"]["modelo"]["sha256"]
     assert set(m["resultados"]["comparacoes"]) == {"dentro_e_fora", "sem_ttl"}
@@ -500,7 +502,7 @@ def test_reproducao_confere_o_modelo_salvo_com_o_retreino(caso):
     assert reproducao["predicoes_diferentes_do_retreino"] == 0
     assert reproducao["medidas_diferentes"] == [] and reproducao["matriz_por_rotulo_igual"]
     assert all(reproducao["divisao_igual"].values())
-    publicado = json.loads((caso / "resultados" / "manifesto_treino_regerado.json").read_text(encoding="utf-8"))
+    publicado = json.loads((caso / "resultados" / "manifesto_treino_regerado_sem_fundo.json").read_text(encoding="utf-8"))
     assert reproducao["linhas"]["teste"] == publicado["janelas"][0]["linhas"]["teste"]
 
 

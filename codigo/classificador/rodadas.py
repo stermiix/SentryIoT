@@ -1,9 +1,11 @@
 """Rodadas de teste do modelo de janela de 100 e comparação de capturas normalizadas.
 
-O modelo do sistema é o Random Forest de 7 categorias treinado por `treinar_regerado` nos dados
-regerados com janela de 100 quadros. O relatório dele (`regeracao.md`) mede uma divisão por tempo,
-com uma semente e só nas janelas que têm o atacante. Este módulo refaz o treino com as mesmas
-funções e mede o que aquela divisão não mostra, em rodadas:
+As rodadas medem o modelo de 10/10: o Random Forest de 7 categorias treinado por `treinar_regerado`
+nos dados regerados com janela de 100 quadros, sem o tráfego de fundo dos pcaps de ataque. Foi o
+modelo do sistema até 13/10/2026, quando a comparação de capturas abaixo levou à configuração 5, e
+fica como referência (`treinar_regerado --sem-fundo`, `regeracao_sem_fundo.md`). O relatório dele
+mede uma divisão por tempo, com uma semente e só nas janelas que têm o atacante. Este módulo refaz o
+treino com as mesmas funções e mede o que aquela divisão não mostra, em rodadas:
 
 a. reprodução: o modelo retreinado com a semente 42 dá as mesmas predições do modelo salvo;
 b. sementes: o mesmo treino com cinco sementes, que mudam o teto e o Random Forest juntos;
@@ -33,7 +35,7 @@ resultado guardado deixa de valer. A tabela de configurações fica fora desse S
 `codigo_da_chave`): acrescentar uma configuração não invalida os treinos guardados das outras.
 
 Uso, a partir da raiz do repositório:
-    python -m codigo.classificador.rodadas --nucleos 4 --modelo modelos/rf_regerado_janela_100.joblib
+    python -m codigo.classificador.rodadas --nucleos 4 --modelo modelos/rf_regerado_janela_100_sem_fundo.joblib
     python -m codigo.classificador.rodadas --rodadas a,b,c --nucleos 4
     python -m codigo.classificador.rodadas --capturas --nucleos 4
     python -m codigo.classificador.rodadas --refazer-relatorio
@@ -92,8 +94,13 @@ from codigo.classificador.treinar_regerado import (
     EXTRAS,
     EXTRAS_OPCIONAIS,
     TETO,
+    nome_do_modelo,
 )
-from codigo.classificador.treinar_regerado import MANIFESTO as MANIFESTO_DO_TREINO
+
+# O treino de referência, de 10/10, que a rodada a reproduz: o modelo sem o fundo e o manifesto dele.
+from codigo.classificador.treinar_regerado import (
+    MANIFESTO_DE_REFERENCIA as MANIFESTO_DO_TREINO,
+)
 
 MANIFESTO = "manifesto_rodadas.json"
 RELATORIO = "rodadas_de_teste.md"
@@ -1554,7 +1561,7 @@ def _por_semente(resultados):
 def rodar_sistema(dados, rodadas=RODADAS, sementes=SEMENTES, arvores=ARVORES, nucleos=TODOS_OS_NUCLEOS, teto=TETO,
                   trabalho=TRABALHO, modelo_salvo=None, publicado=None, dataset=None, pcaps_fora=PCAPS_FORA,
                   caminho_publicado=None):
-    """As rodadas pedidas sobre o modelo do sistema. Devolve os resultados, por rodada e por semente."""
+    """As rodadas pedidas sobre o modelo de 10/10, a configuração 0. Devolve os resultados, por rodada e por semente."""
     rodadas = set(rodadas)
     execucao = Execucao(ATUAL, dados, arvores, nucleos, teto, trabalho)
     principal, controle = sementes[0], list(sementes[:SEMENTES_DE_CONTROLE])
@@ -1723,8 +1730,8 @@ def main(argv=None):
     analisador.add_argument(
         "--manifesto-da-regeracao", default=ATUAL.regeracao, help=f"padrão: {ATUAL.regeracao}",
     )
-    analisador.add_argument("--modelo", default="modelos/rf_regerado_janela_100.joblib",
-                            help="modelo salvo do sistema, para as rodadas a e i")
+    analisador.add_argument("--modelo", default=f"modelos/{nome_do_modelo(JANELA, fundo_como_benigno=False)}",
+                            help="modelo salvo de 10/10, a configuração 0, para as rodadas a e i")
     analisador.add_argument("--dataset", default="CICIoT2023", help="pasta dos pcaps, para a vazão do extrator")
     analisador.add_argument("--rodadas", type=_lista_de_rodadas, default=RODADAS,
                             help="rodadas, de a a i, separadas por vírgula (padrão: todas)")

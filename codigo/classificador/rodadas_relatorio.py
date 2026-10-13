@@ -2,7 +2,7 @@
 
 Este módulo só formata: nenhum número é calculado aqui a partir dos dados, e por isso ele fica fora
 da chave dos resultados guardados das rodadas. `rodadas_de_teste.md` sai do manifesto das rodadas
-do modelo do sistema e `rodadas_normalizadas.md`, do manifesto da comparação de capturas; quando os
+do modelo de 10/10 e `rodadas_normalizadas.md`, do manifesto da comparação de capturas; quando os
 dois existem, o primeiro cita o segundo no Spoofing com o pcap fora do treino.
 """
 import datetime
@@ -227,7 +227,7 @@ def _versoes(m):
     return f"Python {v['python']}, scikit-learn {v['scikit-learn']}, pandas {v['pandas']} e numpy {v['numpy']}"
 
 
-# --- o relatório das rodadas do modelo do sistema ----------------------------------------------
+# --- o relatório das rodadas do modelo de 10/10 -------------------------------------------------
 
 
 def _cabecalho(m):
@@ -238,11 +238,15 @@ def _cabecalho(m):
         "",
         f"Gerado por `{m['gerado_por']}` em {_data(m)}, com {_versoes(m)}.",
         "",
-        "O modelo do sistema é o Random Forest de 7 categorias treinado nos dados regerados com janela de 100",
-        "quadros (`regeracao.md`). O relatório da regeração mede uma divisão por tempo, com uma semente e só nas",
-        "janelas que têm um quadro do atacante. As rodadas abaixo refazem o treino com as mesmas funções (leitura",
-        "com teto, divisão por tempo, treino e avaliação) e medem o que aquela divisão não mostra. Cada rodada diz",
-        "o que foi feito, traz os números e diz o que eles mostram, sem recomendar uma saída.",
+        "As rodadas medem o modelo de 10/10: o Random Forest de 7 categorias treinado nos dados regerados com",
+        "janela de 100 quadros, sem o tráfego de fundo dos pcaps de ataque. Ele foi o modelo do sistema até",
+        "13/10/2026 e é a configuração 0 de `rodadas_normalizadas.md`; desde então, o modelo do sistema é o da",
+        "configuração 5, com o fundo da parte de treino como benigno e o ponto de operação escolhido na validação",
+        "(`regeracao.md`, `ponto_de_operacao.md`), e o de 10/10 fica como referência (`regeracao_sem_fundo.md`).",
+        "Os números abaixo valem para o modelo de 10/10. O relatório do treino mede uma divisão por tempo, com uma",
+        "semente e só nas janelas que têm um quadro do atacante. As rodadas abaixo refazem o treino com as mesmas",
+        "funções (leitura com teto, divisão por tempo, treino e avaliação) e medem o que aquela divisão não mostra.",
+        "Cada rodada diz o que foi feito, traz os números e diz o que eles mostram, sem recomendar uma saída.",
         "",
         (
             f"Rodadas feitas: {_enumerar(r['rodadas'])}. Em cada treino, a semente define ao mesmo tempo o sorteio do "
@@ -278,13 +282,15 @@ def _secao_a(m):
           f"{_milhar(reproducao['janelas_de_teste'])} janelas")],
     ]
     modelo = reproducao["modelo"]
+    publicado = Path((m["entradas"].get("treino_publicado") or {}).get("manifesto", "manifesto_treino_regerado.json")).name
+    linhas[1][1] = linhas[1][1].replace("manifesto_treino_regerado.json", publicado)
     return [
         "## a. Reprodução do modelo publicado",
         "",
         (
             f"**O que foi feito.** O modelo salvo `{modelo['arquivo']}` (SHA-256 `{modelo['sha256'][:16]}…`, semente "
             f"{modelo['semente']}, {modelo['arvores']} árvores) classificou a parte de teste refeita com a leitura, o "
-            "teto e a divisão do repositório, e as medidas foram comparadas com as de `manifesto_treino_regerado.json`. "
+            f"teto e a divisão do repositório, e as medidas foram comparadas com as de `{publicado}`. "
             "O modelo foi treinado de novo com a semente 42 e as predições dos dois foram comparadas janela a janela."
         ),
         "",
@@ -1016,7 +1022,12 @@ def _como_foram_obtidos(m):
         ),
     ]
     if e.get("modelo"):
-        linhas.append(f"- Modelo salvo: `{e['modelo']['arquivo']}`, SHA-256 `{e['modelo']['sha256']}`.")
+        linhas.append(
+            f"- Modelo salvo: `{e['modelo']['arquivo']}`, SHA-256 `{e['modelo']['sha256']}`."
+            + ("" if "_sem_fundo" in e["modelo"]["arquivo"] else
+               " O nome é o da data da medida, quando este era o modelo do sistema; hoje o modelo de 10/10 é refeito por "
+               "`treinar_regerado --sem-fundo` em `rf_regerado_janela_100_sem_fundo.joblib`.")
+        )
     p = m["parametros"]
     linhas += [
         (
@@ -1146,7 +1157,7 @@ def _resumo(m, capturas=None):
 
 
 def montar_relatorio(m, capturas=None):
-    """O relatório das rodadas do modelo do sistema, a partir do manifesto e, se houver, do da comparação de capturas."""
+    """O relatório das rodadas do modelo de 10/10, a partir do manifesto e, se houver, do da comparação de capturas."""
     secoes = [_cabecalho(m), _resumo(m, capturas), _secao_a(m), _secao_b(m), _secao_c(m), _secao_d(m),
               _secao_e(m, capturas), _secao_f(m), _secao_g(m), _secao_h(m), _secao_i(m), _como_foram_obtidos(m)]
     return "\n".join("\n".join(secao) + "\n" for secao in secoes if secao).rstrip("\n") + "\n"
@@ -1271,7 +1282,7 @@ def _cabecalho_das_capturas(m):
         "",
         (
             "Este relatório lê as pastas regeradas antes por `regerar --preencher` e por `regerar --preencher "
-            f"--limitar` e compara o modelo do sistema (configuração 0) com {_por_extenso(len(configuracoes) - 1)} "
+            f"--limitar` e compara o modelo de 10/10 (configuração 0) com {_por_extenso(len(configuracoes) - 1)} "
             "alternativas, no corte por tempo e nas rodadas c (rotação do pcap benigno de fora), d (tráfego de fundo) "
             "e e (pcap fora do treino)." + _frase_do_fundo_no_treino(configuracoes)
         ),

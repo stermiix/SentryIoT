@@ -120,8 +120,10 @@ def caso(tmp_path_factory):
 
     pasta = tmp_path_factory.mktemp("ponto")
     regeracao = preparar_regerado(pasta)
-    assert treinar_regerado(["--saida", str(pasta / "resultados"), "--modelos", str(pasta / "modelos"),
-                             "--arvores", "5", "--nucleos", "1", "--teto", "30"]) == 0
+    # O modelo do sistema (configuração 5) e o de referência, de 10/10 (configuração 0), salvos pelo treino.
+    for extras in ((), ("--sem-fundo",)):
+        assert treinar_regerado(["--saida", str(pasta / "resultados"), "--modelos", str(pasta / "modelos"),
+                                 "--arvores", "5", "--nucleos", "1", "--teto", "30", *extras]) == 0
     originais = modulo.CONFIGURACOES, modulo.PCAPS_FORA
     modulo.CONFIGURACOES, modulo.PCAPS_FORA = configuracoes(regeracao, pasta), FORA
     try:
@@ -135,8 +137,8 @@ def caso(tmp_path_factory):
 
 def executar(pasta, *extras):
     return main(["--saida", str(pasta / "resultados"), "--trabalho", str(pasta / "ponto"),
-                 "--trabalho-das-rodadas", str(pasta / "rodadas"), "--modelos", str(pasta / "modelos"),
-                 "--modelo-do-sistema", str(pasta / "modelos" / "rf_regerado_janela_100.joblib"), *ARGUMENTOS, *extras])
+                 "--trabalho-das-rodadas", str(pasta / "rodadas"), "--modelos", str(pasta / "modelos"), *ARGUMENTOS,
+                 *extras])
 
 
 def ler_manifesto(pasta):
@@ -156,7 +158,7 @@ def test_ponto_de_operacao_grava_manifesto_relatorio_e_tabelas(caso):
     for secao in ("## Resumo", "## O limiar escolhido na validação", "## No teste: corte por tempo",
                   "## Benigno de fora: por janela e por alarme", "## Fundo virando ataque",
                   "## Pcaps de ataque no trecho de teste", "## Quais diferenças contam", "## Conferência",
-                  "## O ponto de operação guardado", "## Como os números foram obtidos"):
+                  "## Os modelos salvos", "## Como os números foram obtidos"):
         assert secao in texto, secao
     for tabela in ("limiar", "curva", "teste", "benigno", "trechos", "diferencas"):
         assert (caso / "resultados" / f"ponto_de_operacao_{tabela}.csv").exists(), tabela
@@ -179,8 +181,9 @@ def test_o_treino_inteiro_e_o_mesmo_das_rodadas_e_o_modelo_salvo_confere(caso):
         for por_semente in c["resultados"].values():
             for u in por_semente.values():
                 assert u["conferencia"] is not None and not any(u["conferencia"].values())
-    salvo = m["resultados"]["configuracoes"]["0"]["resultados"]["0"]["42"]["modelo_do_sistema"]
-    assert salvo["diferentes_argmax"] == 0 and salvo["diferentes_limiar"] == 0
+    for nome in ("0", "5"):
+        salvo = m["resultados"]["configuracoes"][nome]["resultados"]["0"]["42"]["modelo_salvo"]
+        assert salvo["diferentes_argmax"] == 0 and salvo["diferentes_limiar"] == 0
     # O argmax do ponto de operação dá as medidas do corte das rodadas.
     capturas = json.loads((caso / "resultados" / MANIFESTO_DAS_CAPTURAS).read_text(encoding="utf-8"))
     for nome in ("0", "5"):
@@ -190,20 +193,24 @@ def test_o_treino_inteiro_e_o_mesmo_das_rodadas_e_o_modelo_salvo_confere(caso):
             assert argmax["macro_f1"] == pytest.approx(corte["macro_f1"])
 
 
-def test_o_ponto_fica_ao_lado_de_cada_modelo(caso):
+def test_o_treino_do_sistema_e_o_de_referencia_sao_os_das_configuracoes_5_e_0(caso):
+    # O treino salva o modelo e escolhe o t com o código dele; aqui, o mesmo modelo e o mesmo t saem das rodadas.
     m = ler_manifesto(caso)
-    gravados = m["resultados"]["gravados"]
-    assert set(gravados) == {"0", "5"}
-    sistema = caso / "modelos" / "rf_regerado_janela_100.joblib"
-    quinta = caso / "modelos" / "rf_regerado_janela_100_configuracao_5.joblib"
-    for nome, modelo in (("0", sistema), ("5", quinta)):
+    salvos = m["resultados"]["modelos_salvos"]
+    assert set(salvos) == {"0", "5"}
+    assert salvos["5"]["arquivo"] == "rf_regerado_janela_100.joblib"
+    assert salvos["0"]["arquivo"] == "rf_regerado_janela_100_sem_fundo.joblib"
+    for nome, salvo in salvos.items():
         unidade = m["resultados"]["configuracoes"][nome]["resultados"]["0"]["42"]
-        assert ler(modelo) == PontoDeOperacao(unidade["limiar"], 3)
-        conteudo = json.loads(ao_lado_do_modelo(modelo).read_text(encoding="utf-8"))
+        assert salvo["confere"] and salvo["ponto_gravado"] == {"limiar": unidade["limiar"], "seguidas": 3}
+        assert ler(caso / "modelos" / salvo["arquivo"]) == PontoDeOperacao(unidade["limiar"], 3)
+        conteudo = json.loads(ao_lado_do_modelo(caso / "modelos" / salvo["arquivo"]).read_text(encoding="utf-8"))
         assert conteudo["configuracao"] == nome and conteudo["semente"] == 42
     with open(caso / "resultados" / "ponto_de_operacao_limiar.csv", encoding="utf-8", newline="") as arquivo:
         linhas = list(csv.DictReader(arquivo))
     assert len(linhas) == 2 * 3 * 3
+    texto = (caso / "resultados" / RELATORIO).read_text(encoding="utf-8")
+    assert "## Os modelos salvos" in texto
 
 
 def test_o_limiar_so_decide_entre_benign_e_ataque(caso):
@@ -255,4 +262,5 @@ def test_relatorio_versionado_sai_do_manifesto():
                 v = u["validacao"]
                 assert v["benigno_como_ataque"][str(u["limiar"])] <= 0.01 * v["janelas_benignas"]
                 assert u["conferencia"] is not None and not any(u["conferencia"].values())
-    assert set(m["resultados"]["gravados"]) == set(m["resultados"]["configuracoes"])
+    assert set(m["resultados"]["modelos_salvos"]) == set(m["resultados"]["configuracoes"])
+    assert all(salvo["confere"] for salvo in m["resultados"]["modelos_salvos"].values())

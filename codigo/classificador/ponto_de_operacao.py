@@ -22,10 +22,10 @@ sementes de controle das rodadas:
    validação da rotação 0 tem janelas do pcap que outra rotação deixa de fora.
 
 As diferenças entre o limiar e o argmax de hoje, e entre duas configurações no limiar, são pareadas
-como nas rodadas (`rodadas.comparar`). O t e o N da semente principal, a do modelo do sistema, ficam
-num JSON ao lado do `.joblib` (`operacao.gravar`): o modelo da configuração 0 é o modelo salvo do
-sistema, conferido contra o retreino; o das outras configurações é gravado em `modelos/`, sem
-substituir o do sistema.
+como nas rodadas (`rodadas.comparar`). Os modelos salvos por `treinar_regerado` são conferidos contra
+o retreino da semente principal: o do sistema (configuração 5, `rf_regerado_janela_100.joblib`) e o
+de referência, de 10/10 (configuração 0, `rf_regerado_janela_100_sem_fundo.joblib`), com o t e o N
+gravados no JSON ao lado de cada um. Este módulo não grava modelo nem ponto de operação.
 
 Os resultados de cada treino ficam guardados em `dados/processed/ponto_de_operacao/`, com uma chave
 que inclui a dos treinos das rodadas e o SHA-256 deste módulo e de `operacao`.
@@ -50,13 +50,19 @@ import sklearn
 
 from codigo.classificador import rodadas
 from codigo.classificador.experimento import _decimal, _milhar
-from codigo.classificador.operacao import PontoDeOperacao, ao_lado_do_modelo
-from codigo.classificador.operacao import gravar as gravar_ponto
+from codigo.classificador.operacao import (
+    ALARME_FALSO_MAXIMO,
+    FRACAO_DE_VALIDACAO,
+    LIMIARES,
+    SEGUIDAS,
+    PontoDeOperacao,
+    escolher_limiar,
+)
+from codigo.classificador.operacao import ler as ler_ponto
 from codigo.classificador.preparar import (
     FEATURES_39,
     FRACAO_DE_TESTE_POR_TEMPO,
     alvo,
-    impressao_digital,
 )
 from codigo.classificador.rodadas import (
     ALVO,
@@ -92,19 +98,15 @@ from codigo.classificador.treinar import (
     _nucleos,
     _positivo,
     carregar_modelo,
-    salvar,
 )
-from codigo.classificador.treinar_regerado import TETO
+from codigo.classificador.treinar_regerado import TETO, nome_do_modelo
 
 MANIFESTO = "manifesto_ponto_de_operacao.json"
 RELATORIO = "ponto_de_operacao.md"
 PREFIXO = "ponto_de_operacao"
 TRABALHO = "dados/processed/ponto_de_operacao"
-MODELO_DO_SISTEMA = "modelos/rf_regerado_janela_100.joblib"
-FRACAO_DE_VALIDACAO = 0.15
-ALARME_FALSO_MAXIMO = 0.01  # benigno da validação classificado como ataque
-SEGUIDAS = 3
-LIMIARES = tuple(round(i / 100, 2) for i in range(1, 101))
+# Os modelos salvos por `treinar_regerado` que cada configuração reproduz na semente principal.
+MODELOS_SALVOS = {"0": nome_do_modelo(JANELA, fundo_como_benigno=False), "5": nome_do_modelo(JANELA)}
 # As duas regras medidas com o mesmo modelo: a do ponto de operação e a categoria mais provável de hoje.
 REGRAS = ("limiar", "argmax")
 MODULOS = ("codigo/classificador/ponto_de_operacao.py", "codigo/classificador/operacao.py")
@@ -148,20 +150,6 @@ def na_validacao(meta, lados_da_divisao, inicios):
             do_pcap = arquivos == arquivo
             validacao[do_pcap] = indices[do_pcap] >= inicios[arquivo]
     return validacao & ~no_teste(meta, lados_da_divisao)
-
-
-def escolher_limiar(p_ataque, alvo_=ALARME_FALSO_MAXIMO, limiares=LIMIARES):
-    """O menor limiar da grade que deixa no máximo `alvo_` das janelas como ataque, e a curva da grade.
-
-    `p_ataque` é 1 − P(Benign) de cada janela benigna da validação. Devolve (limiar, curva), com a
-    curva em janelas como ataque por limiar; o limiar é None quando nenhum da grade atende.
-    """
-    p_ataque = np.asarray(p_ataque, dtype=float)
-    if not len(p_ataque):
-        raise ValueError("a validação não tem nenhuma janela benigna")
-    curva = {t: int((p_ataque >= t - 1e-12).sum()) for t in limiares}
-    escolhido = next((t for t in limiares if curva[t] <= alvo_ * len(p_ataque)), None)
-    return escolhido, curva
 
 
 def _p_ataque(proba, classes):
@@ -230,24 +218,23 @@ class Ponto:
     def dados(self):
         return self.execucao.dados
 
-    def medir(self, semente, rotacao, salvar_em=None, modelo_do_sistema=None):
+    def medir(self, semente, rotacao, modelo_salvo=None):
         """O resultado guardado da semente e da rotação, ou os dois treinos feitos agora.
 
-        Com `salvar_em`, o modelo do treino inteiro é gravado nesse caminho; com `modelo_do_sistema`, o
-        modelo salvo é conferido contra ele. O resultado guardado só vale se o arquivo gravado continua o mesmo.
+        Com `modelo_salvo`, o modelo gravado nesse caminho é conferido contra o do treino inteiro; o
+        resultado guardado só vale se o arquivo continua o mesmo.
         """
         def aceita(resultado):
-            salvo = resultado.get("modelo_gravado") if salvar_em is not None else resultado.get("modelo_do_sistema")
-            caminho = salvar_em if salvar_em is not None else modelo_do_sistema
-            if caminho is None:
+            if modelo_salvo is None:
                 return True
-            return salvo is not None and Path(caminho).exists() and _sha256(caminho) == salvo["sha256"]
+            salvo = resultado.get("modelo_salvo")
+            return salvo is not None and _sha256(modelo_salvo) == salvo["sha256"]
 
         chave = f"{rotacao}|{semente}"
         resultado = self.trabalho.obter(chave, aceita=aceita)
         if resultado is None:
             inicio = time.perf_counter()
-            resultado, predicoes = self._medir(semente, rotacao, salvar_em, modelo_do_sistema)
+            resultado, predicoes = self._medir(semente, rotacao, modelo_salvo)
             resultado["memoria_pico_bytes"] = memoria_pico()
             self.trabalho.guardar(chave, resultado, predicoes)
             rodadas._relatar(f"ponto de operação, configuração {self.configuracao.nome}, rotação {rotacao}, semente "
@@ -257,7 +244,7 @@ class Ponto:
     def predicoes(self, chave):
         return self.trabalho.predicoes(chave)
 
-    def _medir(self, semente, rotacao, salvar_em, modelo_do_sistema):
+    def _medir(self, semente, rotacao, modelo_salvo):
         execucao, dados = self.execucao, self.dados
         regeracao = dados.regeracao
         posicoes = execucao.amostra(semente)
@@ -301,11 +288,9 @@ class Ponto:
             resultado.update(medidas)
             predicoes.update(mais)
         resultado["conferencia"] = self._conferencia(guardado, rotacao, semente, predicoes)
-        if salvar_em is not None:
-            resultado["modelo_gravado"] = self._gravar(modelo, salvar_em, semente, posicoes, teste, linhas)
-        if modelo_do_sistema is not None:
+        if modelo_salvo is not None and rotacao == 0:
             del modelo
-            resultado["modelo_do_sistema"] = self._conferir_o_salvo(modelo_do_sistema, ponto, posicoes, teste, predicoes)
+            resultado["modelo_salvo"] = self._conferir_o_salvo(modelo_salvo, ponto, posicoes, teste, predicoes)
         return resultado, predicoes
 
     def _rotulo(self, arquivo):
@@ -416,18 +401,8 @@ class Ponto:
             pares += [("teste_previsto", "teste_argmax"), ("fundo_previsto", "fundo_argmax")]
         return {nome: int((antes[nome] != predicoes[novo]).sum()) for nome, novo in pares}
 
-    def _gravar(self, modelo, caminho, semente, posicoes, teste, linhas):
-        tamanho = salvar(
-            caminho, modelo, FEATURES_39, ALVO, divisao="tempo", semente=semente, arvores=self.execucao.arvores,
-            janela=JANELA, teto=self.execucao.teto, fracao_de_teste=FRACAO_DE_TESTE_POR_TEMPO,
-            treino_sha256=impressao_digital(np.flatnonzero(~teste)), linhas_de_treino=linhas,
-            configuracao=self.configuracao.nome, fundo_como_benigno=self.configuracao.fundo_como_benigno,
-        )
-        return {"arquivo": Path(caminho).name, "caminho": Path(caminho).as_posix(), "sha256": _sha256(caminho),
-                "bytes": tamanho}
-
     def _conferir_o_salvo(self, caminho, ponto, posicoes, teste, predicoes):
-        """O modelo salvo do sistema no corte por tempo, pelas duas regras, contra o retreino da mesma semente."""
+        """O modelo salvo no corte por tempo, pelas duas regras, contra o retreino da mesma semente."""
         salvo = carregar_modelo(caminho)["modelo"]
         proba = probabilidades(salvo, self.execucao._X(self.dados.X[posicoes[teste]]))
         regras = _regras(ponto, proba, salvo.classes_)
@@ -482,36 +457,32 @@ def comparar_pontos(a, b, sementes, rotacoes_):
 # --- a execução --------------------------------------------------------------------------------
 
 
-def nome_do_modelo(configuracao, pasta="modelos"):
-    """Onde o modelo de uma configuração que não é a do sistema é gravado."""
-    return Path(pasta) / f"rf_regerado_janela_{JANELA}_configuracao_{configuracao.nome}.joblib"
-
-
 def rodar(configuracoes, dados, sementes=SEMENTES, arvores=ARVORES, nucleos=TODOS_OS_NUCLEOS, teto=TETO,
-          trabalho=TRABALHO, trabalho_das_rodadas=rodadas.TRABALHO, modelos="modelos", modelo_do_sistema=MODELO_DO_SISTEMA):
-    """Os treinos de cada configuração, as comparações e os pontos de operação a gravar, num dicionário."""
+          trabalho=TRABALHO, trabalho_das_rodadas=rodadas.TRABALHO, modelos="modelos"):
+    """Os treinos de cada configuração, as comparações e a conferência dos modelos salvos, num dicionário."""
     controle = list(sementes[:SEMENTES_DE_CONTROLE])
     principal = controle[0]
     rotacoes_ = rotacoes(dados.regeracao)
     referencia = configuracoes[0]
-    pontos, saida = {}, {"configuracoes": {}, "comparacoes": {}}
+    pontos, saida = {}, {"configuracoes": {}, "comparacoes": {}, "modelos_salvos": {}}
     for configuracao in configuracoes:
         ponto = Ponto(configuracao, dados, arvores, nucleos, teto, trabalho, trabalho_das_rodadas)
+        salvo = None
+        if modelos is not None and configuracao.nome in MODELOS_SALVOS:
+            salvo = Path(modelos) / MODELOS_SALVOS[configuracao.nome]
+            salvo = salvo if salvo.exists() else None
         resultados = {}
         for semente in controle:
             for rotacao in range(rotacoes_):
-                salvar_em = conferir = None
-                if semente == principal and rotacao == 0:
-                    if configuracao is referencia and modelo_do_sistema is not None and Path(modelo_do_sistema).exists():
-                        conferir = modelo_do_sistema
-                    elif configuracao is not referencia and modelos is not None:
-                        salvar_em = nome_do_modelo(configuracao, modelos)
-                resultados.setdefault(str(rotacao), {})[str(semente)] = ponto.medir(semente, rotacao, salvar_em, conferir)
+                conferir = salvo if semente == principal and rotacao == 0 else None
+                resultados.setdefault(str(rotacao), {})[str(semente)] = ponto.medir(semente, rotacao, conferir)
         pontos[configuracao.nome] = ponto
         saida["configuracoes"][configuracao.nome] = {
             "descricao": configuracao.descricao, "destino": configuracao.destino,
             "fundo_como_benigno": configuracao.fundo_como_benigno, "resultados": resultados,
         }
+        if salvo is not None:
+            saida["modelos_salvos"][configuracao.nome] = conferir_modelo_salvo(resultados["0"][str(principal)], salvo)
     for nome, ponto in pontos.items():
         saida["comparacoes"][f"{nome}:limiar-argmax"] = comparar_pontos(Vista(ponto, "argmax"), Vista(ponto, "limiar"),
                                                                         controle, rotacoes_)
@@ -521,29 +492,19 @@ def rodar(configuracoes, dados, sementes=SEMENTES, arvores=ARVORES, nucleos=TODO
     return saida
 
 
-def gravar_pontos(resultados, principal, configuracoes, comando):
-    """Grava o JSON do ponto de operação ao lado do modelo de cada configuração, e devolve onde gravou."""
-    gravados = {}
-    for configuracao in configuracoes:
-        unidade = resultados["configuracoes"][configuracao.nome]["resultados"]["0"][str(principal)]
-        modelo = unidade.get("modelo_gravado") or unidade.get("modelo_do_sistema")
-        if modelo is None:
-            continue
-        diferentes = [unidade["modelo_do_sistema"][f"diferentes_{r}"] for r in REGRAS] if "modelo_do_sistema" in unidade else []
-        if any(diferentes):
-            raise ValueError(f"{modelo['arquivo']}: o modelo salvo não dá as mesmas predições do retreino da semente "
-                             f"{principal}, e o ponto de operação não vale para ele")
-        caminho = gravar_ponto(
-            modelo["caminho"], PontoDeOperacao(unidade["limiar"], unidade["seguidas"]),
-            configuracao=configuracao.nome, descricao=configuracao.descricao, semente=principal,
-            escolha={"fracao_de_validacao": FRACAO_DE_VALIDACAO, "alarme_falso_maximo": ALARME_FALSO_MAXIMO,
-                     "grade": [LIMIARES[0], LIMIARES[-1], 0.01],
-                     "janelas_benignas_da_validacao": unidade["validacao"]["janelas_benignas"]},
-            manifesto=f"experimentos/resultados/{MANIFESTO}", comando=comando,
-        )
-        gravados[configuracao.nome] = {"modelo": modelo["caminho"], "ponto": caminho.as_posix(),
-                                       "limiar": unidade["limiar"], "seguidas": unidade["seguidas"]}
-    return gravados
+def conferir_modelo_salvo(unidade, caminho):
+    """O modelo salvo contra o retreino da semente principal, e o ponto de operação gravado ao lado dele."""
+    salvo = unidade["modelo_salvo"]
+    try:
+        gravado = ler_ponto(caminho)
+        ponto = {"limiar": gravado.limiar, "seguidas": gravado.seguidas}
+    except (OSError, ValueError, KeyError):
+        ponto = None
+    return {
+        **salvo, "limiar_escolhido": unidade["limiar"], "seguidas": unidade["seguidas"], "ponto_gravado": ponto,
+        "confere": (not any(salvo[f"diferentes_{r}"] for r in REGRAS) and ponto is not None
+                    and ponto["limiar"] == unidade["limiar"] and ponto["seguidas"] == unidade["seguidas"]),
+    }
 
 
 def _codigo():
@@ -571,9 +532,8 @@ def main(argv=None):
                             help=f"treinos guardados das rodadas, para a conferência (padrão: {rodadas.TRABALHO})")
     analisador.add_argument("--configuracoes", default="0,5",
                             help="configurações de rodadas.CONFIGURACOES, a de referência primeiro (padrão: 0,5)")
-    analisador.add_argument("--modelo-do-sistema", default=MODELO_DO_SISTEMA,
-                            help=f"modelo salvo da configuração de referência (padrão: {MODELO_DO_SISTEMA})")
-    analisador.add_argument("--modelos", default="modelos", help="pasta dos modelos das outras configurações")
+    analisador.add_argument("--modelos", default="modelos",
+                            help="pasta dos modelos salvos por treinar_regerado, conferidos contra o retreino")
     analisador.add_argument("--sementes", type=rodadas._lista_de_sementes, default=SEMENTES,
                             help="sementes, separadas por vírgula; a primeira é a principal (padrão: 42,1,2,3,4)")
     analisador.add_argument("--arvores", type=_positivo, default=ARVORES, help=f"padrão: {ARVORES}")
@@ -607,9 +567,7 @@ def main(argv=None):
             dados = ler_dados(configuracoes[0].destino, regeracao,
                               ao_ler=lambda nome, linhas: rodadas._relatar(f"{nome}: {_milhar(linhas)} janelas"))
             resultados = rodar(configuracoes, dados, argumentos.sementes, argumentos.arvores, argumentos.nucleos,
-                               argumentos.teto, argumentos.trabalho, argumentos.trabalho_das_rodadas, argumentos.modelos,
-                               argumentos.modelo_do_sistema)
-            resultados["gravados"] = gravar_pontos(resultados, argumentos.sementes[0], configuracoes, comando)
+                               argumentos.teto, argumentos.trabalho, argumentos.trabalho_das_rodadas, argumentos.modelos)
             # A regra de adoção da configuração 5, aplicada à comparação de capturas: diz qual configuração venceu.
             capturas = saida / rodadas.MANIFESTO_DAS_CAPTURAS
             resultados["regra"] = regra_de_adocao(_ler_json(capturas)) if capturas.exists() else None
@@ -648,8 +606,7 @@ def main(argv=None):
     except KeyboardInterrupt:
         print(f"interrompido: os treinos já feitos ficam em {argumentos.trabalho}/ e são reaproveitados", file=sys.stderr)
         return 130
-    print(f"resultados em {saida}/; pontos de operação ao lado dos modelos ({ao_lado_do_modelo('x.joblib').name[1:]})",
-          file=sys.stderr)
+    print(f"resultados em {saida}/", file=sys.stderr)
     return 0
 
 
