@@ -14,6 +14,15 @@ CONFIG = Configuracao(url_base="https://g/v1", chave="k", modelo="m-padrao")
 
 def chamar(app, metodo, caminho, corpo=None, bruto=None):
     """Uma requisição HTTP ao app ASGI. Devolve (status, json ou texto)."""
+    status, _, texto = chamar_bruto(app, metodo, caminho, corpo, bruto)
+    try:
+        return status, json.loads(texto)
+    except json.JSONDecodeError:
+        return status, texto
+
+
+def chamar_bruto(app, metodo, caminho, corpo=None, bruto=None):
+    """Como `chamar`, mas devolve (status, cabeçalhos, texto do corpo)."""
     dados = bruto if bruto is not None else (json.dumps(corpo).encode("utf-8") if corpo is not None else b"")
     scope = {
         "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": metodo, "scheme": "http",
@@ -22,7 +31,7 @@ def chamar(app, metodo, caminho, corpo=None, bruto=None):
         "client": ("127.0.0.1", 1), "server": ("teste", 80),
     }
     mensagens = iter([{"type": "http.request", "body": dados, "more_body": False}])
-    recebido = {"status": None, "corpo": b""}
+    recebido = {"status": None, "cabecalhos": {}, "corpo": b""}
 
     async def receive():
         return next(mensagens, {"type": "http.disconnect"})
@@ -30,15 +39,12 @@ def chamar(app, metodo, caminho, corpo=None, bruto=None):
     async def send(mensagem):
         if mensagem["type"] == "http.response.start":
             recebido["status"] = mensagem["status"]
+            recebido["cabecalhos"] = {k.decode().lower(): v.decode() for k, v in mensagem.get("headers", [])}
         elif mensagem["type"] == "http.response.body":
             recebido["corpo"] += mensagem.get("body", b"")
 
     asyncio.run(app(scope, receive, send))
-    texto = recebido["corpo"].decode("utf-8")
-    try:
-        return recebido["status"], json.loads(texto)
-    except json.JSONDecodeError:
-        return recebido["status"], texto
+    return recebido["status"], recebido["cabecalhos"], recebido["corpo"].decode("utf-8")
 
 
 def provedor_que_responde(registro, conteudo="Resposta.", tokens=(10, 2)):
@@ -277,6 +283,63 @@ def test_no_limite_a_conversa_e_aceita(corpo):
 
     assert status == 200
     assert len(registro) == 1
+
+
+def pasta_construida(tmp_path):
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>SentryIoT</title>", encoding="utf-8")
+    (dist / "assets" / "app.js").write_text("console.log(1)", encoding="utf-8")
+    (tmp_path / "segredo.txt").write_text("fora da pasta", encoding="utf-8")
+    return dist
+
+
+def test_com_a_pasta_construida_serve_o_index_na_raiz_e_os_arquivos_com_o_tipo_certo(tmp_path):
+    app = criar_app(CONFIG, provedor_que_responde([]), pasta_construida=pasta_construida(tmp_path))
+
+    status, cabecalhos, texto = chamar_bruto(app, "GET", "/")
+    assert (status, texto) == (200, "<!doctype html><title>SentryIoT</title>")
+    assert cabecalhos["content-type"].startswith("text/html")
+
+    status, cabecalhos, texto = chamar_bruto(app, "GET", "/assets/app.js")
+    assert (status, texto) == (200, "console.log(1)")
+    assert "javascript" in cabecalhos["content-type"]
+
+
+def test_caminho_desconhecido_fora_de_api_devolve_o_index(tmp_path):
+    app = criar_app(CONFIG, provedor_que_responde([]), pasta_construida=pasta_construida(tmp_path))
+
+    status, _, texto = chamar_bruto(app, "GET", "/qualquer/coisa")
+
+    assert (status, texto) == (200, "<!doctype html><title>SentryIoT</title>")
+
+
+@pytest.mark.parametrize("com_pasta", [True, False])
+def test_rota_de_api_inexistente_devolve_404_em_json(tmp_path, com_pasta):
+    pasta = pasta_construida(tmp_path) if com_pasta else tmp_path / "nao-existe"
+    app = criar_app(CONFIG, provedor_que_responde([]), pasta_construida=pasta)
+
+    status, corpo = chamar(app, "GET", "/api/nada")
+
+    assert status == 404
+    assert "erro" in corpo
+
+
+def test_sem_a_pasta_construida_a_raiz_da_404_e_a_api_continua(tmp_path):
+    app = criar_app(CONFIG, provedor_que_responde([]), pasta_construida=tmp_path / "nao-existe")
+
+    assert chamar(app, "GET", "/")[0] == 404
+    assert chamar(app, "GET", "/api/modelos") == (200, {"modelos": ["m-padrao"], "padrao": "m-padrao"})
+
+
+@pytest.mark.parametrize("caminho", ["/../segredo.txt", "/assets/../../segredo.txt", "/assets/..%2F..%2Fsegredo.txt"])
+def test_caminho_que_sai_da_pasta_construida_nao_e_servido(tmp_path, caminho):
+    app = criar_app(CONFIG, provedor_que_responde([]), pasta_construida=pasta_construida(tmp_path))
+
+    status, _, texto = chamar_bruto(app, "GET", caminho)
+
+    assert "fora da pasta" not in texto
+    assert status in (200, 404)
 
 
 def test_excecao_inesperada_do_provedor_vira_500_sem_vazar_detalhe():

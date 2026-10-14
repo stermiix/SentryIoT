@@ -43,6 +43,11 @@ No desenvolvimento da interface, o Vite (`npm run dev` em `frontend/`) encaminha
   streaming e devolve `{"conteudo", "modelo", "tokens_entrada", "tokens_saida", "tempo_ms"}`.
   Tokens vêm nulos quando o provedor não informa o uso.
 
+Rota sob `/api` que não existe devolve 404 em JSON. Fora de `/api`, se `frontend/dist/`
+existir, o servidor serve a interface construída: `/` e qualquer caminho desconhecido devolvem o
+`index.html`, e os arquivos da pasta saem com o tipo certo; nada fora da pasta é servido. Sem a
+pasta, só a API responde.
+
 Erros vêm como `{"erro": "..."}`, com o nome do campo na mensagem: 400 para corpo que não é
 JSON, campo ausente ou com tipo errado, modelo fora da lista permitida ou conversa fora dos
 limites; 502 quando o provedor recusa ou não responde (com `codigo`, o status dele, ou nulo);
@@ -58,6 +63,25 @@ Conferidos antes de qualquer chamada ao provedor, para o custo e o servidor não
 | Cada mensagem | 8.000 caracteres |
 | Mensagens no histórico | 40, e a última precisa ser da pessoa |
 | Soma de sistema e mensagens | 80.000 caracteres |
+
+## Implantação no servidor da equipe
+
+Uma URL só, alcançada pela rede privada do Tailscale. Nenhuma porta aberta para a internet: o
+chat gasta crédito do provedor a cada mensagem e, quando o sistema completo subir, a interface
+terá os botões de aprovar e desfazer ações na rede.
+
+1. Clonar o repositório e criar o ambiente (`python3 -m venv .venv`, `pip install -r
+   requirements.txt`), com Node.js 20 ou mais recente para o build.
+2. Copiar `.env.example` para `.env`, preencher e deixar só o dono ler: `chmod 600 .env`. Se o
+   provedor usa certificado de CA interna, guardar o PEM fora do repositório e apontar
+   `LLM_CA_BUNDLE` para ele.
+3. Construir a interface: `cd frontend && npm ci && npm run build`.
+4. Subir, na raiz, no endereço do Tailscale da máquina (e não em `0.0.0.0`):
+   `python -m codigo.api --host <endereço Tailscale> --port 8000`.
+5. Conferir de outra máquina da rede privada: `http://<nome-no-tailscale>:8000/#chat`.
+
+Para o processo sobreviver ao fim da sessão, rode-o sob um gerenciador do sistema (systemd,
+launchd ou equivalente) com o diretório de trabalho na raiz do repositório.
 
 ## Arquivos
 

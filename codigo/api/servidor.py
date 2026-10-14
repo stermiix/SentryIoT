@@ -12,7 +12,7 @@ import time
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route
 
 from codigo.api.prompts import ler_prompts
@@ -21,6 +21,7 @@ from codigo.api.provedor import PAPEIS, ErroDoProvedor
 log = logging.getLogger(__name__)
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PASTA_DE_SKILLS = os.path.join(RAIZ, "codigo", "agente", "skills")
+PASTA_CONSTRUIDA = os.path.join(RAIZ, "frontend", "dist")
 # Limites conferidos antes de qualquer chamada ao provedor: protegem o custo e o próprio servidor.
 LIMITE_DO_SISTEMA = 20_000  # caracteres do prompt de sistema
 LIMITE_DA_MENSAGEM = 8_000  # caracteres de cada mensagem
@@ -76,7 +77,8 @@ def _ler_pedido_de_chat(corpo):
     return modelo, sistema, lidas
 
 
-def criar_app(config, chamar_provedor, pasta_de_skills=PASTA_DE_SKILLS):
+def criar_app(config, chamar_provedor, pasta_de_skills=PASTA_DE_SKILLS, pasta_construida=PASTA_CONSTRUIDA):
+    """O app ASGI. Com `pasta_construida` existente, serve a interface construída fora de `/api`."""
     async def chat(request: Request):
         faltando = config.faltando()
         if faltando:
@@ -119,10 +121,28 @@ def criar_app(config, chamar_provedor, pasta_de_skills=PASTA_DE_SKILLS):
     async def prompts(request: Request):
         return JSONResponse({"prompts": await run_in_threadpool(ler_prompts, pasta_de_skills)})
 
-    return Starlette(
-        routes=[
-            Route("/api/chat", chat, methods=["POST"]),
-            Route("/api/modelos", modelos, methods=["GET"]),
-            Route("/api/prompts", prompts, methods=["GET"]),
-        ]
-    )
+    async def api_desconhecida(request: Request):
+        return JSONResponse({"erro": "rota desconhecida"}, status_code=404)
+
+    rotas = [
+        Route("/api/chat", chat, methods=["POST"]),
+        Route("/api/modelos", modelos, methods=["GET"]),
+        Route("/api/prompts", prompts, methods=["GET"]),
+        Route("/api/{resto:path}", api_desconhecida, methods=["GET", "POST", "PUT", "PATCH", "DELETE"]),
+    ]
+
+    raiz = os.path.realpath(pasta_construida)
+    if os.path.isdir(raiz):
+        index = os.path.join(raiz, "index.html")
+
+        async def arquivo(request: Request):
+            # Só o que está dentro da pasta construída é servido; qualquer outro caminho recebe o
+            # index.html, e a interface decide pela âncora o que mostrar.
+            alvo = os.path.realpath(os.path.join(raiz, request.path_params.get("caminho", "")))
+            if alvo.startswith(raiz + os.sep) and os.path.isfile(alvo):
+                return FileResponse(alvo)
+            return FileResponse(index, media_type="text/html")
+
+        rotas.append(Route("/{caminho:path}", arquivo, methods=["GET"]))
+
+    return Starlette(routes=rotas)
