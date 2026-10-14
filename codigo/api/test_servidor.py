@@ -233,6 +233,52 @@ def test_sistema_no_limite_e_aceito_e_chega_ao_provedor():
     assert registro[0][1] == "x" * 20_000
 
 
+def conversa(quantidade, tamanho=2):
+    """`quantidade` mensagens alternando pessoa e modelo, terminando na pessoa, com `tamanho` caracteres cada."""
+    papeis = ["usuario" if (quantidade - i) % 2 == 1 else "assistente" for i in range(quantidade)]
+    return [{"papel": papel, "conteudo": "x" * tamanho} for papel in papeis]
+
+
+@pytest.mark.parametrize(
+    "corpo, trecho",
+    [
+        ({**PEDIDO, "mensagens": [{"papel": "usuario", "conteudo": "x" * 8_001}]}, "conteudo"),
+        ({**PEDIDO, "mensagens": conversa(41)}, "mensagens"),
+        ({**PEDIDO, "sistema": "", "mensagens": conversa(11, 7_900)}, "soma"),
+        ({**PEDIDO, "sistema": "s" * 20_000, "mensagens": conversa(9, 7_000)}, "soma"),
+        ({**PEDIDO, "mensagens": []}, "mensagens"),
+        ({**PEDIDO, "mensagens": [{"papel": "usuario", "conteudo": "Oi"}, {"papel": "assistente", "conteudo": "Olá"}]}, "última mensagem"),
+    ],
+)
+def test_limites_de_tamanho_e_forma_da_conversa_viram_400_sem_chamar_o_provedor(corpo, trecho):
+    registro = []
+    app = criar_app(CONFIG, provedor_que_responde(registro))
+
+    status, resposta = chamar(app, "POST", "/api/chat", corpo)
+
+    assert status == 400
+    assert trecho in resposta["erro"]
+    assert registro == []
+
+
+@pytest.mark.parametrize(
+    "corpo",
+    [
+        {**PEDIDO, "mensagens": [{"papel": "usuario", "conteudo": "x" * 8_000}]},
+        {**PEDIDO, "mensagens": conversa(40)},
+        {**PEDIDO, "sistema": "", "mensagens": conversa(10, 8_000)},
+    ],
+)
+def test_no_limite_a_conversa_e_aceita(corpo):
+    registro = []
+    app = criar_app(CONFIG, provedor_que_responde(registro))
+
+    status, _ = chamar(app, "POST", "/api/chat", corpo)
+
+    assert status == 200
+    assert len(registro) == 1
+
+
 def test_excecao_inesperada_do_provedor_vira_500_sem_vazar_detalhe():
     def chamar_provedor(modelo, sistema, mensagens):
         raise RuntimeError("segredo interno")

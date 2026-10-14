@@ -21,8 +21,11 @@ from codigo.api.provedor import PAPEIS, ErroDoProvedor
 log = logging.getLogger(__name__)
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PASTA_DE_SKILLS = os.path.join(RAIZ, "codigo", "agente", "skills")
-# Prompt de sistema maior que isto é recusado antes de chegar ao provedor.
-LIMITE_DO_SISTEMA = 20_000
+# Limites conferidos antes de qualquer chamada ao provedor: protegem o custo e o próprio servidor.
+LIMITE_DO_SISTEMA = 20_000  # caracteres do prompt de sistema
+LIMITE_DA_MENSAGEM = 8_000  # caracteres de cada mensagem
+LIMITE_DE_MENSAGENS = 40  # mensagens no histórico
+LIMITE_DA_SOMA = 80_000  # caracteres de sistema e mensagens somados
 
 
 class PedidoInvalido(Exception):
@@ -41,7 +44,7 @@ def _campo_de_texto(corpo, campo, obrigatorio=True):
 
 
 def _ler_pedido_de_chat(corpo):
-    """Confere a forma do corpo de `/api/chat`. Os limites de tamanho ficam para outra etapa."""
+    """Confere a forma e os limites do corpo de `/api/chat`, antes de qualquer chamada ao provedor."""
     if not isinstance(corpo, dict):
         raise PedidoInvalido("o corpo precisa ser um objeto JSON")
     modelo = _campo_de_texto(corpo, "modelo", obrigatorio=False)
@@ -51,6 +54,10 @@ def _ler_pedido_de_chat(corpo):
     mensagens = corpo.get("mensagens")
     if not isinstance(mensagens, list):
         raise PedidoInvalido("o campo mensagens precisa ser uma lista")
+    if not mensagens:
+        raise PedidoInvalido("o campo mensagens precisa ter ao menos uma mensagem")
+    if len(mensagens) > LIMITE_DE_MENSAGENS:
+        raise PedidoInvalido(f"o campo mensagens passa de {LIMITE_DE_MENSAGENS} mensagens")
     lidas = []
     for mensagem in mensagens:
         if not isinstance(mensagem, dict):
@@ -58,7 +65,14 @@ def _ler_pedido_de_chat(corpo):
         papel = _campo_de_texto(mensagem, "papel")
         if papel not in PAPEIS:
             raise PedidoInvalido("o campo papel precisa ser usuario ou assistente")
-        lidas.append({"papel": papel, "conteudo": _campo_de_texto(mensagem, "conteudo")})
+        conteudo = _campo_de_texto(mensagem, "conteudo")
+        if len(conteudo) > LIMITE_DA_MENSAGEM:
+            raise PedidoInvalido(f"o campo conteudo passa de {LIMITE_DA_MENSAGEM} caracteres")
+        lidas.append({"papel": papel, "conteudo": conteudo})
+    if lidas[-1]["papel"] != "usuario":
+        raise PedidoInvalido("a última mensagem precisa ser da pessoa (papel usuario)")
+    if len(sistema) + sum(len(m["conteudo"]) for m in lidas) > LIMITE_DA_SOMA:
+        raise PedidoInvalido(f"a soma dos textos (sistema e mensagens) passa de {LIMITE_DA_SOMA} caracteres")
     return modelo, sistema, lidas
 
 

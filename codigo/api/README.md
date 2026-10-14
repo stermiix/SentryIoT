@@ -43,10 +43,21 @@ No desenvolvimento da interface, o Vite (`npm run dev` em `frontend/`) encaminha
   streaming e devolve `{"conteudo", "modelo", "tokens_entrada", "tokens_saida", "tempo_ms"}`.
   Tokens vêm nulos quando o provedor não informa o uso.
 
-Erros vêm como `{"erro": "..."}`: 400 para corpo que não é JSON, campo ausente ou com tipo
-errado, modelo fora da lista permitida ou prompt de sistema acima de 20.000 caracteres; 502
-quando o provedor recusa ou não responde (com `codigo`, o status dele, ou nulo); 503 quando
-falta variável obrigatória (com `faltando`).
+Erros vêm como `{"erro": "..."}`, com o nome do campo na mensagem: 400 para corpo que não é
+JSON, campo ausente ou com tipo errado, modelo fora da lista permitida ou conversa fora dos
+limites; 502 quando o provedor recusa ou não responde (com `codigo`, o status dele, ou nulo);
+503 quando falta variável obrigatória (com `faltando`).
+
+## Limites
+
+Conferidos antes de qualquer chamada ao provedor, para o custo e o servidor não escaparem:
+
+| O quê | Limite |
+|---|---|
+| Prompt de sistema | 20.000 caracteres |
+| Cada mensagem | 8.000 caracteres |
+| Mensagens no histórico | 40, e a última precisa ser da pessoa |
+| Soma de sistema e mensagens | 80.000 caracteres |
 
 ## Arquivos
 

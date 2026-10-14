@@ -198,6 +198,13 @@ describe("tela do chat", () => {
     expect(recorte(html, "chat-sistema")).not.toMatch(/<textarea[^>]*disabled/);
   });
 
+  it("com erro de limite (400), a faixa mostra a mensagem e o texto digitado continua na caixa", () => {
+    const html = tela({ erro: "o campo conteudo passa de 8000 caracteres", texto: "rascunho longo", mensagens: CONVERSA });
+    expect(textoDe(recorte(html, "error-banner"))).toContain("o campo conteudo passa de 8000 caracteres");
+    expect(recorte(html, "chat-entrada")).toContain("rascunho longo");
+    expect(textoDe(recorte(html, "chat-conversa"))).toContain("Uma varredura de portas.");
+  });
+
   it("sem lista de modelos, o seletor fica desabilitado e mostra o modelo atual, se houver", () => {
     expect(recorte(tela({ modelos: [], modelo: "" }), "chat-modelo")).toMatch(/<select[^>]*disabled/);
     const comPadrao = recorte(tela({ modelos: [], modelo: "m-1" }), "chat-modelo");
