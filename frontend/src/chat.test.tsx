@@ -2,7 +2,7 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import textoDoExemplo from "../public/dados/incidente_flood.jsonl?raw";
 import { Pagina, telaDaAncora } from "./App";
-import { ErroDoChat, enviarChat, listarModelos, montarPedido, type MensagemDaConversa } from "./chat";
+import { ErroDoChat, enviarChat, listarModelos, listarPrompts, montarPedido, type MensagemDaConversa, type Prompt } from "./chat";
 import { TelaDoChat } from "./components/ChatDoModelo";
 import { recorte, textoDe } from "./html-de-teste";
 import { lerLog } from "./log";
@@ -92,19 +92,38 @@ describe("lista de modelos", () => {
   });
 });
 
+const PROMPTS: Prompt[] = [
+  { nome: "analise-por-categoria", titulo: "Análise por categoria de ataque", texto: "# Análise\n\ncorpo" },
+  { nome: "triagem-do-alerta", titulo: "Triagem do alerta", texto: "# Triagem\n\ncorpo" },
+];
+
+describe("lista de prompts", () => {
+  it("lê /api/prompts e devolve as skills", async () => {
+    const chamadas: Chamada[] = [];
+    const lista = await listarPrompts(fetchQueResponde(200, { prompts: PROMPTS }, chamadas));
+
+    expect(lista).toEqual(PROMPTS);
+    expect(chamadas[0].url).toBe("/api/prompts");
+  });
+
+  it("resposta fora do formato vira erro de backend", async () => {
+    await expect(listarPrompts(fetchQueResponde(200, { prompts: [{ nome: "x" }] }))).rejects.toMatchObject({ tipo: "backend" });
+  });
+});
+
 describe("montagem do pedido a partir da conversa", () => {
-  it("acrescenta a mensagem da pessoa e manda o modelo escolhido e só papel e conteúdo de cada mensagem", () => {
+  it("acrescenta a mensagem da pessoa e manda o modelo, o prompt de sistema e só papel e conteúdo de cada mensagem", () => {
     const anterior: MensagemDaConversa[] = [
       { papel: "usuario", conteudo: "Oi" },
       { papel: "assistente", conteudo: "Olá.", modelo: "m", tokens_entrada: 1, tokens_saida: 1, tempo_ms: 5 },
     ];
 
-    const { historico, pedido } = montarPedido(anterior, "  Tudo bem?  ", "m-2");
+    const { historico, pedido } = montarPedido(anterior, "  Tudo bem?  ", "m-2", "Seja breve.");
 
     expect(historico).toEqual([...anterior, { papel: "usuario", conteudo: "Tudo bem?" }]);
     expect(pedido).toEqual({
       modelo: "m-2",
-      sistema: "",
+      sistema: "Seja breve.",
       mensagens: [
         { papel: "usuario", conteudo: "Oi" },
         { papel: "assistente", conteudo: "Olá." },
@@ -115,7 +134,7 @@ describe("montagem do pedido a partir da conversa", () => {
 
   it("não muda a conversa recebida", () => {
     const anterior: MensagemDaConversa[] = [{ papel: "usuario", conteudo: "Oi" }];
-    montarPedido(anterior, "Mais", "m");
+    montarPedido(anterior, "Mais", "m", "");
     expect(anterior).toHaveLength(1);
   });
 });
@@ -131,6 +150,10 @@ function tela(props: Partial<Parameters<typeof TelaDoChat>[0]> = {}): string {
       modelos={["m-1", "m-2"]}
       modelo="m-1"
       onModelo={() => {}}
+      sistema=""
+      onSistema={() => {}}
+      prompts={PROMPTS}
+      onCarregarPrompt={() => {}}
       mensagens={[]}
       texto=""
       enviando={false}
@@ -157,6 +180,22 @@ describe("tela do chat", () => {
     expect(seletor).toMatch(/<option[^>]*selected[^>]*value="m-1"|<option[^>]*value="m-1"[^>]*selected/);
     expect(seletor).toContain('value="m-2"');
     expect(seletor).not.toMatch(/<select[^>]*disabled/);
+  });
+
+  it("mostra o prompt de sistema numa caixa editável e o seletor de skills com uma opção por prompt", () => {
+    const html = tela({ sistema: "Seja breve." });
+    expect(recorte(html, "chat-sistema")).toMatch(/<textarea[^>]*>Seja breve\.<\/textarea>/);
+    const seletor = recorte(html, "chat-skill");
+    expect(textoDe(seletor)).toContain("Carregar skill");
+    expect(seletor).toContain('value="analise-por-categoria"');
+    expect(textoDe(seletor)).toContain("Triagem do alerta");
+    expect(seletor).not.toMatch(/<select[^>]*disabled/);
+  });
+
+  it("sem prompts, o seletor de skills fica desabilitado e a caixa continua editável", () => {
+    const html = tela({ prompts: [] });
+    expect(recorte(html, "chat-skill")).toMatch(/<select[^>]*disabled/);
+    expect(recorte(html, "chat-sistema")).not.toMatch(/<textarea[^>]*disabled/);
   });
 
   it("sem lista de modelos, o seletor fica desabilitado e mostra o modelo atual, se houver", () => {

@@ -192,6 +192,47 @@ def test_modelo_da_lista_e_aceito():
     assert registro[0][0] == "m-2"
 
 
+def test_prompts_devolve_as_skills_da_pasta_configurada(tmp_path):
+    (tmp_path / "triagem-do-alerta").mkdir()
+    (tmp_path / "triagem-do-alerta" / "SKILL.md").write_text("---\nname: t\n---\n# Triagem do alerta\n\ncorpo\n", encoding="utf-8")
+    app = criar_app(CONFIG, provedor_que_responde([]), pasta_de_skills=tmp_path)
+
+    status, corpo = chamar(app, "GET", "/api/prompts")
+
+    assert status == 200
+    assert corpo == {"prompts": [{"nome": "triagem-do-alerta", "titulo": "Triagem do alerta", "texto": "# Triagem do alerta\n\ncorpo"}]}
+
+
+def test_prompts_por_padrao_le_as_skills_dos_agentes_do_repositorio():
+    app = criar_app(CONFIG, provedor_que_responde([]))
+
+    status, corpo = chamar(app, "GET", "/api/prompts")
+
+    assert status == 200
+    assert "triagem-do-alerta" in [p["nome"] for p in corpo["prompts"]]
+
+
+def test_sistema_acima_do_limite_vira_400_sem_chamar_o_provedor():
+    registro = []
+    app = criar_app(CONFIG, provedor_que_responde(registro))
+
+    status, corpo = chamar(app, "POST", "/api/chat", {**PEDIDO, "sistema": "x" * 20_001})
+
+    assert status == 400
+    assert "sistema" in corpo["erro"]
+    assert registro == []
+
+
+def test_sistema_no_limite_e_aceito_e_chega_ao_provedor():
+    registro = []
+    app = criar_app(CONFIG, provedor_que_responde(registro))
+
+    status, _ = chamar(app, "POST", "/api/chat", {**PEDIDO, "sistema": "x" * 20_000})
+
+    assert status == 200
+    assert registro[0][1] == "x" * 20_000
+
+
 def test_excecao_inesperada_do_provedor_vira_500_sem_vazar_detalhe():
     def chamar_provedor(modelo, sistema, mensagens):
         raise RuntimeError("segredo interno")

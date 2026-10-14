@@ -6,6 +6,7 @@ resposta lenta não pode travar as outras rotas.
 """
 
 import logging
+import os
 import time
 
 from starlette.applications import Starlette
@@ -14,9 +15,14 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from codigo.api.prompts import ler_prompts
 from codigo.api.provedor import PAPEIS, ErroDoProvedor
 
 log = logging.getLogger(__name__)
+RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PASTA_DE_SKILLS = os.path.join(RAIZ, "codigo", "agente", "skills")
+# Prompt de sistema maior que isto é recusado antes de chegar ao provedor.
+LIMITE_DO_SISTEMA = 20_000
 
 
 class PedidoInvalido(Exception):
@@ -40,6 +46,8 @@ def _ler_pedido_de_chat(corpo):
         raise PedidoInvalido("o corpo precisa ser um objeto JSON")
     modelo = _campo_de_texto(corpo, "modelo", obrigatorio=False)
     sistema = _campo_de_texto(corpo, "sistema", obrigatorio=False)
+    if len(sistema) > LIMITE_DO_SISTEMA:
+        raise PedidoInvalido(f"o campo sistema passa de {LIMITE_DO_SISTEMA} caracteres")
     mensagens = corpo.get("mensagens")
     if not isinstance(mensagens, list):
         raise PedidoInvalido("o campo mensagens precisa ser uma lista")
@@ -54,7 +62,7 @@ def _ler_pedido_de_chat(corpo):
     return modelo, sistema, lidas
 
 
-def criar_app(config, chamar_provedor):
+def criar_app(config, chamar_provedor, pasta_de_skills=PASTA_DE_SKILLS):
     async def chat(request: Request):
         faltando = config.faltando()
         if faltando:
@@ -94,4 +102,13 @@ def criar_app(config, chamar_provedor):
     async def modelos(request: Request):
         return JSONResponse({"modelos": list(config.modelos()), "padrao": config.modelo})
 
-    return Starlette(routes=[Route("/api/chat", chat, methods=["POST"]), Route("/api/modelos", modelos, methods=["GET"])])
+    async def prompts(request: Request):
+        return JSONResponse({"prompts": await run_in_threadpool(ler_prompts, pasta_de_skills)})
+
+    return Starlette(
+        routes=[
+            Route("/api/chat", chat, methods=["POST"]),
+            Route("/api/modelos", modelos, methods=["GET"]),
+            Route("/api/prompts", prompts, methods=["GET"]),
+        ]
+    )

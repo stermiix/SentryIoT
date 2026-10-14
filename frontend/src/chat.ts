@@ -30,6 +30,13 @@ export interface ListaDeModelos {
   padrao: string;
 }
 
+/** Uma skill dos agentes, oferecida como ponto de partida do prompt de sistema. */
+export interface Prompt {
+  nome: string;
+  titulo: string;
+  texto: string;
+}
+
 /** Uma mensagem como fica na conversa da tela: a do modelo guarda junto o que a API devolveu. */
 export type MensagemDaConversa = { papel: "usuario"; conteudo: string } | ({ papel: "assistente" } & RespostaDoChat);
 
@@ -54,13 +61,18 @@ const buscarPadrao: Buscar = (entrada, init) => fetch(entrada, init);
 
 /**
  * A conversa com a nova mensagem da pessoa no fim, e o pedido correspondente para a API: só papel
- * e conteúdo de cada mensagem, com o modelo escolhido e o prompt de sistema vazio.
+ * e conteúdo de cada mensagem, com o modelo escolhido e o prompt de sistema.
  */
-export function montarPedido(mensagens: MensagemDaConversa[], texto: string, modelo: string): { historico: MensagemDaConversa[]; pedido: PedidoDeChat } {
+export function montarPedido(
+  mensagens: MensagemDaConversa[],
+  texto: string,
+  modelo: string,
+  sistema: string,
+): { historico: MensagemDaConversa[]; pedido: PedidoDeChat } {
   const historico: MensagemDaConversa[] = [...mensagens, { papel: "usuario", conteudo: texto.trim() }];
   return {
     historico,
-    pedido: { modelo, sistema: "", mensagens: historico.map(({ papel, conteudo }) => ({ papel, conteudo })) },
+    pedido: { modelo, sistema, mensagens: historico.map(({ papel, conteudo }) => ({ papel, conteudo })) },
   };
 }
 
@@ -78,6 +90,14 @@ export async function listarModelos(buscar: Buscar = buscarPadrao): Promise<List
     throw new ErroDoChat("backend", "O backend devolveu a lista de modelos fora do formato esperado.", 200);
   }
   return corpo;
+}
+
+export async function listarPrompts(buscar: Buscar = buscarPadrao): Promise<Prompt[]> {
+  const corpo = await pedir("/api/prompts", { method: "GET" }, buscar);
+  if (!ehObjeto(corpo) || !Array.isArray(corpo.prompts) || !corpo.prompts.every(ehPrompt)) {
+    throw new ErroDoChat("backend", "O backend devolveu a lista de skills fora do formato esperado.", 200);
+  }
+  return corpo.prompts;
 }
 
 /** Uma chamada à API: falha de rede vira erro de rede; status de erro vira erro de backend com a mensagem dele. */
@@ -119,6 +139,10 @@ function ehRespostaDoChat(valor: unknown): valor is RespostaDoChat {
     ehInteiroOuNulo(valor.tokens_saida) &&
     typeof valor.tempo_ms === "number"
   );
+}
+
+function ehPrompt(valor: unknown): valor is Prompt {
+  return ehObjeto(valor) && typeof valor.nome === "string" && typeof valor.titulo === "string" && typeof valor.texto === "string";
 }
 
 function ehListaDeModelos(valor: unknown): valor is ListaDeModelos {

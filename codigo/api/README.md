@@ -35,14 +35,18 @@ No desenvolvimento da interface, o Vite (`npm run dev` em `frontend/`) encaminha
 
 - `GET /api/modelos`: devolve `{"modelos": [...], "padrao": "..."}` a partir da lista
   permitida, sem chamar o provedor.
+- `GET /api/prompts`: devolve `{"prompts": [{"nome", "titulo", "texto"}]}` com cada `SKILL.md`
+  de `codigo/agente/skills/`, sem o cabeçalho YAML; `nome` é o da pasta e `titulo` é o primeiro
+  título do arquivo. É o ponto de partida do prompt de sistema na tela.
 - `POST /api/chat`: recebe `{"modelo", "sistema", "mensagens": [{"papel", "conteudo"}]}`, com
   `papel` em `usuario` ou `assistente` e `modelo` vazio para usar o padrão. Chama o provedor sem
   streaming e devolve `{"conteudo", "modelo", "tokens_entrada", "tokens_saida", "tempo_ms"}`.
   Tokens vêm nulos quando o provedor não informa o uso.
 
 Erros vêm como `{"erro": "..."}`: 400 para corpo que não é JSON, campo ausente ou com tipo
-errado, ou modelo fora da lista permitida; 502 quando o provedor recusa ou não responde (com
-`codigo`, o status dele, ou nulo); 503 quando falta variável obrigatória (com `faltando`).
+errado, modelo fora da lista permitida ou prompt de sistema acima de 20.000 caracteres; 502
+quando o provedor recusa ou não responde (com `codigo`, o status dele, ou nulo); 503 quando
+falta variável obrigatória (com `faltando`).
 
 ## Arquivos
 
@@ -50,6 +54,7 @@ errado, ou modelo fora da lista permitida; 502 quando o provedor recusa ou não 
 |---|---|
 | `configuracao.py` | Leitura do `.env` e da configuração do provedor |
 | `provedor.py` | Cliente de `chat/completions`, só com a biblioteca padrão; o orquestrador vai reaproveitá-lo |
+| `prompts.py` | Leitura das skills dos agentes como prompts de sistema |
 | `servidor.py` | As rotas, em Starlette |
 | `__main__.py` | A linha de comando |
 | `test_*.py` | Testes sem rede: o provedor e a abertura da conexão são trocados |
