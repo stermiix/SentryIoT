@@ -1,8 +1,12 @@
-import { type FormEvent, type KeyboardEvent, useState } from "react";
-import { ErroDoChat, enviarChat, montarPedido, type MensagemDaConversa } from "../chat";
+import { type FormEvent, type KeyboardEvent, useEffect, useState } from "react";
+import { ErroDoChat, enviarChat, listarModelos, montarPedido, type MensagemDaConversa } from "../chat";
 import { inteiro } from "../formato";
 
 export interface PropsDaTelaDoChat {
+  /** Os modelos que a pessoa pode escolher; vazio deixa o seletor desabilitado. */
+  modelos: string[];
+  modelo: string;
+  onModelo: (modelo: string) => void;
   mensagens: MensagemDaConversa[];
   texto: string;
   enviando: boolean;
@@ -25,8 +29,10 @@ function linhaDeUso(mensagem: MensagemDaConversa & { papel: "assistente" }): str
  * A tela do chat, sem estado: recebe a conversa e os controles e só desenha. Assim os testes a
  * desenham em qualquer estado, e o estado fica no `ChatDoModelo`.
  */
-export function TelaDoChat({ mensagens, texto, enviando, erro, onTexto, onEnviar, onLimpar }: PropsDaTelaDoChat) {
+export function TelaDoChat({ modelos, modelo, onModelo, mensagens, texto, enviando, erro, onTexto, onEnviar, onLimpar }: PropsDaTelaDoChat) {
   const podeEnviar = !enviando && texto.trim().length > 0;
+  // Sem lista (backend fora do ar), o seletor mostra o modelo atual, se houver, e fica travado.
+  const opcoes = modelos.length > 0 ? modelos : modelo ? [modelo] : [];
   const enviar = (evento: FormEvent) => {
     evento.preventDefault();
     if (podeEnviar) {
@@ -44,6 +50,16 @@ export function TelaDoChat({ mensagens, texto, enviando, erro, onTexto, onEnviar
 
   return (
     <section className="chat" aria-label="Chat com o modelo">
+      <div className="chat-controles">
+        <label className="chat-modelo">
+          <span>Modelo</span>
+          <select value={modelo} onChange={(evento) => onModelo(evento.target.value)} disabled={modelos.length === 0 || enviando}>
+            {opcoes.map((nome) => (
+              <option key={nome} value={nome}>{nome}</option>
+            ))}
+          </select>
+        </label>
+      </div>
       {erro && (
         <div className="error-banner" role="alert">
           <strong>Não foi possível obter a resposta.</strong>
@@ -82,16 +98,37 @@ export function TelaDoChat({ mensagens, texto, enviando, erro, onTexto, onEnviar
 
 /** O chat com o modelo: guarda a conversa na memória da página e fala com a API por `chat.ts`. */
 export default function ChatDoModelo() {
+  const [modelos, setModelos] = useState<string[]>([]);
+  const [modelo, setModelo] = useState("");
   const [mensagens, setMensagens] = useState<MensagemDaConversa[]>([]);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
+  useEffect(() => {
+    let ativo = true;
+    listarModelos()
+      .then((lista) => {
+        if (ativo) {
+          setModelos(lista.modelos);
+          setModelo(lista.padrao);
+        }
+      })
+      .catch((falha: unknown) => {
+        if (ativo) {
+          setErro(falha instanceof ErroDoChat ? falha.message : "Falha inesperada ao listar os modelos.");
+        }
+      });
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
   const onEnviar = async () => {
     if (!texto.trim() || enviando) {
       return;
     }
-    const { historico, pedido } = montarPedido(mensagens, texto);
+    const { historico, pedido } = montarPedido(mensagens, texto, modelo);
     setMensagens(historico);
     setTexto("");
     setErro(null);
@@ -114,5 +151,18 @@ export default function ChatDoModelo() {
     setErro(null);
   };
 
-  return <TelaDoChat mensagens={mensagens} texto={texto} enviando={enviando} erro={erro} onTexto={setTexto} onEnviar={onEnviar} onLimpar={onLimpar} />;
+  return (
+    <TelaDoChat
+      modelos={modelos}
+      modelo={modelo}
+      onModelo={setModelo}
+      mensagens={mensagens}
+      texto={texto}
+      enviando={enviando}
+      erro={erro}
+      onTexto={setTexto}
+      onEnviar={onEnviar}
+      onLimpar={onLimpar}
+    />
+  );
 }

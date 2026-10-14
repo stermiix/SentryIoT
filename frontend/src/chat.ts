@@ -1,5 +1,6 @@
-// O acesso à API do chat com o modelo (`/api/chat`, servida pelo backend em `codigo/api/`).
-// Os componentes não chamam `fetch` diretamente: tudo passa por aqui, e os testes trocam o `fetch`.
+// O acesso à API do chat com o modelo (`/api/chat` e `/api/modelos`, servidas pelo backend em
+// `codigo/api/`). Os componentes não chamam `fetch` diretamente: tudo passa por aqui, e os testes
+// trocam o `fetch`.
 
 export type Papel = "usuario" | "assistente";
 
@@ -24,6 +25,11 @@ export interface RespostaDoChat {
   tempo_ms: number;
 }
 
+export interface ListaDeModelos {
+  modelos: string[];
+  padrao: string;
+}
+
 /** Uma mensagem como fica na conversa da tela: a do modelo guarda junto o que a API devolveu. */
 export type MensagemDaConversa = { papel: "usuario"; conteudo: string } | ({ papel: "assistente" } & RespostaDoChat);
 
@@ -43,26 +49,42 @@ export class ErroDoChat extends Error {
 
 const SEM_BACKEND = "O backend do chat não está no ar.";
 
+type Buscar = typeof fetch;
+const buscarPadrao: Buscar = (entrada, init) => fetch(entrada, init);
+
 /**
  * A conversa com a nova mensagem da pessoa no fim, e o pedido correspondente para a API: só papel
- * e conteúdo de cada mensagem, com modelo e prompt de sistema vazios (o backend usa os padrões).
+ * e conteúdo de cada mensagem, com o modelo escolhido e o prompt de sistema vazio.
  */
-export function montarPedido(mensagens: MensagemDaConversa[], texto: string): { historico: MensagemDaConversa[]; pedido: PedidoDeChat } {
+export function montarPedido(mensagens: MensagemDaConversa[], texto: string, modelo: string): { historico: MensagemDaConversa[]; pedido: PedidoDeChat } {
   const historico: MensagemDaConversa[] = [...mensagens, { papel: "usuario", conteudo: texto.trim() }];
   return {
     historico,
-    pedido: { modelo: "", sistema: "", mensagens: historico.map(({ papel, conteudo }) => ({ papel, conteudo })) },
+    pedido: { modelo, sistema: "", mensagens: historico.map(({ papel, conteudo }) => ({ papel, conteudo })) },
   };
 }
 
-export async function enviarChat(pedido: PedidoDeChat, buscar: typeof fetch = (entrada, init) => fetch(entrada, init)): Promise<RespostaDoChat> {
+export async function enviarChat(pedido: PedidoDeChat, buscar: Buscar = buscarPadrao): Promise<RespostaDoChat> {
+  const corpo = await pedir("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pedido) }, buscar);
+  if (!ehRespostaDoChat(corpo)) {
+    throw new ErroDoChat("backend", "O backend devolveu uma resposta fora do formato esperado.", 200);
+  }
+  return corpo;
+}
+
+export async function listarModelos(buscar: Buscar = buscarPadrao): Promise<ListaDeModelos> {
+  const corpo = await pedir("/api/modelos", { method: "GET" }, buscar);
+  if (!ehListaDeModelos(corpo)) {
+    throw new ErroDoChat("backend", "O backend devolveu a lista de modelos fora do formato esperado.", 200);
+  }
+  return corpo;
+}
+
+/** Uma chamada à API: falha de rede vira erro de rede; status de erro vira erro de backend com a mensagem dele. */
+async function pedir(caminho: string, init: RequestInit, buscar: Buscar): Promise<unknown> {
   let resposta: Response;
   try {
-    resposta = await buscar("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(pedido),
-    });
+    resposta = await buscar(caminho, init);
   } catch {
     throw new ErroDoChat("rede", SEM_BACKEND, null);
   }
@@ -76,9 +98,6 @@ export async function enviarChat(pedido: PedidoDeChat, buscar: typeof fetch = (e
   if (!resposta.ok) {
     const erro = ehObjeto(corpo) && typeof corpo.erro === "string" ? corpo.erro : `O backend respondeu com o status ${resposta.status}.`;
     throw new ErroDoChat("backend", erro, resposta.status);
-  }
-  if (!ehRespostaDoChat(corpo)) {
-    throw new ErroDoChat("backend", "O backend devolveu uma resposta fora do formato esperado.", resposta.status);
   }
   return corpo;
 }
@@ -100,4 +119,8 @@ function ehRespostaDoChat(valor: unknown): valor is RespostaDoChat {
     ehInteiroOuNulo(valor.tokens_saida) &&
     typeof valor.tempo_ms === "number"
   );
+}
+
+function ehListaDeModelos(valor: unknown): valor is ListaDeModelos {
+  return ehObjeto(valor) && Array.isArray(valor.modelos) && valor.modelos.every((m) => typeof m === "string") && typeof valor.padrao === "string";
 }

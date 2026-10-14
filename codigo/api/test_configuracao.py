@@ -50,6 +50,20 @@ def test_configuracao_le_ca_e_prazo():
     assert config.prazo_s == 45
 
 
+def test_modelos_permitidos_sem_a_variavel_e_so_o_padrao():
+    config = Configuracao.do_ambiente({"LLM_BASE_URL": "https://g/v1", "LLM_API_KEY": "k", "LLM_MODEL": "m-1"})
+
+    assert config.modelos_permitidos == ("m-1",)
+
+
+def test_modelos_permitidos_le_a_lista_com_espacos_e_poe_o_padrao_na_frente():
+    config = Configuracao.do_ambiente(
+        {"LLM_BASE_URL": "https://g/v1", "LLM_API_KEY": "k", "LLM_MODEL": "m-1", "LLM_MODELOS_PERMITIDOS": " m-2 , m-3,, m-1 "}
+    )
+
+    assert config.modelos_permitidos == ("m-1", "m-2", "m-3")
+
+
 def test_faltando_lista_as_obrigatorias_em_branco():
     config = Configuracao.do_ambiente({"LLM_BASE_URL": "", "LLM_MODEL": "m"})
 

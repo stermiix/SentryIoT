@@ -49,7 +49,7 @@ def provedor_que_responde(registro, conteudo="Resposta.", tokens=(10, 2)):
     return chamar_provedor
 
 
-PEDIDO = {"modelo": "m-1", "sistema": "Seja breve.", "mensagens": [{"papel": "usuario", "conteudo": "Oi"}]}
+PEDIDO = {"modelo": "m-padrao", "sistema": "Seja breve.", "mensagens": [{"papel": "usuario", "conteudo": "Oi"}]}
 
 
 def test_chat_devolve_conteudo_modelo_tokens_e_tempo():
@@ -60,10 +60,10 @@ def test_chat_devolve_conteudo_modelo_tokens_e_tempo():
 
     assert status == 200
     assert corpo["conteudo"] == "Resposta."
-    assert corpo["modelo"] == "m-1"
+    assert corpo["modelo"] == "m-padrao"
     assert (corpo["tokens_entrada"], corpo["tokens_saida"]) == (10, 2)
     assert isinstance(corpo["tempo_ms"], int) and corpo["tempo_ms"] >= 0
-    assert registro == [("m-1", "Seja breve.", [{"papel": "usuario", "conteudo": "Oi"}])]
+    assert registro == [("m-padrao", "Seja breve.", [{"papel": "usuario", "conteudo": "Oi"}])]
 
 
 def test_modelo_vazio_ou_ausente_usa_o_modelo_da_configuracao():
@@ -151,6 +151,45 @@ def test_corpo_que_nao_e_json_vira_400():
     assert status == 400
     assert "JSON" in resposta["erro"]
     assert registro == []
+
+
+def test_modelos_devolve_a_lista_permitida_e_o_padrao():
+    config = Configuracao(url_base="https://g/v1", chave="k", modelo="m-padrao", modelos_permitidos=("m-padrao", "m-2"))
+    app = criar_app(config, provedor_que_responde([]))
+
+    status, corpo = chamar(app, "GET", "/api/modelos")
+
+    assert (status, corpo) == (200, {"modelos": ["m-padrao", "m-2"], "padrao": "m-padrao"})
+
+
+def test_modelos_sem_a_variavel_tem_so_o_padrao():
+    app = criar_app(CONFIG, provedor_que_responde([]))
+
+    status, corpo = chamar(app, "GET", "/api/modelos")
+
+    assert (status, corpo) == (200, {"modelos": ["m-padrao"], "padrao": "m-padrao"})
+
+
+def test_modelo_fora_da_lista_vira_400_sem_chamar_o_provedor():
+    registro = []
+    app = criar_app(CONFIG, provedor_que_responde(registro))
+
+    status, corpo = chamar(app, "POST", "/api/chat", {**PEDIDO, "modelo": "m-estranho"})
+
+    assert status == 400
+    assert "modelo" in corpo["erro"]
+    assert registro == []
+
+
+def test_modelo_da_lista_e_aceito():
+    config = Configuracao(url_base="https://g/v1", chave="k", modelo="m-padrao", modelos_permitidos=("m-padrao", "m-2"))
+    registro = []
+    app = criar_app(config, provedor_que_responde(registro))
+
+    status, corpo = chamar(app, "POST", "/api/chat", {**PEDIDO, "modelo": "m-2"})
+
+    assert (status, corpo["modelo"]) == (200, "m-2")
+    assert registro[0][0] == "m-2"
 
 
 def test_excecao_inesperada_do_provedor_vira_500_sem_vazar_detalhe():

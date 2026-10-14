@@ -16,6 +16,7 @@ Copie `.env.example` para `.env` na raiz (o `.env` é ignorado pelo git) e preen
 | `LLM_BASE_URL` | Base da API compatível com OpenAI, terminando em `/v1` | obrigatória |
 | `LLM_API_KEY` | Chave, enviada como `Authorization: Bearer` | obrigatória |
 | `LLM_MODEL` | Modelo padrão | obrigatória |
+| `LLM_MODELOS_PERMITIDOS` | Modelos que a tela pode escolher, separados por vírgula; o padrão entra sempre na frente | só o `LLM_MODEL` |
 | `LLM_CA_BUNDLE` | PEM da CA do provedor, quando o certificado é interno | cadeia do sistema |
 | `LLM_TIMEOUT_S` | Prazo de cada chamada ao provedor, em segundos | 300 |
 
@@ -32,14 +33,16 @@ No desenvolvimento da interface, o Vite (`npm run dev` em `frontend/`) encaminha
 
 ## Rotas
 
+- `GET /api/modelos`: devolve `{"modelos": [...], "padrao": "..."}` a partir da lista
+  permitida, sem chamar o provedor.
 - `POST /api/chat`: recebe `{"modelo", "sistema", "mensagens": [{"papel", "conteudo"}]}`, com
   `papel` em `usuario` ou `assistente` e `modelo` vazio para usar o padrão. Chama o provedor sem
   streaming e devolve `{"conteudo", "modelo", "tokens_entrada", "tokens_saida", "tempo_ms"}`.
   Tokens vêm nulos quando o provedor não informa o uso.
 
 Erros vêm como `{"erro": "..."}`: 400 para corpo que não é JSON, campo ausente ou com tipo
-errado; 502 quando o provedor recusa ou não responde (com `codigo`, o status dele, ou nulo);
-503 quando falta variável obrigatória (com `faltando`).
+errado, ou modelo fora da lista permitida; 502 quando o provedor recusa ou não responde (com
+`codigo`, o status dele, ou nulo); 503 quando falta variável obrigatória (com `faltando`).
 
 ## Arquivos
 

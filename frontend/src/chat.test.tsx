@@ -2,7 +2,7 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import textoDoExemplo from "../public/dados/incidente_flood.jsonl?raw";
 import { Pagina, telaDaAncora } from "./App";
-import { ErroDoChat, enviarChat, montarPedido, type MensagemDaConversa } from "./chat";
+import { ErroDoChat, enviarChat, listarModelos, montarPedido, type MensagemDaConversa } from "./chat";
 import { TelaDoChat } from "./components/ChatDoModelo";
 import { recorte, textoDe } from "./html-de-teste";
 import { lerLog } from "./log";
@@ -70,18 +70,40 @@ describe("acesso à API do chat", () => {
   });
 });
 
+describe("lista de modelos", () => {
+  it("lê /api/modelos e devolve a lista e o padrão", async () => {
+    const chamadas: Chamada[] = [];
+    const lista = await listarModelos(fetchQueResponde(200, { modelos: ["m-1", "m-2"], padrao: "m-1" }, chamadas));
+
+    expect(lista).toEqual({ modelos: ["m-1", "m-2"], padrao: "m-1" });
+    expect(chamadas[0].url).toBe("/api/modelos");
+  });
+
+  it("falha do backend vira erro de backend; backend fora do ar vira erro de rede", async () => {
+    await expect(listarModelos(fetchQueResponde(500, "<html>"))).rejects.toMatchObject({ tipo: "backend", status: 500 });
+    const semRede = (async () => {
+      throw new TypeError("Failed to fetch");
+    }) as typeof fetch;
+    await expect(listarModelos(semRede)).rejects.toMatchObject({ tipo: "rede" });
+  });
+
+  it("resposta fora do formato vira erro de backend", async () => {
+    await expect(listarModelos(fetchQueResponde(200, { modelos: "m-1" }))).rejects.toMatchObject({ tipo: "backend" });
+  });
+});
+
 describe("montagem do pedido a partir da conversa", () => {
-  it("acrescenta a mensagem da pessoa e manda só papel e conteúdo de cada mensagem", () => {
+  it("acrescenta a mensagem da pessoa e manda o modelo escolhido e só papel e conteúdo de cada mensagem", () => {
     const anterior: MensagemDaConversa[] = [
       { papel: "usuario", conteudo: "Oi" },
       { papel: "assistente", conteudo: "Olá.", modelo: "m", tokens_entrada: 1, tokens_saida: 1, tempo_ms: 5 },
     ];
 
-    const { historico, pedido } = montarPedido(anterior, "  Tudo bem?  ");
+    const { historico, pedido } = montarPedido(anterior, "  Tudo bem?  ", "m-2");
 
     expect(historico).toEqual([...anterior, { papel: "usuario", conteudo: "Tudo bem?" }]);
     expect(pedido).toEqual({
-      modelo: "",
+      modelo: "m-2",
       sistema: "",
       mensagens: [
         { papel: "usuario", conteudo: "Oi" },
@@ -93,7 +115,7 @@ describe("montagem do pedido a partir da conversa", () => {
 
   it("não muda a conversa recebida", () => {
     const anterior: MensagemDaConversa[] = [{ papel: "usuario", conteudo: "Oi" }];
-    montarPedido(anterior, "Mais");
+    montarPedido(anterior, "Mais", "m");
     expect(anterior).toHaveLength(1);
   });
 });
@@ -105,7 +127,19 @@ const CONVERSA: MensagemDaConversa[] = [
 
 function tela(props: Partial<Parameters<typeof TelaDoChat>[0]> = {}): string {
   return renderToString(
-    <TelaDoChat mensagens={[]} texto="" enviando={false} erro={null} onTexto={() => {}} onEnviar={() => {}} onLimpar={() => {}} {...props} />,
+    <TelaDoChat
+      modelos={["m-1", "m-2"]}
+      modelo="m-1"
+      onModelo={() => {}}
+      mensagens={[]}
+      texto=""
+      enviando={false}
+      erro={null}
+      onTexto={() => {}}
+      onEnviar={() => {}}
+      onLimpar={() => {}}
+      {...props}
+    />,
   );
 }
 
@@ -116,6 +150,20 @@ describe("tela do chat", () => {
     expect(html).toContain('class="chat-entrada"');
     expect(textoDe(html)).toContain("Limpar conversa");
     expect(textoDe(html)).toContain("Enviar");
+  });
+
+  it("o seletor lista os modelos permitidos com o padrão selecionado", () => {
+    const seletor = recorte(tela(), "chat-modelo");
+    expect(seletor).toMatch(/<option[^>]*selected[^>]*value="m-1"|<option[^>]*value="m-1"[^>]*selected/);
+    expect(seletor).toContain('value="m-2"');
+    expect(seletor).not.toMatch(/<select[^>]*disabled/);
+  });
+
+  it("sem lista de modelos, o seletor fica desabilitado e mostra o modelo atual, se houver", () => {
+    expect(recorte(tela({ modelos: [], modelo: "" }), "chat-modelo")).toMatch(/<select[^>]*disabled/);
+    const comPadrao = recorte(tela({ modelos: [], modelo: "m-1" }), "chat-modelo");
+    expect(comPadrao).toMatch(/<select[^>]*disabled/);
+    expect(comPadrao).toContain('value="m-1"');
   });
 
   it("mostra a conversa e, sob a resposta, o modelo, os tokens e o tempo", () => {

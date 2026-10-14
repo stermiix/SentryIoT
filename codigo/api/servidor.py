@@ -71,6 +71,8 @@ def criar_app(config, chamar_provedor):
         except PedidoInvalido as erro:
             return JSONResponse({"erro": erro.mensagem}, status_code=400)
         modelo = modelo or config.modelo
+        if modelo not in config.modelos():
+            return JSONResponse({"erro": "o campo modelo precisa ser um dos permitidos: " + ", ".join(config.modelos())}, status_code=400)
         inicio = time.perf_counter()
         try:
             resposta = await run_in_threadpool(chamar_provedor, modelo, sistema, mensagens)
@@ -89,4 +91,7 @@ def criar_app(config, chamar_provedor):
             }
         )
 
-    return Starlette(routes=[Route("/api/chat", chat, methods=["POST"])])
+    async def modelos(request: Request):
+        return JSONResponse({"modelos": list(config.modelos()), "padrao": config.modelo})
+
+    return Starlette(routes=[Route("/api/chat", chat, methods=["POST"]), Route("/api/modelos", modelos, methods=["GET"])])
