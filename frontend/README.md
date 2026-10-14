@@ -49,8 +49,10 @@ disso: usa só o log de exemplo já versionado em `codigo/mcp/exemplos/incidente
 
 ## Estado atual
 
-Implementado: um app estático (Vite + React + TypeScript), sem backend, que lê o log de exemplo
-e mostra as telas 1 e 2 em modo replay. O log segue o contrato 0.3.0 do MCP.
+Implementado: um app estático (Vite + React + TypeScript) que lê o log de exemplo e mostra as
+telas 1 e 2 em modo replay, sem backend; e a tela "Chat com o modelo", ferramenta de teste do
+provedor de LLM, que é a única a falar com o backend fino de `codigo/api/`. O log segue o
+contrato 0.3.0 do MCP.
 
 - **Leitura do log.** Cada linha é conferida contra o contrato (`codigo/mcp/contrato.json`) na
   carga: campos, tipos, valores aceitos, limites e caracteres de texto, endereços IP e nomes de
@@ -90,7 +92,13 @@ npm run dev
 ```
 
 Abre em `http://localhost:5173`. Use `npm ci`, e não `npm install`, para instalar exatamente o que
-está no `package-lock.json`. A cópia do log em `public/dados/` é versionada: rode
+está no `package-lock.json`.
+
+A tela "Chat com o modelo" (`#chat`) fala com o backend fino de `codigo/api/`: suba
+`python -m codigo.api` na raiz do repositório, com o `.env` preenchido (ver
+`codigo/api/README.md`), e o Vite encaminha `/api` para ele. Com a porta 8000 ocupada, suba o
+backend em outra e aponte `VITE_API_URL` para ela. Sem o backend, a tela abre e avisa que ele
+não está no ar. A cópia do log em `public/dados/` é versionada: rode
 `npm run sync:log` só depois de regenerar o log de exemplo
 (`python -m codigo.mcp.roteiro --sobrescrever`), e versione a cópia junto. O replay funciona sem
 API e sem conexão externa; a tipografia usa fontes locais do sistema.
@@ -117,8 +125,11 @@ a cada PR, os testes, o `npm audit --omit=dev --audit-level=high` e o build.
 | `src/components/FilaDeIncidentes.tsx` | Tela 1 |
 | `src/components/DetalheDoIncidente.tsx` | Tela 2 |
 | `src/components/ControleDoReplay.tsx` | Avanço do replay evento a evento |
-| `src/components/LimiteDeErro.tsx` | Error boundary da fila e do detalhe |
-| `src/log.test.ts`, `src/telas.test.tsx`, `src/contrato.test.ts` | Testes da leitura e da reconstrução, das telas e das listas contra o contrato |
+| `src/components/LimiteDeErro.tsx` | Error boundary da fila, do detalhe e do chat |
+| `src/chat.ts` | Os tipos de `/api/chat`, a chamada à API e a montagem do pedido a partir da conversa |
+| `src/components/ChatDoModelo.tsx` | A tela do chat: `TelaDoChat` só desenha, `ChatDoModelo` guarda a conversa e chama a API |
+| `src/log.test.ts`, `src/telas.test.tsx`, `src/contrato.test.ts`, `src/chat.test.tsx` | Testes da leitura e da reconstrução, das telas, das listas contra o contrato, e do chat |
+| `src/html-de-teste.ts` | Ajudantes dos testes que procuram texto no HTML desenhado |
 | `scripts/sync-log.mjs` | Copia o log de exemplo para `public/dados/`; recusa link simbólico |
 | `public/dados/incidente_flood.jsonl` | Cópia estática do replay versionado em `codigo/mcp/exemplos/` |
 
