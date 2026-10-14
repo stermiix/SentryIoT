@@ -17,9 +17,7 @@ import uvicorn
 
 from codigo.api.configuracao import Configuracao, carregar_env
 from codigo.api.provedor import Provedor
-from codigo.api.servidor import criar_app
-
-RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from codigo.api.servidor import PASTA_CONSTRUIDA, RAIZ, criar_app
 
 
 def main(argv=None):
@@ -35,6 +33,8 @@ def main(argv=None):
     if faltando:
         print(f"aviso: faltam no ambiente {', '.join(faltando)}; /api/chat vai responder 503 até preenchê-las", file=sys.stderr)
     app = criar_app(config, Provedor(config).chat)
+    if not os.path.isdir(PASTA_CONSTRUIDA):
+        print("sem frontend/dist: só a API responde (no desenvolvimento, a interface vem do Vite)", file=sys.stderr)
     print(f"servidor da interface em http://{argumentos.host}:{argumentos.port}", file=sys.stderr)
     uvicorn.run(app, host=argumentos.host, port=argumentos.port, log_level="warning")
 

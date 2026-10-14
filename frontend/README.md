@@ -98,7 +98,18 @@ A tela "Chat com o modelo" (`#chat`) fala com o backend fino de `codigo/api/`: s
 `python -m codigo.api` na raiz do repositório, com o `.env` preenchido (ver
 `codigo/api/README.md`), e o Vite encaminha `/api` para ele. Com a porta 8000 ocupada, suba o
 backend em outra e aponte `VITE_API_URL` para ela. Sem o backend, a tela abre e avisa que ele
-não está no ar. A cópia do log em `public/dados/` é versionada: rode
+não está no ar.
+
+**Em produção** (o servidor da equipe) não há Vite: `npm run build` gera `dist/`, e o mesmo
+backend serve essa pasta na raiz e a API em `/api`, num processo só:
+
+```
+cd frontend && npm ci && npm run build
+cd .. && python -m codigo.api --host <endereço Tailscale> --port 8000
+```
+
+A receita completa, com o `.env`, a CA interna e o acesso só pela rede privada, está em
+`codigo/api/README.md`. A cópia do log em `public/dados/` é versionada: rode
 `npm run sync:log` só depois de regenerar o log de exemplo
 (`python -m codigo.mcp.roteiro --sobrescrever`), e versione a cópia junto. O replay funciona sem
 API e sem conexão externa; a tipografia usa fontes locais do sistema.
@@ -126,7 +137,7 @@ a cada PR, os testes, o `npm audit --omit=dev --audit-level=high` e o build.
 | `src/components/DetalheDoIncidente.tsx` | Tela 2 |
 | `src/components/ControleDoReplay.tsx` | Avanço do replay evento a evento |
 | `src/components/LimiteDeErro.tsx` | Error boundary da fila, do detalhe e do chat |
-| `src/chat.ts` | Os tipos de `/api/chat`, a chamada à API e a montagem do pedido a partir da conversa |
+| `src/chat.ts` | Os tipos e as chamadas de `/api/chat`, `/api/modelos` e `/api/prompts`, e a montagem do pedido a partir da conversa |
 | `src/components/ChatDoModelo.tsx` | A tela do chat: `TelaDoChat` só desenha, `ChatDoModelo` guarda a conversa e chama a API |
 | `src/log.test.ts`, `src/telas.test.tsx`, `src/contrato.test.ts`, `src/chat.test.tsx` | Testes da leitura e da reconstrução, das telas, das listas contra o contrato, e do chat |
 | `src/html-de-teste.ts` | Ajudantes dos testes que procuram texto no HTML desenhado |
