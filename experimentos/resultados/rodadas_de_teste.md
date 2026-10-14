@@ -2,11 +2,15 @@
 
 Gerado por `python -m codigo.classificador.rodadas` em 11/10/2026, com Python 3.11.2, scikit-learn 1.9.1, pandas 3.0.6 e numpy 2.4.6.
 
-O modelo do sistema é o Random Forest de 7 categorias treinado nos dados regerados com janela de 100
-quadros (`regeracao.md`). O relatório da regeração mede uma divisão por tempo, com uma semente e só nas
-janelas que têm um quadro do atacante. As rodadas abaixo refazem o treino com as mesmas funções (leitura
-com teto, divisão por tempo, treino e avaliação) e medem o que aquela divisão não mostra. Cada rodada diz
-o que foi feito, traz os números e diz o que eles mostram, sem recomendar uma saída.
+As rodadas medem o modelo de 10/10: o Random Forest de 7 categorias treinado nos dados regerados com
+janela de 100 quadros, sem o tráfego de fundo dos pcaps de ataque. Ele foi o modelo do sistema até
+13/10/2026 e é a configuração 0 de `rodadas_normalizadas.md`; desde então, o modelo do sistema é o da
+configuração 5, com o fundo da parte de treino como benigno e o ponto de operação escolhido na validação
+(`regeracao.md`, `ponto_de_operacao.md`), e o de 10/10 fica como referência (`regeracao_sem_fundo.md`).
+Os números abaixo valem para o modelo de 10/10. O relatório do treino mede uma divisão por tempo, com uma
+semente e só nas janelas que têm um quadro do atacante. As rodadas abaixo refazem o treino com as mesmas
+funções (leitura com teto, divisão por tempo, treino e avaliação) e medem o que aquela divisão não mostra.
+Cada rodada diz o que foi feito, traz os números e diz o que eles mostram, sem recomendar uma saída.
 
 Rodadas feitas: a, b, c, d, e, f, g, h e i. Em cada treino, a semente define ao mesmo tempo o sorteio do teto de 50.000 linhas por rótulo e o Random Forest. A rodada b usa as sementes 42, 1, 2, 3 e 4; as que treinam um modelo por rotação ou por pcap usam as 3 primeiras. Nas tabelas, um valor com parênteses é a média das sementes, com o menor e o maior entre parênteses.
 
@@ -355,7 +359,7 @@ O Random Forest de 50 árvores, na mesma divisão e na mesma semente:
 
 - Comando: `python -m codigo.classificador.rodadas --nucleos 4`, a partir da raiz do repositório, depois de `python -m codigo.classificador.regerar`.
 - Dados: `dados/processed/regerado/janela_100/`, 72 arquivos (os CSVs de rótulo e as partes de `descartadas/`), com o SHA-256 de cada um em `manifesto_rodadas.json`. Manifesto da regeração `experimentos/resultados/manifesto_regeracao.json`, SHA-256 `2d8ed9c489f21f2e8ed0b8f1e312e974c820013ae020eaaf6b7ff4996dfbf7c3`; extrator com SHA-256 `8bd38fb392d5bec5a318699b2cef4a67a7c0c43461ecd01ce20be5b7db0b4a65` e opções nenhuma.
-- Modelo salvo: `rf_regerado_janela_100.joblib`, SHA-256 `b67e9013e67acbc680c2d9312550b5e792f81665b4c755052ae84ecf23aa3986`.
+- Modelo salvo: `rf_regerado_janela_100.joblib`, SHA-256 `b67e9013e67acbc680c2d9312550b5e792f81665b4c755052ae84ecf23aa3986`. O nome é o da data da medida, quando este era o modelo do sistema; hoje o modelo de 10/10 é refeito por `treinar_regerado --sem-fundo` em `rf_regerado_janela_100_sem_fundo.joblib`.
 - Treinos: `RandomForestClassifier` do scikit-learn com 100 árvores e os demais parâmetros padrão, 4 núcleos (o modelo não depende disso), teto de 50.000 linhas por rótulo e corte de 70% das janelas de cada pcap, as mesmas funções de `treinar_regerado`. Predição com um núcleo, em ordem fixa.
 - Os números das tabelas são arredondados; os valores completos, com as contagens, estão no manifesto, e as
   tabelas em CSV começam com `rodadas_`.

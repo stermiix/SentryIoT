@@ -1,5 +1,6 @@
 import csv
 import gzip
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -44,11 +45,14 @@ from codigo.classificador.rodadas import (
     wilson,
 )
 from codigo.classificador.rodadas_relatorio import (
+    atende_a_regra,
     candidatos_do_limiar,
     fundo_por_semente,
     montar_relatorio,
     montar_relatorio_das_capturas,
     recall_fora,
+    regra_de_adocao,
+    rotacoes_do_benigno,
 )
 from codigo.classificador.test_atacantes import captura_de_teste
 from codigo.classificador.treinar_regerado import ler_janela
@@ -148,9 +152,10 @@ def caso(tmp_path_factory):
     """O caso sintético, o modelo salvo pelo treino regerado e as rodadas do modelo do sistema."""
     pasta = tmp_path_factory.mktemp("rodadas")
     preparar_regerado(pasta)
+    # As rodadas medem o modelo de 10/10, sem o fundo, que o treino de referência salva com `_sem_fundo` no nome.
     assert treinar_regerado([
         "--saida", str(pasta / "resultados"), "--modelos", str(pasta / "modelos"), "--arvores", "5", "--nucleos", "1",
-        "--teto", "30",
+        "--teto", "30", "--sem-fundo",
     ]) == 0
     (pasta / "dataset").mkdir()
     captura_de_teste(pasta / "dataset" / "Recon-PortScan.pcap")
@@ -167,7 +172,7 @@ def executar(pasta, *extras):
         return main([
             "--saida", str(pasta / "resultados"), "--trabalho", str(pasta / "trabalho"),
             "--manifesto-da-regeracao", str(pasta / "resultados" / MANIFESTO_DA_REGERACAO),
-            "--modelo", str(pasta / "modelos" / "rf_regerado_janela_100.joblib"), "--dataset", str(pasta / "dataset"),
+            "--modelo", str(pasta / "modelos" / "rf_regerado_janela_100_sem_fundo.joblib"), "--dataset", str(pasta / "dataset"),
             "--sementes", "42,1,2", "--arvores", "5", "--teto", "30", "--nucleos", "1", *extras,
         ])
     finally:
@@ -402,11 +407,55 @@ def test_a_chave_dos_treinos_guardados_inclui_o_codigo(tmp_path, monkeypatch):
     regeracao = preparar_regerado(tmp_path)
     dados = ler_dados(regeracao["destino"], regeracao)
     antes = Execucao(ATUAL, dados, teto=30, trabalho=tmp_path / "t").trabalho.caminho
-    codigo = modulo.codigo_do_calculo()
-    assert set(codigo["arquivos"]) == set(modulo.MODULOS_DO_CALCULO)
-    codigo["arquivos"]["codigo/classificador/preparar.py"] = "0" * 64
-    monkeypatch.setattr(modulo, "codigo_do_calculo", lambda: codigo)
+    codigo = modulo.codigo_da_chave()
+    assert set(codigo) == set(modulo.MODULOS_DO_CALCULO)
+    codigo["codigo/classificador/preparar.py"] = "0" * 64
+    monkeypatch.setattr(modulo, "codigo_da_chave", lambda: codigo)
     assert Execucao(ATUAL, dados, teto=30, trabalho=tmp_path / "t").trabalho.caminho != antes
+
+
+def test_a_tabela_de_configuracoes_fica_fora_da_chave():
+    import codigo.classificador.rodadas as modulo
+
+    inicio, fim = modulo.INICIO_DAS_CONFIGURACOES, modulo.FIM_DAS_CONFIGURACOES
+    texto = f'x = 1\n{inicio}\nA = "0"\n{fim}\ny = 2\n'
+    assert modulo.sem_as_configuracoes(texto) == "x = 1\ny = 2\n"
+    # Mudar uma configuração não muda o que entra na chave; mudar o código de fora, sim.
+    assert modulo.sem_as_configuracoes(texto.replace('A = "0"', 'A = "0"\nB = "5"')) == "x = 1\ny = 2\n"
+    assert modulo.sem_as_configuracoes(texto.replace("y = 2", "y = 3")) != modulo.sem_as_configuracoes(texto)
+    # A marca citada num texto não corta nada, e sem as duas marcas em ordem o código fica inteiro.
+    citada = f'M = "{inicio}"\nx = 1\n{fim}\n'
+    assert modulo.sem_as_configuracoes(citada) == citada
+    assert modulo.sem_as_configuracoes(f"{fim}\nx = 1\n{inicio}\n") == f"{fim}\nx = 1\n{inicio}\n"
+    # No módulo de verdade, a tabela inteira fica entre as marcas.
+    codigo = (RAIZ / "codigo" / "classificador" / "rodadas.py").read_text(encoding="utf-8")
+    sem = modulo.sem_as_configuracoes(codigo)
+    assert "CONFIGURACOES = (" not in sem and "def impressao_da_configuracao" in sem
+    assert modulo.codigo_da_chave()["codigo/classificador/rodadas.py"] == hashlib.sha256(sem.encode("utf-8")).hexdigest()
+    assert modulo.codigo_do_calculo()["arquivos"]["codigo/classificador/rodadas.py"] == modulo._sha256(
+        RAIZ / "codigo" / "classificador" / "rodadas.py")
+
+
+def test_do_treino_do_sistema_so_as_constantes_entram_na_chave():
+    import codigo.classificador.rodadas as modulo
+
+    chave = modulo.codigo_da_chave()["codigo/classificador/treinar_regerado.py"]
+    assert chave == hashlib.sha256(json.dumps(modulo.constantes_do_treino(), sort_keys=True).encode("utf-8")).hexdigest()
+    assert modulo.constantes_do_treino()["TETO"] == 50_000 and modulo.constantes_do_treino()["ALVO"] == "7"
+    # O manifesto continua com o SHA-256 do arquivo inteiro.
+    assert modulo.codigo_do_calculo()["arquivos"]["codigo/classificador/treinar_regerado.py"] == modulo._sha256(
+        RAIZ / "codigo" / "classificador" / "treinar_regerado.py")
+
+
+def test_a_configuracao_5_e_a_0_com_o_fundo_como_benigno():
+    import codigo.classificador.rodadas as modulo
+
+    assert [c.nome for c in modulo.CONFIGURACOES] == ["0", "1", "2", "3", "4", "5"]
+    quinta = modulo.CONFIGURACOES[5]
+    assert (quinta.destino, quinta.regeracao, quinta.sem, quinta.opcoes) == (ATUAL.destino, ATUAL.regeracao, (), ())
+    assert quinta.fundo_como_benigno and not ATUAL.fundo_como_benigno
+    quarta = modulo.CONFIGURACOES[4]
+    assert quarta.fundo_como_benigno and quarta.destino != quinta.destino
 
 
 def test_execucao_sorteia_a_amostra_da_semente_pedida(tmp_path):
@@ -442,7 +491,8 @@ def test_rodadas_gravam_manifesto_relatorio_e_tabelas(caso):
     assert list(r["corte"]) == ["42", "1", "2"]
     assert set(r["rotacao"]) == {"1", "2"} and set(r["rotacao"]["1"]) == {"42", "1", "2"}
     assert set(r["fora"]) == set(FORA) and set(r["sem_ttl"]) == {"42", "1", "2"}
-    assert m["entradas"]["modelo"]["arquivo"] == "rf_regerado_janela_100.joblib"
+    assert m["entradas"]["modelo"]["arquivo"] == "rf_regerado_janela_100_sem_fundo.joblib"
+    assert m["entradas"]["treino_publicado"]["manifesto"].endswith("manifesto_treino_regerado_sem_fundo.json")
     assert len(m["codigo"]["arquivos"]) == 8 and m["memoria_pico_bytes"] > 0
     assert m["resultados"]["corte"]["42"]["detalhe"]["entradas"]["modelo_sha256"] == m["entradas"]["modelo"]["sha256"]
     assert set(m["resultados"]["comparacoes"]) == {"dentro_e_fora", "sem_ttl"}
@@ -463,7 +513,7 @@ def test_reproducao_confere_o_modelo_salvo_com_o_retreino(caso):
     assert reproducao["predicoes_diferentes_do_retreino"] == 0
     assert reproducao["medidas_diferentes"] == [] and reproducao["matriz_por_rotulo_igual"]
     assert all(reproducao["divisao_igual"].values())
-    publicado = json.loads((caso / "resultados" / "manifesto_treino_regerado.json").read_text(encoding="utf-8"))
+    publicado = json.loads((caso / "resultados" / "manifesto_treino_regerado_sem_fundo.json").read_text(encoding="utf-8"))
     assert reproducao["linhas"]["teste"] == publicado["janelas"][0]["linhas"]["teste"]
 
 
@@ -565,6 +615,82 @@ def test_comparacao_de_capturas_com_o_fundo_no_treino_e_sem_ttl(tmp_path, monkey
     assert {linha["configuracao"] for linha in resumo} == {"0", "3", "4"}
 
 
+def test_regra_de_adocao_nos_limites():
+    # (a) abaixo de 10%, (b) pelo menos 98%, (c) queda de até 5 pontos.
+    assert atende_a_regra(0.0999, 0.98, -0.05) == (True, True, True)
+    assert atende_a_regra(0.10, 0.99, 0.0) == (False, True, True)
+    assert atende_a_regra(0.05, 0.9799, 0.0) == (True, False, True)
+    assert atende_a_regra(0.05, 0.99, -0.0501) == (True, True, False)
+    assert atende_a_regra(0.05, 0.99, 0.20) == (True, True, True)
+
+
+def test_relatorio_das_capturas_aplica_a_regra_a_configuracao_5(tmp_path, monkeypatch):
+    import codigo.classificador.rodadas as modulo
+
+    regeracao = preparar_regerado(tmp_path)
+    caminho = str(tmp_path / "resultados" / MANIFESTO_DA_REGERACAO)
+    configuracoes = (
+        Configuracao("0", "o modelo atual", regeracao["destino"], caminho),
+        Configuracao("5", "a 0 com o fundo da parte de treino como Benign", regeracao["destino"], caminho,
+                     fundo_como_benigno=True),
+    )
+    monkeypatch.setattr(modulo, "CONFIGURACOES", configuracoes)
+    monkeypatch.setattr(modulo, "PCAPS_FORA", FORA)
+    assert main(["--capturas", "--saida", str(tmp_path / "resultados"), "--trabalho", str(tmp_path / "trabalho"),
+                 "--sementes", "42,1,2", "--arvores", "3", "--teto", "30", "--nucleos", "1"]) == 0
+    m = ler_manifesto(tmp_path, MANIFESTO_DAS_CAPTURAS)
+    regra = regra_de_adocao(m)
+    nova = regra["medidas"]["5"]
+    # As medidas da regra são as médias das sementes, com o pior pcap benigno de cada configuração.
+    piores = [np.mean(r["como_ataque"]) for r in rotacoes_do_benigno(m["resultados"]["5"], ["42", "1", "2"])]
+    assert nova["pior_benigno"] == pytest.approx(max(piores))
+    assert nova["recall_de_ddos"] == pytest.approx(np.mean(
+        [m["resultados"]["5"]["corte"][s]["medidas"]["por_classe"]["DDoS+DoS"]["recall"] for s in ("42", "1", "2")]))
+    assert regra["diferenca_do_pcap"] == pytest.approx(nova["recall_do_pcap"] - regra["medidas"]["0"]["recall_do_pcap"])
+    assert regra["adotada"] == all(atende_a_regra(nova["pior_benigno"], nova["recall_de_ddos"], regra["diferenca_do_pcap"]))
+    texto = (tmp_path / "resultados" / RELATORIO_DAS_CAPTURAS).read_text(encoding="utf-8")
+    assert "## Regra de adoção da configuração 5" in texto and "Pela regra, a configuração 5 " in texto
+    assert "Na configuração 5, as janelas de fundo da parte de treino" in texto
+    # A condição (c) diz qual trecho mediu e o que daria o pcap inteiro.
+    assert "A condição (c) foi medida no trecho de teste do `Recon-PortScan.pcap`" in texto and "No pcap inteiro" in texto
+    assert nova["janelas_do_pcap_inteiro"] > nova["janelas_do_trecho"] > 0
+    assert regra["c_pelo_pcap_inteiro"] == (regra["diferenca_do_pcap_inteiro"] >= -0.05)
+    assert texto.index("## Tabela-resumo") < texto.index("## Regra de adoção") < texto.index("## Como os números")
+
+
+def test_capturas_guardam_uma_pasta_por_vez_na_memoria(tmp_path):
+    # A configuração 5 lê a pasta da 0 depois da pasta da 4: a pasta anterior já saiu da memória quando
+    # a próxima é lida, e a comparação sai das predições guardadas.
+    import gc
+    import weakref
+
+    a = preparar_regerado(tmp_path / "a")
+    b = preparar_regerado(tmp_path / "b", np.random.default_rng(1))
+    manifesto_a = str(tmp_path / "a" / "resultados" / MANIFESTO_DA_REGERACAO)
+    manifesto_b = str(tmp_path / "b" / "resultados" / MANIFESTO_DA_REGERACAO)
+    configuracoes = (
+        Configuracao("0", "o modelo atual", a["destino"], manifesto_a),
+        Configuracao("4", "outra pasta com o fundo", b["destino"], manifesto_b, fundo_como_benigno=True),
+        Configuracao("5", "a 0 com o fundo", a["destino"], manifesto_a, fundo_como_benigno=True),
+    )
+    lidos = []
+
+    def ler(destino, regeracao, ao_ler=None):
+        gc.collect()
+        assert not any(referencia() is not None for referencia in lidos), "a pasta anterior continua na memória"
+        dados = ler_dados(destino, regeracao, ao_ler)
+        lidos.append(weakref.ref(dados))
+        return dados
+
+    saida, entradas = rodar_capturas(configuracoes, sementes=(42, 1, 2), arvores=2, nucleos=1, teto=30,
+                                     trabalho=tmp_path / "t", pcaps_fora=("XSS.pcap",), ler=ler)
+    assert len(lidos) == 3 and list(entradas) == [a["destino"], b["destino"]]
+    assert list(saida) == ["0", "4", "5"] and "comparacao" in saida["5"] and "tamanhos" not in saida["5"]
+    # Fundo como benigno nos mesmos dados: o fundo da parte de treino passa a ser previsto como Benign.
+    treino = lambda nome: fundo_por_semente(saida[nome], ["42", "1", "2"], "treino")
+    assert max(treino("5")) < min(treino("0"))
+
+
 def test_o_fundo_entra_no_treino_como_benigno_so_na_parte_de_treino(tmp_path):
     regeracao = preparar_regerado(tmp_path)
     dados = ler_dados(regeracao["destino"], regeracao)
@@ -617,7 +743,8 @@ def test_relatorio_das_rodadas_versionado_sai_do_manifesto():
 def test_relatorio_das_capturas_versionado_sai_do_manifesto():
     m = json.loads((RESULTADOS / MANIFESTO_DAS_CAPTURAS).read_text(encoding="utf-8"))
     assert (RESULTADOS / RELATORIO_DAS_CAPTURAS).read_text(encoding="utf-8") == montar_relatorio_das_capturas(m)
-    assert list(m["resultados"]) == ["0", "1", "2", "3", "4"]
+    assert list(m["resultados"]) == ["0", "1", "2", "3", "4", "5"]
+    assert regra_de_adocao(m) is not None
 
 
 @pytest.mark.skipif(

@@ -1,9 +1,11 @@
 """Rodadas de teste do modelo de janela de 100 e comparação de capturas normalizadas.
 
-O modelo do sistema é o Random Forest de 7 categorias treinado por `treinar_regerado` nos dados
-regerados com janela de 100 quadros. O relatório dele (`regeracao.md`) mede uma divisão por tempo,
-com uma semente e só nas janelas que têm o atacante. Este módulo refaz o treino com as mesmas
-funções e mede o que aquela divisão não mostra, em rodadas:
+As rodadas medem o modelo de 10/10: o Random Forest de 7 categorias treinado por `treinar_regerado`
+nos dados regerados com janela de 100 quadros, sem o tráfego de fundo dos pcaps de ataque. Foi o
+modelo do sistema até 13/10/2026, quando a comparação de capturas abaixo levou à configuração 5, e
+fica como referência (`treinar_regerado --sem-fundo`, `regeracao_sem_fundo.md`). O relatório dele
+mede uma divisão por tempo, com uma semente e só nas janelas que têm o atacante. Este módulo refaz o
+treino com as mesmas funções e mede o que aquela divisão não mostra, em rodadas:
 
 a. reprodução: o modelo retreinado com a semente 42 dá as mesmas predições do modelo salvo;
 b. sementes: o mesmo treino com cinco sementes, que mudam o teto e o Random Forest juntos;
@@ -17,15 +19,9 @@ g. ponto de operação: o limiar sobre a probabilidade de benigno e a regra de N
 h. intervalos de confiança das classes raras, de Wilson e por blocos de janelas vizinhas;
 i. custo: latência, vazão do extrator, tamanho, memória e o Random Forest de 50 árvores.
 
-Com `--capturas`, compara cinco configurações nas rodadas c, d e e e no corte por tempo: (0) o
-modelo atual; (1) o quadro menor que 60 bytes contado como 60, o preenchimento que a placa de rede
-faz antes de transmitir; (2) o preenchimento até 60 e o teto de 1.514 bytes no tamanho do quadro;
-(3) a configuração 2 sem `Time_To_Live`; (4) a configuração 2 com as janelas de fundo da parte de
-treino de cada pcap de ataque no treino como benignas. As configurações 1 e 2 leem pastas regeradas
-antes por `regerar --preencher` e `regerar --preencher --limitar`. As duas opções aproximam o
-tamanho do quadro no fio, sem reproduzi-lo: um quadro agregado de 64 KB seria, no fio, várias
-dezenas de quadros, e não um de 1.514 bytes, e a contagem de quadros e o ritmo da janela continuam
-os da captura. As diferenças entre configurações são pareadas por semente e medidas nas mesmas
+Com `--capturas`, compara o modelo atual (configuração 0) com as alternativas da tabela
+`CONFIGURACOES`, nas rodadas c, d e e e no corte por tempo; o comentário de cada configuração diz o
+que ela muda. As diferenças entre configurações são pareadas por semente e medidas nas mesmas
 janelas, com um intervalo que soma a variação entre sementes e a do conjunto de teste, por blocos
 de janelas vizinhas (`comparar`).
 
@@ -35,10 +31,11 @@ comando, o SHA-256 das entradas e do código e todos os números; o relatório
 com as predições janela a janela de que as comparações saem, ficam guardados em
 `dados/processed/rodadas/`, fora do git, para que uma execução interrompida continue de onde
 parou. A chave deles inclui o SHA-256 das entradas e do código que calcula: mudou qualquer um, o
-resultado guardado deixa de valer.
+resultado guardado deixa de valer. A tabela de configurações fica fora desse SHA-256 (ver
+`codigo_da_chave`): acrescentar uma configuração não invalida os treinos guardados das outras.
 
 Uso, a partir da raiz do repositório:
-    python -m codigo.classificador.rodadas --nucleos 4 --modelo modelos/rf_regerado_janela_100.joblib
+    python -m codigo.classificador.rodadas --nucleos 4 --modelo modelos/rf_regerado_janela_100_sem_fundo.joblib
     python -m codigo.classificador.rodadas --rodadas a,b,c --nucleos 4
     python -m codigo.classificador.rodadas --capturas --nucleos 4
     python -m codigo.classificador.rodadas --refazer-relatorio
@@ -97,8 +94,13 @@ from codigo.classificador.treinar_regerado import (
     EXTRAS,
     EXTRAS_OPCIONAIS,
     TETO,
+    nome_do_modelo,
 )
-from codigo.classificador.treinar_regerado import MANIFESTO as MANIFESTO_DO_TREINO
+
+# O treino de referência, de 10/10, que a rodada a reproduz: o modelo sem o fundo e o manifesto dele.
+from codigo.classificador.treinar_regerado import (
+    MANIFESTO_DE_REFERENCIA as MANIFESTO_DO_TREINO,
+)
 
 MANIFESTO = "manifesto_rodadas.json"
 RELATORIO = "rodadas_de_teste.md"
@@ -164,13 +166,25 @@ class Configuracao:
     opcoes: tuple = ()  # opções do extrator que o manifesto da regeração tem de registrar
 
 
+# O trecho entre as duas marcas abaixo fica fora do SHA-256 do código na chave dos treinos guardados
+# (`codigo_da_chave`). Cada configuração já entra na chave pelo que muda o cálculo: os arquivos da
+# pasta de dados, as features tiradas e o fundo no treino. As opções do extrator são conferidas contra
+# o manifesto da regeração, e o nome e a descrição só aparecem no relatório.
+# --- início das configurações comparadas
+# 0: o modelo atual.
 ATUAL = Configuracao(
     "0", "o modelo atual", "dados/processed/regerado", "experimentos/resultados/manifesto_regeracao.json",
 )
+# 1: o quadro menor que 60 bytes contado como 60, o preenchimento que a placa de rede faz antes de
+# transmitir; lê a pasta regerada antes por `regerar --preencher`.
 PREENCHIDA = Configuracao(
     "1", "preenchimento até 60 bytes", "dados/processed/regerado_preenchido",
     "experimentos/resultados/regeracao_preenchido/manifesto_regeracao.json", opcoes=(("preencher", True),),
 )
+# 2: o preenchimento até 60 e o teto de 1.514 bytes no tamanho do quadro; lê a pasta regerada antes
+# por `regerar --preencher --limitar`. As duas opções aproximam o tamanho do quadro no fio, sem
+# reproduzi-lo: um quadro agregado de 64 KB seria, no fio, várias dezenas de quadros, e não um de
+# 1.514 bytes, e a contagem de quadros e o ritmo da janela continuam os da captura.
 LIMITADA = Configuracao(
     "2", "preenchimento até 60 e teto de 1.514 bytes", "dados/processed/regerado_preenchido_limitado",
     "experimentos/resultados/regeracao_preenchido_limitado/manifesto_regeracao.json",
@@ -180,11 +194,19 @@ CONFIGURACOES = (
     ATUAL,
     PREENCHIDA,
     LIMITADA,
+    # 3: a configuração 2 sem `Time_To_Live`.
     Configuracao("3", "a 2 sem `Time_To_Live`", LIMITADA.destino, LIMITADA.regeracao, sem=("Time_To_Live",),
                  opcoes=LIMITADA.opcoes),
+    # 4: a configuração 2 com as janelas de fundo da parte de treino de cada pcap de ataque no treino
+    # como benignas.
     Configuracao("4", "a 2 com o fundo da parte de treino como Benign", LIMITADA.destino, LIMITADA.regeracao,
                  fundo_como_benigno=True, opcoes=LIMITADA.opcoes),
+    # 5: o fundo da 4 sem a normalização do quadro: os dados da configuração 0, com as janelas de fundo
+    # da parte de treino de cada pcap de ataque no treino como benignas.
+    Configuracao("5", "a 0 com o fundo da parte de treino como Benign", ATUAL.destino, ATUAL.regeracao,
+                 fundo_como_benigno=True),
 )
+# --- fim das configurações comparadas
 
 
 # --- os dados ----------------------------------------------------------------------------------
@@ -616,10 +638,57 @@ def codigo_do_calculo():
     return {"arquivos": arquivos, "commit": commit, "com_alteracoes_fora_do_commit": bool(alterados)}
 
 
+INICIO_DAS_CONFIGURACOES = "# --- início das configurações comparadas"
+FIM_DAS_CONFIGURACOES = "# --- fim das configurações comparadas"
+
+
+def sem_as_configuracoes(texto):
+    """O código do módulo sem as linhas entre as marcas da tabela de configurações, marcas incluídas.
+
+    Só conta a linha que é a marca inteira: a marca citada dentro de um texto não corta nada. Sem as
+    duas marcas, em ordem, o código fica inteiro.
+    """
+    linhas = texto.splitlines(keepends=True)
+    marcas = [linha.strip() for linha in linhas]
+    if INICIO_DAS_CONFIGURACOES not in marcas or FIM_DAS_CONFIGURACOES not in marcas:
+        return texto
+    inicio, fim = marcas.index(INICIO_DAS_CONFIGURACOES), marcas.index(FIM_DAS_CONFIGURACOES)
+    if fim < inicio:
+        return texto
+    return "".join(linhas[:inicio] + linhas[fim + 1:])
+
+
+def constantes_do_treino():
+    """O que as rodadas usam de `treinar_regerado`: só estas constantes, e não o treino do sistema."""
+    return {"ALVO": ALVO, "CLASSES": list(CLASSES), "EXTRAS": list(EXTRAS), "EXTRAS_OPCIONAIS": list(EXTRAS_OPCIONAIS),
+            "TETO": TETO}
+
+
+def codigo_da_chave():
+    """O SHA-256 de cada módulo de que os números saem, como entra na chave dos treinos guardados.
+
+    É o de `codigo_do_calculo`, com duas exceções. Em `rodadas.py`, o SHA-256 deixa de fora a tabela
+    de configurações (`sem_as_configuracoes`). Em `treinar_regerado.py`, que treina o modelo do
+    sistema e muda com ele, entra só o SHA-256 das constantes que as rodadas usam
+    (`constantes_do_treino`). O manifesto registra o SHA-256 dos arquivos inteiros.
+    """
+    saida = {}
+    for nome in MODULOS_DO_CALCULO:
+        if nome == "codigo/classificador/rodadas.py":
+            texto = sem_as_configuracoes((RAIZ / nome).read_text(encoding="utf-8"))
+            saida[nome] = hashlib.sha256(texto.encode("utf-8")).hexdigest()
+        elif nome == "codigo/classificador/treinar_regerado.py":
+            constantes = json.dumps(constantes_do_treino(), sort_keys=True)
+            saida[nome] = hashlib.sha256(constantes.encode("utf-8")).hexdigest()
+        else:
+            saida[nome] = _sha256(RAIZ / nome)
+    return saida
+
+
 def impressao_da_configuracao(configuracao, dados, arvores, teto):
     """SHA-256 do que decide os resultados de uma configuração: entradas, código, features, fundo, árvores e teto."""
     chave = {
-        "entradas": dados.entradas, "codigo": codigo_do_calculo()["arquivos"], "sem": list(configuracao.sem),
+        "entradas": dados.entradas, "codigo": codigo_da_chave(), "sem": list(configuracao.sem),
         "fundo": configuracao.fundo_como_benigno, "arvores": arvores, "teto": teto, "janela": JANELA,
         "fracao": FRACAO_DE_TESTE_POR_TEMPO,
     }
@@ -1503,7 +1572,7 @@ def _por_semente(resultados):
 def rodar_sistema(dados, rodadas=RODADAS, sementes=SEMENTES, arvores=ARVORES, nucleos=TODOS_OS_NUCLEOS, teto=TETO,
                   trabalho=TRABALHO, modelo_salvo=None, publicado=None, dataset=None, pcaps_fora=PCAPS_FORA,
                   caminho_publicado=None):
-    """As rodadas pedidas sobre o modelo do sistema. Devolve os resultados, por rodada e por semente."""
+    """As rodadas pedidas sobre o modelo de 10/10, a configuração 0. Devolve os resultados, por rodada e por semente."""
     rodadas = set(rodadas)
     execucao = Execucao(ATUAL, dados, arvores, nucleos, teto, trabalho)
     principal, controle = sementes[0], list(sementes[:SEMENTES_DE_CONTROLE])
@@ -1571,11 +1640,12 @@ def rodar_capturas(configuracoes=CONFIGURACOES, sementes=SEMENTES, arvores=ARVOR
                 "arquivos": dados.entradas,
             }
         saida[configuracao.nome] = resultado
+        # As comparações só leem as predições guardadas: a execução fica só com o manifesto da regeração,
+        # e os dados da pasta saem da memória quando a próxima configuração lê outra pasta.
+        execucao.dados = SoRegeracao(dados.regeracao)
         execucoes[configuracao.nome] = execucao
-    # As comparações só leem as predições guardadas: os dados de cada pasta já podem sair da memória.
+        del dados
     carregados = (None, None)
-    for execucao in execucoes.values():
-        execucao.dados = SoRegeracao(execucao.dados.regeracao)
     referencia = execucoes[configuracoes[0].nome]
     for nome, execucao in execucoes.items():
         if execucao is not referencia:
@@ -1671,8 +1741,8 @@ def main(argv=None):
     analisador.add_argument(
         "--manifesto-da-regeracao", default=ATUAL.regeracao, help=f"padrão: {ATUAL.regeracao}",
     )
-    analisador.add_argument("--modelo", default="modelos/rf_regerado_janela_100.joblib",
-                            help="modelo salvo do sistema, para as rodadas a e i")
+    analisador.add_argument("--modelo", default=f"modelos/{nome_do_modelo(JANELA, fundo_como_benigno=False)}",
+                            help="modelo salvo de 10/10, a configuração 0, para as rodadas a e i")
     analisador.add_argument("--dataset", default="CICIoT2023", help="pasta dos pcaps, para a vazão do extrator")
     analisador.add_argument("--rodadas", type=_lista_de_rodadas, default=RODADAS,
                             help="rodadas, de a a i, separadas por vírgula (padrão: todas)")

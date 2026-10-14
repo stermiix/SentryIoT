@@ -1,7 +1,9 @@
 {
-  "descricao": "Random Forest de 7 categorias treinado nos dados regerados dos pcaps do CICIoT2023, com janela de 10 e 100 quadros, divisão por tempo e teto de linhas por rótulo",
+  "descricao": "Random Forest de 7 categorias treinado nos dados regerados dos pcaps do CICIoT2023, com janela de 100 quadros, divisão por tempo e teto de linhas por rótulo, com o fundo da parte de treino dos pcaps de ataque como Benign",
   "gerado_por": "python -m codigo.classificador.treinar_regerado",
-  "gerado_em": "2026-10-11",
+  "gerado_em": "2026-10-13",
+  "fundo_como_benigno": true,
+  "configuracao": "5",
   "semente": 42,
   "arvores": 100,
   "nucleos": 4,
@@ -1493,1822 +1495,17 @@
   "rotulos_sem_pcap": 0,
   "janelas": [
     {
-      "janela": 10,
-      "linhas": {
-        "regeradas": 34403562,
-        "amostra": 1252773,
-        "treino": 865851,
-        "teste": 386922
-      },
-      "por_rotulo": [
-        {
-          "rotulo": "DDoS-ACK_Fragmentation",
-          "categoria": "DDoS",
-          "arquivos": [
-            "DDoS-ACK_Fragmentation.pcap"
-          ],
-          "regeradas": 243900,
-          "amostra": 50000,
-          "treino": 35816,
-          "teste": 14184,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DDoS-UDP_Flood",
-          "categoria": "DDoS",
-          "arquivos": [
-            "DDoS-UDP_Flood.pcap"
-          ],
-          "regeradas": 2661376,
-          "amostra": 50000,
-          "treino": 35055,
-          "teste": 14945,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DDoS-SlowLoris",
-          "categoria": "DDoS",
-          "arquivos": [
-            "DDoS-SlowLoris.pcap"
-          ],
-          "regeradas": 179601,
-          "amostra": 50000,
-          "treino": 34483,
-          "teste": 15517,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DDoS-ICMP_Flood",
-          "categoria": "DDoS",
-          "arquivos": [
-            "DDoS-ICMP_Flood.pcap"
-          ],
-          "regeradas": 2677303,
-          "amostra": 50000,
-          "treino": 35071,
-          "teste": 14929,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DDoS-RSTFINFlood",
-          "categoria": "DDoS",
-          "arquivos": [
-            "DDoS-RSTFINFlood.pcap"
-          ],
-          "regeradas": 2666660,
-          "amostra": 50000,
-          "treino": 34716,
-          "teste": 15284,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DDoS-PSHACK_Flood",
-          "categoria": "DDoS",
-          "arquivos": [
-            "DDoS-PSHACK_Flood.pcap"
-          ],
-          "regeradas": 2675472,
-          "amostra": 50000,
-          "treino": 34842,
-          "teste": 15158,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DDoS-HTTP_Flood",
-          "categoria": "DDoS",
-          "arquivos": [
-            "DDoS-HTTP_Flood-.pcap"
-          ],
-          "regeradas": 280956,
-          "amostra": 50000,
-          "treino": 34704,
-          "teste": 15296,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DDoS-UDP_Fragmentation",
-          "categoria": "DDoS",
-          "arquivos": [
-            "DDoS-UDP_Fragmentation.pcap"
-          ],
-          "regeradas": 221697,
-          "amostra": 50000,
-          "treino": 35229,
-          "teste": 14771,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DDoS-ICMP_Fragmentation",
-          "categoria": "DDoS",
-          "arquivos": [
-            "DDoS-ICMP_Fragmentation.pcap"
-          ],
-          "regeradas": 203141,
-          "amostra": 50000,
-          "treino": 35061,
-          "teste": 14939,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DDoS-TCP_Flood",
-          "categoria": "DDoS",
-          "arquivos": [
-            "DDoS-TCP_Flood.pcap"
-          ],
-          "regeradas": 2650042,
-          "amostra": 50000,
-          "treino": 35186,
-          "teste": 14814,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DDoS-SYN_Flood",
-          "categoria": "DDoS",
-          "arquivos": [
-            "DDoS-SYN_Flood.pcap",
-            "DDoS-SYN_Flood1.pcap"
-          ],
-          "regeradas": 5326163,
-          "amostra": 50000,
-          "treino": 25072,
-          "teste": 24928,
-          "linhas_no_arquivo_de_teste": 24928
-        },
-        {
-          "rotulo": "DDoS-SynonymousIP_Flood",
-          "categoria": "DDoS",
-          "arquivos": [
-            "DDoS-SynonymousIP_Flood.pcap"
-          ],
-          "regeradas": 2684667,
-          "amostra": 50000,
-          "treino": 34997,
-          "teste": 15003,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DoS-TCP_Flood",
-          "categoria": "DoS",
-          "arquivos": [
-            "DoS-TCP_Flood.pcap"
-          ],
-          "regeradas": 2597426,
-          "amostra": 50000,
-          "treino": 35114,
-          "teste": 14886,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DoS-HTTP_Flood",
-          "categoria": "DoS",
-          "arquivos": [
-            "DoS-HTTP_Flood1.pcap"
-          ],
-          "regeradas": 298903,
-          "amostra": 50000,
-          "treino": 35819,
-          "teste": 14181,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DoS-SYN_Flood",
-          "categoria": "DoS",
-          "arquivos": [
-            "DoS-SYN_Flood.pcap",
-            "DoS-SYN_Flood1.pcap"
-          ],
-          "regeradas": 5261433,
-          "amostra": 50000,
-          "treino": 25057,
-          "teste": 24943,
-          "linhas_no_arquivo_de_teste": 24943
-        },
-        {
-          "rotulo": "DoS-UDP_Flood",
-          "categoria": "DoS",
-          "arquivos": [
-            "DoS-UDP_Flood.pcap"
-          ],
-          "regeradas": 1664550,
-          "amostra": 50000,
-          "treino": 34970,
-          "teste": 15030,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "Mirai-greip_flood",
-          "categoria": "Mirai",
-          "arquivos": [
-            "Mirai-greip_flood21.pcap"
-          ],
-          "regeradas": 119531,
-          "amostra": 50000,
-          "treino": 34929,
-          "teste": 15071,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "Mirai-greeth_flood",
-          "categoria": "Mirai",
-          "arquivos": [
-            "Mirai-greeth_flood.pcap"
-          ],
-          "regeradas": 329157,
-          "amostra": 50000,
-          "treino": 34856,
-          "teste": 15144,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "Mirai-udpplain",
-          "categoria": "Mirai",
-          "arquivos": [
-            "Mirai-udpplain.pcap"
-          ],
-          "regeradas": 362081,
-          "amostra": 50000,
-          "treino": 35305,
-          "teste": 14695,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "Recon-PingSweep",
-          "categoria": "Recon",
-          "arquivos": [
-            "Recon-PingSweep.pcap"
-          ],
-          "regeradas": 540,
-          "amostra": 540,
-          "treino": 510,
-          "teste": 30,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "Recon-OSScan",
-          "categoria": "Recon",
-          "arquivos": [
-            "Recon-OSScan.pcap"
-          ],
-          "regeradas": 29750,
-          "amostra": 29750,
-          "treino": 20666,
-          "teste": 9084,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "VulnerabilityScan",
-          "categoria": "Recon",
-          "arquivos": [
-            "VulnerabilityScan.pcap"
-          ],
-          "regeradas": 88114,
-          "amostra": 50000,
-          "treino": 44582,
-          "teste": 5418,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "Recon-PortScan",
-          "categoria": "Recon",
-          "arquivos": [
-            "Recon-PortScan.pcap"
-          ],
-          "regeradas": 30872,
-          "amostra": 30872,
-          "treino": 24275,
-          "teste": 6597,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "Recon-HostDiscovery",
-          "categoria": "Recon",
-          "arquivos": [
-            "Recon-HostDiscovery.pcap"
-          ],
-          "regeradas": 90530,
-          "amostra": 50000,
-          "treino": 38266,
-          "teste": 11734,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "MITM-ArpSpoofing",
-          "categoria": "Spoofing",
-          "arquivos": [
-            "MITM-ArpSpoofing.pcap"
-          ],
-          "regeradas": 31228,
-          "amostra": 31228,
-          "treino": 13018,
-          "teste": 18210,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DNS_Spoofing",
-          "categoria": "Spoofing",
-          "arquivos": [
-            "DNS_Spoofing.pcap"
-          ],
-          "regeradas": 47876,
-          "amostra": 47876,
-          "treino": 34822,
-          "teste": 13054,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "SqlInjection",
-          "categoria": "Web",
-          "arquivos": [
-            "SqlInjection.pcap"
-          ],
-          "regeradas": 1035,
-          "amostra": 1035,
-          "treino": 665,
-          "teste": 370,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "CommandInjection",
-          "categoria": "Web",
-          "arquivos": [
-            "CommandInjection.pcap"
-          ],
-          "regeradas": 1202,
-          "amostra": 1202,
-          "treino": 1028,
-          "teste": 174,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "Backdoor_Malware",
-          "categoria": "Web",
-          "arquivos": [
-            "Backdoor_Malware.pcap"
-          ],
-          "regeradas": 912,
-          "amostra": 912,
-          "treino": 640,
-          "teste": 272,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "Uploading_Attack",
-          "categoria": "Web",
-          "arquivos": [
-            "Uploading_Attack.pcap"
-          ],
-          "regeradas": 357,
-          "amostra": 357,
-          "treino": 244,
-          "teste": 113,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "XSS",
-          "categoria": "Web",
-          "arquivos": [
-            "XSS.pcap"
-          ],
-          "regeradas": 976,
-          "amostra": 976,
-          "treino": 639,
-          "teste": 337,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "BrowserHijacking",
-          "categoria": "Web",
-          "arquivos": [
-            "BrowserHijacking.pcap"
-          ],
-          "regeradas": 2476,
-          "amostra": 2476,
-          "treino": 2195,
-          "teste": 281,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "DictionaryBruteForce",
-          "categoria": "BruteForce",
-          "arquivos": [
-            "DictionaryBruteForce.pcap"
-          ],
-          "regeradas": 5549,
-          "amostra": 5549,
-          "treino": 4080,
-          "teste": 1469,
-          "linhas_no_arquivo_de_teste": 0
-        },
-        {
-          "rotulo": "BenignTraffic",
-          "categoria": "Benign",
-          "arquivos": [
-            "BenignTraffic.pcap",
-            "BenignTraffic1.pcap",
-            "BenignTraffic2.pcap"
-          ],
-          "regeradas": 968086,
-          "amostra": 50000,
-          "treino": 33939,
-          "teste": 16061,
-          "linhas_no_arquivo_de_teste": 16061
-        }
-      ],
-      "arquivos_de_teste": [
-        "BenignTraffic2.pcap",
-        "DDoS-SYN_Flood1.pcap",
-        "DoS-SYN_Flood1.pcap"
-      ],
-      "divisao": {
-        "treino_sha256": "d06acc78c3b93354613036e33fc6b3d20c45ac2c97589b8d2aefb6920f8940f3",
-        "teste_sha256": "26ada8b1d406548b8133be11144ca311e80365e15a31178ce93d543822134d06"
-      },
-      "treino_segundos": 15.9305083750005,
-      "avaliacao": {
-        "linhas": 386922,
-        "matriz_por_rotulo": {
-          "classes": [
-            "DDoS+DoS",
-            "Mirai",
-            "Recon",
-            "Spoofing",
-            "Web",
-            "BruteForce",
-            "Benign"
-          ],
-          "rotulos": [
-            "DDoS-ACK_Fragmentation",
-            "DDoS-UDP_Flood",
-            "DDoS-SlowLoris",
-            "DDoS-ICMP_Flood",
-            "DDoS-RSTFINFlood",
-            "DDoS-PSHACK_Flood",
-            "DDoS-HTTP_Flood",
-            "DDoS-UDP_Fragmentation",
-            "DDoS-ICMP_Fragmentation",
-            "DDoS-TCP_Flood",
-            "DDoS-SYN_Flood",
-            "DDoS-SynonymousIP_Flood",
-            "DoS-TCP_Flood",
-            "DoS-HTTP_Flood",
-            "DoS-SYN_Flood",
-            "DoS-UDP_Flood",
-            "Mirai-greip_flood",
-            "Mirai-greeth_flood",
-            "Mirai-udpplain",
-            "Recon-PingSweep",
-            "Recon-OSScan",
-            "VulnerabilityScan",
-            "Recon-PortScan",
-            "Recon-HostDiscovery",
-            "MITM-ArpSpoofing",
-            "DNS_Spoofing",
-            "SqlInjection",
-            "CommandInjection",
-            "Backdoor_Malware",
-            "Uploading_Attack",
-            "XSS",
-            "BrowserHijacking",
-            "DictionaryBruteForce",
-            "BenignTraffic"
-          ],
-          "contagem": [
-            [
-              14113,
-              0,
-              50,
-              9,
-              0,
-              0,
-              12
-            ],
-            [
-              14935,
-              0,
-              6,
-              3,
-              0,
-              0,
-              1
-            ],
-            [
-              10430,
-              0,
-              1685,
-              1326,
-              6,
-              0,
-              2070
-            ],
-            [
-              14919,
-              0,
-              6,
-              3,
-              0,
-              0,
-              1
-            ],
-            [
-              15284,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0
-            ],
-            [
-              15156,
-              0,
-              2,
-              0,
-              0,
-              0,
-              0
-            ],
-            [
-              15146,
-              0,
-              111,
-              8,
-              10,
-              0,
-              21
-            ],
-            [
-              14479,
-              1,
-              92,
-              37,
-              1,
-              0,
-              161
-            ],
-            [
-              14883,
-              1,
-              43,
-              3,
-              0,
-              0,
-              9
-            ],
-            [
-              14802,
-              0,
-              6,
-              1,
-              1,
-              0,
-              4
-            ],
-            [
-              24868,
-              0,
-              60,
-              0,
-              0,
-              0,
-              0
-            ],
-            [
-              14996,
-              0,
-              7,
-              0,
-              0,
-              0,
-              0
-            ],
-            [
-              14878,
-              0,
-              5,
-              2,
-              0,
-              0,
-              1
-            ],
-            [
-              12292,
-              0,
-              941,
-              205,
-              182,
-              4,
-              557
-            ],
-            [
-              24884,
-              0,
-              59,
-              0,
-              0,
-              0,
-              0
-            ],
-            [
-              14958,
-              0,
-              12,
-              46,
-              0,
-              0,
-              14
-            ],
-            [
-              2,
-              15064,
-              0,
-              5,
-              0,
-              0,
-              0
-            ],
-            [
-              1,
-              15137,
-              2,
-              1,
-              0,
-              0,
-              3
-            ],
-            [
-              16,
-              14515,
-              82,
-              39,
-              2,
-              0,
-              41
-            ],
-            [
-              2,
-              0,
-              13,
-              4,
-              0,
-              0,
-              11
-            ],
-            [
-              818,
-              1,
-              7833,
-              92,
-              13,
-              14,
-              313
-            ],
-            [
-              137,
-              0,
-              3840,
-              353,
-              200,
-              65,
-              823
-            ],
-            [
-              622,
-              0,
-              5873,
-              13,
-              0,
-              2,
-              87
-            ],
-            [
-              35,
-              0,
-              11504,
-              84,
-              3,
-              0,
-              108
-            ],
-            [
-              109,
-              0,
-              769,
-              16610,
-              164,
-              1,
-              557
-            ],
-            [
-              220,
-              0,
-              567,
-              11621,
-              101,
-              0,
-              545
-            ],
-            [
-              118,
-              0,
-              138,
-              10,
-              63,
-              3,
-              38
-            ],
-            [
-              68,
-              0,
-              43,
-              12,
-              35,
-              0,
-              16
-            ],
-            [
-              28,
-              0,
-              113,
-              31,
-              75,
-              1,
-              24
-            ],
-            [
-              9,
-              0,
-              40,
-              18,
-              40,
-              0,
-              6
-            ],
-            [
-              20,
-              0,
-              128,
-              50,
-              102,
-              0,
-              37
-            ],
-            [
-              7,
-              0,
-              59,
-              35,
-              111,
-              0,
-              69
-            ],
-            [
-              316,
-              0,
-              484,
-              57,
-              36,
-              500,
-              76
-            ],
-            [
-              485,
-              0,
-              873,
-              567,
-              44,
-              64,
-              14028
-            ]
-          ]
-        },
-        "amostra": {
-          "acuracia": 0.9510624880466864,
-          "macro_f1": 0.7570551103995944,
-          "f1_ponderado": 0.9515393943961846,
-          "falso_positivo_benigno": 0.12657991407757924,
-          "por_classe": {
-            "DDoS+DoS": {
-              "precisao": 0.9881394762946983,
-              "recall": 0.9699197860962567,
-              "f1": 0.9789448643252139,
-              "suporte": 258808,
-              "taxa_falso_positivo": 0.02351811667733425,
-              "recall_na_regra_do_teto": 0.9995672467620784
-            },
-            "Mirai": {
-              "precisao": 0.9999329144211633,
-              "recall": 0.9956802493876642,
-              "f1": 0.9978020506755626,
-              "suporte": 44910,
-              "taxa_falso_positivo": 8.77162204834918e-06,
-              "recall_na_regra_do_teto": 1.0
-            },
-            "Recon": {
-              "precisao": 0.8199232635558314,
-              "recall": 0.8843684386696284,
-              "f1": 0.8509274034168264,
-              "suporte": 32863,
-              "taxa_falso_positivo": 0.01802806876819965,
-              "recall_na_regra_do_teto": 0.9902626053616529
-            },
-            "Spoofing": {
-              "precisao": 0.9035365658505361,
-              "recall": 0.9029874616171955,
-              "f1": 0.9032619302820393,
-              "suporte": 31264,
-              "taxa_falso_positivo": 0.008474433303904313,
-              "recall_na_regra_do_teto": 0.9999360286591606
-            },
-            "Web": {
-              "precisao": 0.3582842724978974,
-              "recall": 0.27537168713639304,
-              "f1": 0.31140350877192985,
-              "suporte": 1547,
-              "taxa_falso_positivo": 0.0019798897178073304,
-              "recall_na_regra_do_teto": 1.0
-            },
-            "BruteForce": {
-              "precisao": 0.764525993883792,
-              "recall": 0.34036759700476515,
-              "f1": 0.4710315591144606,
-              "suporte": 1469,
-              "taxa_falso_positivo": 0.00039952990377555757,
-              "recall_na_regra_do_teto": 1.0
-            },
-            "Benign": {
-              "precisao": 0.7145112820251617,
-              "recall": 0.8734200859224208,
-              "f1": 0.786014456211128,
-              "suporte": 16061,
-              "taxa_falso_positivo": 0.015113479174138019,
-              "recall_na_regra_do_teto": 0.9996264242575182
-            }
-          },
-          "teto": 0.9988628198965166
-        }
-      },
-      "avaliacao_arquivos_inteiros": {
-        "linhas": 65932,
-        "matriz_por_rotulo": {
-          "classes": [
-            "DDoS+DoS",
-            "Mirai",
-            "Recon",
-            "Spoofing",
-            "Web",
-            "BruteForce",
-            "Benign"
-          ],
-          "rotulos": [
-            "DDoS-SYN_Flood",
-            "DoS-SYN_Flood",
-            "BenignTraffic"
-          ],
-          "contagem": [
-            [
-              24868,
-              0,
-              60,
-              0,
-              0,
-              0,
-              0
-            ],
-            [
-              24884,
-              0,
-              59,
-              0,
-              0,
-              0,
-              0
-            ],
-            [
-              485,
-              0,
-              873,
-              567,
-              44,
-              64,
-              14028
-            ]
-          ]
-        },
-        "amostra": {
-          "acuracia": 0.9673603106230662,
-          "macro_f1": 0.9632001479745887,
-          "f1_ponderado": 0.9789771744326786,
-          "falso_positivo_benigno": 0.12657991407757924,
-          "por_classe": {
-            "DDoS+DoS": {
-              "precisao": 0.9903457610924219,
-              "recall": 0.9976138437167893,
-              "f1": 0.9939665161625445,
-              "suporte": 49871,
-              "taxa_falso_positivo": 0.030197372517277877
-            },
-            "Mirai": {
-              "precisao": null,
-              "recall": null,
-              "f1": null,
-              "suporte": 0,
-              "taxa_falso_positivo": 0.0
-            },
-            "Recon": {
-              "precisao": 0.0,
-              "recall": null,
-              "f1": null,
-              "suporte": 0,
-              "taxa_falso_positivo": 0.015045804768549415
-            },
-            "Spoofing": {
-              "precisao": 0.0,
-              "recall": null,
-              "f1": null,
-              "suporte": 0,
-              "taxa_falso_positivo": 0.008599769459443062
-            },
-            "Web": {
-              "precisao": 0.0,
-              "recall": null,
-              "f1": null,
-              "suporte": 0,
-              "taxa_falso_positivo": 0.0006673542437663047
-            },
-            "BruteForce": {
-              "precisao": 0.0,
-              "recall": null,
-              "f1": null,
-              "suporte": 0,
-              "taxa_falso_positivo": 0.0009706970818418977
-            },
-            "Benign": {
-              "precisao": 1.0,
-              "recall": 0.8734200859224208,
-              "f1": 0.932433779786633,
-              "suporte": 16061,
-              "taxa_falso_positivo": 0.0
-            }
-          }
-        }
-      },
-      "importancias": {
-        "Min": 0.13187538054480855,
-        "Time_To_Live": 0.10597809208846712,
-        "Max": 0.0828705024173334,
-        "IAT": 0.06211364643005229,
-        "Rate": 0.058674663744746385,
-        "Header_Length": 0.05531305457183342,
-        "Tot sum": 0.052892292274249644,
-        "Protocol Type": 0.05056622579800943,
-        "Tot size": 0.04910736235574189,
-        "HTTPS": 0.04161948229113557,
-        "Variance": 0.03792512341351919,
-        "Std": 0.03626025196035618,
-        "AVG": 0.03449116818948924,
-        "HTTP": 0.034488530826802206,
-        "ack_flag_number": 0.0242325086306501,
-        "ack_count": 0.020513501141366543,
-        "rst_flag_number": 0.016197113392747473,
-        "TCP": 0.01545190745787694,
-        "rst_count": 0.01515454903520238,
-        "UDP": 0.014893400219356482,
-        "syn_flag_number": 0.01398905682156616,
-        "syn_count": 0.012690476283092186,
-        "psh_flag_number": 0.008543387028152888,
-        "SSH": 0.00694646860891709,
-        "fin_flag_number": 0.003047877879213809,
-        "fin_count": 0.002984857997649168,
-        "DNS": 0.002651821252387088,
-        "IPv": 0.0020750858126106775,
-        "ICMP": 0.001972489352390748,
-        "ARP": 0.0019695376020109844,
-        "LLC": 0.0018913322711033153,
-        "DHCP": 0.00028283308021446373,
-        "ece_flag_number": 9.738039426109847e-05,
-        "IRC": 6.628288499759599e-05,
-        "cwr_flag_number": 5.623350443675552e-05,
-        "IGMP": 5.153009945024181e-05,
-        "SMTP": 3.3668212676706904e-05,
-        "Telnet": 3.0924131124393316e-05,
-        "Number": 0.0
-      },
-      "por_arquivo": [
-        {
-          "arquivo": "Backdoor_Malware.pcap",
-          "rotulo": "Backdoor_Malware",
-          "esperada": "Web",
-          "janelas_de_teste": 272,
-          "na_esperada": 0.2757352941176471,
-          "previstas": {
-            "DDoS+DoS": 28,
-            "Mirai": 0,
-            "Recon": 113,
-            "Spoofing": 31,
-            "Web": 75,
-            "BruteForce": 1,
-            "Benign": 24
-          }
-        },
-        {
-          "arquivo": "BenignTraffic.pcap",
-          "rotulo": "BenignTraffic",
-          "esperada": "Benign",
-          "janelas_de_teste": 0,
-          "na_esperada": null,
-          "previstas": {
-            "DDoS+DoS": 0,
-            "Mirai": 0,
-            "Recon": 0,
-            "Spoofing": 0,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 0
-          }
-        },
-        {
-          "arquivo": "BenignTraffic1.pcap",
-          "rotulo": "BenignTraffic",
-          "esperada": "Benign",
-          "janelas_de_teste": 0,
-          "na_esperada": null,
-          "previstas": {
-            "DDoS+DoS": 0,
-            "Mirai": 0,
-            "Recon": 0,
-            "Spoofing": 0,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 0
-          }
-        },
-        {
-          "arquivo": "BenignTraffic2.pcap",
-          "rotulo": "BenignTraffic",
-          "esperada": "Benign",
-          "janelas_de_teste": 16061,
-          "na_esperada": 0.8734200859224208,
-          "previstas": {
-            "DDoS+DoS": 485,
-            "Mirai": 0,
-            "Recon": 873,
-            "Spoofing": 567,
-            "Web": 44,
-            "BruteForce": 64,
-            "Benign": 14028
-          }
-        },
-        {
-          "arquivo": "BrowserHijacking.pcap",
-          "rotulo": "BrowserHijacking",
-          "esperada": "Web",
-          "janelas_de_teste": 281,
-          "na_esperada": 0.39501779359430605,
-          "previstas": {
-            "DDoS+DoS": 7,
-            "Mirai": 0,
-            "Recon": 59,
-            "Spoofing": 35,
-            "Web": 111,
-            "BruteForce": 0,
-            "Benign": 69
-          }
-        },
-        {
-          "arquivo": "CommandInjection.pcap",
-          "rotulo": "CommandInjection",
-          "esperada": "Web",
-          "janelas_de_teste": 174,
-          "na_esperada": 0.20114942528735633,
-          "previstas": {
-            "DDoS+DoS": 68,
-            "Mirai": 0,
-            "Recon": 43,
-            "Spoofing": 12,
-            "Web": 35,
-            "BruteForce": 0,
-            "Benign": 16
-          }
-        },
-        {
-          "arquivo": "DDoS-ACK_Fragmentation.pcap",
-          "rotulo": "DDoS-ACK_Fragmentation",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 14184,
-          "na_esperada": 0.9949943598420756,
-          "previstas": {
-            "DDoS+DoS": 14113,
-            "Mirai": 0,
-            "Recon": 50,
-            "Spoofing": 9,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 12
-          }
-        },
-        {
-          "arquivo": "DDoS-HTTP_Flood-.pcap",
-          "rotulo": "DDoS-HTTP_Flood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 15296,
-          "na_esperada": 0.9901935146443515,
-          "previstas": {
-            "DDoS+DoS": 15146,
-            "Mirai": 0,
-            "Recon": 111,
-            "Spoofing": 8,
-            "Web": 10,
-            "BruteForce": 0,
-            "Benign": 21
-          }
-        },
-        {
-          "arquivo": "DDoS-ICMP_Flood.pcap",
-          "rotulo": "DDoS-ICMP_Flood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 14929,
-          "na_esperada": 0.9993301627704467,
-          "previstas": {
-            "DDoS+DoS": 14919,
-            "Mirai": 0,
-            "Recon": 6,
-            "Spoofing": 3,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 1
-          }
-        },
-        {
-          "arquivo": "DDoS-ICMP_Fragmentation.pcap",
-          "rotulo": "DDoS-ICMP_Fragmentation",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 14939,
-          "na_esperada": 0.9962514224513019,
-          "previstas": {
-            "DDoS+DoS": 14883,
-            "Mirai": 1,
-            "Recon": 43,
-            "Spoofing": 3,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 9
-          }
-        },
-        {
-          "arquivo": "DDoS-PSHACK_Flood.pcap",
-          "rotulo": "DDoS-PSHACK_Flood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 15158,
-          "na_esperada": 0.9998680564718301,
-          "previstas": {
-            "DDoS+DoS": 15156,
-            "Mirai": 0,
-            "Recon": 2,
-            "Spoofing": 0,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 0
-          }
-        },
-        {
-          "arquivo": "DDoS-RSTFINFlood.pcap",
-          "rotulo": "DDoS-RSTFINFlood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 15284,
-          "na_esperada": 1.0,
-          "previstas": {
-            "DDoS+DoS": 15284,
-            "Mirai": 0,
-            "Recon": 0,
-            "Spoofing": 0,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 0
-          }
-        },
-        {
-          "arquivo": "DDoS-SYN_Flood.pcap",
-          "rotulo": "DDoS-SYN_Flood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 0,
-          "na_esperada": null,
-          "previstas": {
-            "DDoS+DoS": 0,
-            "Mirai": 0,
-            "Recon": 0,
-            "Spoofing": 0,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 0
-          }
-        },
-        {
-          "arquivo": "DDoS-SYN_Flood1.pcap",
-          "rotulo": "DDoS-SYN_Flood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 24928,
-          "na_esperada": 0.9975930680359435,
-          "previstas": {
-            "DDoS+DoS": 24868,
-            "Mirai": 0,
-            "Recon": 60,
-            "Spoofing": 0,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 0
-          }
-        },
-        {
-          "arquivo": "DDoS-SlowLoris.pcap",
-          "rotulo": "DDoS-SlowLoris",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 15517,
-          "na_esperada": 0.6721660114712895,
-          "previstas": {
-            "DDoS+DoS": 10430,
-            "Mirai": 0,
-            "Recon": 1685,
-            "Spoofing": 1326,
-            "Web": 6,
-            "BruteForce": 0,
-            "Benign": 2070
-          }
-        },
-        {
-          "arquivo": "DDoS-SynonymousIP_Flood.pcap",
-          "rotulo": "DDoS-SynonymousIP_Flood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 15003,
-          "na_esperada": 0.9995334266480037,
-          "previstas": {
-            "DDoS+DoS": 14996,
-            "Mirai": 0,
-            "Recon": 7,
-            "Spoofing": 0,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 0
-          }
-        },
-        {
-          "arquivo": "DDoS-TCP_Flood.pcap",
-          "rotulo": "DDoS-TCP_Flood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 14814,
-          "na_esperada": 0.9991899554475496,
-          "previstas": {
-            "DDoS+DoS": 14802,
-            "Mirai": 0,
-            "Recon": 6,
-            "Spoofing": 1,
-            "Web": 1,
-            "BruteForce": 0,
-            "Benign": 4
-          }
-        },
-        {
-          "arquivo": "DDoS-UDP_Flood.pcap",
-          "rotulo": "DDoS-UDP_Flood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 14945,
-          "na_esperada": 0.9993308798929408,
-          "previstas": {
-            "DDoS+DoS": 14935,
-            "Mirai": 0,
-            "Recon": 6,
-            "Spoofing": 3,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 1
-          }
-        },
-        {
-          "arquivo": "DDoS-UDP_Fragmentation.pcap",
-          "rotulo": "DDoS-UDP_Fragmentation",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 14771,
-          "na_esperada": 0.9802315347640648,
-          "previstas": {
-            "DDoS+DoS": 14479,
-            "Mirai": 1,
-            "Recon": 92,
-            "Spoofing": 37,
-            "Web": 1,
-            "BruteForce": 0,
-            "Benign": 161
-          }
-        },
-        {
-          "arquivo": "DNS_Spoofing.pcap",
-          "rotulo": "DNS_Spoofing",
-          "esperada": "Spoofing",
-          "janelas_de_teste": 13054,
-          "na_esperada": 0.8902252183238853,
-          "previstas": {
-            "DDoS+DoS": 220,
-            "Mirai": 0,
-            "Recon": 567,
-            "Spoofing": 11621,
-            "Web": 101,
-            "BruteForce": 0,
-            "Benign": 545
-          }
-        },
-        {
-          "arquivo": "DictionaryBruteForce.pcap",
-          "rotulo": "DictionaryBruteForce",
-          "esperada": "BruteForce",
-          "janelas_de_teste": 1469,
-          "na_esperada": 0.34036759700476515,
-          "previstas": {
-            "DDoS+DoS": 316,
-            "Mirai": 0,
-            "Recon": 484,
-            "Spoofing": 57,
-            "Web": 36,
-            "BruteForce": 500,
-            "Benign": 76
-          }
-        },
-        {
-          "arquivo": "DoS-HTTP_Flood1.pcap",
-          "rotulo": "DoS-HTTP_Flood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 14181,
-          "na_esperada": 0.8667935970664974,
-          "previstas": {
-            "DDoS+DoS": 12292,
-            "Mirai": 0,
-            "Recon": 941,
-            "Spoofing": 205,
-            "Web": 182,
-            "BruteForce": 4,
-            "Benign": 557
-          }
-        },
-        {
-          "arquivo": "DoS-SYN_Flood.pcap",
-          "rotulo": "DoS-SYN_Flood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 0,
-          "na_esperada": null,
-          "previstas": {
-            "DDoS+DoS": 0,
-            "Mirai": 0,
-            "Recon": 0,
-            "Spoofing": 0,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 0
-          }
-        },
-        {
-          "arquivo": "DoS-SYN_Flood1.pcap",
-          "rotulo": "DoS-SYN_Flood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 24943,
-          "na_esperada": 0.9976346069037405,
-          "previstas": {
-            "DDoS+DoS": 24884,
-            "Mirai": 0,
-            "Recon": 59,
-            "Spoofing": 0,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 0
-          }
-        },
-        {
-          "arquivo": "DoS-TCP_Flood.pcap",
-          "rotulo": "DoS-TCP_Flood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 14886,
-          "na_esperada": 0.9994625822920865,
-          "previstas": {
-            "DDoS+DoS": 14878,
-            "Mirai": 0,
-            "Recon": 5,
-            "Spoofing": 2,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 1
-          }
-        },
-        {
-          "arquivo": "DoS-UDP_Flood.pcap",
-          "rotulo": "DoS-UDP_Flood",
-          "esperada": "DDoS+DoS",
-          "janelas_de_teste": 15030,
-          "na_esperada": 0.9952095808383233,
-          "previstas": {
-            "DDoS+DoS": 14958,
-            "Mirai": 0,
-            "Recon": 12,
-            "Spoofing": 46,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 14
-          }
-        },
-        {
-          "arquivo": "MITM-ArpSpoofing.pcap",
-          "rotulo": "MITM-ArpSpoofing",
-          "esperada": "Spoofing",
-          "janelas_de_teste": 18210,
-          "na_esperada": 0.9121361889071938,
-          "previstas": {
-            "DDoS+DoS": 109,
-            "Mirai": 0,
-            "Recon": 769,
-            "Spoofing": 16610,
-            "Web": 164,
-            "BruteForce": 1,
-            "Benign": 557
-          }
-        },
-        {
-          "arquivo": "Mirai-greeth_flood.pcap",
-          "rotulo": "Mirai-greeth_flood",
-          "esperada": "Mirai",
-          "janelas_de_teste": 15144,
-          "na_esperada": 0.9995377707342842,
-          "previstas": {
-            "DDoS+DoS": 1,
-            "Mirai": 15137,
-            "Recon": 2,
-            "Spoofing": 1,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 3
-          }
-        },
-        {
-          "arquivo": "Mirai-greip_flood21.pcap",
-          "rotulo": "Mirai-greip_flood",
-          "esperada": "Mirai",
-          "janelas_de_teste": 15071,
-          "na_esperada": 0.9995355318160706,
-          "previstas": {
-            "DDoS+DoS": 2,
-            "Mirai": 15064,
-            "Recon": 0,
-            "Spoofing": 5,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 0
-          }
-        },
-        {
-          "arquivo": "Mirai-udpplain.pcap",
-          "rotulo": "Mirai-udpplain",
-          "esperada": "Mirai",
-          "janelas_de_teste": 14695,
-          "na_esperada": 0.9877509356924123,
-          "previstas": {
-            "DDoS+DoS": 16,
-            "Mirai": 14515,
-            "Recon": 82,
-            "Spoofing": 39,
-            "Web": 2,
-            "BruteForce": 0,
-            "Benign": 41
-          }
-        },
-        {
-          "arquivo": "Recon-HostDiscovery.pcap",
-          "rotulo": "Recon-HostDiscovery",
-          "esperada": "Recon",
-          "janelas_de_teste": 11734,
-          "na_esperada": 0.9803988409749446,
-          "previstas": {
-            "DDoS+DoS": 35,
-            "Mirai": 0,
-            "Recon": 11504,
-            "Spoofing": 84,
-            "Web": 3,
-            "BruteForce": 0,
-            "Benign": 108
-          }
-        },
-        {
-          "arquivo": "Recon-OSScan.pcap",
-          "rotulo": "Recon-OSScan",
-          "esperada": "Recon",
-          "janelas_de_teste": 9084,
-          "na_esperada": 0.8622853368560106,
-          "previstas": {
-            "DDoS+DoS": 818,
-            "Mirai": 1,
-            "Recon": 7833,
-            "Spoofing": 92,
-            "Web": 13,
-            "BruteForce": 14,
-            "Benign": 313
-          }
-        },
-        {
-          "arquivo": "Recon-PingSweep.pcap",
-          "rotulo": "Recon-PingSweep",
-          "esperada": "Recon",
-          "janelas_de_teste": 30,
-          "na_esperada": 0.43333333333333335,
-          "previstas": {
-            "DDoS+DoS": 2,
-            "Mirai": 0,
-            "Recon": 13,
-            "Spoofing": 4,
-            "Web": 0,
-            "BruteForce": 0,
-            "Benign": 11
-          }
-        },
-        {
-          "arquivo": "Recon-PortScan.pcap",
-          "rotulo": "Recon-PortScan",
-          "esperada": "Recon",
-          "janelas_de_teste": 6597,
-          "na_esperada": 0.8902531453691072,
-          "previstas": {
-            "DDoS+DoS": 622,
-            "Mirai": 0,
-            "Recon": 5873,
-            "Spoofing": 13,
-            "Web": 0,
-            "BruteForce": 2,
-            "Benign": 87
-          }
-        },
-        {
-          "arquivo": "SqlInjection.pcap",
-          "rotulo": "SqlInjection",
-          "esperada": "Web",
-          "janelas_de_teste": 370,
-          "na_esperada": 0.17027027027027028,
-          "previstas": {
-            "DDoS+DoS": 118,
-            "Mirai": 0,
-            "Recon": 138,
-            "Spoofing": 10,
-            "Web": 63,
-            "BruteForce": 3,
-            "Benign": 38
-          }
-        },
-        {
-          "arquivo": "Uploading_Attack.pcap",
-          "rotulo": "Uploading_Attack",
-          "esperada": "Web",
-          "janelas_de_teste": 113,
-          "na_esperada": 0.35398230088495575,
-          "previstas": {
-            "DDoS+DoS": 9,
-            "Mirai": 0,
-            "Recon": 40,
-            "Spoofing": 18,
-            "Web": 40,
-            "BruteForce": 0,
-            "Benign": 6
-          }
-        },
-        {
-          "arquivo": "VulnerabilityScan.pcap",
-          "rotulo": "VulnerabilityScan",
-          "esperada": "Recon",
-          "janelas_de_teste": 5418,
-          "na_esperada": 0.70874861572536,
-          "previstas": {
-            "DDoS+DoS": 137,
-            "Mirai": 0,
-            "Recon": 3840,
-            "Spoofing": 353,
-            "Web": 200,
-            "BruteForce": 65,
-            "Benign": 823
-          }
-        },
-        {
-          "arquivo": "XSS.pcap",
-          "rotulo": "XSS",
-          "esperada": "Web",
-          "janelas_de_teste": 337,
-          "na_esperada": 0.3026706231454006,
-          "previstas": {
-            "DDoS+DoS": 20,
-            "Mirai": 0,
-            "Recon": 128,
-            "Spoofing": 50,
-            "Web": 102,
-            "BruteForce": 0,
-            "Benign": 37
-          }
-        }
-      ],
-      "ips_de_origem": [
-        {
-          "rotulo": "DDoS-ACK_Fragmentation",
-          "categoria": "DDoS",
-          "janelas": 243900,
-          "minimo": 0,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 2.0,
-          "maximo": 9,
-          "media": 1.4829848298482984,
-          "ate_1": 0.6316277162771627
-        },
-        {
-          "rotulo": "DDoS-UDP_Flood",
-          "categoria": "DDoS",
-          "janelas": 2661376,
-          "minimo": 1,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 1.0,
-          "maximo": 10,
-          "media": 1.1767409039534436,
-          "ate_1": 0.8355132833541746
-        },
-        {
-          "rotulo": "DDoS-SlowLoris",
-          "categoria": "DDoS",
-          "janelas": 179601,
-          "minimo": 0,
-          "p25": 2.0,
-          "mediana": 3.0,
-          "p75": 4.0,
-          "maximo": 10,
-          "media": 3.021698097449346,
-          "ate_1": 0.2324652980774049
-        },
-        {
-          "rotulo": "DDoS-ICMP_Flood",
-          "categoria": "DDoS",
-          "janelas": 2677303,
-          "minimo": 0,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 1.0,
-          "maximo": 9,
-          "media": 1.1203184697436188,
-          "ate_1": 0.8875259916415885
-        },
-        {
-          "rotulo": "DDoS-RSTFINFlood",
-          "categoria": "DDoS",
-          "janelas": 2666660,
-          "minimo": 1,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 1.0,
-          "maximo": 10,
-          "media": 1.1689637974094935,
-          "ate_1": 0.8411747279368198
-        },
-        {
-          "rotulo": "DDoS-PSHACK_Flood",
-          "categoria": "DDoS",
-          "janelas": 2675472,
-          "minimo": 0,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 1.0,
-          "maximo": 9,
-          "media": 1.168329924589007,
-          "ate_1": 0.8402805187271629
-        },
-        {
-          "rotulo": "DDoS-HTTP_Flood",
-          "categoria": "DDoS",
-          "janelas": 280956,
-          "minimo": 0,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 2.0,
-          "maximo": 10,
-          "media": 1.7816348467375676,
-          "ate_1": 0.5995743105682029
-        },
-        {
-          "rotulo": "DDoS-UDP_Fragmentation",
-          "categoria": "DDoS",
-          "janelas": 221697,
-          "minimo": 0,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 2.0,
-          "maximo": 10,
-          "media": 1.3912772838604042,
-          "ate_1": 0.7437899475410131
-        },
-        {
-          "rotulo": "DDoS-ICMP_Fragmentation",
-          "categoria": "DDoS",
-          "janelas": 203141,
-          "minimo": 0,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 2.0,
-          "maximo": 10,
-          "media": 1.458592800074825,
-          "ate_1": 0.7034227457775634
-        },
-        {
-          "rotulo": "DDoS-TCP_Flood",
-          "categoria": "DDoS",
-          "janelas": 2650042,
-          "minimo": 1,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 1.0,
-          "maximo": 10,
-          "media": 1.1750398672926694,
-          "ate_1": 0.8355463800196374
-        },
-        {
-          "rotulo": "DDoS-SYN_Flood",
-          "categoria": "DDoS",
-          "janelas": 5326163,
-          "minimo": 0,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 1.0,
-          "maximo": 10,
-          "media": 1.1714033160457162,
-          "ate_1": 0.8487265598142603
-        },
-        {
-          "rotulo": "DDoS-SynonymousIP_Flood",
-          "categoria": "DDoS",
-          "janelas": 2684667,
-          "minimo": 0,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 1.0,
-          "maximo": 10,
-          "media": 1.0118495142973039,
-          "ate_1": 0.9891357103134206
-        },
-        {
-          "rotulo": "DoS-TCP_Flood",
-          "categoria": "DoS",
-          "janelas": 2597426,
-          "minimo": 1,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 1.0,
-          "maximo": 9,
-          "media": 1.0512611331371904,
-          "ate_1": 0.9561746898660443
-        },
-        {
-          "rotulo": "DoS-HTTP_Flood",
-          "categoria": "DoS",
-          "janelas": 298903,
-          "minimo": 1,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 2.0,
-          "maximo": 10,
-          "media": 1.5718912155448423,
-          "ate_1": 0.702405128085031
-        },
-        {
-          "rotulo": "DoS-SYN_Flood",
-          "categoria": "DoS",
-          "janelas": 5261433,
-          "minimo": 1,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 1.0,
-          "maximo": 10,
-          "media": 1.080143375388416,
-          "ate_1": 0.930709181319994
-        },
-        {
-          "rotulo": "DoS-UDP_Flood",
-          "categoria": "DoS",
-          "janelas": 1664550,
-          "minimo": 1,
-          "p25": 1.0,
-          "mediana": 1.0,
-          "p75": 1.0,
-          "maximo": 9,
-          "media": 1.0569090745246463,
-          "ate_1": 0.9560043254933765
-        }
-      ],
-      "modelo": {
-        "arquivo": "rf_regerado_janela_10.joblib",
-        "bytes": 596917217
-      }
-    },
-    {
       "janela": 100,
       "linhas": {
         "regeradas": 3476234,
         "amostra": 841298,
         "treino": 567732,
         "teste": 273566
+      },
+      "fundo": {
+        "descartadas": 58732,
+        "no_treino": 40966,
+        "no_treino_reduzido": 33374
       },
       "por_rotulo": [
         {
@@ -3733,7 +1930,566 @@
         "treino_sha256": "dc996d950d86294c413a89a4de6c7872770fe8e31a0fab986d847b8b57bad346",
         "teste_sha256": "73cc74fd4f94dade7a5c8c4ebcb2ba3a7676dc5c61fb0bd2f4f3aa0dec51e635"
       },
-      "treino_segundos": 12.300621999998839,
+      "treino_segundos": 14.481809875011095,
+      "ponto_de_operacao": {
+        "regra": "argmax",
+        "limiar": null,
+        "melhor_limiar": 0.61,
+        "janelas_benignas": 9866,
+        "janelas_de_ataque": 321428,
+        "argmax": {
+          "benigno_como_ataque": 78,
+          "ataque_reconhecido": 319985
+        },
+        "seguidas": 3,
+        "validacao": {
+          "Backdoor_Malware.pcap": [
+            191,
+            225
+          ],
+          "BenignTraffic.pcap": [
+            30794,
+            36228
+          ],
+          "BenignTraffic1.pcap": [
+            25117,
+            29549
+          ],
+          "BrowserHijacking.pcap": [
+            349,
+            410
+          ],
+          "CommandInjection.pcap": [
+            322,
+            379
+          ],
+          "DDoS-ACK_Fragmentation.pcap": [
+            14866,
+            17489
+          ],
+          "DDoS-HTTP_Flood-.pcap": [
+            17110,
+            20129
+          ],
+          "DDoS-ICMP_Flood.pcap": [
+            159406,
+            187536
+          ],
+          "DDoS-ICMP_Fragmentation.pcap": [
+            12255,
+            14418
+          ],
+          "DDoS-PSHACK_Flood.pcap": [
+            159288,
+            187398
+          ],
+          "DDoS-RSTFINFlood.pcap": [
+            158765,
+            186782
+          ],
+          "DDoS-SYN_Flood.pcap": [
+            226036,
+            265925
+          ],
+          "DDoS-SlowLoris.pcap": [
+            13918,
+            16374
+          ],
+          "DDoS-SynonymousIP_Flood.pcap": [
+            159773,
+            187968
+          ],
+          "DDoS-TCP_Flood.pcap": [
+            158075,
+            185970
+          ],
+          "DDoS-UDP_Flood.pcap": [
+            158569,
+            186552
+          ],
+          "DDoS-UDP_Fragmentation.pcap": [
+            13351,
+            15707
+          ],
+          "DNS_Spoofing.pcap": [
+            10644,
+            12522
+          ],
+          "DictionaryBruteForce.pcap": [
+            778,
+            915
+          ],
+          "DoS-HTTP_Flood1.pcap": [
+            18504,
+            21769
+          ],
+          "DoS-SYN_Flood.pcap": [
+            223198,
+            262586
+          ],
+          "DoS-TCP_Flood.pcap": [
+            154717,
+            182020
+          ],
+          "DoS-UDP_Flood.pcap": [
+            99209,
+            116717
+          ],
+          "MITM-ArpSpoofing.pcap": [
+            14736,
+            17336
+          ],
+          "Mirai-greeth_flood.pcap": [
+            19933,
+            23451
+          ],
+          "Mirai-greip_flood21.pcap": [
+            7114,
+            8369
+          ],
+          "Mirai-udpplain.pcap": [
+            21651,
+            25472
+          ],
+          "Recon-HostDiscovery.pcap": [
+            7995,
+            9406
+          ],
+          "Recon-OSScan.pcap": [
+            5846,
+            6878
+          ],
+          "Recon-PingSweep.pcap": [
+            135,
+            159
+          ],
+          "Recon-PortScan.pcap": [
+            4896,
+            5760
+          ],
+          "SqlInjection.pcap": [
+            313,
+            368
+          ],
+          "Uploading_Attack.pcap": [
+            75,
+            88
+          ],
+          "VulnerabilityScan.pcap": [
+            22212,
+            26132
+          ],
+          "XSS.pcap": [
+            230,
+            270
+          ]
+        },
+        "linhas_do_treino_reduzido": 517271,
+        "treino_reduzido_segundos": 11.924134542001411,
+        "curva": {
+          "0.01": {
+            "benigno_como_ataque": 8993,
+            "ataque_reconhecido": 321425
+          },
+          "0.02": {
+            "benigno_como_ataque": 7955,
+            "ataque_reconhecido": 321419
+          },
+          "0.03": {
+            "benigno_como_ataque": 7025,
+            "ataque_reconhecido": 321413
+          },
+          "0.04": {
+            "benigno_como_ataque": 6140,
+            "ataque_reconhecido": 321400
+          },
+          "0.05": {
+            "benigno_como_ataque": 5361,
+            "ataque_reconhecido": 321394
+          },
+          "0.06": {
+            "benigno_como_ataque": 4721,
+            "ataque_reconhecido": 321384
+          },
+          "0.07": {
+            "benigno_como_ataque": 4179,
+            "ataque_reconhecido": 321373
+          },
+          "0.08": {
+            "benigno_como_ataque": 3798,
+            "ataque_reconhecido": 321358
+          },
+          "0.09": {
+            "benigno_como_ataque": 3430,
+            "ataque_reconhecido": 321334
+          },
+          "0.1": {
+            "benigno_como_ataque": 3113,
+            "ataque_reconhecido": 321310
+          },
+          "0.11": {
+            "benigno_como_ataque": 2823,
+            "ataque_reconhecido": 321286
+          },
+          "0.12": {
+            "benigno_como_ataque": 2560,
+            "ataque_reconhecido": 321259
+          },
+          "0.13": {
+            "benigno_como_ataque": 2365,
+            "ataque_reconhecido": 321248
+          },
+          "0.14": {
+            "benigno_como_ataque": 2176,
+            "ataque_reconhecido": 321225
+          },
+          "0.15": {
+            "benigno_como_ataque": 2015,
+            "ataque_reconhecido": 321202
+          },
+          "0.16": {
+            "benigno_como_ataque": 1882,
+            "ataque_reconhecido": 321181
+          },
+          "0.17": {
+            "benigno_como_ataque": 1721,
+            "ataque_reconhecido": 321159
+          },
+          "0.18": {
+            "benigno_como_ataque": 1567,
+            "ataque_reconhecido": 321126
+          },
+          "0.19": {
+            "benigno_como_ataque": 1456,
+            "ataque_reconhecido": 321102
+          },
+          "0.2": {
+            "benigno_como_ataque": 1354,
+            "ataque_reconhecido": 321066
+          },
+          "0.21": {
+            "benigno_como_ataque": 1253,
+            "ataque_reconhecido": 321047
+          },
+          "0.22": {
+            "benigno_como_ataque": 1154,
+            "ataque_reconhecido": 321018
+          },
+          "0.23": {
+            "benigno_como_ataque": 1079,
+            "ataque_reconhecido": 320987
+          },
+          "0.24": {
+            "benigno_como_ataque": 1013,
+            "ataque_reconhecido": 320954
+          },
+          "0.25": {
+            "benigno_como_ataque": 941,
+            "ataque_reconhecido": 320922
+          },
+          "0.26": {
+            "benigno_como_ataque": 876,
+            "ataque_reconhecido": 320901
+          },
+          "0.27": {
+            "benigno_como_ataque": 826,
+            "ataque_reconhecido": 320882
+          },
+          "0.28": {
+            "benigno_como_ataque": 787,
+            "ataque_reconhecido": 320847
+          },
+          "0.29": {
+            "benigno_como_ataque": 751,
+            "ataque_reconhecido": 320821
+          },
+          "0.3": {
+            "benigno_como_ataque": 712,
+            "ataque_reconhecido": 320794
+          },
+          "0.31": {
+            "benigno_como_ataque": 666,
+            "ataque_reconhecido": 320753
+          },
+          "0.32": {
+            "benigno_como_ataque": 621,
+            "ataque_reconhecido": 320720
+          },
+          "0.33": {
+            "benigno_como_ataque": 576,
+            "ataque_reconhecido": 320688
+          },
+          "0.34": {
+            "benigno_como_ataque": 536,
+            "ataque_reconhecido": 320672
+          },
+          "0.35": {
+            "benigno_como_ataque": 509,
+            "ataque_reconhecido": 320645
+          },
+          "0.36": {
+            "benigno_como_ataque": 474,
+            "ataque_reconhecido": 320617
+          },
+          "0.37": {
+            "benigno_como_ataque": 432,
+            "ataque_reconhecido": 320604
+          },
+          "0.38": {
+            "benigno_como_ataque": 403,
+            "ataque_reconhecido": 320559
+          },
+          "0.39": {
+            "benigno_como_ataque": 380,
+            "ataque_reconhecido": 320535
+          },
+          "0.4": {
+            "benigno_como_ataque": 367,
+            "ataque_reconhecido": 320500
+          },
+          "0.41": {
+            "benigno_como_ataque": 345,
+            "ataque_reconhecido": 320475
+          },
+          "0.42": {
+            "benigno_como_ataque": 321,
+            "ataque_reconhecido": 320452
+          },
+          "0.43": {
+            "benigno_como_ataque": 305,
+            "ataque_reconhecido": 320417
+          },
+          "0.44": {
+            "benigno_como_ataque": 279,
+            "ataque_reconhecido": 320391
+          },
+          "0.45": {
+            "benigno_como_ataque": 267,
+            "ataque_reconhecido": 320357
+          },
+          "0.46": {
+            "benigno_como_ataque": 247,
+            "ataque_reconhecido": 320324
+          },
+          "0.47": {
+            "benigno_como_ataque": 234,
+            "ataque_reconhecido": 320302
+          },
+          "0.48": {
+            "benigno_como_ataque": 215,
+            "ataque_reconhecido": 320271
+          },
+          "0.49": {
+            "benigno_como_ataque": 206,
+            "ataque_reconhecido": 320246
+          },
+          "0.5": {
+            "benigno_como_ataque": 200,
+            "ataque_reconhecido": 320215
+          },
+          "0.51": {
+            "benigno_como_ataque": 187,
+            "ataque_reconhecido": 320182
+          },
+          "0.52": {
+            "benigno_como_ataque": 167,
+            "ataque_reconhecido": 320158
+          },
+          "0.53": {
+            "benigno_como_ataque": 160,
+            "ataque_reconhecido": 320129
+          },
+          "0.54": {
+            "benigno_como_ataque": 154,
+            "ataque_reconhecido": 320098
+          },
+          "0.55": {
+            "benigno_como_ataque": 144,
+            "ataque_reconhecido": 320060
+          },
+          "0.56": {
+            "benigno_como_ataque": 136,
+            "ataque_reconhecido": 320032
+          },
+          "0.57": {
+            "benigno_como_ataque": 129,
+            "ataque_reconhecido": 319995
+          },
+          "0.58": {
+            "benigno_como_ataque": 123,
+            "ataque_reconhecido": 319960
+          },
+          "0.59": {
+            "benigno_como_ataque": 112,
+            "ataque_reconhecido": 319923
+          },
+          "0.6": {
+            "benigno_como_ataque": 104,
+            "ataque_reconhecido": 319893
+          },
+          "0.61": {
+            "benigno_como_ataque": 94,
+            "ataque_reconhecido": 319852
+          },
+          "0.62": {
+            "benigno_como_ataque": 89,
+            "ataque_reconhecido": 319806
+          },
+          "0.63": {
+            "benigno_como_ataque": 84,
+            "ataque_reconhecido": 319755
+          },
+          "0.64": {
+            "benigno_como_ataque": 77,
+            "ataque_reconhecido": 319709
+          },
+          "0.65": {
+            "benigno_como_ataque": 71,
+            "ataque_reconhecido": 319672
+          },
+          "0.66": {
+            "benigno_como_ataque": 66,
+            "ataque_reconhecido": 319625
+          },
+          "0.67": {
+            "benigno_como_ataque": 64,
+            "ataque_reconhecido": 319576
+          },
+          "0.68": {
+            "benigno_como_ataque": 56,
+            "ataque_reconhecido": 319528
+          },
+          "0.69": {
+            "benigno_como_ataque": 50,
+            "ataque_reconhecido": 319465
+          },
+          "0.7": {
+            "benigno_como_ataque": 46,
+            "ataque_reconhecido": 319419
+          },
+          "0.71": {
+            "benigno_como_ataque": 41,
+            "ataque_reconhecido": 319351
+          },
+          "0.72": {
+            "benigno_como_ataque": 38,
+            "ataque_reconhecido": 319284
+          },
+          "0.73": {
+            "benigno_como_ataque": 33,
+            "ataque_reconhecido": 319216
+          },
+          "0.74": {
+            "benigno_como_ataque": 25,
+            "ataque_reconhecido": 319156
+          },
+          "0.75": {
+            "benigno_como_ataque": 25,
+            "ataque_reconhecido": 319084
+          },
+          "0.76": {
+            "benigno_como_ataque": 21,
+            "ataque_reconhecido": 319015
+          },
+          "0.77": {
+            "benigno_como_ataque": 20,
+            "ataque_reconhecido": 318934
+          },
+          "0.78": {
+            "benigno_como_ataque": 20,
+            "ataque_reconhecido": 318838
+          },
+          "0.79": {
+            "benigno_como_ataque": 20,
+            "ataque_reconhecido": 318753
+          },
+          "0.8": {
+            "benigno_como_ataque": 20,
+            "ataque_reconhecido": 318656
+          },
+          "0.81": {
+            "benigno_como_ataque": 19,
+            "ataque_reconhecido": 318562
+          },
+          "0.82": {
+            "benigno_como_ataque": 17,
+            "ataque_reconhecido": 318467
+          },
+          "0.83": {
+            "benigno_como_ataque": 16,
+            "ataque_reconhecido": 318342
+          },
+          "0.84": {
+            "benigno_como_ataque": 15,
+            "ataque_reconhecido": 318242
+          },
+          "0.85": {
+            "benigno_como_ataque": 13,
+            "ataque_reconhecido": 318133
+          },
+          "0.86": {
+            "benigno_como_ataque": 13,
+            "ataque_reconhecido": 318012
+          },
+          "0.87": {
+            "benigno_como_ataque": 12,
+            "ataque_reconhecido": 317889
+          },
+          "0.88": {
+            "benigno_como_ataque": 10,
+            "ataque_reconhecido": 317773
+          },
+          "0.89": {
+            "benigno_como_ataque": 8,
+            "ataque_reconhecido": 317634
+          },
+          "0.9": {
+            "benigno_como_ataque": 7,
+            "ataque_reconhecido": 317497
+          },
+          "0.91": {
+            "benigno_como_ataque": 6,
+            "ataque_reconhecido": 317345
+          },
+          "0.92": {
+            "benigno_como_ataque": 4,
+            "ataque_reconhecido": 317205
+          },
+          "0.93": {
+            "benigno_como_ataque": 3,
+            "ataque_reconhecido": 317022
+          },
+          "0.94": {
+            "benigno_como_ataque": 1,
+            "ataque_reconhecido": 316807
+          },
+          "0.95": {
+            "benigno_como_ataque": 1,
+            "ataque_reconhecido": 316579
+          },
+          "0.96": {
+            "benigno_como_ataque": 1,
+            "ataque_reconhecido": 316323
+          },
+          "0.97": {
+            "benigno_como_ataque": 1,
+            "ataque_reconhecido": 316015
+          },
+          "0.98": {
+            "benigno_como_ataque": 1,
+            "ataque_reconhecido": 315553
+          },
+          "0.99": {
+            "benigno_como_ataque": 0,
+            "ataque_reconhecido": 314720
+          },
+          "1.0": {
+            "benigno_como_ataque": 0,
+            "ataque_reconhecido": 312670
+          }
+        },
+        "arquivo": "rf_regerado_janela_100.ponto_de_operacao.json"
+      },
       "avaliacao": {
         "linhas": 273566,
         "matriz_por_rotulo": {
@@ -3784,13 +2540,13 @@
           ],
           "contagem": [
             [
-              6988,
+              6983,
               0,
-              6,
+              3,
               0,
               0,
               0,
-              38
+              46
             ],
             [
               14861,
@@ -3802,22 +2558,22 @@
               0
             ],
             [
-              5433,
+              4663,
               0,
-              224,
+              164,
               0,
-              2,
+              1,
               0,
-              856
+              1687
             ],
             [
-              14906,
+              14905,
               0,
-              6,
+              4,
               0,
               0,
               0,
-              4
+              7
             ],
             [
               15082,
@@ -3829,8 +2585,8 @@
               0
             ],
             [
-              15024,
-              1,
+              15025,
+              0,
               0,
               0,
               0,
@@ -3847,85 +2603,85 @@
               9
             ],
             [
-              6518,
-              1,
-              16,
-              3,
+              6485,
+              2,
+              8,
               0,
               0,
-              170
+              0,
+              213
             ],
             [
-              6146,
-              3,
-              18,
-              1,
+              6138,
+              2,
+              14,
               0,
               0,
-              1
+              0,
+              15
             ],
             [
-              14951,
-              0,
-              19,
-              0,
-              0,
-              0,
-              20
-            ],
-            [
-              24985,
+              14948,
               0,
               7,
               0,
               0,
               0,
+              35
+            ],
+            [
+              24985,
+              0,
+              6,
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              14895,
+              0,
+              0,
+              0,
+              0,
+              0,
               0
             ],
             [
-              14894,
+              15117,
               0,
+              0,
+              0,
+              0,
+              0,
+              3
+            ],
+            [
+              8024,
+              0,
+              569,
+              0,
+              14,
+              0,
+              530
+            ],
+            [
+              25309,
               1,
-              0,
-              0,
-              0,
-              0
-            ],
-            [
-              15118,
-              0,
-              0,
+              13,
               0,
               0,
               0,
               2
             ],
             [
-              8182,
-              0,
-              718,
-              1,
-              9,
-              0,
-              227
-            ],
-            [
-              25309,
-              0,
-              15,
-              0,
-              0,
-              0,
-              1
-            ],
-            [
               14970,
               0,
-              1,
-              13,
+              0,
+              4,
               0,
               0,
-              4
+              14
             ],
             [
               0,
@@ -3937,8 +2693,287 @@
               0
             ],
             [
+              1,
+              9951,
+              0,
+              0,
+              0,
+              0,
+              5
+            ],
+            [
+              17,
+              10730,
+              60,
+              0,
+              3,
+              0,
+              105
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              18
+            ],
+            [
+              107,
+              0,
+              811,
+              0,
+              0,
+              0,
+              479
+            ],
+            [
               2,
-              9955,
+              0,
+              1081,
+              0,
+              0,
+              0,
+              3792
+            ],
+            [
+              46,
+              0,
+              663,
+              0,
+              0,
+              0,
+              141
+            ],
+            [
+              9,
+              0,
+              3476,
+              1,
+              19,
+              0,
+              337
+            ],
+            [
+              3,
+              0,
+              3,
+              3126,
+              0,
+              0,
+              732
+            ],
+            [
+              25,
+              0,
+              4,
+              2487,
+              1,
+              0,
+              626
+            ],
+            [
+              15,
+              0,
+              13,
+              0,
+              2,
+              0,
+              72
+            ],
+            [
+              21,
+              0,
+              4,
+              0,
+              26,
+              0,
+              26
+            ],
+            [
+              1,
+              0,
+              13,
+              0,
+              40,
+              0,
+              22
+            ],
+            [
+              0,
+              0,
+              3,
+              0,
+              23,
+              0,
+              5
+            ],
+            [
+              0,
+              0,
+              14,
+              0,
+              64,
+              0,
+              20
+            ],
+            [
+              0,
+              0,
+              9,
+              1,
+              11,
+              0,
+              60
+            ],
+            [
+              39,
+              0,
+              72,
+              0,
+              5,
+              95,
+              62
+            ],
+            [
+              56,
+              0,
+              56,
+              0,
+              37,
+              1,
+              15858
+            ]
+          ]
+        },
+        "amostra": {
+          "acuracia": 0.9614571986284846,
+          "macro_f1": 0.757110445150681,
+          "f1_ponderado": 0.9620539386108117,
+          "falso_positivo_benigno": 0.009370314842578711,
+          "por_classe": {
+            "DDoS+DoS": {
+              "precisao": 0.9983817085750518,
+              "recall": 0.9842284242885064,
+              "f1": 0.9912545483160953,
+              "suporte": 214373,
+              "taxa_falso_positivo": 0.005777710202219857,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "Mirai": {
+              "precisao": 0.9997940013183916,
+              "recall": 0.9921906942513697,
+              "f1": 0.9959778370613586,
+              "suporte": 24458,
+              "taxa_falso_positivo": 2.007161552419031e-05,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "Recon": {
+              "precisao": 0.8524381625441696,
+              "recall": 0.5491713713349117,
+              "f1": 0.6679957911059423,
+              "suporte": 10982,
+              "taxa_falso_positivo": 0.0039758705785577185,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "Spoofing": {
+              "precisao": 0.99893219434063,
+              "recall": 0.8010560867703724,
+              "f1": 0.8891176936480278,
+              "suporte": 7007,
+              "taxa_falso_positivo": 2.2509088044297887e-05,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "Web": {
+              "precisao": 0.6693548387096774,
+              "recall": 0.35698924731182796,
+              "f1": 0.46563814866760167,
+              "suporte": 465,
+              "taxa_falso_positivo": 0.00030025521693439425,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "BruteForce": {
+              "precisao": 0.9895833333333334,
+              "recall": 0.34798534798534797,
+              "f1": 0.5149051490514905,
+              "suporte": 273,
+              "taxa_falso_positivo": 3.65907652226731e-06,
+              "recall_na_regra_do_teto": 1.0
+            },
+            "Benign": {
+              "precisao": 0.6363052724500441,
+              "recall": 0.9906296851574213,
+              "f1": 0.7748839482042511,
+              "suporte": 16008,
+              "taxa_falso_positivo": 0.03519207324175525,
+              "recall_na_regra_do_teto": 1.0
+            }
+          },
+          "teto": 1.0
+        }
+      },
+      "avaliacao_limiar": {
+        "linhas": 273566,
+        "matriz_por_rotulo": {
+          "classes": [
+            "DDoS+DoS",
+            "Mirai",
+            "Recon",
+            "Spoofing",
+            "Web",
+            "BruteForce",
+            "Benign"
+          ],
+          "rotulos": [
+            "DDoS-ACK_Fragmentation",
+            "DDoS-UDP_Flood",
+            "DDoS-SlowLoris",
+            "DDoS-ICMP_Flood",
+            "DDoS-RSTFINFlood",
+            "DDoS-PSHACK_Flood",
+            "DDoS-HTTP_Flood",
+            "DDoS-UDP_Fragmentation",
+            "DDoS-ICMP_Fragmentation",
+            "DDoS-TCP_Flood",
+            "DDoS-SYN_Flood",
+            "DDoS-SynonymousIP_Flood",
+            "DoS-TCP_Flood",
+            "DoS-HTTP_Flood",
+            "DoS-SYN_Flood",
+            "DoS-UDP_Flood",
+            "Mirai-greip_flood",
+            "Mirai-greeth_flood",
+            "Mirai-udpplain",
+            "Recon-PingSweep",
+            "Recon-OSScan",
+            "VulnerabilityScan",
+            "Recon-PortScan",
+            "Recon-HostDiscovery",
+            "MITM-ArpSpoofing",
+            "DNS_Spoofing",
+            "SqlInjection",
+            "CommandInjection",
+            "Backdoor_Malware",
+            "Uploading_Attack",
+            "XSS",
+            "BrowserHijacking",
+            "DictionaryBruteForce",
+            "BenignTraffic"
+          ],
+          "contagem": [
+            [
+              6985,
+              0,
+              3,
+              0,
+              0,
+              0,
+              44
+            ],
+            [
+              14861,
+              0,
               0,
               0,
               0,
@@ -3946,215 +2981,351 @@
               0
             ],
             [
-              42,
-              10734,
-              74,
-              1,
-              6,
+              4650,
               0,
-              58
+              175,
+              0,
+              2,
+              0,
+              1688
             ],
             [
+              14906,
               0,
-              0,
-              10,
-              0,
-              0,
-              0,
-              8
-            ],
-            [
-              113,
-              0,
-              1079,
               4,
               0,
               0,
-              201
+              0,
+              6
             ],
             [
-              13,
-              0,
-              4271,
-              1,
+              15082,
               0,
               0,
-              590
+              0,
+              0,
+              0,
+              0
             ],
             [
-              54,
-              0,
-              689,
+              15025,
               0,
               0,
               0,
-              107
+              0,
+              0,
+              0
             ],
             [
-              15,
+              8602,
               0,
-              3577,
-              2,
-              21,
-              0,
-              227
-            ],
-            [
-              1,
-              0,
-              4,
-              3857,
-              0,
-              0,
-              2
-            ],
-            [
-              27,
+              5,
               0,
               2,
-              3109,
-              3,
-              0,
-              2
-            ],
-            [
-              17,
-              0,
-              74,
-              1,
-              1,
               0,
               9
             ],
             [
-              39,
-              0,
-              5,
-              0,
-              28,
-              0,
-              5
-            ],
-            [
+              6486,
+              2,
+              13,
               1,
               0,
-              19,
               0,
-              42,
-              0,
-              14
+              206
             ],
             [
+              6139,
+              2,
+              15,
               0,
               0,
-              5,
               0,
-              23,
+              13
+            ],
+            [
+              14948,
+              0,
+              6,
+              0,
+              0,
+              0,
+              36
+            ],
+            [
+              24985,
+              0,
+              6,
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              14895,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              15116,
+              0,
+              0,
+              0,
+              0,
+              0,
+              4
+            ],
+            [
+              8035,
+              0,
+              557,
+              0,
+              14,
+              0,
+              531
+            ],
+            [
+              25309,
+              1,
+              12,
+              0,
+              0,
               0,
               3
             ],
             [
+              14970,
               0,
               0,
-              15,
+              5,
               0,
-              67,
               0,
-              16
+              13
+            ],
+            [
+              0,
+              3586,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              1,
+              9951,
+              0,
+              0,
+              0,
+              0,
+              5
+            ],
+            [
+              30,
+              10731,
+              73,
+              0,
+              10,
+              0,
+              71
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              18
+            ],
+            [
+              108,
+              0,
+              774,
+              0,
+              0,
+              0,
+              515
             ],
             [
               4,
               0,
-              14,
-              3,
-              11,
-              1,
-              48
+              614,
+              0,
+              0,
+              0,
+              4257
             ],
             [
-              45,
+              47,
               0,
-              97,
+              662,
               0,
-              6,
-              96,
+              0,
+              0,
+              141
+            ],
+            [
+              10,
+              0,
+              3455,
+              0,
+              23,
+              0,
+              354
+            ],
+            [
+              4,
+              0,
+              3,
+              2851,
+              0,
+              0,
+              1006
+            ],
+            [
+              28,
+              0,
+              5,
+              2221,
+              2,
+              0,
+              887
+            ],
+            [
+              15,
+              0,
+              7,
+              0,
+              2,
+              0,
+              78
+            ],
+            [
+              17,
+              0,
+              4,
+              0,
+              27,
+              0,
               29
             ],
             [
-              136,
-              0,
-              108,
-              8,
-              45,
               1,
-              15710
+              0,
+              13,
+              0,
+              41,
+              0,
+              21
+            ],
+            [
+              0,
+              0,
+              3,
+              0,
+              23,
+              0,
+              5
+            ],
+            [
+              0,
+              0,
+              12,
+              0,
+              67,
+              0,
+              19
+            ],
+            [
+              1,
+              0,
+              10,
+              1,
+              12,
+              0,
+              57
+            ],
+            [
+              44,
+              0,
+              81,
+              0,
+              8,
+              95,
+              45
+            ],
+            [
+              45,
+              0,
+              70,
+              0,
+              47,
+              5,
+              15841
             ]
           ]
         },
         "amostra": {
-          "acuracia": 0.982629420322701,
-          "macro_f1": 0.8226650615674187,
-          "f1_ponderado": 0.9826492056830562,
-          "falso_positivo_benigno": 0.018615692153923037,
+          "acuracia": 0.9575276167359978,
+          "macro_f1": 0.7400656562973074,
+          "f1_ponderado": 0.9579875620892293,
+          "falso_positivo_benigno": 0.010432283858070964,
           "por_classe": {
             "DDoS+DoS": {
-              "precisao": 0.9976044578732857,
-              "recall": 0.988785901209574,
-              "f1": 0.9931756046020743,
+              "precisao": 0.9983203137937724,
+              "recall": 0.98423775382161,
+              "f1": 0.9912290179976605,
               "suporte": 214373,
-              "taxa_falso_positivo": 0.008598989745409085,
-              "recall_na_regra_do_teto": 1.0
+              "taxa_falso_positivo": 0.005997330765462132
             },
             "Mirai": {
-              "precisao": 0.9997940691927513,
-              "recall": 0.9925177855916265,
-              "f1": 0.9961426402396487,
+              "precisao": 0.9997940098051332,
+              "recall": 0.9922315806689018,
+              "f1": 0.9959984404178039,
               "suporte": 24458,
-              "taxa_falso_positivo": 2.007161552419031e-05,
-              "recall_na_regra_do_teto": 1.0
+              "taxa_falso_positivo": 2.007161552419031e-05
             },
             "Recon": {
-              "precisao": 0.8688509793302645,
-              "recall": 0.8765252230923329,
-              "f1": 0.8726712297719958,
+              "precisao": 0.8363719234275296,
+              "recall": 0.5012748133309051,
+              "f1": 0.6268503757686176,
               "suporte": 10982,
-              "taxa_falso_positivo": 0.005533467385674679,
-              "recall_na_regra_do_teto": 1.0
+              "taxa_falso_positivo": 0.0041015446485696
             },
             "Spoofing": {
-              "precisao": 0.9945745288406624,
-              "recall": 0.9941487084344227,
-              "f1": 0.9943615730497466,
+              "precisao": 0.9986217759401457,
+              "recall": 0.7238475809904381,
+              "f1": 0.8393182194274367,
               "suporte": 7007,
-              "taxa_falso_positivo": 0.0001425575576138866,
-              "recall_na_regra_do_teto": 1.0
+              "taxa_falso_positivo": 2.6260602718347534e-05
             },
             "Web": {
-              "precisao": 0.6466165413533834,
+              "precisao": 0.6142857142857143,
               "recall": 0.36989247311827955,
-              "f1": 0.47058823529411753,
+              "f1": 0.46174496644295304,
               "suporte": 465,
-              "taxa_falso_positivo": 0.00034419500477845193,
-              "recall_na_regra_do_teto": 1.0
+              "taxa_falso_positivo": 0.0003954580905965192
             },
             "BruteForce": {
-              "precisao": 0.9795918367346939,
-              "recall": 0.3516483516483517,
-              "f1": 0.5175202156334232,
+              "precisao": 0.95,
+              "recall": 0.34798534798534797,
+              "f1": 0.5093833780160858,
               "suporte": 273,
-              "taxa_falso_positivo": 7.31815304453462e-06,
-              "recall_na_regra_do_teto": 1.0
+              "taxa_falso_positivo": 1.829538261133655e-05
             },
             "Benign": {
-              "precisao": 0.855617885736071,
-              "recall": 0.981384307846077,
-              "f1": 0.9141959323809247,
+              "precisao": 0.6115507856232869,
+              "recall": 0.9895677161419291,
+              "f1": 0.7559351960105938,
               "suporte": 16008,
-              "taxa_falso_positivo": 0.010292827246678418,
-              "recall_na_regra_do_teto": 1.0
+              "taxa_falso_positivo": 0.0390669286141374
             }
-          },
-          "teto": 1.0
+          }
         }
       },
       "avaliacao_arquivos_inteiros": {
@@ -4178,72 +3349,72 @@
             [
               24985,
               0,
-              7,
-              0,
-              0,
-              0,
-              0
-            ],
-            [
-              25309,
-              0,
-              15,
+              6,
               0,
               0,
               0,
               1
             ],
             [
-              136,
-              0,
-              108,
-              8,
-              45,
+              25309,
               1,
-              15710
+              13,
+              0,
+              0,
+              0,
+              2
+            ],
+            [
+              56,
+              0,
+              56,
+              0,
+              37,
+              1,
+              15858
             ]
           ]
         },
         "amostra": {
-          "acuracia": 0.9951601960045232,
-          "macro_f1": 0.9944976312734721,
-          "f1_ponderado": 0.9965275436064103,
-          "falso_positivo_benigno": 0.018615692153923037,
+          "acuracia": 0.9973916321145873,
+          "macro_f1": 0.9972071653435606,
+          "f1_ponderado": 0.9982459115297505,
+          "falso_positivo_benigno": 0.009370314842578711,
           "por_classe": {
             "DDoS+DoS": {
-              "precisao": 0.9973031925441206,
+              "precisao": 0.9988877855014896,
               "recall": 0.9995428980265119,
-              "f1": 0.9984217892344188,
+              "f1": 0.9992152343866411,
               "suporte": 50317,
-              "taxa_falso_positivo": 0.00849575212393803
+              "taxa_falso_positivo": 0.0034982508745627187
             },
             "Mirai": {
-              "precisao": null,
+              "precisao": 0.0,
               "recall": null,
               "f1": null,
               "suporte": 0,
-              "taxa_falso_positivo": 0.0
+              "taxa_falso_positivo": 1.5077271013946475e-05
             },
             "Recon": {
               "precisao": 0.0,
               "recall": null,
               "f1": null,
               "suporte": 0,
-              "taxa_falso_positivo": 0.001960045231813042
+              "taxa_falso_positivo": 0.0011307953260459858
             },
             "Spoofing": {
-              "precisao": 0.0,
+              "precisao": null,
               "recall": null,
               "f1": null,
               "suporte": 0,
-              "taxa_falso_positivo": 0.0001206181681115718
+              "taxa_falso_positivo": 0.0
             },
             "Web": {
               "precisao": 0.0,
               "recall": null,
               "f1": null,
               "suporte": 0,
-              "taxa_falso_positivo": 0.0006784771956275914
+              "taxa_falso_positivo": 0.0005578590275160196
             },
             "BruteForce": {
               "precisao": 0.0,
@@ -4253,55 +3424,55 @@
               "taxa_falso_positivo": 1.5077271013946475e-05
             },
             "Benign": {
-              "precisao": 0.9999363503277958,
-              "recall": 0.981384307846077,
-              "f1": 0.9905734733125255,
+              "precisao": 0.9998108568186117,
+              "recall": 0.9906296851574213,
+              "f1": 0.9951990963004802,
               "suporte": 16008,
-              "taxa_falso_positivo": 1.9873998847308068e-05
+              "taxa_falso_positivo": 5.96219965419242e-05
             }
           }
         }
       },
       "importancias": {
-        "Time_To_Live": 0.10604996572015203,
-        "Max": 0.10074246566897725,
-        "Tot sum": 0.08589075819674268,
-        "Tot size": 0.07187693183228,
-        "Min": 0.06454078985919956,
-        "Std": 0.059826603312727496,
-        "AVG": 0.05293841764545862,
-        "Rate": 0.050595376245966876,
-        "HTTPS": 0.04819518815462107,
-        "Variance": 0.046848705538208336,
-        "Protocol Type": 0.04458436767018099,
-        "IAT": 0.04261119796048051,
-        "Header_Length": 0.02412197308979898,
-        "TCP": 0.022614809311690375,
-        "HTTP": 0.022307593130136985,
-        "syn_count": 0.019505244388935316,
-        "ack_count": 0.01911062272134913,
-        "syn_flag_number": 0.017894221364623174,
-        "UDP": 0.017286375001731382,
-        "ack_flag_number": 0.014799602802581413,
-        "DNS": 0.011660568163818491,
-        "psh_flag_number": 0.008109723488303777,
-        "ARP": 0.007514162845964317,
-        "rst_count": 0.006709507185586558,
-        "rst_flag_number": 0.006443211376170021,
-        "IPv": 0.0063530323244427285,
-        "ICMP": 0.004598730338968123,
-        "fin_flag_number": 0.00383651658083739,
-        "LLC": 0.003685759523234627,
-        "fin_count": 0.003677779683233803,
-        "SSH": 0.0032744659982433394,
-        "DHCP": 0.0006371360682349862,
-        "ece_flag_number": 0.00032099396316829446,
-        "IGMP": 0.00025566732848035896,
-        "cwr_flag_number": 0.0002292998473818852,
-        "IRC": 0.00016370645816695146,
-        "Telnet": 0.00010488124029936477,
-        "SMTP": 8.281583029772562e-05,
-        "Number": 8.32139325161905e-07
+        "Time_To_Live": 0.12895171054106766,
+        "Max": 0.09723150368775364,
+        "Tot sum": 0.08515300991322201,
+        "HTTPS": 0.06675410696506354,
+        "Tot size": 0.06491291344704943,
+        "AVG": 0.05918519929394689,
+        "Std": 0.04723171121215059,
+        "Rate": 0.045782827590189354,
+        "Variance": 0.04264297766987225,
+        "IAT": 0.0388707085057855,
+        "Min": 0.03757376403755091,
+        "Header_Length": 0.03580785623174865,
+        "Protocol Type": 0.03467212353210983,
+        "HTTP": 0.023458132592867255,
+        "ack_flag_number": 0.02019873068819032,
+        "syn_flag_number": 0.019568140721556812,
+        "TCP": 0.018505344480681293,
+        "UDP": 0.016772011335949303,
+        "psh_flag_number": 0.0161796623686594,
+        "ack_count": 0.015072348249152838,
+        "syn_count": 0.014564442851001013,
+        "DNS": 0.012922916229052214,
+        "rst_count": 0.011353376426537966,
+        "rst_flag_number": 0.00955705213165614,
+        "ARP": 0.006262468990445288,
+        "LLC": 0.006133661881844788,
+        "fin_flag_number": 0.0054796823533186535,
+        "fin_count": 0.005458385247883036,
+        "IPv": 0.005319758185541975,
+        "ICMP": 0.003238054295051678,
+        "SSH": 0.002901694781213535,
+        "DHCP": 0.001042340235542374,
+        "IGMP": 0.00038038394999587947,
+        "ece_flag_number": 0.0002512418937613508,
+        "IRC": 0.0002279934002757988,
+        "cwr_flag_number": 0.00022174600384774356,
+        "Telnet": 9.011444403152196e-05,
+        "SMTP": 6.97641461361855e-05,
+        "Number": 1.3948829552564223e-07
       },
       "por_arquivo": [
         {
@@ -4309,15 +3480,25 @@
           "rotulo": "Backdoor_Malware",
           "esperada": "Web",
           "janelas_de_teste": 76,
-          "na_esperada": 0.5526315789473685,
+          "na_esperada": 0.5263157894736842,
           "previstas": {
             "DDoS+DoS": 1,
             "Mirai": 0,
-            "Recon": 19,
+            "Recon": 13,
             "Spoofing": 0,
-            "Web": 42,
+            "Web": 40,
             "BruteForce": 0,
-            "Benign": 14
+            "Benign": 22
+          },
+          "na_esperada_limiar": 0.5394736842105263,
+          "previstas_limiar": {
+            "DDoS+DoS": 1,
+            "Mirai": 0,
+            "Recon": 13,
+            "Spoofing": 0,
+            "Web": 41,
+            "BruteForce": 0,
+            "Benign": 21
           }
         },
         {
@@ -4327,6 +3508,16 @@
           "janelas_de_teste": 0,
           "na_esperada": null,
           "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          },
+          "na_esperada_limiar": null,
+          "previstas_limiar": {
             "DDoS+DoS": 0,
             "Mirai": 0,
             "Recon": 0,
@@ -4350,6 +3541,16 @@
             "Web": 0,
             "BruteForce": 0,
             "Benign": 0
+          },
+          "na_esperada_limiar": null,
+          "previstas_limiar": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
           }
         },
         {
@@ -4357,15 +3558,25 @@
           "rotulo": "BenignTraffic",
           "esperada": "Benign",
           "janelas_de_teste": 16008,
-          "na_esperada": 0.981384307846077,
+          "na_esperada": 0.9906296851574213,
           "previstas": {
-            "DDoS+DoS": 136,
+            "DDoS+DoS": 56,
             "Mirai": 0,
-            "Recon": 108,
-            "Spoofing": 8,
-            "Web": 45,
+            "Recon": 56,
+            "Spoofing": 0,
+            "Web": 37,
             "BruteForce": 1,
-            "Benign": 15710
+            "Benign": 15858
+          },
+          "na_esperada_limiar": 0.9895677161419291,
+          "previstas_limiar": {
+            "DDoS+DoS": 45,
+            "Mirai": 0,
+            "Recon": 70,
+            "Spoofing": 0,
+            "Web": 47,
+            "BruteForce": 5,
+            "Benign": 15841
           }
         },
         {
@@ -4375,13 +3586,23 @@
           "janelas_de_teste": 81,
           "na_esperada": 0.13580246913580246,
           "previstas": {
-            "DDoS+DoS": 4,
+            "DDoS+DoS": 0,
             "Mirai": 0,
-            "Recon": 14,
-            "Spoofing": 3,
+            "Recon": 9,
+            "Spoofing": 1,
             "Web": 11,
-            "BruteForce": 1,
-            "Benign": 48
+            "BruteForce": 0,
+            "Benign": 60
+          },
+          "na_esperada_limiar": 0.14814814814814814,
+          "previstas_limiar": {
+            "DDoS+DoS": 1,
+            "Mirai": 0,
+            "Recon": 10,
+            "Spoofing": 1,
+            "Web": 12,
+            "BruteForce": 0,
+            "Benign": 57
           }
         },
         {
@@ -4389,15 +3610,25 @@
           "rotulo": "CommandInjection",
           "esperada": "Web",
           "janelas_de_teste": 77,
-          "na_esperada": 0.36363636363636365,
+          "na_esperada": 0.33766233766233766,
           "previstas": {
-            "DDoS+DoS": 39,
+            "DDoS+DoS": 21,
             "Mirai": 0,
-            "Recon": 5,
+            "Recon": 4,
             "Spoofing": 0,
-            "Web": 28,
+            "Web": 26,
             "BruteForce": 0,
-            "Benign": 5
+            "Benign": 26
+          },
+          "na_esperada_limiar": 0.35064935064935066,
+          "previstas_limiar": {
+            "DDoS+DoS": 17,
+            "Mirai": 0,
+            "Recon": 4,
+            "Spoofing": 0,
+            "Web": 27,
+            "BruteForce": 0,
+            "Benign": 29
           }
         },
         {
@@ -4405,15 +3636,25 @@
           "rotulo": "DDoS-ACK_Fragmentation",
           "esperada": "DDoS+DoS",
           "janelas_de_teste": 7032,
-          "na_esperada": 0.9937428896473265,
+          "na_esperada": 0.9930318543799772,
           "previstas": {
-            "DDoS+DoS": 6988,
+            "DDoS+DoS": 6983,
             "Mirai": 0,
-            "Recon": 6,
+            "Recon": 3,
             "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 38
+            "Benign": 46
+          },
+          "na_esperada_limiar": 0.9933162684869169,
+          "previstas_limiar": {
+            "DDoS+DoS": 6985,
+            "Mirai": 0,
+            "Recon": 3,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 44
           }
         },
         {
@@ -4430,6 +3671,16 @@
             "Web": 2,
             "BruteForce": 0,
             "Benign": 9
+          },
+          "na_esperada_limiar": 0.9981434207472731,
+          "previstas_limiar": {
+            "DDoS+DoS": 8602,
+            "Mirai": 0,
+            "Recon": 5,
+            "Spoofing": 0,
+            "Web": 2,
+            "BruteForce": 0,
+            "Benign": 9
           }
         },
         {
@@ -4437,15 +3688,25 @@
           "rotulo": "DDoS-ICMP_Flood",
           "esperada": "DDoS+DoS",
           "janelas_de_teste": 14916,
-          "na_esperada": 0.9993295789755967,
+          "na_esperada": 0.9992625368731564,
           "previstas": {
-            "DDoS+DoS": 14906,
+            "DDoS+DoS": 14905,
             "Mirai": 0,
-            "Recon": 6,
+            "Recon": 4,
             "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 4
+            "Benign": 7
+          },
+          "na_esperada_limiar": 0.9993295789755967,
+          "previstas_limiar": {
+            "DDoS+DoS": 14906,
+            "Mirai": 0,
+            "Recon": 4,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 6
           }
         },
         {
@@ -4453,15 +3714,25 @@
           "rotulo": "DDoS-ICMP_Fragmentation",
           "esperada": "DDoS+DoS",
           "janelas_de_teste": 6169,
-          "na_esperada": 0.9962716809855731,
+          "na_esperada": 0.9949748743718593,
           "previstas": {
-            "DDoS+DoS": 6146,
-            "Mirai": 3,
-            "Recon": 18,
-            "Spoofing": 1,
+            "DDoS+DoS": 6138,
+            "Mirai": 2,
+            "Recon": 14,
+            "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 1
+            "Benign": 15
+          },
+          "na_esperada_limiar": 0.9951369751985735,
+          "previstas_limiar": {
+            "DDoS+DoS": 6139,
+            "Mirai": 2,
+            "Recon": 15,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 13
           }
         },
         {
@@ -4469,10 +3740,20 @@
           "rotulo": "DDoS-PSHACK_Flood",
           "esperada": "DDoS+DoS",
           "janelas_de_teste": 15025,
-          "na_esperada": 0.9999334442595674,
+          "na_esperada": 1.0,
           "previstas": {
-            "DDoS+DoS": 15024,
-            "Mirai": 1,
+            "DDoS+DoS": 15025,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          },
+          "na_esperada_limiar": 1.0,
+          "previstas_limiar": {
+            "DDoS+DoS": 15025,
+            "Mirai": 0,
             "Recon": 0,
             "Spoofing": 0,
             "Web": 0,
@@ -4487,6 +3768,16 @@
           "janelas_de_teste": 15082,
           "na_esperada": 1.0,
           "previstas": {
+            "DDoS+DoS": 15082,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          },
+          "na_esperada_limiar": 1.0,
+          "previstas_limiar": {
             "DDoS+DoS": 15082,
             "Mirai": 0,
             "Recon": 0,
@@ -4510,6 +3801,16 @@
             "Web": 0,
             "BruteForce": 0,
             "Benign": 0
+          },
+          "na_esperada_limiar": null,
+          "previstas_limiar": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
           }
         },
         {
@@ -4521,11 +3822,21 @@
           "previstas": {
             "DDoS+DoS": 24985,
             "Mirai": 0,
-            "Recon": 7,
+            "Recon": 6,
             "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 0
+            "Benign": 1
+          },
+          "na_esperada_limiar": 0.9997199103713188,
+          "previstas_limiar": {
+            "DDoS+DoS": 24985,
+            "Mirai": 0,
+            "Recon": 6,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 1
           }
         },
         {
@@ -4533,15 +3844,25 @@
           "rotulo": "DDoS-SlowLoris",
           "esperada": "DDoS+DoS",
           "janelas_de_teste": 6515,
-          "na_esperada": 0.8339217191097468,
+          "na_esperada": 0.7157329240214889,
           "previstas": {
-            "DDoS+DoS": 5433,
+            "DDoS+DoS": 4663,
             "Mirai": 0,
-            "Recon": 224,
+            "Recon": 164,
+            "Spoofing": 0,
+            "Web": 1,
+            "BruteForce": 0,
+            "Benign": 1687
+          },
+          "na_esperada_limiar": 0.7137375287797391,
+          "previstas_limiar": {
+            "DDoS+DoS": 4650,
+            "Mirai": 0,
+            "Recon": 175,
             "Spoofing": 0,
             "Web": 2,
             "BruteForce": 0,
-            "Benign": 856
+            "Benign": 1688
           }
         },
         {
@@ -4549,11 +3870,21 @@
           "rotulo": "DDoS-SynonymousIP_Flood",
           "esperada": "DDoS+DoS",
           "janelas_de_teste": 14895,
-          "na_esperada": 0.9999328633769722,
+          "na_esperada": 1.0,
           "previstas": {
-            "DDoS+DoS": 14894,
+            "DDoS+DoS": 14895,
             "Mirai": 0,
-            "Recon": 1,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          },
+          "na_esperada_limiar": 1.0,
+          "previstas_limiar": {
+            "DDoS+DoS": 14895,
+            "Mirai": 0,
+            "Recon": 0,
             "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
@@ -4565,15 +3896,25 @@
           "rotulo": "DDoS-TCP_Flood",
           "esperada": "DDoS+DoS",
           "janelas_de_teste": 14990,
-          "na_esperada": 0.9973982655103403,
+          "na_esperada": 0.9971981320880587,
           "previstas": {
-            "DDoS+DoS": 14951,
+            "DDoS+DoS": 14948,
             "Mirai": 0,
-            "Recon": 19,
+            "Recon": 7,
             "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 20
+            "Benign": 35
+          },
+          "na_esperada_limiar": 0.9971981320880587,
+          "previstas_limiar": {
+            "DDoS+DoS": 14948,
+            "Mirai": 0,
+            "Recon": 6,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 36
           }
         },
         {
@@ -4590,6 +3931,16 @@
             "Web": 0,
             "BruteForce": 0,
             "Benign": 0
+          },
+          "na_esperada_limiar": 1.0,
+          "previstas_limiar": {
+            "DDoS+DoS": 14861,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
           }
         },
         {
@@ -4597,15 +3948,25 @@
           "rotulo": "DDoS-UDP_Fragmentation",
           "esperada": "DDoS+DoS",
           "janelas_de_teste": 6708,
-          "na_esperada": 0.971675611210495,
+          "na_esperada": 0.9667561121049493,
           "previstas": {
-            "DDoS+DoS": 6518,
-            "Mirai": 1,
-            "Recon": 16,
-            "Spoofing": 3,
+            "DDoS+DoS": 6485,
+            "Mirai": 2,
+            "Recon": 8,
+            "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 170
+            "Benign": 213
+          },
+          "na_esperada_limiar": 0.9669051878354203,
+          "previstas_limiar": {
+            "DDoS+DoS": 6486,
+            "Mirai": 2,
+            "Recon": 13,
+            "Spoofing": 1,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 206
           }
         },
         {
@@ -4613,15 +3974,25 @@
           "rotulo": "DNS_Spoofing",
           "esperada": "Spoofing",
           "janelas_de_teste": 3143,
-          "na_esperada": 0.9891823098950048,
+          "na_esperada": 0.791282214444798,
           "previstas": {
-            "DDoS+DoS": 27,
+            "DDoS+DoS": 25,
             "Mirai": 0,
-            "Recon": 2,
-            "Spoofing": 3109,
-            "Web": 3,
+            "Recon": 4,
+            "Spoofing": 2487,
+            "Web": 1,
             "BruteForce": 0,
-            "Benign": 2
+            "Benign": 626
+          },
+          "na_esperada_limiar": 0.7066496977410117,
+          "previstas_limiar": {
+            "DDoS+DoS": 28,
+            "Mirai": 0,
+            "Recon": 5,
+            "Spoofing": 2221,
+            "Web": 2,
+            "BruteForce": 0,
+            "Benign": 887
           }
         },
         {
@@ -4629,15 +4000,25 @@
           "rotulo": "DictionaryBruteForce",
           "esperada": "BruteForce",
           "janelas_de_teste": 273,
-          "na_esperada": 0.3516483516483517,
+          "na_esperada": 0.34798534798534797,
           "previstas": {
-            "DDoS+DoS": 45,
+            "DDoS+DoS": 39,
             "Mirai": 0,
-            "Recon": 97,
+            "Recon": 72,
             "Spoofing": 0,
-            "Web": 6,
-            "BruteForce": 96,
-            "Benign": 29
+            "Web": 5,
+            "BruteForce": 95,
+            "Benign": 62
+          },
+          "na_esperada_limiar": 0.34798534798534797,
+          "previstas_limiar": {
+            "DDoS+DoS": 44,
+            "Mirai": 0,
+            "Recon": 81,
+            "Spoofing": 0,
+            "Web": 8,
+            "BruteForce": 95,
+            "Benign": 45
           }
         },
         {
@@ -4645,15 +4026,25 @@
           "rotulo": "DoS-HTTP_Flood",
           "esperada": "DDoS+DoS",
           "janelas_de_teste": 9137,
-          "na_esperada": 0.8954799168217139,
+          "na_esperada": 0.8781875889241545,
           "previstas": {
-            "DDoS+DoS": 8182,
+            "DDoS+DoS": 8024,
             "Mirai": 0,
-            "Recon": 718,
-            "Spoofing": 1,
-            "Web": 9,
+            "Recon": 569,
+            "Spoofing": 0,
+            "Web": 14,
             "BruteForce": 0,
-            "Benign": 227
+            "Benign": 530
+          },
+          "na_esperada_limiar": 0.8793914851701872,
+          "previstas_limiar": {
+            "DDoS+DoS": 8035,
+            "Mirai": 0,
+            "Recon": 557,
+            "Spoofing": 0,
+            "Web": 14,
+            "BruteForce": 0,
+            "Benign": 531
           }
         },
         {
@@ -4663,6 +4054,16 @@
           "janelas_de_teste": 0,
           "na_esperada": null,
           "previstas": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
+          },
+          "na_esperada_limiar": null,
+          "previstas_limiar": {
             "DDoS+DoS": 0,
             "Mirai": 0,
             "Recon": 0,
@@ -4680,12 +4081,22 @@
           "na_esperada": 0.9993682132280355,
           "previstas": {
             "DDoS+DoS": 25309,
-            "Mirai": 0,
-            "Recon": 15,
+            "Mirai": 1,
+            "Recon": 13,
             "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 1
+            "Benign": 2
+          },
+          "na_esperada_limiar": 0.9993682132280355,
+          "previstas_limiar": {
+            "DDoS+DoS": 25309,
+            "Mirai": 1,
+            "Recon": 12,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 3
           }
         },
         {
@@ -4693,15 +4104,25 @@
           "rotulo": "DoS-TCP_Flood",
           "esperada": "DDoS+DoS",
           "janelas_de_teste": 15120,
-          "na_esperada": 0.9998677248677249,
+          "na_esperada": 0.9998015873015873,
           "previstas": {
-            "DDoS+DoS": 15118,
+            "DDoS+DoS": 15117,
             "Mirai": 0,
             "Recon": 0,
             "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 2
+            "Benign": 3
+          },
+          "na_esperada_limiar": 0.9997354497354497,
+          "previstas_limiar": {
+            "DDoS+DoS": 15116,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 4
           }
         },
         {
@@ -4713,11 +4134,21 @@
           "previstas": {
             "DDoS+DoS": 14970,
             "Mirai": 0,
-            "Recon": 1,
-            "Spoofing": 13,
+            "Recon": 0,
+            "Spoofing": 4,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 4
+            "Benign": 14
+          },
+          "na_esperada_limiar": 0.9987990392313851,
+          "previstas_limiar": {
+            "DDoS+DoS": 14970,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 5,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 13
           }
         },
         {
@@ -4725,15 +4156,25 @@
           "rotulo": "MITM-ArpSpoofing",
           "esperada": "Spoofing",
           "janelas_de_teste": 3864,
-          "na_esperada": 0.9981884057971014,
+          "na_esperada": 0.8090062111801242,
           "previstas": {
-            "DDoS+DoS": 1,
+            "DDoS+DoS": 3,
             "Mirai": 0,
-            "Recon": 4,
-            "Spoofing": 3857,
+            "Recon": 3,
+            "Spoofing": 3126,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 2
+            "Benign": 732
+          },
+          "na_esperada_limiar": 0.7378364389233955,
+          "previstas_limiar": {
+            "DDoS+DoS": 4,
+            "Mirai": 0,
+            "Recon": 3,
+            "Spoofing": 2851,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 1006
           }
         },
         {
@@ -4741,15 +4182,25 @@
           "rotulo": "Mirai-greeth_flood",
           "esperada": "Mirai",
           "janelas_de_teste": 9957,
-          "na_esperada": 0.9997991362860299,
+          "na_esperada": 0.9993974088580898,
           "previstas": {
-            "DDoS+DoS": 2,
-            "Mirai": 9955,
+            "DDoS+DoS": 1,
+            "Mirai": 9951,
             "Recon": 0,
             "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 0
+            "Benign": 5
+          },
+          "na_esperada_limiar": 0.9993974088580898,
+          "previstas_limiar": {
+            "DDoS+DoS": 1,
+            "Mirai": 9951,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 5
           }
         },
         {
@@ -4766,6 +4217,16 @@
             "Web": 0,
             "BruteForce": 0,
             "Benign": 0
+          },
+          "na_esperada_limiar": 1.0,
+          "previstas_limiar": {
+            "DDoS+DoS": 0,
+            "Mirai": 3586,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 0
           }
         },
         {
@@ -4773,15 +4234,25 @@
           "rotulo": "Mirai-udpplain",
           "esperada": "Mirai",
           "janelas_de_teste": 10915,
-          "na_esperada": 0.9834173156207054,
+          "na_esperada": 0.9830508474576272,
           "previstas": {
-            "DDoS+DoS": 42,
-            "Mirai": 10734,
-            "Recon": 74,
-            "Spoofing": 1,
-            "Web": 6,
+            "DDoS+DoS": 17,
+            "Mirai": 10730,
+            "Recon": 60,
+            "Spoofing": 0,
+            "Web": 3,
             "BruteForce": 0,
-            "Benign": 58
+            "Benign": 105
+          },
+          "na_esperada_limiar": 0.9831424644983967,
+          "previstas_limiar": {
+            "DDoS+DoS": 30,
+            "Mirai": 10731,
+            "Recon": 73,
+            "Spoofing": 0,
+            "Web": 10,
+            "BruteForce": 0,
+            "Benign": 71
           }
         },
         {
@@ -4789,15 +4260,25 @@
           "rotulo": "Recon-HostDiscovery",
           "esperada": "Recon",
           "janelas_de_teste": 3842,
-          "na_esperada": 0.931025507548152,
+          "na_esperada": 0.9047371160853722,
           "previstas": {
-            "DDoS+DoS": 15,
+            "DDoS+DoS": 9,
             "Mirai": 0,
-            "Recon": 3577,
-            "Spoofing": 2,
-            "Web": 21,
+            "Recon": 3476,
+            "Spoofing": 1,
+            "Web": 19,
             "BruteForce": 0,
-            "Benign": 227
+            "Benign": 337
+          },
+          "na_esperada_limiar": 0.8992712129099427,
+          "previstas_limiar": {
+            "DDoS+DoS": 10,
+            "Mirai": 0,
+            "Recon": 3455,
+            "Spoofing": 0,
+            "Web": 23,
+            "BruteForce": 0,
+            "Benign": 354
           }
         },
         {
@@ -4805,15 +4286,25 @@
           "rotulo": "Recon-OSScan",
           "esperada": "Recon",
           "janelas_de_teste": 1397,
-          "na_esperada": 0.772369362920544,
+          "na_esperada": 0.5805297065139585,
           "previstas": {
-            "DDoS+DoS": 113,
+            "DDoS+DoS": 107,
             "Mirai": 0,
-            "Recon": 1079,
-            "Spoofing": 4,
+            "Recon": 811,
+            "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 201
+            "Benign": 479
+          },
+          "na_esperada_limiar": 0.5540443808160344,
+          "previstas_limiar": {
+            "DDoS+DoS": 108,
+            "Mirai": 0,
+            "Recon": 774,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 515
           }
         },
         {
@@ -4821,15 +4312,25 @@
           "rotulo": "Recon-PingSweep",
           "esperada": "Recon",
           "janelas_de_teste": 18,
-          "na_esperada": 0.5555555555555556,
+          "na_esperada": 0.0,
           "previstas": {
             "DDoS+DoS": 0,
             "Mirai": 0,
-            "Recon": 10,
+            "Recon": 0,
             "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 8
+            "Benign": 18
+          },
+          "na_esperada_limiar": 0.0,
+          "previstas_limiar": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 0,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 18
           }
         },
         {
@@ -4837,15 +4338,25 @@
           "rotulo": "Recon-PortScan",
           "esperada": "Recon",
           "janelas_de_teste": 850,
-          "na_esperada": 0.8105882352941176,
+          "na_esperada": 0.78,
           "previstas": {
-            "DDoS+DoS": 54,
+            "DDoS+DoS": 46,
             "Mirai": 0,
-            "Recon": 689,
+            "Recon": 663,
             "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 107
+            "Benign": 141
+          },
+          "na_esperada_limiar": 0.7788235294117647,
+          "previstas_limiar": {
+            "DDoS+DoS": 47,
+            "Mirai": 0,
+            "Recon": 662,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 141
           }
         },
         {
@@ -4853,15 +4364,25 @@
           "rotulo": "SqlInjection",
           "esperada": "Web",
           "janelas_de_teste": 102,
-          "na_esperada": 0.00980392156862745,
+          "na_esperada": 0.0196078431372549,
           "previstas": {
-            "DDoS+DoS": 17,
+            "DDoS+DoS": 15,
             "Mirai": 0,
-            "Recon": 74,
-            "Spoofing": 1,
-            "Web": 1,
+            "Recon": 13,
+            "Spoofing": 0,
+            "Web": 2,
             "BruteForce": 0,
-            "Benign": 9
+            "Benign": 72
+          },
+          "na_esperada_limiar": 0.0196078431372549,
+          "previstas_limiar": {
+            "DDoS+DoS": 15,
+            "Mirai": 0,
+            "Recon": 7,
+            "Spoofing": 0,
+            "Web": 2,
+            "BruteForce": 0,
+            "Benign": 78
           }
         },
         {
@@ -4873,11 +4394,21 @@
           "previstas": {
             "DDoS+DoS": 0,
             "Mirai": 0,
-            "Recon": 5,
+            "Recon": 3,
             "Spoofing": 0,
             "Web": 23,
             "BruteForce": 0,
-            "Benign": 3
+            "Benign": 5
+          },
+          "na_esperada_limiar": 0.7419354838709677,
+          "previstas_limiar": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 3,
+            "Spoofing": 0,
+            "Web": 23,
+            "BruteForce": 0,
+            "Benign": 5
           }
         },
         {
@@ -4885,15 +4416,25 @@
           "rotulo": "VulnerabilityScan",
           "esperada": "Recon",
           "janelas_de_teste": 4875,
-          "na_esperada": 0.8761025641025642,
+          "na_esperada": 0.22174358974358974,
           "previstas": {
-            "DDoS+DoS": 13,
+            "DDoS+DoS": 2,
             "Mirai": 0,
-            "Recon": 4271,
-            "Spoofing": 1,
+            "Recon": 1081,
+            "Spoofing": 0,
             "Web": 0,
             "BruteForce": 0,
-            "Benign": 590
+            "Benign": 3792
+          },
+          "na_esperada_limiar": 0.12594871794871795,
+          "previstas_limiar": {
+            "DDoS+DoS": 4,
+            "Mirai": 0,
+            "Recon": 614,
+            "Spoofing": 0,
+            "Web": 0,
+            "BruteForce": 0,
+            "Benign": 4257
           }
         },
         {
@@ -4901,15 +4442,25 @@
           "rotulo": "XSS",
           "esperada": "Web",
           "janelas_de_teste": 98,
-          "na_esperada": 0.6836734693877551,
+          "na_esperada": 0.6530612244897959,
           "previstas": {
             "DDoS+DoS": 0,
             "Mirai": 0,
-            "Recon": 15,
+            "Recon": 14,
+            "Spoofing": 0,
+            "Web": 64,
+            "BruteForce": 0,
+            "Benign": 20
+          },
+          "na_esperada_limiar": 0.6836734693877551,
+          "previstas_limiar": {
+            "DDoS+DoS": 0,
+            "Mirai": 0,
+            "Recon": 12,
             "Spoofing": 0,
             "Web": 67,
             "BruteForce": 0,
-            "Benign": 16
+            "Benign": 19
           }
         }
       ],
@@ -5109,134 +4660,157 @@
       ],
       "modelo": {
         "arquivo": "rf_regerado_janela_100.joblib",
-        "bytes": 184538417
+        "bytes": 365581500
       }
     }
   ],
-  "duracao_segundos": 175.93592729100055,
-  "memoria_pico_bytes": 3090153472,
-  "rodadas_anteriores": [
-    {
-      "gerado_em": "2026-10-10",
-      "pcaps": 26,
-      "rotulos": [
-        "Backdoor_Malware",
-        "BenignTraffic",
-        "BrowserHijacking",
-        "CommandInjection",
-        "DDoS-HTTP_Flood",
-        "DDoS-ICMP_Flood",
-        "DDoS-SYN_Flood",
-        "DDoS-TCP_Flood",
-        "DDoS-UDP_Flood",
-        "DNS_Spoofing",
-        "DictionaryBruteForce",
-        "DoS-HTTP_Flood",
-        "DoS-SYN_Flood",
-        "DoS-TCP_Flood",
-        "DoS-UDP_Flood",
-        "MITM-ArpSpoofing",
-        "Mirai-greip_flood",
-        "Recon-HostDiscovery",
-        "Recon-OSScan",
-        "Recon-PingSweep",
-        "Recon-PortScan",
-        "SqlInjection",
-        "Uploading_Attack",
-        "VulnerabilityScan",
-        "XSS"
-      ],
-      "rotulos_sem_pcap": 9,
-      "janelas": [
-        {
-          "janela": 10,
-          "teste": 238785,
-          "acuracia": 0.9397700860606822,
-          "macro_f1": 0.7695469064327612,
-          "falso_positivo_benigno": 0.13370981368669127,
-          "por_classe": {
-            "DDoS+DoS": {
-              "recall": 0.9796620519656541,
-              "f1": 0.9823285405457878,
-              "suporte": 134281
-            },
-            "Mirai": {
-              "recall": 0.9996636620476255,
-              "f1": 0.9998318027382513,
-              "suporte": 14866
-            },
-            "Recon": {
-              "recall": 0.8858498889531169,
-              "f1": 0.8644291715528375,
-              "suporte": 32869
-            },
-            "Spoofing": {
-              "recall": 0.9101842374616171,
-              "f1": 0.9151751973885217,
-              "suporte": 31264
-            },
-            "Web": {
-              "recall": 0.2870071105365223,
-              "f1": 0.3064182194616977,
-              "suporte": 1547
-            },
-            "BruteForce": {
-              "recall": 0.3356024506466984,
-              "f1": 0.46074766355140184,
-              "suporte": 1469
-            },
-            "Benign": {
-              "recall": 0.8662901863133087,
-              "f1": 0.8578977497908318,
-              "suporte": 22489
-            }
-          }
-        },
-        {
-          "janela": 100,
-          "teste": 167574,
-          "acuracia": 0.9773652237220571,
-          "macro_f1": 0.8246317547098545,
-          "falso_positivo_benigno": 0.018342088861187784,
-          "por_classe": {
-            "DDoS+DoS": {
-              "recall": 0.9889249912458571,
-              "f1": 0.9933051142056726,
-              "suporte": 122799
-            },
-            "Mirai": {
-              "recall": 1.0,
-              "f1": 1.0,
-              "suporte": 3586
-            },
-            "Recon": {
-              "recall": 0.860043707885631,
-              "f1": 0.8644122088500436,
-              "suporte": 10982
-            },
-            "Spoofing": {
-              "recall": 0.9944341372912802,
-              "f1": 0.9943631823046736,
-              "suporte": 7007
-            },
-            "Web": {
-              "recall": 0.41935483870967744,
-              "f1": 0.4503464203233256,
-              "suporte": 465
-            },
-            "BruteForce": {
-              "recall": 0.358974358974359,
-              "f1": 0.5185185185185185,
-              "suporte": 273
-            },
-            "Benign": {
-              "recall": 0.9816579111388122,
-              "f1": 0.9514768387667478,
-              "suporte": 22462
-            }
+  "duracao_segundos": 55.96433575000265,
+  "memoria_pico_bytes": 2241953792,
+  "rodadas_anteriores": [],
+  "modelo_anterior": {
+    "gerado_em": "2026-10-11",
+    "pcaps": 38,
+    "rotulos": [
+      "Backdoor_Malware",
+      "BenignTraffic",
+      "BrowserHijacking",
+      "CommandInjection",
+      "DDoS-ACK_Fragmentation",
+      "DDoS-HTTP_Flood",
+      "DDoS-ICMP_Flood",
+      "DDoS-ICMP_Fragmentation",
+      "DDoS-PSHACK_Flood",
+      "DDoS-RSTFINFlood",
+      "DDoS-SYN_Flood",
+      "DDoS-SlowLoris",
+      "DDoS-SynonymousIP_Flood",
+      "DDoS-TCP_Flood",
+      "DDoS-UDP_Flood",
+      "DDoS-UDP_Fragmentation",
+      "DNS_Spoofing",
+      "DictionaryBruteForce",
+      "DoS-HTTP_Flood",
+      "DoS-SYN_Flood",
+      "DoS-TCP_Flood",
+      "DoS-UDP_Flood",
+      "MITM-ArpSpoofing",
+      "Mirai-greeth_flood",
+      "Mirai-greip_flood",
+      "Mirai-udpplain",
+      "Recon-HostDiscovery",
+      "Recon-OSScan",
+      "Recon-PingSweep",
+      "Recon-PortScan",
+      "SqlInjection",
+      "Uploading_Attack",
+      "VulnerabilityScan",
+      "XSS"
+    ],
+    "rotulos_sem_pcap": 0,
+    "janelas": [
+      {
+        "janela": 10,
+        "teste": 386922,
+        "acuracia": 0.9510624880466864,
+        "macro_f1": 0.7570551103995944,
+        "falso_positivo_benigno": 0.12657991407757924,
+        "por_classe": {
+          "DDoS+DoS": {
+            "precisao": 0.9881394762946983,
+            "recall": 0.9699197860962567,
+            "f1": 0.9789448643252139,
+            "suporte": 258808
+          },
+          "Mirai": {
+            "precisao": 0.9999329144211633,
+            "recall": 0.9956802493876642,
+            "f1": 0.9978020506755626,
+            "suporte": 44910
+          },
+          "Recon": {
+            "precisao": 0.8199232635558314,
+            "recall": 0.8843684386696284,
+            "f1": 0.8509274034168264,
+            "suporte": 32863
+          },
+          "Spoofing": {
+            "precisao": 0.9035365658505361,
+            "recall": 0.9029874616171955,
+            "f1": 0.9032619302820393,
+            "suporte": 31264
+          },
+          "Web": {
+            "precisao": 0.3582842724978974,
+            "recall": 0.27537168713639304,
+            "f1": 0.31140350877192985,
+            "suporte": 1547
+          },
+          "BruteForce": {
+            "precisao": 0.764525993883792,
+            "recall": 0.34036759700476515,
+            "f1": 0.4710315591144606,
+            "suporte": 1469
+          },
+          "Benign": {
+            "precisao": 0.7145112820251617,
+            "recall": 0.8734200859224208,
+            "f1": 0.786014456211128,
+            "suporte": 16061
           }
         }
-      ]
-    }
-  ]
+      },
+      {
+        "janela": 100,
+        "teste": 273566,
+        "acuracia": 0.982629420322701,
+        "macro_f1": 0.8226650615674187,
+        "falso_positivo_benigno": 0.018615692153923037,
+        "por_classe": {
+          "DDoS+DoS": {
+            "precisao": 0.9976044578732857,
+            "recall": 0.988785901209574,
+            "f1": 0.9931756046020743,
+            "suporte": 214373
+          },
+          "Mirai": {
+            "precisao": 0.9997940691927513,
+            "recall": 0.9925177855916265,
+            "f1": 0.9961426402396487,
+            "suporte": 24458
+          },
+          "Recon": {
+            "precisao": 0.8688509793302645,
+            "recall": 0.8765252230923329,
+            "f1": 0.8726712297719958,
+            "suporte": 10982
+          },
+          "Spoofing": {
+            "precisao": 0.9945745288406624,
+            "recall": 0.9941487084344227,
+            "f1": 0.9943615730497466,
+            "suporte": 7007
+          },
+          "Web": {
+            "precisao": 0.6466165413533834,
+            "recall": 0.36989247311827955,
+            "f1": 0.47058823529411753,
+            "suporte": 465
+          },
+          "BruteForce": {
+            "precisao": 0.9795918367346939,
+            "recall": 0.3516483516483517,
+            "f1": 0.5175202156334232,
+            "suporte": 273
+          },
+          "Benign": {
+            "precisao": 0.855617885736071,
+            "recall": 0.981384307846077,
+            "f1": 0.9141959323809247,
+            "suporte": 16008
+          }
+        }
+      }
+    ],
+    "fundo_como_benigno": false
+  }
 }
