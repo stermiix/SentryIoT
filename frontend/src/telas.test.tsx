@@ -8,6 +8,7 @@ import DetalheDoIncidente from "./components/DetalheDoIncidente";
 import FilaDeIncidentes from "./components/FilaDeIncidentes";
 import LimiteDeErro from "./components/LimiteDeErro";
 import ResumoMetricas from "./components/ResumoMetricas";
+import { recorte, textoDe } from "./html-de-teste";
 import { MOTIVOS_DE_RISCO_ALTO } from "./listas";
 import { agregar, lerLog } from "./log";
 import { ESTADO_DA_PROPOSTA, rotulo } from "./rotulos";
@@ -43,41 +44,6 @@ function detalhe(view: IncidenteView): string {
 function fila(eventos: Evento[]): string {
   const { resumo, incidentes } = agregar(eventos);
   return renderToString(<FilaDeIncidentes resumo={resumo} incidentes={incidentes} selecionadoId={null} onSelecionar={() => {}} />);
-}
-
-/** O HTML do elemento que começa com `class="<classe>`, até o fim dele. */
-function recorte(html: string, classe: string): string {
-  const inicio = html.indexOf(`class="${classe}`);
-  expect(inicio, `painel ${classe}`).toBeGreaterThanOrEqual(0);
-  const abertura = html.lastIndexOf("<", inicio);
-  const tag = /^<(\w+)/.exec(html.slice(abertura))![1];
-  let profundidade = 0;
-  const marcas = new RegExp(`<${tag}[\\s>]|</${tag}>`, "g");
-  marcas.lastIndex = abertura;
-  for (let achado = marcas.exec(html); achado; achado = marcas.exec(html)) {
-    profundidade += achado[0].startsWith("</") ? -1 : 1;
-    if (profundidade === 0) {
-      return html.slice(abertura, marcas.lastIndex);
-    }
-  }
-  throw new Error(`o elemento ${classe} não fecha`);
-}
-
-/** O texto dentro de um trecho de HTML, sem as marcas e sem os comentários que o React põe entre textos. */
-function textoDe(html: string): string {
-  // Percorre o HTML caractere a caractere: o que está entre < e > (marcas e comentários) fica de fora.
-  let texto = "";
-  let dentroDeMarca = false;
-  for (const caractere of html) {
-    if (caractere === "<") {
-      dentroDeMarca = true;
-    } else if (caractere === ">") {
-      dentroDeMarca = false;
-    } else if (!dentroDeMarca) {
-      texto += caractere;
-    }
-  }
-  return texto.replace(/&quot;/g, '"').replace(/&#x27;/g, "'");
 }
 
 const final = agregar(base);
