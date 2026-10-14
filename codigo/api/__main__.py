@@ -17,9 +17,7 @@ import uvicorn
 
 from codigo.api.configuracao import Configuracao, carregar_env
 from codigo.api.provedor import Provedor
-from codigo.api.servidor import PASTA_CONSTRUIDA, criar_app
-
-RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from codigo.api.servidor import PASTA_CONSTRUIDA, RAIZ, criar_app
 
 
 def main(argv=None):

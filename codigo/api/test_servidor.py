@@ -254,6 +254,7 @@ def conversa(quantidade, tamanho=2):
         ({**PEDIDO, "sistema": "s" * 20_000, "mensagens": conversa(9, 7_000)}, "soma"),
         ({**PEDIDO, "mensagens": []}, "mensagens"),
         ({**PEDIDO, "mensagens": [{"papel": "usuario", "conteudo": "Oi"}, {"papel": "assistente", "conteudo": "Olá"}]}, "última mensagem"),
+        ({**PEDIDO, "mensagens": [{"papel": "sistema", "conteudo": "Oi"}]}, "papel"),
     ],
 )
 def test_limites_de_tamanho_e_forma_da_conversa_viram_400_sem_chamar_o_provedor(corpo, trecho):
@@ -315,11 +316,12 @@ def test_caminho_desconhecido_fora_de_api_devolve_o_index(tmp_path):
 
 
 @pytest.mark.parametrize("com_pasta", [True, False])
-def test_rota_de_api_inexistente_devolve_404_em_json(tmp_path, com_pasta):
+@pytest.mark.parametrize("caminho", ["/api/nada", "/api", "/api/"])
+def test_rota_de_api_inexistente_devolve_404_em_json(tmp_path, com_pasta, caminho):
     pasta = pasta_construida(tmp_path) if com_pasta else tmp_path / "nao-existe"
     app = criar_app(CONFIG, provedor_que_responde([]), pasta_construida=pasta)
 
-    status, corpo = chamar(app, "GET", "/api/nada")
+    status, corpo = chamar(app, "GET", caminho)
 
     assert status == 404
     assert "erro" in corpo
@@ -332,14 +334,15 @@ def test_sem_a_pasta_construida_a_raiz_da_404_e_a_api_continua(tmp_path):
     assert chamar(app, "GET", "/api/modelos") == (200, {"modelos": ["m-padrao"], "padrao": "m-padrao"})
 
 
-@pytest.mark.parametrize("caminho", ["/../segredo.txt", "/assets/../../segredo.txt", "/assets/..%2F..%2Fsegredo.txt"])
+# O servidor ASGI entrega o caminho já decodificado; os casos cobrem o `..` solto e no meio.
+@pytest.mark.parametrize("caminho", ["/../segredo.txt", "/assets/../../segredo.txt", "/../../segredo.txt"])
 def test_caminho_que_sai_da_pasta_construida_nao_e_servido(tmp_path, caminho):
     app = criar_app(CONFIG, provedor_que_responde([]), pasta_construida=pasta_construida(tmp_path))
 
     status, _, texto = chamar_bruto(app, "GET", caminho)
 
-    assert "fora da pasta" not in texto
-    assert status in (200, 404)
+    # Caminho que não é arquivo da pasta recebe o index, nunca o arquivo de fora.
+    assert (status, texto) == (200, "<!doctype html><title>SentryIoT</title>")
 
 
 def test_excecao_inesperada_do_provedor_vira_500_sem_vazar_detalhe():

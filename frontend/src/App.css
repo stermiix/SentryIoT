@@ -300,12 +300,11 @@ h1, h2, h3 { font-family: "Space Grotesk", "DM Sans", sans-serif; }
 .chat-enviar { border: 1px solid var(--blue); color: #fff; background: var(--blue); }
 .chat-limpar { border: 1px solid #d9dfe8; color: #3d4a60; background: var(--surface); }
 .chat-controles { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; }
-.chat-modelo { display: grid; gap: 5px; min-width: 260px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .4px; }
-.chat-modelo select { padding: 9px 11px; border: 1px solid #d9dfe8; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 400; color: var(--ink); background: var(--surface); }
-.chat-modelo select:disabled { color: var(--muted); background: #f5f7fa; }
-.chat-skill { display: grid; gap: 5px; min-width: 300px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .4px; }
-.chat-skill select { padding: 9px 11px; border: 1px solid #d9dfe8; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 400; color: var(--ink); background: var(--surface); }
-.chat-skill select:disabled { color: var(--muted); background: #f5f7fa; }
+.chat-modelo, .chat-skill { display: grid; gap: 5px; min-width: 260px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .4px; }
+.chat-skill { min-width: 300px; }
+.chat-modelo select, .chat-skill select { padding: 9px 11px; border: 1px solid #d9dfe8; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 400; color: var(--ink); background: var(--surface); }
+.chat-modelo select:disabled, .chat-skill select:disabled { color: var(--muted); background: #f5f7fa; }
 .chat-sistema { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .4px; }
 .chat-sistema textarea { width: 100%; padding: 11px 13px; border: 1px solid #d9dfe8; border-radius: 9px; font: inherit; font-size: 13px; font-weight: 400; line-height: 1.5; resize: vertical; color: var(--ink); background: var(--surface); }
 .chat-sistema textarea:disabled { color: var(--muted); background: #f5f7fa; }
+.chat-carga { margin: 0; }

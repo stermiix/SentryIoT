@@ -1,5 +1,5 @@
 import { type FormEvent, type KeyboardEvent, useEffect, useState } from "react";
-import { ErroDoChat, enviarChat, listarModelos, listarPrompts, montarPedido, type MensagemDaConversa, type Prompt } from "../chat";
+import { ErroDoChat, enviarChat, listarModelos, listarPrompts, montarPedido, textoDaSkill, type MensagemDaConversa, type Prompt } from "../chat";
 import { inteiro } from "../formato";
 
 export interface PropsDaTelaDoChat {
@@ -15,7 +15,10 @@ export interface PropsDaTelaDoChat {
   mensagens: MensagemDaConversa[];
   texto: string;
   enviando: boolean;
+  /** Erro do último envio; some no próximo envio ou ao limpar. */
   erro: string | null;
+  /** Falha ao carregar modelos ou skills na abertura; fica até recarregar a página. */
+  erroDeCarga: string | null;
   onTexto: (texto: string) => void;
   onEnviar: () => void;
   onLimpar: () => void;
@@ -46,6 +49,7 @@ export function TelaDoChat({
   texto,
   enviando,
   erro,
+  erroDeCarga,
   onTexto,
   onEnviar,
   onLimpar,
@@ -70,6 +74,12 @@ export function TelaDoChat({
 
   return (
     <section className="chat" aria-label="Chat com o modelo">
+      {erroDeCarga && (
+        <div className="error-banner chat-carga" role="alert">
+          <strong>Não foi possível carregar os modelos e as skills.</strong>
+          <span>{erroDeCarga}</span>
+        </div>
+      )}
       <div className="chat-controles">
         <label className="chat-modelo">
           <span>Modelo</span>
@@ -146,12 +156,13 @@ export default function ChatDoModelo() {
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [erroDeCarga, setErroDeCarga] = useState<string | null>(null);
 
   useEffect(() => {
     let ativo = true;
     const avisar = (falha: unknown, padrao: string) => {
       if (ativo) {
-        setErro(falha instanceof ErroDoChat ? falha.message : padrao);
+        setErroDeCarga(falha instanceof ErroDoChat ? falha.message : padrao);
       }
     };
     listarModelos()
@@ -174,12 +185,7 @@ export default function ChatDoModelo() {
     };
   }, []);
 
-  const onCarregarPrompt = (nome: string) => {
-    const prompt = prompts.find((candidato) => candidato.nome === nome);
-    if (prompt) {
-      setSistema(prompt.texto);
-    }
-  };
+  const onCarregarPrompt = (nome: string) => setSistema((atual) => textoDaSkill(prompts, nome, atual));
 
   const onEnviar = async () => {
     if (!texto.trim() || enviando) {
@@ -221,6 +227,7 @@ export default function ChatDoModelo() {
       texto={texto}
       enviando={enviando}
       erro={erro}
+      erroDeCarga={erroDeCarga}
       onTexto={setTexto}
       onEnviar={onEnviar}
       onLimpar={onLimpar}

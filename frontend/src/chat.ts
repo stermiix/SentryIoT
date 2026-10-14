@@ -1,6 +1,6 @@
-// O acesso à API do chat com o modelo (`/api/chat` e `/api/modelos`, servidas pelo backend em
-// `codigo/api/`). Os componentes não chamam `fetch` diretamente: tudo passa por aqui, e os testes
-// trocam o `fetch`.
+// O acesso à API do chat com o modelo (`/api/chat`, `/api/modelos` e `/api/prompts`, servidas pelo
+// backend em `codigo/api/`). Os componentes não chamam `fetch` diretamente: tudo passa por aqui, e
+// os testes trocam o `fetch`.
 
 export type Papel = "usuario" | "assistente";
 
@@ -74,6 +74,11 @@ export function montarPedido(
     historico,
     pedido: { modelo, sistema, mensagens: historico.map(({ papel, conteudo }) => ({ papel, conteudo })) },
   };
+}
+
+/** O texto da skill de nome `nome`, para substituir o prompt de sistema; nome desconhecido mantém `atual`. */
+export function textoDaSkill(prompts: Prompt[], nome: string, atual: string): string {
+  return prompts.find((prompt) => prompt.nome === nome)?.texto ?? atual;
 }
 
 export async function enviarChat(pedido: PedidoDeChat, buscar: Buscar = buscarPadrao): Promise<RespostaDoChat> {

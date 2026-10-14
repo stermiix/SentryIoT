@@ -128,6 +128,7 @@ def criar_app(config, chamar_provedor, pasta_de_skills=PASTA_DE_SKILLS, pasta_co
         Route("/api/chat", chat, methods=["POST"]),
         Route("/api/modelos", modelos, methods=["GET"]),
         Route("/api/prompts", prompts, methods=["GET"]),
+        Route("/api", api_desconhecida, methods=["GET", "POST", "PUT", "PATCH", "DELETE"]),
         Route("/api/{resto:path}", api_desconhecida, methods=["GET", "POST", "PUT", "PATCH", "DELETE"]),
     ]
 

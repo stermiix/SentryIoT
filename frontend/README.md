@@ -137,7 +137,7 @@ a cada PR, os testes, o `npm audit --omit=dev --audit-level=high` e o build.
 | `src/components/DetalheDoIncidente.tsx` | Tela 2 |
 | `src/components/ControleDoReplay.tsx` | Avanço do replay evento a evento |
 | `src/components/LimiteDeErro.tsx` | Error boundary da fila, do detalhe e do chat |
-| `src/chat.ts` | Os tipos de `/api/chat`, a chamada à API e a montagem do pedido a partir da conversa |
+| `src/chat.ts` | Os tipos e as chamadas de `/api/chat`, `/api/modelos` e `/api/prompts`, e a montagem do pedido a partir da conversa |
 | `src/components/ChatDoModelo.tsx` | A tela do chat: `TelaDoChat` só desenha, `ChatDoModelo` guarda a conversa e chama a API |
 | `src/log.test.ts`, `src/telas.test.tsx`, `src/contrato.test.ts`, `src/chat.test.tsx` | Testes da leitura e da reconstrução, das telas, das listas contra o contrato, e do chat |
 | `src/html-de-teste.ts` | Ajudantes dos testes que procuram texto no HTML desenhado |

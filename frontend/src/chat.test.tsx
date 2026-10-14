@@ -2,7 +2,7 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import textoDoExemplo from "../public/dados/incidente_flood.jsonl?raw";
 import { Pagina, telaDaAncora } from "./App";
-import { ErroDoChat, enviarChat, listarModelos, listarPrompts, montarPedido, type MensagemDaConversa, type Prompt } from "./chat";
+import { ErroDoChat, enviarChat, listarModelos, listarPrompts, montarPedido, textoDaSkill, type MensagemDaConversa, type Prompt } from "./chat";
 import { TelaDoChat } from "./components/ChatDoModelo";
 import { recorte, textoDe } from "./html-de-teste";
 import { lerLog } from "./log";
@@ -109,6 +109,12 @@ describe("lista de prompts", () => {
   it("resposta fora do formato vira erro de backend", async () => {
     await expect(listarPrompts(fetchQueResponde(200, { prompts: [{ nome: "x" }] }))).rejects.toMatchObject({ tipo: "backend" });
   });
+
+  it("carregar uma skill troca o prompt de sistema pelo texto dela, e um nome desconhecido mantém o atual", () => {
+    expect(textoDaSkill(PROMPTS, "triagem-do-alerta", "o que estava")).toBe("# Triagem\n\ncorpo");
+    expect(textoDaSkill(PROMPTS, "nao-existe", "o que estava")).toBe("o que estava");
+    expect(textoDaSkill(PROMPTS, "", "o que estava")).toBe("o que estava");
+  });
 });
 
 describe("montagem do pedido a partir da conversa", () => {
@@ -158,6 +164,7 @@ function tela(props: Partial<Parameters<typeof TelaDoChat>[0]> = {}): string {
       texto=""
       enviando={false}
       erro={null}
+      erroDeCarga={null}
       onTexto={() => {}}
       onEnviar={() => {}}
       onLimpar={() => {}}
@@ -196,6 +203,14 @@ describe("tela do chat", () => {
     const html = tela({ prompts: [] });
     expect(recorte(html, "chat-skill")).toMatch(/<select[^>]*disabled/);
     expect(recorte(html, "chat-sistema")).not.toMatch(/<textarea[^>]*disabled/);
+  });
+
+  it("falha ao carregar modelos ou skills vai numa faixa própria, separada do erro de envio", () => {
+    const html = tela({ erroDeCarga: "O backend do chat não está no ar.", erro: "o provedor recusou" });
+    const faixas = html.match(/class="error-banner[" ]/g) ?? [];
+    expect(faixas).toHaveLength(2);
+    expect(textoDe(recorte(html, "error-banner chat-carga"))).toContain("Não foi possível carregar os modelos e as skills.");
+    expect(textoDe(recorte(html, "error-banner chat-carga"))).toContain("O backend do chat não está no ar.");
   });
 
   it("com erro de limite (400), a faixa mostra a mensagem e o texto digitado continua na caixa", () => {

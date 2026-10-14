@@ -53,8 +53,8 @@ class Configuracao:
         )
 
     def modelos(self):
-        """Os modelos permitidos, com o padrão sempre na frente."""
-        return self.modelos_permitidos or (self.modelo,)
+        """Os modelos permitidos, com o padrão sempre na frente, venha a lista de onde vier."""
+        return tuple(nome for nome in dict.fromkeys([self.modelo, *self.modelos_permitidos]) if nome)
 
     def faltando(self):
         """Os nomes das variáveis obrigatórias que estão em branco."""

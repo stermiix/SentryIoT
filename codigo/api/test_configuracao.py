@@ -64,6 +64,12 @@ def test_modelos_permitidos_le_a_lista_com_espacos_e_poe_o_padrao_na_frente():
     assert config.modelos_permitidos == ("m-1", "m-2", "m-3")
 
 
+def test_modelos_poe_o_padrao_na_frente_mesmo_quando_a_lista_vem_sem_ele():
+    config = Configuracao(url_base="https://g/v1", chave="k", modelo="m-1", modelos_permitidos=("m-2", "m-3"))
+
+    assert config.modelos() == ("m-1", "m-2", "m-3")
+
+
 def test_faltando_lista_as_obrigatorias_em_branco():
     config = Configuracao.do_ambiente({"LLM_BASE_URL": "", "LLM_MODEL": "m"})
 
