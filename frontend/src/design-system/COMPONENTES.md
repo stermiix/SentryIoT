@@ -103,6 +103,7 @@ Navegação lateral flutuante em pílula, nas versões larga e só com ícones. 
 - **Você fornece:** `logoSrc`, `sections` (rótulo + itens com `id`, `label`, `icon`, `count`, `attention`, `planned`), `activeId`, `onNavigate`, `collapsed`, `onToggle`, `footer` (provedor local e operador).
 - O item ativo é um degradê glacier com borda glacier; contagem âmbar (`attention`) quando há proposta aguardando; tela planejada leva um círculo tracejado e o rótulo esmaecido.
 - Recolhida, cada item mostra o nome como dica e `aria-label`.
+- Ocupa sempre a altura da janela, do topo ao pé, em qualquer tela.
 - Seções do SentryIoT: Operação (Visão geral, Incidentes, Ao vivo), Telas do artigo (3 a 6), Equipe (Chat com o modelo, Relatórios).
 
 ### PageHeader
@@ -290,7 +291,7 @@ Confirmação de toda decisão humana: aprovar proposta de risco alto, rejeitar 
 
 Área suave no tempo com dica flutuante; a segunda série é uma linha tracejada (funciona em cinza).
 
-- **Você fornece:** `series` (`name`, `values`), `labels` (eixo x, ex.: horários), `format`, `unit`, `height`, `ariaLabel`, `defaultIndex` (ponto com dica fixa para figuras).
+- **Você fornece:** `series` (`name`, `values`), `labels` (eixo x, ex.: horários), `format`, `unit`, `height` (pixels, ou `"fill"` para ocupar a altura do contêiner, que precisa ser uma coluna flex com espaço), `ariaLabel`, `defaultIndex` (ponto com dica fixa para figuras).
 - Setas ← → movem a dica quando o gráfico tem foco. Eixos em mono `chart-axis`, grade `chart-grid`.
 
 ### CategoryBars

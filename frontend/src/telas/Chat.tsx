@@ -90,9 +90,9 @@ export function TelaDoChat(props: PropsDaTelaDoChat) {
         disabled={enviando}
         note="O chat manda ao modelo o que você escrever: não cole endereços reais."
       />
-      <div className="sx-grid">
-        <Panel className="sx-span-4" eyebrow="Configuração" title="Modelo e prompt">
-          <div className="sx-stack sx-stack--sm">
+      <div className="sx-grid app-chat">
+        <Panel className="sx-span-4 app-preencher" eyebrow="Configuração" title="Modelo e prompt">
+          <div className="sx-stack sx-stack--sm app-configuracao">
             <span className="sx-eyebrow eyebrow">Modelo</span>
             <ModelSelect providers={provedores} value={modelo} onChange={onModelo} disabled={enviando || modelos.length === 0} />
             <Select
@@ -107,6 +107,7 @@ export function TelaDoChat(props: PropsDaTelaDoChat) {
               hint={titulo ? `Carregada: ${titulo}` : undefined}
             />
             <TextField
+              className="app-prompt-sistema"
               label="Prompt de sistema"
               multiline
               rows={10}
@@ -123,7 +124,7 @@ export function TelaDoChat(props: PropsDaTelaDoChat) {
           </div>
         </Panel>
         <Panel
-          className="sx-span-8"
+          className="sx-span-8 app-preencher"
           eyebrow="Conversa"
           title={`${titulo ?? "Sem skill"} · ${modelo || "sem modelo"}`}
           actions={
@@ -132,7 +133,7 @@ export function TelaDoChat(props: PropsDaTelaDoChat) {
             </Button>
           }
         >
-          <div className="sx-stack">
+          <div className="app-conversa">
             {erro && (
               <Alert tone="danger" title="Não foi possível obter a resposta.">
                 {erro}

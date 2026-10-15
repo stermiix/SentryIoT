@@ -963,3 +963,9 @@ button, input, select, textarea { font: inherit; color: inherit; letter-spacing:
 .sx-target--free { display: inline-block; max-width: 100%; color: var(--ink-1); overflow-wrap: anywhere; }
 /* What a new action does, as the agent described it, inside the approval dialog. */
 .sx-dialog__details { display: flex; flex-direction: column; gap: var(--space-2); }
+/* The sidebar always reaches the bottom of the window (the artifact capped it at 960 px, leaving a gap on tall screens). */
+.sx-app__side { height: calc(100vh - 2 * var(--space-3)); height: calc(100dvh - 2 * var(--space-3)); }
+/* AreaChart height="fill": the plot takes the height its container gives it. */
+.sx-chart--fill { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.sx-chart--fill .sx-chart__plot { position: relative; flex: 1; min-height: 160px; }
+.sx-chart--fill .sx-chart__plot > svg { position: absolute; inset: 0; }

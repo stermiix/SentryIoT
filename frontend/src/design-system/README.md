@@ -200,7 +200,8 @@ O repositório mudou estes pontos dos componentes do artefato. Numa nova sincron
 - `TargetLabel` recebe `free`, para o alvo em texto livre de uma ação nova, na voz do agente.
 - `ConfirmDialog` recebe `details` (a ação nova descrita pelo agente) e `logNote` (o que vai para o log), e o Esc não cancela durante o envio.
 - `ReplayControl` não pega as teclas de um botão em foco, de um grupo de opções, de um gráfico, de um diálogo aberto nem com tecla modificadora.
-- `AreaChart` não desenha um ponto que deixou de existir quando a série diminui.
+- `AreaChart` não desenha um ponto que deixou de existir quando a série diminui, e aceita `height="fill"`, que ocupa a altura do contêiner.
+- A barra lateral (`.sx-app__side`) ocupa sempre a altura da janela; o artefato a limitava a 960 px, o que deixava um vão embaixo em telas altas.
 - `fmtNum` usa três algarismos significativos abaixo de 1 (0,0104, e não 0,01); `ratioDown` dá a razão arredondada para baixo, a mesma no funil e na Tela 4.
 - `AggregationFunnel` recebe `counterfactual`: sem agregação, só as janelas de ataque virariam chamada, e não as benignas.
 - `ConfirmDialog` recebe `busy` e `error`, para mostrar o envio e o motivo de a decisão não ter sido gravada.

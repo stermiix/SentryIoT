@@ -61,7 +61,7 @@ export function TelaCustoLatencia({ replay }: PropsDaTela) {
         title="Custo e latência"
         meta={<span className="body-sm sx-muted">Tokens, tempo de resposta e chamadas à IA por agente, até o evento {estado.passo} de {estado.total} do log.</span>}
       />
-      <div className="sx-grid">
+      <div className="sx-grid app-custo">
         <MetricCard
           className="sx-span-3"
           label="Tokens no log"
@@ -79,7 +79,7 @@ export function TelaCustoLatencia({ replay }: PropsDaTela) {
           delta={todas.chamadas > 0 ? { text: `${fmtInt(ratioDown(estado.janelasDeAtaque, todas.chamadas))}× menos`, tone: "success" } : undefined}
           context="Uma chamada por janela de ataque, sem agregação."
         />
-        <Panel className="sx-span-8" eyebrow="Por chamada" title="Tokens e latência ao longo do log">
+        <Panel className="sx-span-8 app-preencher" eyebrow="Por chamada" title="Tokens e latência ao longo do log">
           {chamadas.length > 1 ? (
             <AreaChart
               ariaLabel="Tokens e latência de cada chamada à IA ao longo do log"
@@ -88,13 +88,13 @@ export function TelaCustoLatencia({ replay }: PropsDaTela) {
                 { name: "Tokens", values: chamadas.map((chamada) => chamada.tokens ?? 0) },
                 { name: "Latência (ms)", values: chamadas.map((chamada) => Math.round((chamada.seconds ?? 0) * 1000)) },
               ]}
-              height={260}
+              height="fill"
             />
           ) : (
             <EmptyState icon="chart-area" title="Poucas chamadas para o gráfico">Avance o replay: o gráfico aparece a partir da segunda chamada à IA.</EmptyState>
           )}
         </Panel>
-        <Panel className="sx-span-4" eyebrow="Onde roda" title="Local × nuvem">
+        <Panel className="sx-span-4 app-preencher" eyebrow="Onde roda" title="Local × nuvem">
           {local.chamadas > 0 && nuvem.chamadas > 0 ? (
             <div className="sx-stack sx-stack--sm">
               {comparacao.map((medida) => {

@@ -97,7 +97,7 @@ export function Pagina({ rota, modelo, ...props }: PropsDaTela & { rota: Rota; m
   // Telas que não dependem do replay não levam o controle dele no pé.
   const semReplay = rota.tela === "chat" || rota.tela === "qualidade" || rota.tela === "seguranca-mcp" || rota.tela === "ao-vivo";
   return (
-    <Moldura {...props} ativa={rota.tela} modelo={modelo} dock={semReplay ? null : undefined}>
+    <Moldura {...props} ativa={rota.tela} modelo={modelo} dock={semReplay ? null : undefined} cheia={rota.tela === "chat"}>
       <LimiteDeErro parte="esta tela" chave={`${ancoraDa(rota)}:${props.replay.passo}`}>
         {tela}
       </LimiteDeErro>
