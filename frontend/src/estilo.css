@@ -45,6 +45,26 @@
 .app-demo-barra { height: 460px; padding: 0; }
 .app-espaco-dica { padding-top: var(--space-10); }
 
+/* Painel que estica até o fim da sua linha da grade: o corpo vira uma coluna que ocupa o resto. */
+.app-preencher { display: flex; flex-direction: column; align-self: stretch; }
+.app-preencher > .sx-panel__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* Custo e latência: a linha do gráfico cresce até o pé da tela. */
+.sx-app__content > .app-custo { flex: 1; grid-template-rows: auto minmax(340px, 1fr) auto; align-items: stretch; }
+
+/* Chat em tela cheia: a página tem a altura da janela, a conversa rola por dentro e a caixa de
+   envio fica sempre à vista. */
+.app-tela-cheia .sx-app__main { height: calc(100vh - 2 * var(--space-3)); height: calc(100dvh - 2 * var(--space-3)); min-height: 0; }
+.app-tela-cheia .sx-app__content { min-height: 0; }
+.sx-app__content > .app-chat { flex: 1; min-height: 0; grid-template-rows: minmax(420px, 1fr); align-items: stretch; }
+.app-chat > .app-preencher > .sx-panel__body { overflow-y: auto; }
+.app-configuracao { flex: 1; min-height: 0; }
+.app-prompt-sistema { flex: 1; min-height: 180px; }
+.app-prompt-sistema .sx-field__box--multi { flex: 1; }
+.app-prompt-sistema .sx-field__control { height: 100%; resize: none; }
+.app-conversa { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-4); }
+.app-conversa > .sx-chatlog { flex: 1; min-height: 120px; overflow-y: auto; padding-right: var(--space-2); }
+
 /* Impressão: só o conteúdo da tela (o relatório em A4, as figuras do artigo), sem moldura. */
 @media print {
   .sx-app { display: block; padding: 0; background: var(--bg-0); }

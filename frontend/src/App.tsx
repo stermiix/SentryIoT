@@ -1,7 +1,7 @@
 import { Component, Suspense, lazy, useCallback, useEffect, useState, type ErrorInfo, type ReactNode } from "react";
 import { listarModelos } from "./chat";
-import { Alert, EmptyState, Skeleton } from "./design-system";
-import { agregar, carregarLog } from "./log";
+import { Alert, Skeleton } from "./design-system";
+import { CAMINHO_DO_LOG, agregar, carregarLog } from "./log";
 import { ancoraDa, lerRota, type Rota } from "./rotas";
 import { TelaAoVivo } from "./telas/AoVivo";
 import { ChatDoModelo } from "./telas/Chat";
@@ -63,7 +63,7 @@ export class LimiteDeErro extends Component<PropsDoLimite, { erro: Error | null 
 }
 
 /** A tela da rota, já dentro da moldura. Separada do `App` para os testes a desenharem em qualquer passo. */
-export function Pagina({ rota, modelo, ...props }: PropsDaTela & { rota: Rota; modelo: ModeloDoBackend }) {
+export function Pagina({ rota, modelo, erroDoLog = null, ...props }: PropsDaTela & { rota: Rota; modelo: ModeloDoBackend; erroDoLog?: string | null }) {
   const tela = (() => {
     switch (rota.tela) {
       case "visao-geral":
@@ -71,7 +71,7 @@ export function Pagina({ rota, modelo, ...props }: PropsDaTela & { rota: Rota; m
       case "incidente":
         return <TelaIncidente {...props} incidente={rota.incidente} />;
       case "ao-vivo":
-        return <TelaAoVivo {...props} />;
+        return <TelaAoVivo />;
       case "isolado-integrado":
         return <TelaIsoladoIntegrado {...props} />;
       case "custo-latencia":
@@ -97,7 +97,12 @@ export function Pagina({ rota, modelo, ...props }: PropsDaTela & { rota: Rota; m
   // Telas que não dependem do replay não levam o controle dele no pé.
   const semReplay = rota.tela === "chat" || rota.tela === "qualidade" || rota.tela === "seguranca-mcp" || rota.tela === "ao-vivo";
   return (
-    <Moldura {...props} ativa={rota.tela} modelo={modelo} dock={semReplay ? null : undefined}>
+    <Moldura {...props} ativa={rota.tela} modelo={modelo} dock={semReplay ? null : undefined} cheia={rota.tela === "chat"}>
+      {erroDoLog && !semReplay && (
+        <Alert tone="danger" title="O log de eventos não pôde ser lido. As telas ficam vazias.">
+          {erroDoLog}
+        </Alert>
+      )}
       <LimiteDeErro parte="esta tela" chave={`${ancoraDa(rota)}:${props.replay.passo}`}>
         {tela}
       </LimiteDeErro>
@@ -140,10 +145,14 @@ export default function App() {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [avisos, setAvisos] = useState<string[]>([]);
   const [erro, setErro] = useState<string | null>(null);
-  const [carregando, setCarregando] = useState(true);
+  // Sem log configurado, não há o que carregar: as telas abrem vazias.
+  const [carregando, setCarregando] = useState(Boolean(CAMINHO_DO_LOG));
   const replay = useReplay(eventos, avisos);
 
   useEffect(() => {
+    if (!CAMINHO_DO_LOG) {
+      return;
+    }
     carregarLog()
       .then((lido) => {
         // Os avisos valem para o log inteiro; o replay começa no estado final.
@@ -157,28 +166,14 @@ export default function App() {
   if (rota.tela === "entrar") {
     return <TelaEntrar navegar={navegar} />;
   }
-  // O chat não depende do log: abre mesmo que ele não carregue.
-  if (rota.tela !== "chat" && (carregando || erro || eventos.length === 0)) {
+  // O chat não depende do log: abre mesmo enquanto ele carrega. Sem log, ou com log vazio ou
+  // ilegível, cada tela abre vazia; os avisos da leitura aparecem nas telas que os mostram.
+  if (rota.tela !== "chat" && carregando) {
     return (
       <Moldura replay={replay} navegar={navegar} ativa={rota.tela} modelo={modelo} dock={null}>
-        {carregando ? (
-          <Skeleton lines={8} label="Carregando o log de exemplo" />
-        ) : erro ? (
-          <Alert tone="danger" title="O log não pôde ser lido">
-            {erro}
-          </Alert>
-        ) : (
-          <EmptyState icon="inbox" title="O log está vazio">
-            Nenhum evento passou na conferência. Os avisos da leitura explicam por quê.
-          </EmptyState>
-        )}
-        {!carregando && avisos.length > 0 && (
-          <Alert tone="attention" title="Avisos da leitura">
-            {avisos.join(" ")}
-          </Alert>
-        )}
+        <Skeleton lines={8} label="Carregando o log de eventos" />
       </Moldura>
     );
   }
-  return <Pagina rota={rota} replay={replay} navegar={navegar} modelo={modelo} />;
+  return <Pagina rota={rota} replay={replay} navegar={navegar} modelo={modelo} erroDoLog={erro} />;
 }

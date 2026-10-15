@@ -185,7 +185,7 @@ export interface SidebarProps {
   className?: string;
 }
 
-/** Floating pill navigation with wide and icon-only versions. Active item in ice glass. */
+/** Floating pill navigation with wide and icon-only versions: black, with the active item in solid ice. */
 export function Sidebar({ logoSrc, sections, activeId, onNavigate, collapsed = false, onToggle, footer, className }: SidebarProps): React.ReactElement {
   return (
     <nav className={cx('sx-sidebar', collapsed && 'sx-sidebar--collapsed', className)} aria-label="Navegação principal">
@@ -242,7 +242,7 @@ export interface AppShellProps {
   children?: React.ReactNode;
   /** Bottom dock, normally the ReplayControl. */
   dock?: React.ReactNode;
-  /** The report cover's light on the black ground (petrol glow + faint diagonal rays). Default true. */
+  /** The logo's light on the black ground (faint ice haze + faint diagonal rays). Default true. */
   backdrop?: boolean;
   className?: string;
   style?: React.CSSProperties;

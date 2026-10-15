@@ -162,8 +162,7 @@ de enviar ao orientador.
 `pip-audit` confere se alguma dependência do `requirements.txt` tem vulnerabilidade conhecida. No
 `frontend/`, o CI instala as dependências com `npm ci`, roda o `npm audit` (vulnerabilidade alta
 ou crítica nas dependências de produção derruba o job; nas de desenvolvimento, vira aviso),
-confere se a cópia do log de exemplo em `frontend/public/dados/` está igual à de
-`codigo/mcp/exemplos/`, roda os testes com `npm test` e constrói com `npm run build`. PR que mexe
+roda os testes com `npm test` e constrói com `npm run build`. PR que mexe
 em código Python, TypeScript ou JavaScript, ou nos workflows, passa também pelo CodeQL, que procura
 falhas de segurança no código. Para
 conferir antes de abrir o PR: `ruff check .`, `python -m pytest` e, em `frontend/`, `npm test` e

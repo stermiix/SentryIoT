@@ -1,36 +1,36 @@
 /* Gerado por scripts/gerar-tokens.mjs a partir de tokens.json (SentryIoT). Não editar à mão. */
 
 :root, [data-theme="dark"] {
-  --petrol-900: #0d1f23;
-  --petrol-800: #132e35;
-  --petrol-700: #2d4a53;
-  --slate-600: #5a636a;
-  --slate-500: #69818d;
+  --graphite-900: #111213;
+  --graphite-800: #18191b;
+  --graphite-700: #2b2d30;
+  --slate-600: #5c6064;
+  --slate-500: #737a7f;
   --slate-300: #afb3b7;
-  --bg-0: #020404;
-  --bg-1: #030708;
-  --surface-1: #071114;
-  --surface-2: var(--petrol-900);
-  --surface-3: var(--petrol-800);
-  --line-1: #1c3238;
-  --line-2: var(--petrol-700);
-  --line-control: #627982;
-  --scrim: rgba(2, 4, 4, 0.80);
-  --petrol-wash: rgba(19, 46, 53, 0.40);
-  --petrol-glow: rgba(45, 74, 83, 0.30);
+  --bg-0: #000000;
+  --bg-1: #050505;
+  --surface-1: #0b0b0c;
+  --surface-2: var(--graphite-900);
+  --surface-3: var(--graphite-800);
+  --line-1: #1e1f21;
+  --line-2: var(--graphite-700);
+  --line-control: #6b6f73;
+  --scrim: rgba(0, 0, 0, 0.80);
+  --graphite-wash: rgba(24, 25, 27, 0.40);
+  --ice-haze: rgba(213, 239, 248, 0.04);
   --ink-1: #e9f2f5;
   --ink-2: var(--slate-300);
-  --ink-3: #86979e;
+  --ink-3: #8e9295;
   --ink-4: var(--slate-600);
   --ice: #d5eff8;
   --ice-strong: #ecfaff;
-  --on-ice: #061116;
+  --on-ice: #050607;
   --glacier: #8dc8e0;
   --glacier-deep: #4989a7;
   --ice-tint-1: rgba(213, 239, 248, 0.05);
   --ice-tint-2: rgba(213, 239, 248, 0.10);
   --ice-edge: rgba(236, 250, 255, 0.14);
-  --ice-glow: rgba(141, 200, 224, 0.30);
+  --ice-glow: rgba(213, 239, 248, 0.22);
   --attention: #f6c45a;
   --attention-tint: rgba(246, 196, 90, 0.14);
   --attention-line: rgba(246, 196, 90, 0.55);
@@ -45,8 +45,8 @@
   --on-success: #031b10;
   --info: var(--glacier);
   --info-tint: rgba(141, 200, 224, 0.12);
-  --neutral: #9ba7ad;
-  --neutral-tint: rgba(155, 167, 173, 0.12);
+  --neutral: #a0a4a7;
+  --neutral-tint: rgba(160, 164, 167, 0.12);
   --cat-ddos: #f29d6c;
   --cat-dos: #f7ccac;
   --cat-flood: #f5b489;
@@ -60,17 +60,17 @@
   --chart-axis: var(--ink-3);
   --chart-1: var(--glacier);
   --chart-2: var(--slate-300);
-  --heat-1: #12262e;
-  --heat-2: #1c4351;
-  --heat-3: #316c81;
-  --heat-4: #63a2bb;
-  --heat-5: #afd9ea;
+  --heat-1: #141617;
+  --heat-2: #283033;
+  --heat-3: #4d5a60;
+  --heat-4: #8ea8b3;
+  --heat-5: #cfe9f3;
   --shadow-1: inset 0 1px 0 rgba(236, 250, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.45);
   --shadow-2: inset 0 1px 0 rgba(236, 250, 255, 0.07), 0 12px 32px -12px rgba(0, 0, 0, 0.70);
   --shadow-3: inset 0 1px 0 rgba(236, 250, 255, 0.08), 0 32px 80px -20px rgba(0, 0, 0, 0.85);
   --shadow-glass: inset 0 1px 0 rgba(236, 250, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.50);
   --shadow-attention: 0 0 0 1px rgba(246, 196, 90, 0.55), 0 0 32px -6px rgba(246, 196, 90, 0.35);
-  --focus-ring: 0 0 0 2px #030708, 0 0 0 4px #8dc8e0;
+  --focus-ring: 0 0 0 2px #050505, 0 0 0 4px #8dc8e0;
 }
 
 :root {

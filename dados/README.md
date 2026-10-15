@@ -515,7 +515,7 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `mcp/cenarios.py` | Os quatro incidentes de exemplo do stub, com números ilustrativos: flood, força bruta, varredura de portas e falso positivo |
 | `mcp/stub.py` | O servidor MCP de mentira: responde às dez tools com os cenários, para a frente de agentes trabalhar antes de o modelo existir |
 | `mcp/aprovar.py` | O comando de terminal com que a pessoa aprova, rejeita ou promove uma proposta de ação, e marca um incidente como já resolvido |
-| `mcp/roteiro.py` | Gera `mcp/exemplos/incidente_flood.jsonl`, o log de exemplo de um incidente inteiro, insumo do modo replay da interface web |
+| `mcp/roteiro.py` | Gera `mcp/exemplos/incidente_flood.jsonl`, o log de exemplo de um incidente inteiro, usado nos testes do MCP e da interface web |
 | `mcp/exemplos/` | O log de exemplo e o seu README, que explica o incidente passo a passo |
 | `mcp/servidor.py` | **(a criar)** O servidor MCP de verdade, que expõe o classificador pelas mesmas tools do contrato |
 | `agente/skills/` | As instruções dos agentes de triagem e de decisão: triagem do alerta, análise por categoria e recomendação de mitigação. A do agente de execução ainda não foi escrita |

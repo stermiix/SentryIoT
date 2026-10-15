@@ -7,7 +7,9 @@ interface ImportMetaEnv {
   readonly VITE_MODELOS_LOCAIS?: string;
   /** Modelos que rodam fora da máquina, separados por vírgula. Um modelo fora das duas listas fica sem lugar na tela. */
   readonly VITE_MODELOS_NA_NUVEM?: string;
-  /** Endereço de um log que está sendo gravado, lido de tempos em tempos pela tela Ao vivo. Vazio: a tela fica como planejada. */
+  /** Caminho ou URL do log de eventos que o replay lê. Vazio: nenhum log é carregado e as telas abrem vazias. */
+  readonly VITE_LOG_DE_EVENTOS?: string;
+  /** Endereço de um log que está sendo gravado, lido de tempos em tempos pela tela Ao vivo. Vazio: a tela fica vazia, como planejada. */
   readonly VITE_LOG_AO_VIVO?: string;
 }
 

@@ -732,9 +732,9 @@ aprovação: está executada`. Além disso, `executar_acao` não confia no campo
 executa proposta que exige aprovação se o evento de aprovação estiver no log, e calcula de novo
 o risco da proposta de risco baixo.
 
-`exemplos/incidente_flood.jsonl` é um log completo e versionado, com os 16 tipos de evento, para
-o modo replay da interface web: o flood do começo ao fim e um incidente de força bruta que a
-pessoa resolve antes dos agentes.
+`exemplos/incidente_flood.jsonl` é um log completo e versionado, com os 16 tipos de evento: o
+flood do começo ao fim e um incidente de força bruta que a pessoa resolve antes dos agentes. Os
+valores são de roteiro. Os testes da interface web o leem, mas a interface não o carrega.
 
 ## Arquivos gerados
 
@@ -743,9 +743,8 @@ pessoa resolve antes dos agentes.
 
 Os dois têm teste: se `tipos.py`, os cenários ou o roteiro mudarem e o arquivo não for gerado
 de novo, o `pytest` falha. O roteiro não grava por cima de um arquivo que já existe sem
-`--sobrescrever`, nem no caminho padrão, nem no de `--saida`. Depois de gerar o log de exemplo,
-copie-o para a interface com `npm run sync:log`, em `frontend/`: o CI confere que as duas cópias
-são iguais.
+`--sobrescrever`, nem no caminho padrão, nem no de `--saida`. Os testes da interface leem o log
+de exemplo direto daqui: depois de gerá-lo de novo, rode também o `npm test` em `frontend/`.
 
 ## Versão do contrato
 

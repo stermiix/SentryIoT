@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import textoDoExemplo from "../public/dados/incidente_flood.jsonl?raw";
+import textoDoExemplo from "../../codigo/mcp/exemplos/incidente_flood.jsonl?raw";
 import { MOTIVOS_DE_RISCO_ALTO } from "./listas";
-import { agregar, lerLog } from "./log";
+import { CAMINHO_DO_LOG, agregar, conferirResposta, lerLog } from "./log";
 
 // Leitura e reconstrução do log, a partir do log de exemplo e de variações dele. Os valores
 // esperados saem do próprio exemplo, e cada teste procura os eventos pelo tipo, e não pela
@@ -547,5 +547,18 @@ describe("replay passo a passo", () => {
     for (let passo = 0; passo <= eventos.length; passo += 1) {
       expect(agregar(eventos.slice(0, passo)).avisos).toEqual([]);
     }
+  });
+});
+
+describe("de onde vem o log", () => {
+  it("sem VITE_LOG_DE_EVENTOS, a interface não carrega log nenhum", () => {
+    expect(CAMINHO_DO_LOG).toBe("");
+  });
+
+  it("recusa erro HTTP e a página do app no lugar do log, e aceita o arquivo", () => {
+    const resposta = (status: number, tipo: string) => new Response("", { status, headers: { "content-type": tipo } });
+    expect(() => conferirResposta(resposta(404, "text/plain"), "/dados/x.jsonl", "VITE_LOG_DE_EVENTOS")).toThrow("HTTP 404");
+    expect(() => conferirResposta(resposta(200, "text/html; charset=utf-8"), "/dados/x.jsonl", "VITE_LOG_DE_EVENTOS")).toThrow("devolveu uma página");
+    expect(() => conferirResposta(resposta(200, "application/octet-stream"), "/dados/x.jsonl", "VITE_LOG_DE_EVENTOS")).not.toThrow();
   });
 });

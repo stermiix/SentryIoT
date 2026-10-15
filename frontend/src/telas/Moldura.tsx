@@ -18,7 +18,7 @@ function secoes(props: PropsDaTela, ativa: Tela): NavSection[] {
       label: "Operação",
       items: [
         { id: "visao-geral", label: "Visão geral", icon: "layout-dashboard" },
-        { id: "incidente", label: "Incidentes", icon: "shield-alert", count: contar ? estado.incidentes.length : undefined, attention: contar && estado.aguardando > 0 },
+        { id: "incidente", label: "Incidentes", icon: "shield-alert", count: contar && estado.incidentes.length > 0 ? estado.incidentes.length : undefined, attention: contar && estado.aguardando > 0 },
         { id: "ao-vivo", label: "Ao vivo", icon: "radio", planned: !AO_VIVO_CONFIGURADO },
       ],
     },
@@ -68,11 +68,13 @@ export interface PropsDaMoldura extends PropsDaTela {
   modelo: ModeloDoBackend;
   /** O dock do pé. Sem ele, o controle do replay; `null` tira o dock. */
   dock?: ReactNode | null;
+  /** A tela ocupa exatamente a altura da janela e rola por dentro (o chat). */
+  cheia?: boolean;
   children: ReactNode;
 }
 
 /** A moldura de todas as telas: barra lateral, conteúdo e o controle do replay no pé. */
-export function Moldura({ ativa, modelo, dock, children, ...props }: PropsDaMoldura) {
+export function Moldura({ ativa, modelo, dock, cheia = false, children, ...props }: PropsDaMoldura) {
   const [recolhida, setRecolhida] = useState(false);
   const { replay, navegar } = props;
   const atual = replay.estado.atual;
@@ -90,6 +92,7 @@ export function Moldura({ ativa, modelo, dock, children, ...props }: PropsDaMold
     ) : null;
   return (
     <AppShell
+      className={cheia ? "app-tela-cheia" : undefined}
       sidebar={
         <Sidebar
           logoSrc={ASSETS.mark128}

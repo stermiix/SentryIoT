@@ -11,6 +11,7 @@ function contagem(quantidade: number, singular: string, varios: string): string 
 /** Visão geral: o funil do argumento (janelas → incidentes → chamadas à IA), três números e a fila. */
 export function TelaVisaoGeral({ replay, navegar }: PropsDaTela) {
   const { estado } = replay;
+  const semLog = estado.total === 0;
   const views = estado.agregado.incidentes;
   const porEstado = (valor: string) => estado.incidentes.filter((incidente) => incidente.state === valor).length;
   const resumoDosIncidentes = [
@@ -25,11 +26,11 @@ export function TelaVisaoGeral({ replay, navegar }: PropsDaTela) {
   return (
     <>
       <PageHeader
-        eyebrow="SentryIoT · log de exemplo"
+        eyebrow="SentryIoT"
         title="Visão geral"
         actions={
           <>
-            <ModeIndicator mode="replay" position={estado.passo} total={estado.total} at={estado.atual?.at} />
+            <ModeIndicator mode="replay" position={semLog ? undefined : estado.passo} total={semLog ? undefined : estado.total} at={estado.atual?.at} />
             <Segmented
               label="Modo"
               value="replay"
@@ -50,7 +51,7 @@ export function TelaVisaoGeral({ replay, navegar }: PropsDaTela) {
           counterfactual={estado.janelasDeAtaque}
           incidents={estado.incidentes.length}
           aiCalls={estado.chamadas}
-          scope={`até o evento ${estado.passo} de ${estado.total}`}
+          scope={semLog ? "nenhum log carregado" : `até o evento ${estado.passo} de ${estado.total}`}
           footnote={porIncidente.length > 0 ? `Por incidente: ${porIncidente.join(" · ")}.` : undefined}
         />
         <MetricCard
@@ -85,15 +86,21 @@ export function TelaVisaoGeral({ replay, navegar }: PropsDaTela) {
           eyebrow="Fila"
           title="Incidentes"
           flush
-          actions={<span className="data-sm sx-muted">{estado.incidentes.length} no log até aqui</span>}
+          actions={semLog ? undefined : <span className="data-sm sx-muted">{estado.incidentes.length} no log até aqui</span>}
         >
           <IncidentQueue
             incidents={estado.incidentes}
             onSelect={(id) => navegar({ tela: "incidente", incidente: id })}
             empty={
-              <EmptyState icon="shield-check" title="Nenhum incidente até aqui">
-                As janelas classificadas até este evento não viraram incidente. Avance o replay para ver o primeiro.
-              </EmptyState>
+              semLog ? (
+                <EmptyState icon="inbox" title="Nenhum incidente">
+                  Nenhum log de eventos carregado. A fila se preenche quando a interface lê o log gravado pelo sistema.
+                </EmptyState>
+              ) : (
+                <EmptyState icon="shield-check" title="Nenhum incidente até aqui">
+                  As janelas classificadas até este evento não viraram incidente. Avance o replay para ver o primeiro.
+                </EmptyState>
+              )
             }
           />
           {estado.agregado.resumo.eventosSemAbertura > 0 && (

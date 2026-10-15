@@ -11,11 +11,14 @@ O backend grava um log de eventos com formato fixo: janela classificada, inciden
 chamada, recomendação emitida, ação aprovada, rejeitada ou desfeita. A interface não fala com o
 classificador nem com os agentes. Ela só lê esse log, o que dá dois modos com o mesmo código:
 
-- **Replay:** reproduz uma execução gravada. É o modo que protege a demonstração na banca, porque
-  não depende de internet nem de a LLM responder na hora.
+- **Replay:** reproduz uma execução gravada, lida do log que `VITE_LOG_DE_EVENTOS` indica. É o
+  modo que protege a demonstração na banca, porque não depende de internet nem de a LLM responder
+  na hora. Sem a variável, nenhum log é carregado e as telas abrem vazias.
 - **Ao vivo:** acompanha o log enquanto o sistema roda (planejado; ver "Ao vivo" abaixo).
 
-O formato do log é o contrato da tool MCP, em `codigo/mcp/contrato.json`.
+O formato do log é o contrato da tool MCP, em `codigo/mcp/contrato.json`. A interface não traz
+dado simulado: nenhum log vai no build, e o log de exemplo do stub (`codigo/mcp/exemplos/`) só
+entra nos testes.
 
 ## Telas
 
@@ -23,19 +26,20 @@ O formato do log é o contrato da tool MCP, em `codigo/mcp/contrato.json`.
 |---|---|---|
 | Visão geral: funil janelas → incidentes → chamadas à IA, cartões e fila | `#/visao-geral` | funciona com o log |
 | Detalhe do incidente: veredito, features, propostas, endereços, rastro dos agentes, recomendações, histórico | `#/incidentes/<id>` | funciona com o log; as decisões só são oferecidas no fim do replay |
-| Ao vivo | `#/ao-vivo` | planejada; liga com `VITE_LOG_AO_VIVO` |
-| Tela 3, isolado × integrado | `#/isolado-integrado` | funciona com o log; as linhas "uma por janela" são ilustrativas |
+| Ao vivo | `#/ao-vivo` | planejada; liga com `VITE_LOG_AO_VIVO`, e sem ela fica vazia |
+| Tela 3, isolado × integrado | `#/isolado-integrado` | funciona com o log |
 | Tela 4, custo e latência | `#/custo-latencia` | funciona com o log; local × nuvem depende de `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM` |
 | Tela 5, qualidade do modelo | `#/qualidade-do-modelo` | matriz real da configuração 5 |
-| Tela 6, segurança do MCP | `#/seguranca-do-mcp` | planejada, com resultados ilustrativos |
+| Tela 6, segurança do MCP | `#/seguranca-do-mcp` | planejada; vazia até o teste de tool poisoning rodar |
 | Chat com o modelo | `#/chat` (e o antigo `#chat`) | funciona com o backend |
 | Relatório do incidente, em A4 | `#/relatorio/<id>` | funciona com o log; o sumário escrito pela IA é planejado |
 | Entrar | `#/entrar` | visual pronto; o login ainda não existe |
-| Componentes (catálogo do design system) | `#/componentes` | funciona com o log |
+| Componentes (catálogo do design system) | `#/componentes` | os blocos de dados usam o log; os outros mostram cada componente com valores de amostra |
 
 Todas as telas que dependem do log mostram o estado até o cursor do replay, que fica no pé:
 botões, trilha com marcas (incidente aberto, proposta que pede uma pessoa, decisões humanas),
-teclado (← → Home End Espaço) e clique numa linha do histórico.
+teclado (← → Home End Espaço) e clique numa linha do histórico. Sem log, o replay some do pé, a
+visão geral fica em zero e cada tela diz que nenhum log foi carregado.
 
 ### O que ainda não funciona, e onde ligar
 
@@ -44,17 +48,22 @@ teclado (← → Home End Espaço) e clique numa linha do histórico.
   confirmação, e ele mostra que a decisão não foi gravada e o comando de terminal que faz a mesma
   coisa (`python -m codigo.mcp.aprovar …`). Para ligar, escreva em `operacao.ts` uma `Operacao`
   que chame as rotas novas e troque a constante `operacao`; as telas não mudam.
+- **Log do replay:** a interface lê o log que `VITE_LOG_DE_EVENTOS` indica, uma vez, ao abrir.
+  Hoje o backend não serve o log que o sistema grava (`dados/eventos/eventos.jsonl`): para ver um
+  log, ponha o arquivo em `public/dados/` (ignorada pelo git, porque o log pode ter endereços
+  reais) e aponte a variável para ele, como `/dados/eventos.jsonl`.
 - **Ao vivo:** com `VITE_LOG_AO_VIVO` apontando para um log que está sendo gravado (servido por
   HTTP), a tela o lê a cada 3 segundos e ignora a última linha incompleta. Sem a variável, ela
-  mostra o log de exemplo parado no ponto com mais propostas aguardando, com o selo de planejada.
+  fica vazia, com o selo de planejada.
 - **Onde cada modelo roda:** o log não diz. Liste os modelos em `VITE_MODELOS_LOCAIS` e
   `VITE_MODELOS_NA_NUVEM` (separados por vírgula) para a tela mostrar "local" ou "nuvem" nas
   chamadas e para a Tela 4 comparar os dois. No chat, um modelo fora das listas aparece como
   nuvem: é o caso que pede cuidado.
 - **Sumário do relatório:** o lugar dele está na primeira página interna; o texto entra quando o
   agente passar a escrevê-lo no log.
-- **Tela 6:** os resultados são ilustrativos até o teste de tool poisoning rodar; a estrutura
-  (`TESTES` em `src/telas/SegurancaMcp.tsx`) é a que os resultados reais vão preencher.
+- **Tela 6:** fica vazia até o teste de tool poisoning rodar. Os resultados entram em `TESTES`,
+  em `src/telas/SegurancaMcp.tsx`, e cada teste vira um painel com o conteúdo injetado e o que
+  aconteceu.
 
 ## Leitura do log e reconstrução
 
@@ -97,6 +106,8 @@ O chat fala com o backend fino de `codigo/api/`: suba `python -m codigo.api` na 
 repositório, com o `.env` preenchido (ver `codigo/api/README.md`), e o Vite encaminha `/api` para
 ele. Com a porta 8000 ocupada, suba o backend em outra e aponte `VITE_API_URL` para ela. Sem o
 backend, o chat abre e avisa que ele não está no ar, e o rodapé da barra lateral diz o mesmo.
+As outras telas abrem vazias até `VITE_LOG_DE_EVENTOS` apontar para um log (ver "O que ainda não
+funciona", acima).
 
 **Em produção** (o servidor da equipe) não há Vite: `npm run build` gera `dist/`, e o mesmo
 backend serve essa pasta na raiz e a API em `/api`, num processo só:
@@ -106,10 +117,8 @@ cd frontend && npm ci && npm run build
 cd .. && python -m codigo.api --host <endereço Tailscale> --port 8000
 ```
 
-A receita completa está em `codigo/api/README.md`. A cópia do log em `public/dados/` é
-versionada: rode `npm run sync:log` só depois de regenerar o log de exemplo
-(`python -m codigo.mcp.roteiro --sobrescrever`), e versione a cópia junto. O replay funciona sem
-API e sem conexão externa: fontes e imagens vão no build.
+A receita completa está em `codigo/api/README.md`. O replay funciona sem API e sem conexão
+externa: fontes e imagens vão no build, e o log é lido do caminho configurado.
 
 As variáveis `VITE_*` vão no ambiente ou num `.env.local` desta pasta (ignorado pelo git) e entram
 no build: depois de mudar uma, gere o `dist/` de novo.
@@ -129,16 +138,18 @@ no build: depois de mudar uma, gere o `dist/` de novo.
 
 `npm test` roda os testes (Vitest):
 
-- **Leitura e reconstrução** (`src/log.test.ts`): o log de exemplo e variações dele (duplicados,
-  ordem trocada, incidente sem abertura, campo ausente, HTML no log, linha cortada) e um caso para
-  cada regra de sequência do `reconstruir`.
+- **Leitura e reconstrução** (`src/log.test.ts`): o log de exemplo do stub, lido direto de
+  `codigo/mcp/exemplos/incidente_flood.jsonl`, e variações dele (duplicados, ordem trocada,
+  incidente sem abertura, campo ausente, HTML no log, linha cortada) e um caso para cada regra de
+  sequência do `reconstruir`. É o único lugar em que esse log entra.
 - **Contrato** (`src/contrato.test.ts`): as listas de `src/listas.ts` contra o `contrato.json` e o
   `acoes.py`.
 - **Adaptador** (`src/adaptador.test.ts`): cada número e estado que a tela mostra, no log de
   exemplo, e o vocabulário do design system contra o contrato (16 tipos de evento, 9 motivos de
   risco alto).
 - **Telas** (`src/telas.test.tsx`): cada tela desenhada no Node em passos escolhidos do replay,
-  incluindo o HTML vindo do log escapado e as duas vozes do texto.
+  incluindo o HTML vindo do log escapado e as duas vozes do texto, e cada tela sem log, vazia e sem
+  nenhum número do exemplo.
 - **Chat** (`src/chat.test.ts`), **rotas** (`src/rotas.test.ts`), **operações**
   (`src/operacao.test.ts`), **tokens** (`src/design-system/tokens.test.ts`) e a **matriz da
   Tela 5** contra o CSV do experimento (`src/dados/qualidade.test.ts`).
@@ -164,5 +175,3 @@ a cada PR, os testes, o `npm audit --omit=dev --audit-level=high` e o build.
 | `src/design-system/` | O design system: guia, componentes, tokens, fontes e marca |
 | `src/estilo.css` | O pouco que as telas acrescentam ao design system |
 | `scripts/gerar-tokens.mjs` | Gera o `tokens.css` do `tokens.json` |
-| `scripts/sync-log.mjs` | Copia o log de exemplo para `public/dados/`; recusa link simbólico |
-| `public/dados/incidente_flood.jsonl` | Cópia estática do replay versionado em `codigo/mcp/exemplos/` |

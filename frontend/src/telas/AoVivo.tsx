@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { detalheDoIncidente, estadoNoPasso, linhasDoLog, passoComMaisPendencias, propostasDaTela } from "../adaptador";
+import { detalheDoIncidente, estadoNoPasso, linhasDoLog, propostasDaTela } from "../adaptador";
 import {
   AGENT,
   Alert,
@@ -19,10 +19,9 @@ import {
   fmtInt,
   type AgentName,
 } from "../design-system";
-import { agregar, lerLog } from "../log";
+import { agregar, conferirResposta, lerLog } from "../log";
 import type { Evento } from "../types";
 import { AvisosDoLog, DialogoDeDecisao, Planejada, type PedidoDeDecisao } from "./comum";
-import type { PropsDaTela } from "./replay";
 
 const FONTE = import.meta.env.VITE_LOG_AO_VIVO ?? "";
 // De quanto em quanto tempo o log que está sendo gravado é lido de novo.
@@ -56,9 +55,7 @@ export function useLogAoVivo(fonte: string): LogAoVivo {
       lendo = true;
       try {
         const resposta = await fetch(fonte, { cache: "no-store" });
-        if (!resposta.ok) {
-          throw new Error(`não foi possível ler o log ao vivo em ${fonte} (HTTP ${resposta.status}).`);
-        }
+        conferirResposta(resposta, fonte, "VITE_LOG_AO_VIVO");
         const lido = lerLog(await resposta.text(), { ignorarUltimaIncompleta: true });
         if (ativo) {
           setEstado({ eventos: lido.eventos, avisos: [...lido.avisos, ...agregar(lido.eventos).avisos], erro: null });
@@ -84,15 +81,15 @@ export function useLogAoVivo(fonte: string): LogAoVivo {
 /**
  * Modo ao vivo: o incidente aparece assim que o classificador o abre, antes dos agentes, e as
  * decisões pendentes ficam à esquerda. Com `VITE_LOG_AO_VIVO`, lê o log que está sendo gravado;
- * sem ele, a tela é a planejada, com o log de exemplo parado no ponto com mais pendências.
+ * sem ele, a tela é a planejada e fica vazia. Não usa o log do replay.
  */
-export function TelaAoVivo({ replay }: PropsDaTela) {
+export function TelaAoVivo() {
   const aoVivo = useLogAoVivo(FONTE);
   const [decisao, setDecisao] = useState<PedidoDeDecisao | null>(null);
-  const eventos = FONTE ? aoVivo.eventos : replay.eventos;
-  const final = useMemo(() => (FONTE ? agregar(eventos) : replay.final), [eventos, replay.final]);
-  const linhas = useMemo(() => (FONTE ? linhasDoLog(eventos, final.ignorados) : replay.linhas), [eventos, final, replay.linhas]);
-  const passo = useMemo(() => (FONTE ? eventos.length : passoComMaisPendencias(eventos, linhas)), [eventos, linhas]);
+  const eventos = aoVivo.eventos;
+  const final = useMemo(() => agregar(eventos), [eventos]);
+  const linhas = useMemo(() => linhasDoLog(eventos, final.ignorados), [eventos, final]);
+  const passo = eventos.length;
   const estado = useMemo(() => estadoNoPasso(eventos, linhas, passo), [eventos, linhas, passo]);
 
   const pendentes = estado.agregado.incidentes.flatMap((view) => propostasDaTela(view).filter((proposta) => proposta.state === "aguardando_aprovacao"));
@@ -106,7 +103,7 @@ export function TelaAoVivo({ replay }: PropsDaTela) {
     <div className="sx-replay app-dock-ao-vivo">
       <span className="sx-row">
         <ModeIndicator mode="ao-vivo" at={atual?.at} />
-        <span className="body-sm sx-muted">{FONTE ? "Recebendo eventos do log em tempo real" : "Planejado: hoje a tela mostra o log de exemplo parado"}</span>
+        <span className="body-sm sx-muted">{FONTE ? "Recebendo eventos do log em tempo real" : "Planejado: nenhum log ao vivo configurado"}</span>
       </span>
       <span className="sx-row data-sm sx-muted">{atual ? `último: ${atual.id} · ${EVENT[atual.type].label}` : "nenhum evento ainda"}</span>
     </div>
@@ -131,13 +128,7 @@ export function TelaAoVivo({ replay }: PropsDaTela) {
         }
         actions={<ModeIndicator mode="ao-vivo" at={atual?.at} />}
       />
-      {!FONTE && (
-        <Alert tone="info" title="Log de exemplo, não ao vivo">
-          A tela mostra o log de exemplo parado no evento {passo} de {estado.total}, o ponto com mais propostas aguardando. Ela passa a ler o log que está sendo gravado quando
-          VITE_LOG_AO_VIVO aponta para ele.
-        </Alert>
-      )}
-      {FONTE && <AvisosDoLog avisos={aoVivo.avisos} />}
+      <AvisosDoLog avisos={aoVivo.avisos} />
       {FONTE && aoVivo.erro && (
         <Alert tone="danger" title="O log ao vivo não pôde ser lido">
           {aoVivo.erro} A tela segue com a última leitura.
