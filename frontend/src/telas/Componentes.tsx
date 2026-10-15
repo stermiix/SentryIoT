@@ -67,8 +67,9 @@ import {
 import { CLASSES, MATRIZ } from "../dados/qualidade";
 import type { PropsDaTela } from "./replay";
 
-// O catálogo do design system dentro do app: cada componente em seus estados, com os dados do log
-// de exemplo. Serve para conferir o visual e escolher o componente certo antes de montar uma tela.
+// O catálogo do design system dentro do app: cada componente em seus estados. Os blocos que mostram
+// dados usam o log carregado e, sem log, ficam vazios; os outros mostram o componente com valores
+// de amostra. Serve para conferir o visual e escolher o componente certo antes de montar uma tela.
 
 function Linha({ rotulo, children, cinza }: { rotulo: string; children?: ReactNode; cinza?: boolean }) {
   return (
@@ -105,7 +106,7 @@ export function TelaComponentes({ replay }: PropsDaTela) {
   const aguardando = comPendencia?.propostas.find((proposta) => proposta.state === "aguardando_aprovacao");
   const chamadas = linhas.filter((linha) => linha.type === "llm_chamada");
   const modelos = Array.from(new Set(chamadas.map((chamada) => chamada.model ?? ""))).filter(Boolean);
-  const provedores = provedoresDoChat(modelos.length > 0 ? modelos : ["modelo-de-exemplo"]);
+  const provedores = provedoresDoChat(modelos.length > 0 ? modelos : ["modelo"]);
   const [modelo, setModelo] = useState(provedores[0]?.id ?? "");
   const recomendacao = noFim?.recomendacoes[0];
   const rejeitada = noFim?.propostas.find((proposta) => proposta.decision?.reason);
@@ -115,7 +116,12 @@ export function TelaComponentes({ replay }: PropsDaTela) {
       <PageHeader
         eyebrow="Equipe · design system"
         title="Componentes"
-        meta={<span className="body-sm sx-muted">Cada componente do design system com os dados do log de exemplo. As regras de uso estão em src/design-system/README.md e COMPONENTES.md.</span>}
+        meta={
+          <span className="body-sm sx-muted">
+            Cada componente do design system. Os blocos de dados usam o log carregado e, sem log, ficam vazios. As regras de uso estão em src/design-system/README.md e
+            COMPONENTES.md.
+          </span>
+        }
       />
       <div className="sx-stack">
         <Grupo titulo="Marca" componentes="Logo · GlassBackdrop · Icon · Kbd">
@@ -262,12 +268,12 @@ export function TelaComponentes({ replay }: PropsDaTela) {
             <TextField label="Motivo da rejeição (opcional)" placeholder="Escreva com suas palavras" hint="Aparece como texto de pessoa no log." />
             <TextField label="Senha" type="password" icon="lock" defaultValue="errada" error="Senha incorreta." />
             <Select label="Incidente" options={fim.incidentes.map((incidente) => ({ value: incidente.id, label: `${incidente.id} · ${incidente.category ?? incidente.modelCategory}` }))} />
-            <TextField label="Desabilitado" defaultValue={primeiro ?? "inc-0001"} disabled />
+            <TextField label="Desabilitado" defaultValue={primeiro ?? "sem incidente"} disabled />
           </div>
         </Grupo>
 
         <Grupo titulo="Dados" componentes="AggregationFunnel · MetricCard · ConfidenceMeter · ClassifierVerdict · IncidentQueue · FeatureTable · AddressList">
-          <AggregationFunnel windows={fim.janelas} counterfactual={fim.janelasDeAtaque} incidents={fim.incidentes.length} aiCalls={fim.chamadas} scope={`log de exemplo · ${fim.total} eventos`} />
+          <AggregationFunnel windows={fim.janelas} counterfactual={fim.janelasDeAtaque} incidents={fim.incidentes.length} aiCalls={fim.chamadas} scope={`log carregado · ${fim.total} eventos`} />
           <div className="sx-demo__grid4">
             <MetricCard label="Janelas analisadas" value={fim.janelas} icon="layers" context={`em ${fim.total} eventos do log`} />
             <MetricCard label="Aguardando aprovação" value={pendente.aguardando} icon="hourglass" tone="attention" context={`no evento ${passoPendente}`} />
@@ -337,7 +343,7 @@ export function TelaComponentes({ replay }: PropsDaTela) {
         </Grupo>
 
         <Grupo titulo="Avisos" componentes="Alert · EmptyState · Skeleton · Tooltip · ConfirmDialog">
-          <Alert tone="info" title="Replay carregado">{`${fim.total} eventos do log de exemplo.`}</Alert>
+          <Alert tone="info" title="Replay carregado">{`${fim.total} eventos no log.`}</Alert>
           <Alert tone="attention" title="Linha inválida no log, ignorada" line={37} onDismiss={() => undefined}>JSON incompleto. A tela segue com os outros eventos.</Alert>
           <Alert tone="danger" title="O log não pôde ser lido">O arquivo não existe na pasta configurada.</Alert>
           <div className="sx-split">

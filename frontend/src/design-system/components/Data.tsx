@@ -108,7 +108,8 @@ export function AggregationFunnel({ windows, incidents, aiCalls, counterfactual 
         </div>
       </div>
       <svg className="sx-funnel__graph" viewBox="0 0 1000 168" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-        {lines.map((l, i) => (
+        {/* no window yet: no threads, only the node */}
+        {(windows > 0 ? lines : []).map((l, i) => (
           <g key={i}>
             <line x1={200 - l.len} y1={l.y} x2={200} y2={l.y} className="sx-funnel__win" />
             <path d={`M200 ${l.y} C 340 ${l.y}, 380 ${nodeY}, ${nodeX - 14} ${nodeY}`} className="sx-funnel__flow" />
@@ -128,7 +129,11 @@ export function AggregationFunnel({ windows, incidents, aiCalls, counterfactual 
       </svg>
       <div className="sx-funnel__foot">
         <span className="sx-funnel__counter body">
-          Sem agregação, cada janela de ataque seria uma chamada: <strong className="data">{fmtInt(counterfactual)} chamadas à IA</strong>, o risco de <em>Denial of Wallet</em>.
+          {windows > 0 ? (
+            <>Sem agregação, cada janela de ataque seria uma chamada: <strong className="data">{fmtInt(counterfactual)} chamadas à IA</strong>, o risco de <em>Denial of Wallet</em>.</>
+          ) : (
+            'Nenhuma janela classificada ainda.'
+          )}
         </span>
         {ratio > 1 && <span className="sx-funnel__ratio"><Icon name="trending-down" size={16} />{fmtInt(ratio)}× menos chamadas</span>}
       </div>

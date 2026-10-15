@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import contrato from "../../codigo/mcp/contrato.json";
-import textoDoExemplo from "../public/dados/incidente_flood.jsonl?raw";
+import textoDoExemplo from "../../codigo/mcp/exemplos/incidente_flood.jsonl?raw";
 import {
   HISTORICO_A_FRENTE,
   chamadaDeTool,

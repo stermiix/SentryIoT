@@ -81,9 +81,13 @@ export function TelaIncidente({ replay, navegar, incidente: pedido }: PropsDaTel
 
   if (!id) {
     return (
-      <EmptyState icon="shield-check" title="Nenhum incidente no log">
-        O classificador não agregou nenhuma janela em incidente neste log.
-      </EmptyState>
+      <>
+        <PageHeader eyebrow="Operação" title="Incidentes" />
+        <AvisosDoLog avisos={replay.avisos} />
+        <EmptyState icon={estado.total === 0 ? "inbox" : "shield-check"} title="Nenhum incidente no log">
+          {estado.total === 0 ? "Nenhum log de eventos carregado." : "O classificador não agregou nenhuma janela em incidente neste log."}
+        </EmptyState>
+      </>
     );
   }
   if (!detalhe) {

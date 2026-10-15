@@ -11,9 +11,10 @@ import type {
   ResumoGeral,
 } from "./types";
 
-// O log de exemplo, servido de `public/dados/`. O BASE_URL mantém o caminho certo quando o app é
-// servido em um subcaminho.
-export const CAMINHO_DO_LOG = `${import.meta.env.BASE_URL}dados/incidente_flood.jsonl`;
+// O log de eventos que o replay lê, de `VITE_LOG_DE_EVENTOS`: um caminho servido junto com o app
+// (como `/dados/eventos.jsonl`, posto em `public/dados/`) ou uma URL. Sem a variável, a interface
+// não carrega log nenhum e as telas abrem vazias.
+export const CAMINHO_DO_LOG = import.meta.env.VITE_LOG_DE_EVENTOS ?? "";
 // Quantas linhas ou eventos um aviso cita antes de resumir o resto.
 const CITADOS_POR_AVISO = 8;
 // Um valor que veio do log aparece nos avisos entre aspas e cortado: é dado, e não texto do sistema.
@@ -113,15 +114,24 @@ export function lerLog(texto: string, opcoes: OpcoesDeLeitura = {}): LogLido {
   return { eventos, avisos };
 }
 
-/** Busca o log no caminho estático servido pelo Vite e o lê com `lerLog`. */
+/**
+ * Recusa a resposta que não é um log: erro HTTP ou uma página HTML. O servidor do app e o do Vite
+ * devolvem a página do app, com 200, para um caminho que não existe; sem esta conferência, cada
+ * linha dela viraria um aviso de linha fora do contrato.
+ */
+export function conferirResposta(resposta: Response, caminho: string, variavel: string): void {
+  if (!resposta.ok) {
+    throw new Error(`não foi possível carregar o log em ${caminho} (HTTP ${resposta.status}). Confira o caminho em ${variavel}.`);
+  }
+  if ((resposta.headers.get("content-type") ?? "").includes("text/html")) {
+    throw new Error(`${caminho} devolveu uma página, e não um log: o arquivo não existe nesse caminho. Confira ${variavel}.`);
+  }
+}
+
+/** Busca o log no caminho configurado e o lê com `lerLog`. */
 export async function carregarLog(caminho = CAMINHO_DO_LOG, opcoes: OpcoesDeLeitura = {}): Promise<LogLido> {
   const resposta = await fetch(caminho);
-  if (!resposta.ok) {
-    throw new Error(
-      `não foi possível carregar o log em ${caminho} (HTTP ${resposta.status}). ` +
-        "Confira se public/dados/incidente_flood.jsonl existe (npm run sync:log copia o exemplo de codigo/mcp/exemplos/).",
-    );
-  }
+  conferirResposta(resposta, caminho, "VITE_LOG_DE_EVENTOS");
   return lerLog(await resposta.text(), opcoes);
 }
 

@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import textoDoExemplo from "../public/dados/incidente_flood.jsonl?raw";
+import textoDoExemplo from "../../codigo/mcp/exemplos/incidente_flood.jsonl?raw";
 import { Pagina } from "./App";
 import type { MensagemDaConversa, Prompt } from "./chat";
 import { CLASSES, MATRIZ, medir } from "./dados/qualidade";
@@ -36,7 +36,6 @@ const texto = (html: string) => textoDe(html).replace(/\s+/g, " ");
 // O HTML sem os blocos de voz (texto de agente e de pessoa) nem as citações entre aspas do servidor.
 const semVozes = (html: string) =>
   html.replace(/<figure class="sx-voice[\s\S]*?<\/figure>/g, "").replace(/<div class="sx-rsec__body voice-agent">[\s\S]*?<\/div>/g, "");
-const vezes = (html: string, trecho: string) => texto(html).split(trecho).length - 1;
 
 describe("o log de exemplo", () => {
   it("é lido sem avisos", () => {
@@ -142,7 +141,9 @@ describe("telas do artigo", () => {
     const html = pagina("isolado-integrado", lido.eventos.length);
     expect(texto(html)).toContain(`${fmtInt(21_468)}alertas, um por janela`);
     expect(texto(html)).toContain("11 chamadas à IA");
-    expect(texto(html)).toContain("Valores ilustrativos");
+    // Nada de linha "uma por janela" inventada: o log não guarda as janelas uma a uma.
+    expect(texto(html)).not.toContain("ilustrativ");
+    expect(html).not.toContain("&quot;janela&quot;");
     expect(html).not.toContain("203.0.113.7");
   });
 
@@ -162,20 +163,24 @@ describe("telas do artigo", () => {
     expect(html).not.toContain("ilustrativ");
   });
 
-  it("Tela 6 avisa que os resultados são ilustrativos e leva o selo de planejada", () => {
+  it("Tela 6 fica vazia até o teste rodar, com os três desfechos em zero e o selo de planejada", () => {
     const html = texto(pagina("seguranca-mcp"));
-    expect(html).toContain("Resultados ilustrativos");
+    expect(html).toContain("Os testes ainda não rodaram");
     expect(html).toContain("Planejada");
+    expect(html).toContain("Agente resistiu0");
+    expect(html).not.toContain("ilustrativ");
+    expect(html).not.toContain("inc-0001");
   });
 });
 
 describe("ao vivo e relatório", () => {
-  it("sem log ao vivo configurado, a tela é a planejada, com o exemplo parado no ponto com mais pendências", () => {
+  it("sem log ao vivo configurado, a tela é a planejada e fica vazia: não usa o log do replay", () => {
     const html = texto(pagina("ao-vivo"));
-    expect(html).toContain("Log de exemplo, não ao vivo");
-    expect(html).toContain("evento 28 de 52");
-    expect(vezes(html, "Uma pessoa precisa decidir antes de qualquer execução.")).toBe(2);
-    expect(html).toContain("Aberto às");
+    expect(html).toContain("Planejada");
+    expect(html).toContain("Nada aguarda você");
+    expect(html).toContain("Nenhum incidente aberto");
+    expect(html).toContain("Nenhum evento ainda");
+    expect(html).not.toContain("inc-0001");
     expect(html).not.toContain("Provedores de IA");
   });
 
@@ -271,10 +276,40 @@ describe("chat com o modelo", () => {
   });
 });
 
+describe("sem log de eventos", () => {
+  const vazia = (tela: Tela) => pagina(tela, 0, null, "");
+
+  it("a visão geral abre em zero, sem fios no funil, sem contagem na barra e sem o replay no pé", () => {
+    const html = vazia("visao-geral");
+    expect(texto(html)).toContain("Nenhuma janela classificada ainda.");
+    expect(texto(html)).toContain("Nenhum log de eventos carregado.");
+    expect(html).not.toContain("sx-funnel__win");
+    expect(html).not.toContain("sx-nav__count");
+    expect(html).not.toContain("sx-replay");
+  });
+
+  it("nenhuma tela mostra número, incidente ou texto do log de exemplo", () => {
+    const telas: Tela[] = ["visao-geral", "incidente", "ao-vivo", "isolado-integrado", "custo-latencia", "seguranca-mcp", "relatorio", "componentes"];
+    for (const tela of telas) {
+      const html = texto(vazia(tela));
+      for (const trecho of ["inc-0001", "inc-0002", fmtInt(10_970), fmtInt(25_514), "ilustrativ", "log de exemplo"]) {
+        expect(html, `${tela}: ${trecho}`).not.toContain(trecho);
+      }
+    }
+  });
+
+  it("o detalhe, a Tela 3, a Tela 4 e o relatório dizem que nenhum log foi carregado", () => {
+    expect(texto(vazia("incidente"))).toContain("Nenhum log de eventos carregado.");
+    expect(texto(vazia("isolado-integrado"))).toContain("Nenhum log de eventos carregado.");
+    expect(texto(vazia("custo-latencia"))).toContain("Nenhum log carregado.");
+    expect(texto(vazia("relatorio"))).toContain("nenhum log foi carregado");
+  });
+});
+
 describe("outras telas", () => {
   it("a entrada explica o acesso e oferece o replay", () => {
     const html = texto(renderToString(<TelaEntrar navegar={nada} />));
-    expect(html).toContain("Abrir o replay de demonstração");
+    expect(html).toContain("Abrir o replay");
     expect(html).toContain("Acesso restrito");
     expect(html).toContain("O replay funciona sem internet");
   });

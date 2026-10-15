@@ -166,7 +166,7 @@ Seleção nativa com o mesmo visual dos campos: teclado e leitor de tela de gra�
 O argumento do trabalho de relance: **janelas classificadas → incidente → chamadas à IA**, e quanto custaria sem agregação.
 
 - **Você fornece:** `windows`, `incidents`, `aiCalls`, `counterfactual` (as janelas de ataque, as que virariam chamada), `scope` (ex.: "até o evento 52 de 52"), `footnote` (ex.: incidente marcado como já resolvido antes dos agentes).
-- O desenho mostra muitas janelas convergindo para um nó e se abrindo em uma chamada por ponto; o rodapé traz o contrafactual ("10.752 chamadas à IA, o risco de *Denial of Wallet*": só as janelas de ataque, passadas em `counterfactual`) e a razão, arredondada para baixo ("827× menos chamadas" no fim do log de exemplo).
+- O desenho mostra muitas janelas convergindo para um nó e se abrindo em uma chamada por ponto; o rodapé traz o contrafactual (as chamadas à IA que as janelas de ataque, passadas em `counterfactual`, custariam sem agregação: o risco de *Denial of Wallet*) e a razão, arredondada para baixo ("N× menos chamadas"). Com zero janelas, só o nó aparece, e o rodapé diz que nenhuma janela foi classificada.
 - **É o cartão mais importante da visão geral:** coloque no topo, na largura toda. Os números escalam com a largura (até 88 px).
 
 ### MetricCard
@@ -360,20 +360,21 @@ Página interna A4 com cabeçalho corrido, seções numeradas e rodapé "Confide
 
 Visão geral: o funil do argumento, três cartões e a fila de incidentes, até o evento do cursor.
 
-- O `AggregationFunnel` ocupa a largura toda no topo. No log de exemplo, no fim do inc-0001 (evento 44): 10.946 janelas → 1 incidente → 11 chamadas à IA; no fim do log: 10.970 → 2 → 13. O contrafactual de *Denial of Wallet* conta só as janelas de ataque.
-- Cartões: aguardando aprovação, incidentes, tokens. Fila do exemplo: inc-0001 (DDoS, modelo DDoS+DoS, encerrado no fim) e inc-0002 (BruteForce, marcado como já resolvido).
+- O `AggregationFunnel` ocupa a largura toda no topo: janelas classificadas → incidentes → chamadas à IA, até o cursor. O contrafactual de *Denial of Wallet* conta só as janelas de ataque.
+- Cartões: aguardando aprovação, incidentes, tokens. Abaixo, a fila de incidentes.
+- Sem log carregado, tudo fica em zero, a fila diz que nenhum log foi carregado e o replay some do pé.
 - O replay no pé é interativo: arraste ou use ← → e tudo recalcula até o evento escolhido.
 
 ### TelaIncidente
 
-Detalhe do incidente; no evento 28 do log de exemplo, duas propostas de risco alto aguardam aprovação.
+Detalhe do incidente, no ponto do replay em que o cursor está.
 
 - Veredito com as duas categorias, features contra o benigno, propostas (aguardando primeiro), origens e destinos, rastro dos agentes, recomendações na voz de agente e o histórico de decisões com os eventos futuros esmaecidos.
 - "Já resolvido", "Aprovar" e "Rejeitar" abrem o `ConfirmDialog`.
 
 ### TelaAoVivo
 
-Modo ao vivo (planejado): o incidente aparece assim que o classificador o abre, antes dos agentes. Com `VITE_LOG_AO_VIVO`, a tela lê o log que está sendo gravado.
+Modo ao vivo (planejado): o incidente aparece assim que o classificador o abre, antes dos agentes. Com `VITE_LOG_AO_VIVO`, a tela lê o log que está sendo gravado; sem a variável, fica vazia.
 
 - Decisões pendentes à esquerda com aprovar/rejeitar pela interface; incidente recém-aberto com o andamento de cada agente e "Marcar como já resolvido"; eventos chegando. A barra de provedores entra quando a escolha do provedor dos agentes existir: o log não diz onde cada modelo roda.
 
@@ -381,7 +382,7 @@ Modo ao vivo (planejado): o incidente aparece assim que o classificador o abre, 
 
 Tela 3 (vira figura do artigo): o mesmo incidente com a saída crua do classificador de um lado e a resposta com agentes do outro.
 
-- No fim do log de exemplo: 21.468 alertas, um por janela, contra 1 incidente, 11 chamadas à IA, três propostas e o efeito "o incidente cessou". Alternância "Rótulos neutros | Com IPs" para a figura; "Imprimir a figura" imprime só o conteúdo.
+- À esquerda, as janelas do incidente, um alerta cada; à direita, 1 incidente, as chamadas à IA, as propostas e os efeitos. Tudo sai do log. Alternância "Rótulos neutros | Com IPs" para a figura; "Imprimir a figura" imprime só o conteúdo.
 
 ### TelaCustoLatencia
 
@@ -399,7 +400,7 @@ Tela 5: matriz de confusão 7 × 7, precisão, recall e F1 por classe e o benign
 
 Tela 6 (planejada): o teste de *tool poisoning*: o que foi injetado e se o agente caiu.
 
-- Três desfechos: agente resistiu, recusada pelo servidor, agente caiu (contido pela aprovação humana). Conteúdo injetado em bloco hachurado "não confiável"; o que o agente fez na voz de agente. Resultados ilustrativos.
+- Três desfechos: agente resistiu, recusada pelo servidor, agente caiu (contido pela aprovação humana). Conteúdo injetado em bloco hachurado "não confiável"; o que o agente fez na voz de agente. Até o teste rodar, os três cartões ficam em zero e a lista de testes, vazia.
 
 ### TelaChat
 
@@ -418,6 +419,6 @@ O relatório do incidente: capa A4 no estilo da capa de referência e duas pági
 
 Login com a marca de vidro ao fundo, na mesma linguagem da capa do relatório.
 
-- Composição: `GlassBackdrop variant="login"` sobre o chão preto (`bg-1` → `bg-0`); `Logo lg` e tagline em `eyebrow-wide`; barra de acento, "RESPOSTA AUTÔNOMA A INTRUSÃO", título "Entrar"; cartão de vidro com usuário, senha, "Entrar" (primário) e "Abrir o replay de demonstração"; selo "ACESSO RESTRITO".
+- Composição: `GlassBackdrop variant="login"` sobre o chão preto (`bg-1` → `bg-0`); `Logo lg` e tagline em `eyebrow-wide`; barra de acento, "RESPOSTA AUTÔNOMA A INTRUSÃO", título "Entrar"; cartão de vidro com usuário, senha, "Entrar" (primário) e "Abrir o replay"; selo "ACESSO RESTRITO".
 - Estados: erro de senha (`Alert danger` + campo com erro), carregando (botão com giro). Cabe em 1440 × 900.
 - Código: `src/telas/Entrar.tsx`. O login passa por `src/operacao.ts`, que hoje explica que ainda não há login.

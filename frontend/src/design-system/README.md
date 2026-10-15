@@ -34,7 +34,7 @@ O que o app acrescenta fica fora daqui: `src/estilo.css` (classes `app-*`, só c
 
 - Escreva em **português do Brasil**, frases curtas, sem saudação, sem marketing, sem emoji. Nada de "Bem-vindo, operador". Títulos dizem o que a tela mostra: "Visão geral", "Ações propostas", "Decisões e efeitos".
 - **Caixa:** títulos e botões em caixa de frase ("Gerar relatório", "Já resolvido", "Aprovar e executar"). Rótulos acima de números e campos em `eyebrow` (mono, caixa-alta, espaçado): "JANELAS CLASSIFICADAS", "POR QUE É RISCO ALTO". Ids e nomes técnicos sempre em minúsculas e monoespaçados: `inc-0001`, `prop-0003`, `exec-0002`, `syn_flag_number`, `bloquear_ip`.
-- **Botões começam com verbo:** "Aprovar", "Rejeitar", "Desfazer", "Marcar como já resolvido", "Abrir o replay de demonstração".
+- **Botões começam com verbo:** "Aprovar", "Rejeitar", "Desfazer", "Marcar como já resolvido", "Abrir o replay".
 - **Números em pt-BR:** vírgula decimal e ponto de milhar: `10.946`, `35.778,4`, confiança `0,97` (no log) ou `97%` (na tela), hora local `14:03:41`, data `14/10/2026`; na capa do relatório, `14 OUT 2026`. Use os formatos de `components/util.ts` (`fmtInt`, `fmtNum`, `fmtPct`, `fmtDuration`, `fmtDate`); a hora de um evento sai de `hora()`, em `src/formato.ts`.
 - **Rótulos neutros:** o agente de Decisão pode rodar na nuvem e só vê `origem-1`, `destino-1`. Mostre o endereço real ao lado só onde a tela é local (`TargetLabel address`); esconda-o em figuras (`hideAddresses`).
 - **Estados explicam:** vazio diz por quê e o que vai preenchê-lo ("Nenhum incidente até aqui. Avance o replay"); aviso de leitura diz a linha e que a tela segue funcionando ("Linha inválida no log, ignorada · linha 37").
@@ -132,7 +132,7 @@ A borda acesa usa a técnica de duas camadas: `background: var(--sx-surface) pad
 
 ### Login
 
-Chão `--sx-ground` com luz `ice-haze` atrás da marca e `GlassBackdrop variant="login"`. Coluna esquerda: `Logo lg` e a linha `eyebrow-wide` "DETECÇÃO E RESPOSTA / A INTRUSÕES EM REDES IOT"; barra de acento (`.sx-accent-bar`), `eyebrow-wide` "RESPOSTA AUTÔNOMA A INTRUSÃO", título `display-lg` "Entrar"; cartão de vidro preto (`scrim`, canto aceso em `graphite-800`, borda `--sx-edge-strong`) com `TextField size="lg"` para usuário e senha, `Button variant="primary" size="lg"` "Entrar" e `Button variant="secondary"` "Abrir o replay de demonstração". Canto superior direito: "ACESSO DO OPERADOR ——" e "DETECTA. / RESPONDE."; inferior direito: o selo "ACESSO RESTRITO". Cabe em 1440 × 900.
+Chão `--sx-ground` com luz `ice-haze` atrás da marca e `GlassBackdrop variant="login"`. Coluna esquerda: `Logo lg` e a linha `eyebrow-wide` "DETECÇÃO E RESPOSTA / A INTRUSÕES EM REDES IOT"; barra de acento (`.sx-accent-bar`), `eyebrow-wide` "RESPOSTA AUTÔNOMA A INTRUSÃO", título `display-lg` "Entrar"; cartão de vidro preto (`scrim`, canto aceso em `graphite-800`, borda `--sx-edge-strong`) com `TextField size="lg"` para usuário e senha, `Button variant="primary" size="lg"` "Entrar" e `Button variant="secondary"` "Abrir o replay". Canto superior direito: "ACESSO DO OPERADOR ——" e "DETECTA. / RESPONDE."; inferior direito: o selo "ACESSO RESTRITO". Cabe em 1440 × 900.
 
 ### Relatório gerado pela LLM
 
@@ -172,15 +172,15 @@ As telas ficam em `src/telas/`, montadas só com estes componentes e com os dado
 |---|---|---|
 | Visão geral (funil, cartões, fila) | `VisaoGeral.tsx` | funciona com o log |
 | Detalhe do incidente | `Incidente.tsx` | funciona com o log; no fim do replay, aprovar, rejeitar e "já resolvido" abrem o diálogo, que explica que a interface ainda não grava e mostra o comando do terminal |
-| Ao vivo | `AoVivo.tsx` | planejada; lê o log que está sendo gravado quando `VITE_LOG_AO_VIVO` aponta para ele; sem a variável, mostra o log de exemplo parado no ponto com mais pendências |
-| Tela 3, Isolado × integrado | `IsoladoIntegrado.tsx` | contagens, veredito e propostas do log; as linhas "uma por janela" são ilustrativas (o log não guarda as janelas uma a uma) e levam o aviso |
+| Ao vivo | `AoVivo.tsx` | planejada; lê o log que está sendo gravado quando `VITE_LOG_AO_VIVO` aponta para ele; sem a variável, fica vazia |
+| Tela 3, Isolado × integrado | `IsoladoIntegrado.tsx` | contagens, veredito e propostas do log |
 | Tela 4, Custo e latência | `CustoLatencia.tsx` | funciona com o log; local × nuvem aparece quando `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM` dizem onde cada modelo roda |
 | Tela 5, Qualidade do modelo | `QualidadeModelo.tsx` | matriz real da configuração 5 (`src/dados/qualidade.ts`, conferida contra o CSV do experimento) |
-| Tela 6, Segurança do MCP | `SegurancaMcp.tsx` | planejada, com resultados ilustrativos e o aviso na tela |
+| Tela 6, Segurança do MCP | `SegurancaMcp.tsx` | planejada; vazia até o teste de tool poisoning rodar |
 | Chat com o modelo | `Chat.tsx` | funciona com o backend (`/api/chat`, `/api/modelos`, `/api/prompts`) |
 | Relatório | `Relatorio.tsx` | capa e páginas A4 com os fatos, as recomendações e as decisões do log; o sumário escrito pela IA é planejado |
 | Entrar | `Entrar.tsx` | visual pronto; o login passa por `src/operacao.ts`, que hoje explica que ainda não há login |
-| Componentes | `Componentes.tsx` | o catálogo deste design system, com os dados do log |
+| Componentes | `Componentes.tsx` | o catálogo deste design system; os blocos de dados usam o log e, sem log, ficam vazios |
 
 ## Uso no app
 
@@ -196,7 +196,7 @@ As telas ficam em `src/telas/`, montadas só com estes componentes e com os dado
 O repositório mudou estes pontos dos componentes do artefato. Numa nova sincronização, eles continuam valendo:
 
 - `vocab.ts` usa os valores do contrato: `aguardando_aprovacao` em vez de `aguardando`, os 16 tipos de evento com o nome do log (`llm_chamada`, `acao_proposta`…), os nove motivos de risco alto do contrato (o artefato trazia oito, com dois juntos e um cortado) e as palavras de cada motivo de recusa do servidor (`REFUSAL_REASON`).
-- `modelos.ts` guarda os tipos que eram de `sample.ts`. Os dados de exemplo do artefato não vieram: as telas e o catálogo usam o log de exemplo de verdade.
+- `modelos.ts` guarda os tipos que eram de `sample.ts`. Os dados de exemplo do artefato não vieram: as telas e o catálogo usam o log carregado e, sem log, ficam vazios. A interface não traz dado simulado.
 - `ProposalCard` mostra a justificativa do agente (voz de agente), o selo "promovida ao catálogo" e a decisão humana sempre com "Aprovada" ou "Rejeitada", mesmo quando há motivo.
 - `TargetLabel` recebe `free`, para o alvo em texto livre de uma ação nova, na voz do agente.
 - `ConfirmDialog` recebe `details` (a ação nova descrita pelo agente) e `logNote` (o que vai para o log), e o Esc não cancela durante o envio.
@@ -205,7 +205,7 @@ O repositório mudou estes pontos dos componentes do artefato. Numa nova sincron
 - A barra lateral (`.sx-app__side`) ocupa sempre a altura da janela; o artefato a limitava a 960 px, o que deixava um vão embaixo em telas altas.
 - A paleta é preto e gelo, como o logo (`tokens.json` e o começo de `styles.css`, mudados no lugar). O artefato usava petróleo (azul escuro) no chão, nos painéis, na barra lateral e nos cartões: os tokens `petrol-*` viraram `graphite-*`, neutros, e `petrol-glow` virou `ice-haze`. `bg-0` é o preto puro do fundo do logo. A barra lateral é preta e só usa gelo; o item ativo é gelo sólido. A borda acesa, a seleção, os fios do funil e a trilha do replay passaram de `glacier` e `glacier-deep` a gelo translúcido, e o mapa de calor vai do preto ao gelo. `glacier` ficou para dados e foco.
 - `fmtNum` usa três algarismos significativos abaixo de 1 (0,0104, e não 0,01); `ratioDown` dá a razão arredondada para baixo, a mesma no funil e na Tela 4.
-- `AggregationFunnel` recebe `counterfactual`: sem agregação, só as janelas de ataque virariam chamada, e não as benignas.
+- `AggregationFunnel` recebe `counterfactual`: sem agregação, só as janelas de ataque virariam chamada, e não as benignas. Com zero janelas, não desenha os fios das janelas e o rodapé diz "Nenhuma janela classificada ainda.".
 - `ConfirmDialog` recebe `busy` e `error`, para mostrar o envio e o motivo de a decisão não ter sido gravada.
 - `ChatMessage` aceita `tokens={null}` ("tokens não informados") e `tokensDetail`; `ModelSelect` fecha com Esc e com clique fora, aceita o teclado e trata a lista vazia; `ProviderBar` recebe `note` e `disabled`.
 - `EventTimeline` deixa a linha clicável pelo teclado, junta os detalhes sem separador sobrando e marca o evento que o leitor ignorou (`ignored`).

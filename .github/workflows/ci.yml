@@ -130,12 +130,6 @@ jobs:
       - name: Auditar as dependencias de desenvolvimento (so aviso)
         run: npm audit || echo "::warning title=npm audit::Ha avisos nas dependencias de desenvolvimento do frontend; veja o log deste passo."
 
-      # A copia do log em public/dados/ tem de ser igual ao exemplo versionado em codigo/mcp/exemplos/.
-      - name: Conferir se o log de exemplo esta sincronizado
-        run: |
-          npm run sync:log
-          git diff --exit-code -- public/dados/
-
       # Leitura do log, reconstrucao do estado, telas e conferencia das listas contra o contrato do MCP.
       - name: Rodar os testes
         run: npm test
