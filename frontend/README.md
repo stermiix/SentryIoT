@@ -1,89 +1,88 @@
 # Interface web do SentryIoT
 
-Interface web do sistema, em React e TypeScript. As telas 1 e 2, em modo replay, já estão
-implementadas (ver "Estado atual" no fim deste arquivo); as demais ainda são só o plano de como
-se ligam ao backend, para que o backend já nasça gravando o que elas vão precisar.
+Interface web do sistema, em React e TypeScript. Desde 15/10/2026 ela segue o design system
+SentryIoT, que fica em `src/design-system/`: toda tela usa só os componentes, os tokens e o
+vocabulário dele. Antes de desenhar ou mudar uma tela, leia `src/design-system/README.md` (cor,
+tipografia, as duas vozes do texto, marca) e `src/design-system/COMPONENTES.md` (cada componente).
 
 ## Como a interface se liga ao backend
 
-O backend grava um log de eventos com formato fixo. Cada passo relevante vira uma linha: janela
-classificada, incidente aberto, tool chamada, recomendação emitida, ação aprovada, rejeitada ou
-desfeita. A interface não fala com o classificador nem com os agentes. Ela só lê esse log, por
-uma API fina.
+O backend grava um log de eventos com formato fixo: janela classificada, incidente aberto, tool
+chamada, recomendação emitida, ação aprovada, rejeitada ou desfeita. A interface não fala com o
+classificador nem com os agentes. Ela só lê esse log, o que dá dois modos com o mesmo código:
 
-Isso dá dois modos com o mesmo código:
+- **Replay:** reproduz uma execução gravada. É o modo que protege a demonstração na banca, porque
+  não depende de internet nem de a LLM responder na hora.
+- **Ao vivo:** acompanha o log enquanto o sistema roda (planejado; ver "Ao vivo" abaixo).
 
-- **Ao vivo:** a interface acompanha o log enquanto o sistema roda.
-- **Replay:** a interface reproduz uma execução gravada. É o modo que protege a demonstração na
-  banca, porque não depende de internet nem de a LLM responder na hora.
+O formato do log é o contrato da tool MCP, em `codigo/mcp/contrato.json`.
 
-O formato do log é definido junto com o contrato da tool MCP, em `codigo/mcp/`.
+## Telas
 
-## Telas, em ordem de valor
+| Tela | Âncora | Estado |
+|---|---|---|
+| Visão geral: funil janelas → incidentes → chamadas à IA, cartões e fila | `#/visao-geral` | funciona com o log |
+| Detalhe do incidente: veredito, features, propostas, endereços, rastro dos agentes, recomendações, histórico | `#/incidentes/<id>` | funciona com o log; as decisões só são oferecidas no fim do replay |
+| Ao vivo | `#/ao-vivo` | planejada; liga com `VITE_LOG_AO_VIVO` |
+| Tela 3, isolado × integrado | `#/isolado-integrado` | funciona com o log; as linhas "uma por janela" são ilustrativas |
+| Tela 4, custo e latência | `#/custo-latencia` | funciona com o log; local × nuvem depende de `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM` |
+| Tela 5, qualidade do modelo | `#/qualidade-do-modelo` | matriz real da configuração 5 |
+| Tela 6, segurança do MCP | `#/seguranca-do-mcp` | planejada, com resultados ilustrativos |
+| Chat com o modelo | `#/chat` (e o antigo `#chat`) | funciona com o backend |
+| Relatório do incidente, em A4 | `#/relatorio/<id>` | funciona com o log; o sumário escrito pela IA é planejado |
+| Entrar | `#/entrar` | visual pronto; o login ainda não existe |
+| Componentes (catálogo do design system) | `#/componentes` | funciona com o log |
 
-1. **Fila de incidentes.** Mostra os alertas agrupados, com o contador de janelas, incidentes e
-   chamadas à LLM (por exemplo, 12.000 janelas, 1 incidente, 1 chamada). É a resposta visual à
-   pergunta da banca sobre custo de tokens e Denial of Wallet.
-2. **Detalhe do incidente.** Mostra o veredito do Random Forest, confiança e features; o rastro
-   dos agentes e chamadas MCP; recomendações; e o histórico das decisões de aprovação, rejeição
-   e desfazer registradas no log. No modo ao vivo, o incidente aparece aqui assim que o
-   classificador o abre, antes de os agentes agirem, e o botão "Já resolvido" grava no log que o
-   usuário já tratou o caso: a partir daí o agente de execução não aplica remediação e só explica.
-   A barra superior mostra os provedores de LLM configurados e o modelo local quando está online,
-   e permite escolher qual os agentes usam; o modelo escolhido vai gravado em cada chamada do log.
-3. **Isolado e integrado.** O mesmo incidente com a saída crua do classificador de um lado e a
-   saída com agentes do outro. Essa comparação é uma tarefa da PoC e vira figura do artigo.
-4. **Custo e latência.** Tokens, tempo de resposta e custo por incidente, com a comparação entre
-   modelo em nuvem e modelo local.
-5. **Qualidade do modelo.** Matriz de confusão, recall por classe e taxa de falso positivo,
-   lidos de `experimentos/resultados/`.
-6. **Segurança do MCP.** O resultado do teste de tool poisoning: o que foi injetado e se o
-   agente caiu.
+Todas as telas que dependem do log mostram o estado até o cursor do replay, que fica no pé:
+botões, trilha com marcas (incidente aberto, proposta que pede uma pessoa, decisões humanas),
+teclado (← → Home End Espaço) e clique numa linha do histórico.
 
-## Ordem de construção
+### O que ainda não funciona, e onde ligar
 
-A interface completa (modo ao vivo e telas restantes) vem depois que o backend da PoC estiver
-gravando o log de verdade e os experimentos produzirem os dados que faltam. A versão mínima útil
-— as duas primeiras telas, em modo replay — já está implementada, porque não depende de nada
-disso: usa só o log de exemplo já versionado em `codigo/mcp/exemplos/incidente_flood.jsonl`.
+- **Decisões pela interface** (aprovar, rejeitar, marcar como já resolvido) e **login** passam
+  por `src/operacao.ts`. Hoje o backend não tem essas rotas: os botões abrem o diálogo de
+  confirmação, e ele mostra que a decisão não foi gravada e o comando de terminal que faz a mesma
+  coisa (`python -m codigo.mcp.aprovar …`). Para ligar, escreva em `operacao.ts` uma `Operacao`
+  que chame as rotas novas e troque a constante `operacao`; as telas não mudam.
+- **Ao vivo:** com `VITE_LOG_AO_VIVO` apontando para um log que está sendo gravado (servido por
+  HTTP), a tela o lê a cada 3 segundos e ignora a última linha incompleta. Sem a variável, ela
+  mostra o log de exemplo parado no ponto com mais propostas aguardando, com o selo de planejada.
+- **Onde cada modelo roda:** o log não diz. Liste os modelos em `VITE_MODELOS_LOCAIS` e
+  `VITE_MODELOS_NA_NUVEM` (separados por vírgula) para a tela mostrar "local" ou "nuvem" nas
+  chamadas e para a Tela 4 comparar os dois. No chat, um modelo fora das listas aparece como
+  nuvem: é o caso que pede cuidado.
+- **Sumário do relatório:** o lugar dele está na primeira página interna; o texto entra quando o
+  agente passar a escrevê-lo no log.
+- **Tela 6:** os resultados são ilustrativos até o teste de tool poisoning rodar; a estrutura
+  (`TESTES` em `src/telas/SegurancaMcp.tsx`) é a que os resultados reais vão preencher.
 
-## Estado atual
+## Leitura do log e reconstrução
 
-Implementado: um app estático (Vite + React + TypeScript) que lê o log de exemplo e mostra as
-telas 1 e 2 em modo replay, sem backend; e a tela "Chat com o modelo", ferramenta de teste do
-provedor de LLM, que é a única a falar com o backend fino de `codigo/api/`. O log segue o
-contrato 0.3.0 do MCP.
-
-- **Leitura do log.** Cada linha é conferida contra o contrato (`codigo/mcp/contrato.json`) na
-  carga: campos, tipos, valores aceitos, limites e caracteres de texto, endereços IP e nomes de
-  feature. Linha fora do contrato e evento com `id` repetido são descartados, e o número da linha
-  aparece num aviso no topo da tela. Os eventos seguem a ordem do `id`, e não a do arquivo. No
-  modo ao vivo, que ainda não existe, a última linha sem quebra de linha no fim vai ser ignorada,
-  porque pode estar sendo gravada (`ignorarUltimaIncompleta` em `src/log.ts`); no replay, ela é
-  lida, como faz o leitor do Python. A conferência é mais frouxa que a do Python em três pontos:
-  campo a mais não derruba a linha, inteiro acima de 2^53 é recusado, e a classificação dos
-  caracteres do Unicode é a do navegador.
+- **Leitura.** Cada linha é conferida contra o contrato na carga: campos, tipos, valores aceitos,
+  limites e caracteres de texto, endereços IP e nomes de feature. Linha fora do contrato e
+  evento com `id` repetido são descartados, e o número da linha aparece num aviso. Os eventos
+  seguem a ordem do `id`, e não a do arquivo. No modo ao vivo, a última linha sem quebra de linha
+  é ignorada, porque pode estar sendo gravada (`ignorarUltimaIncompleta` em `src/log.ts`); no
+  replay, ela é lida, como faz o leitor do Python. A conferência é mais frouxa que a do Python em
+  três pontos: campo a mais não derruba a linha, inteiro acima de 2^53 é recusado, e a
+  classificação dos caracteres do Unicode é a do navegador.
 - **Reconstrução.** O estado de incidentes, marcas, propostas, execuções e promoções é
   reconstruído com as regras do `reconstruir` de `codigo/mcp/acoes.py`. O Python recusa o log
   inteiro no primeiro evento fora de lugar; a interface ignora esse evento, avisa com o id dele e
   segue. A única regra que fica de fora é a de que a ação promovida ao catálogo seja exatamente a
   que foi aprovada: a interface confere o nome, a origem e a proposta, e não os textos.
-- **Fila.** Um incidente só ganha linha se o log tem o evento de abertura dele. Eventos que citam
-  um incidente que não estava aberto naquele ponto ficam contados à parte, com aviso, e não
-  somam em "Incidentes". O incidente marcado como já resolvido aparece como tal.
-- **Detalhe.** Veredito do classificador, com a categoria do modelo e a do incidente; rastro dos
-  agentes com a hora de cada chamada (no fuso de quem abre a página); recomendações com o agente
-  e as propostas ligadas; o estado de cada proposta (alvo com o rótulo neutro, risco, aprovação,
-  motivos do risco alto, decisões com canal e usuário, execuções e efeitos); a marca de já
-  resolvido; e o histórico de decisões e ações, com hora e id em todas as linhas. A frase de cada
-  motivo de risco alto é a do contrato, e não a que veio no log; texto escrito por um agente ou
-  por uma pessoa (recomendação, justificativa, motivo, mensagem de recusa) aparece entre aspas.
-- **Replay.** Abre no estado final e pode ser percorrido evento a evento, também pelo teclado.
+- **Da reconstrução à tela.** `src/adaptador.ts` transforma eventos, incidentes e propostas nos
+  objetos que os componentes desenham. Nada ali inventa dado: a frase de cada motivo de risco
+  alto é a do contrato; os rótulos vêm do vocabulário do design system; texto escrito por um
+  agente ou por uma pessoa (recomendação, justificativa, motivo, descrição e alvo livre de ação
+  nova) aparece na voz dele, nunca como texto do sistema; a chamada de tool mostra só chaves e
+  identificadores; a mensagem de uma recusa do servidor, que pode repetir o que o agente mandou,
+  vai entre aspas. Evento que a reconstrução ignorou aparece riscado na linha do tempo, sem marca
+  na trilha, e o aviso aparece na visão geral e no detalhe.
 
-Como é replay, não há controles para criar aprovações ou executar ações; a interface só apresenta
-o que já está no log.
+## Como rodar
 
-**Como rodar** (exige Node.js 20 ou mais recente):
+Exige Node.js 20 ou mais recente.
 
 ```
 cd frontend
@@ -94,11 +93,10 @@ npm run dev
 Abre em `http://localhost:5173`. Use `npm ci`, e não `npm install`, para instalar exatamente o que
 está no `package-lock.json`.
 
-A tela "Chat com o modelo" (`#chat`) fala com o backend fino de `codigo/api/`: suba
-`python -m codigo.api` na raiz do repositório, com o `.env` preenchido (ver
-`codigo/api/README.md`), e o Vite encaminha `/api` para ele. Com a porta 8000 ocupada, suba o
-backend em outra e aponte `VITE_API_URL` para ela. Sem o backend, a tela abre e avisa que ele
-não está no ar.
+O chat fala com o backend fino de `codigo/api/`: suba `python -m codigo.api` na raiz do
+repositório, com o `.env` preenchido (ver `codigo/api/README.md`), e o Vite encaminha `/api` para
+ele. Com a porta 8000 ocupada, suba o backend em outra e aponte `VITE_API_URL` para ela. Sem o
+backend, o chat abre e avisa que ele não está no ar, e o rodapé da barra lateral diz o mesmo.
 
 **Em produção** (o servidor da equipe) não há Vite: `npm run build` gera `dist/`, e o mesmo
 backend serve essa pasta na raiz e a API em `/api`, num processo só:
@@ -108,45 +106,63 @@ cd frontend && npm ci && npm run build
 cd .. && python -m codigo.api --host <endereço Tailscale> --port 8000
 ```
 
-A receita completa, com o `.env`, a CA interna e o acesso só pela rede privada, está em
-`codigo/api/README.md`. A cópia do log em `public/dados/` é versionada: rode
-`npm run sync:log` só depois de regenerar o log de exemplo
+A receita completa está em `codigo/api/README.md`. A cópia do log em `public/dados/` é
+versionada: rode `npm run sync:log` só depois de regenerar o log de exemplo
 (`python -m codigo.mcp.roteiro --sobrescrever`), e versione a cópia junto. O replay funciona sem
-API e sem conexão externa; a tipografia usa fontes locais do sistema.
+API e sem conexão externa: fontes e imagens vão no build.
 
-`npm test` roda os testes (Vitest). Eles leem o log de exemplo e variações dele (duplicados,
-ordem trocada, incidente trocado ou sem abertura, campo ausente, `toString` e `constructor`, HTML
-no log, linha cortada) e um caso para cada regra de sequência do `reconstruir`; desenham as telas
-e o controle do replay; e comparam as listas de `src/listas.ts` com o `contrato.json` e com o
-`acoes.py`, para que uma mudança no contrato do MCP faça o teste falhar até a interface
-acompanhar. `npm run build` confere
-os tipos e gera a versão de produção em `dist/`; `npm run preview` serve essa versão. O CI roda,
+As variáveis `VITE_*` vão no ambiente ou num `.env.local` desta pasta (ignorado pelo git) e entram
+no build: depois de mudar uma, gere o `dist/` de novo.
+
+## Design system
+
+- Os tokens estão em `src/design-system/tokens.json`. Depois de mudar esse arquivo, rode
+  `npm run tokens` para gerar o `tokens.css`; um teste falha se os dois divergirem.
+- Os componentes estão em `src/design-system/components/` e as telas importam de
+  `src/design-system/index.ts`. O CSS das telas (`src/estilo.css`, classes `app-*`) usa só tokens.
+- A origem é o design system publicado pela equipe. Os ajustes que o repositório fez sobre ele
+  estão no fim de `src/design-system/README.md` e valem para qualquer nova sincronização.
+- Fontes: Inter, Lora e Source Code Pro (SIL OFL 1.1, textos em `src/design-system/fonts/`).
+  Ícones: Lucide (ISC, texto em `src/design-system/components/LICENCA-LUCIDE.txt`).
+
+## Testes
+
+`npm test` roda os testes (Vitest):
+
+- **Leitura e reconstrução** (`src/log.test.ts`): o log de exemplo e variações dele (duplicados,
+  ordem trocada, incidente sem abertura, campo ausente, HTML no log, linha cortada) e um caso para
+  cada regra de sequência do `reconstruir`.
+- **Contrato** (`src/contrato.test.ts`): as listas de `src/listas.ts` contra o `contrato.json` e o
+  `acoes.py`.
+- **Adaptador** (`src/adaptador.test.ts`): cada número e estado que a tela mostra, no log de
+  exemplo, e o vocabulário do design system contra o contrato (16 tipos de evento, 9 motivos de
+  risco alto).
+- **Telas** (`src/telas.test.tsx`): cada tela desenhada no Node em passos escolhidos do replay,
+  incluindo o HTML vindo do log escapado e as duas vozes do texto.
+- **Chat** (`src/chat.test.ts`), **rotas** (`src/rotas.test.ts`), **operações**
+  (`src/operacao.test.ts`), **tokens** (`src/design-system/tokens.test.ts`) e a **matriz da
+  Tela 5** contra o CSV do experimento (`src/dados/qualidade.test.ts`).
+
+`npm run build` confere os tipos e gera `dist/`; `npm run preview` serve essa versão. O CI roda,
 a cada PR, os testes, o `npm audit --omit=dev --audit-level=high` e o build.
 
-**Arquivos:**
+## Arquivos
 
 | Arquivo | Papel |
 |---|---|
-| `src/listas.ts` | Os valores fixos do contrato (categorias, motivos, estados) e o catálogo de base |
-| `src/contrato.ts` | Confere cada linha do log contra o contrato, tipo de evento por tipo de evento |
-| `src/log.ts` | Lê o JSONL (descarte, ordem, avisos), reconstrói o estado com as regras do `reconstruir` e agrega os eventos por incidente |
-| `src/types.ts` | Os tipos do log, como união discriminada por `tipo`, e o que a interface monta a partir deles |
-| `src/rotulos.ts`, `src/formato.ts` | Como cada valor do log aparece na tela; formato de números e horas |
-| `src/components/ResumoMetricas.tsx` | Cartões do resumo com janelas, incidentes, chamadas e tokens do replay |
-| `src/components/FilaDeIncidentes.tsx` | Tela 1 |
-| `src/components/DetalheDoIncidente.tsx` | Tela 2 |
-| `src/components/ControleDoReplay.tsx` | Avanço do replay evento a evento |
-| `src/components/LimiteDeErro.tsx` | Error boundary da fila, do detalhe e do chat |
-| `src/chat.ts` | Os tipos e as chamadas de `/api/chat`, `/api/modelos` e `/api/prompts`, e a montagem do pedido a partir da conversa |
-| `src/components/ChatDoModelo.tsx` | A tela do chat: `TelaDoChat` só desenha, `ChatDoModelo` guarda a conversa e chama a API |
-| `src/log.test.ts`, `src/telas.test.tsx`, `src/contrato.test.ts`, `src/chat.test.tsx` | Testes da leitura e da reconstrução, das telas, das listas contra o contrato, e do chat |
-| `src/html-de-teste.ts` | Ajudantes dos testes que procuram texto no HTML desenhado |
+| `src/listas.ts`, `src/types.ts` | Os valores fixos e os tipos do contrato do log |
+| `src/contrato.ts` | Confere cada linha do log contra o contrato |
+| `src/log.ts` | Lê o JSONL, reconstrói o estado e agrega os eventos por incidente |
+| `src/adaptador.ts` | Do log aos objetos que os componentes desenham |
+| `src/formato.ts` | A hora dos eventos no fuso de quem abre a página |
+| `src/rotas.ts` | A tela pela âncora |
+| `src/operacao.ts` | Decisões e login; hoje, o comando de terminal equivalente |
+| `src/chat.ts` | As chamadas de `/api/chat`, `/api/modelos` e `/api/prompts` |
+| `src/dados/qualidade.ts` | A matriz de confusão da Tela 5 e as métricas tiradas dela |
+| `src/App.tsx` | Carrega o log, guarda a rota e o replay e escolhe a tela |
+| `src/telas/` | As telas, a moldura (`Moldura.tsx`), o replay (`replay.ts`) e as peças comuns (`comum.tsx`) |
+| `src/design-system/` | O design system: guia, componentes, tokens, fontes e marca |
+| `src/estilo.css` | O pouco que as telas acrescentam ao design system |
+| `scripts/gerar-tokens.mjs` | Gera o `tokens.css` do `tokens.json` |
 | `scripts/sync-log.mjs` | Copia o log de exemplo para `public/dados/`; recusa link simbólico |
 | `public/dados/incidente_flood.jsonl` | Cópia estática do replay versionado em `codigo/mcp/exemplos/` |
-
-**Não implementado, e por quê:** modo ao vivo (precisa da API fina lendo o backend de verdade,
-que ainda não existe); tela 3, isolado vs. integrado (falta o registro do mesmo incidente sem
-agentes, para comparar); tela 4, custo nuvem vs. on-premises (o log de exemplo só tem números de
-um cenário); tela 5, qualidade do modelo (dá para fazer com o que já existe em
-`experimentos/resultados/`); tela 6, segurança do MCP (depende do teste de tool poisoning, que
-ainda não foi escrito).

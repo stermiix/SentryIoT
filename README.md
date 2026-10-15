@@ -115,7 +115,7 @@ agrupa as tarefas concluídas por semana e por responsável.
 | `codigo/classificador/` | regeração dos dados de treino a partir dos pcaps, preparação, treino e avaliação do Random Forest |
 | `codigo/mcp/` | contrato das tools MCP, stub do servidor, política de risco, base local de mitigações e log de eventos; o servidor que expõe o classificador ainda será escrito |
 | `codigo/agente/` | skills dos agentes de triagem e de decisão; o código do sistema multiagente (triagem, decisão e execução), os prompts e a política de acionamento ainda serão escritos |
-| `frontend/` | interface web do sistema: fila de incidentes, detalhe, comparações e replay (ver `frontend/README.md`) |
+| `frontend/` | interface web do sistema, no design system SentryIoT (`frontend/src/design-system/`): replay do log, detalhe do incidente, telas do artigo, relatório e chat com o modelo (ver `frontend/README.md`) |
 | `dados/` | **`README.md` com a receita completa do ambiente e o mapa de arquivos** |
 | `experimentos/` | `notebooks/` de exploração e `resultados/` com métricas e tabelas |
 | `referencias/` | bibliografia e material de apoio |
