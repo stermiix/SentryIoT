@@ -1,387 +1,298 @@
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement } from "react";
 import { renderToString } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import textoDoExemplo from "../public/dados/incidente_flood.jsonl?raw";
 import { Pagina } from "./App";
-import ControleDoReplay from "./components/ControleDoReplay";
-import DetalheDoIncidente from "./components/DetalheDoIncidente";
-import FilaDeIncidentes from "./components/FilaDeIncidentes";
-import LimiteDeErro from "./components/LimiteDeErro";
-import ResumoMetricas from "./components/ResumoMetricas";
-import { recorte, textoDe } from "./html-de-teste";
+import type { MensagemDaConversa, Prompt } from "./chat";
+import { CLASSES, MATRIZ, medir } from "./dados/qualidade";
+import { fmtInt, fmtPct } from "./design-system/components/util";
+import { textoDe } from "./html-de-teste";
 import { MOTIVOS_DE_RISCO_ALTO } from "./listas";
 import { agregar, lerLog } from "./log";
-import { ESTADO_DA_PROPOSTA, rotulo } from "./rotulos";
-import type { Evento, IncidenteView } from "./types";
+import type { Rota, Tela } from "./rotas";
+import { TelaDoChat } from "./telas/Chat";
+import { TelaComponentes } from "./telas/Componentes";
+import { TelaEntrar } from "./telas/Entrar";
+import { montarReplay } from "./telas/replay";
 
-// As telas desenhadas no Node, com react-dom/server, a partir do log de exemplo e de variações
-// dele. Cada conferência recorta o painel de que fala antes de procurar o texto.
+// As telas desenhadas no Node com o log de exemplo, em passos escolhidos do replay. O texto que a
+// banca vê tem de sair do log, e o que veio de agente ou de pessoa tem de aparecer como tal.
 
-const { eventos: base } = lerLog(textoDoExemplo);
-type Bruto = Record<string, any>;
+const lido = lerLog(textoDoExemplo);
+const AVISOS = [...lido.avisos, ...agregar(lido.eventos).avisos];
+const nada = () => undefined;
 
-function reler(eventos: Bruto[]): Evento[] {
-  const lido = lerLog(eventos.map((evento) => JSON.stringify(evento)).join("\n") + "\n");
-  expect(lido.avisos).toEqual([]);
-  return lido.eventos;
+function replayNo(passo: number, texto = textoDoExemplo) {
+  const { eventos, avisos } = lerLog(texto);
+  return montarReplay(eventos, avisos, passo, { irPara: nada, tocando: false, alternar: nada });
 }
 
-/** O log de exemplo com alguns eventos alterados por `alterar`. */
-function variacao(alterar: (evento: Bruto) => void): Evento[] {
-  return reler(
-    base.map((evento) => {
-      const copia = structuredClone(evento) as Bruto;
-      alterar(copia);
-      return copia;
-    }),
-  );
+function pagina(tela: Tela, passo = lido.eventos.length, incidente: string | null = null, texto = textoDoExemplo): string {
+  const rota: Rota = { tela, incidente };
+  return renderToString(<Pagina rota={rota} replay={replayNo(passo, texto)} navegar={nada} modelo={{ nome: "modelo-de-exemplo", online: true }} />);
 }
 
-function detalhe(view: IncidenteView): string {
-  return renderToString(<DetalheDoIncidente incidente={view} />);
-}
+const texto = (html: string) => textoDe(html).replace(/\s+/g, " ");
+// O HTML sem os blocos de voz (texto de agente e de pessoa) nem as citações entre aspas do servidor.
+const semVozes = (html: string) =>
+  html.replace(/<figure class="sx-voice[\s\S]*?<\/figure>/g, "").replace(/<div class="sx-rsec__body voice-agent">[\s\S]*?<\/div>/g, "");
+const vezes = (html: string, trecho: string) => texto(html).split(trecho).length - 1;
 
-function fila(eventos: Evento[]): string {
-  const { resumo, incidentes } = agregar(eventos);
-  return renderToString(<FilaDeIncidentes resumo={resumo} incidentes={incidentes} selecionadoId={null} onSelecionar={() => {}} />);
-}
-
-const final = agregar(base);
-const doFlood = final.incidentes.find((view) => view.propostas.length > 0)!;
-const marcado = final.incidentes.find((view) => view.marcacao !== null)!;
-
-// O id que cada linha do histórico precisa mostrar: o da proposta ou da execução de que ela fala.
-function idEsperado(evento: Evento): string | null {
-  switch (evento.tipo) {
-    case "acao_proposta":
-    case "acao_executada":
-    case "acao_desfeita":
-      return evento.dados.id;
-    case "acao_aprovada":
-    case "acao_rejeitada":
-    case "catalogo_ampliado":
-      return evento.dados.proposta;
-    case "efeito_verificado":
-      return evento.dados.execucao;
-    case "recusa": {
-      const citado = evento.dados.argumentos.id_proposta ?? evento.dados.argumentos.id_execucao;
-      return typeof citado === "string" ? citado : evento.id;
-    }
-    case "incidente_marcado_resolvido":
-      return evento.dados.incidente;
-    default:
-      return null;
-  }
-}
-
-describe("histórico de decisões e ações", () => {
-  it("cada linha mostra o id da proposta ou da execução de que fala, na ordem do log", () => {
-    for (const view of final.incidentes) {
-      const linhas = recorte(detalhe(view), "action-list").split("<li").slice(1);
-      const esperados = view.eventos.map(idEsperado).filter((id): id is string => id !== null);
-      expect(linhas.map((linha) => /class="event-id">([^<]+)</.exec(linha)![1])).toEqual(esperados);
-    }
-  });
-
-  it("cada linha mostra a hora do evento", () => {
-    const linhas = recorte(detalhe(doFlood), "action-list").split("<li").slice(1);
-    const historico = doFlood.eventos.filter((evento) => idEsperado(evento) !== null);
-    linhas.forEach((linha, indice) => expect(linha).toContain(`dateTime="${historico[indice].instante}"`));
-  });
-
-  it("texto de pessoa ou de agente vai entre aspas", () => {
-    const html = textoDe(recorte(detalhe(doFlood), "action-list"));
-    for (const evento of doFlood.eventos) {
-      if (evento.tipo === "acao_rejeitada" && evento.dados.motivo) {
-        expect(html).toContain(`por ${evento.dados.usuario}: “${evento.dados.motivo}”`);
-      }
-      if (evento.tipo === "recusa") {
-        expect(html).toContain(`“${evento.dados.mensagem}”`);
-      }
-    }
+describe("o log de exemplo", () => {
+  it("é lido sem avisos", () => {
+    expect(AVISOS).toEqual([]);
   });
 });
 
-describe("rastro dos agentes", () => {
-  it("mostra a hora de cada um dos sete primeiros eventos", () => {
-    const rastro = recorte(detalhe(doFlood), "timeline");
-    const eventos = doFlood.eventos.filter((evento) => evento.tipo === "tool_chamada" || evento.tipo === "llm_chamada").slice(0, 7);
-    for (const evento of eventos) {
-      expect(rastro).toContain(`dateTime="${evento.instante}"`);
-    }
+describe("visão geral", () => {
+  it("no fim do log, abre com o funil do argumento, os três números e a fila", () => {
+    const html = texto(pagina("visao-geral"));
+    expect(html).toContain("Visão geral");
+    expect(html).toContain(`${fmtInt(10_970)}janelas classificadas`);
+    expect(html).toContain(`Sem agregação, cada janela de ataque seria uma chamada: ${fmtInt(10_752)} chamadas à IA`);
+    expect(html).toContain("Por incidente: inc-0001, 11 chamadas · inc-0002, 2 chamadas (marcado como já resolvido).");
+    expect(html).toContain("inc-0001");
+    expect(html).toContain("Marcado como já resolvido");
+    expect(html).toContain("evento 52 de 52");
+  });
+
+  it("antes do primeiro incidente, a fila diz por que está vazia", () => {
+    expect(texto(pagina("visao-geral", 1))).toContain("Nenhum incidente até aqui");
+  });
+
+  it("no passo 28, o cartão e a barra lateral pedem uma pessoa", () => {
+    const html = pagina("visao-geral", 28);
+    expect(html).toContain("sx-metric--attention");
+    expect(html).toContain("sx-nav__count is-attention");
+    expect(texto(html)).toContain("Propostas de risco alto esperam uma pessoa.");
   });
 });
 
-describe("propostas de ação", () => {
-  it("cada cartão mostra o estado reconstruído da proposta", () => {
-    const cartoes = recorte(detalhe(doFlood), "proposal-list").split('<li class="proposal"').slice(1);
-    expect(cartoes).toHaveLength(doFlood.propostas.length);
-    doFlood.propostas.forEach((proposta, indice) => {
-      expect(cartoes[indice]).toContain(`class="event-id">${proposta.id}</code>`);
-      expect(cartoes[indice]).toContain(`proposal-${proposta.estado}">${rotulo(ESTADO_DA_PROPOSTA, proposta.estado)}</span>`);
-    });
-    // O exemplo tem propostas em estados diferentes: um estado fixo na tela não passa.
-    expect(new Set(doFlood.propostas.map((proposta) => proposta.estado)).size).toBeGreaterThan(1);
+describe("detalhe do incidente", () => {
+  it("no passo 28, as duas propostas aguardam com os motivos do contrato, sem botões: é um ponto passado", () => {
+    const html = texto(pagina("incidente", 28, "inc-0001"));
+    expect(html).toContain("2 propostas de risco alto aguardam aprovação");
+    expect(html).toContain("Este é um ponto passado do replay");
+    expect(html).toContain(MOTIVOS_DE_RISCO_ALTO.acao_sempre_de_risco_alto);
+    expect(html).toContain(MOTIVOS_DE_RISCO_ALTO.acao_nova);
+    expect(html).not.toContain("Uma pessoa precisa decidir antes de qualquer execução.");
   });
 
-  it("mostra o alvo com o rótulo, a aprovação e a frase do contrato para cada motivo de risco alto", () => {
-    const html = textoDe(recorte(detalhe(doFlood), "proposal-list"));
-    for (const proposta of doFlood.propostas) {
-      if (proposta.alvoComRotulo) {
-        expect(html).toContain(`em ${proposta.alvo} (${proposta.alvoComRotulo})`);
-      }
-      for (const codigo of proposta.motivosDeRiscoAlto) {
-        expect(html).toContain(MOTIVOS_DE_RISCO_ALTO[codigo]);
-      }
-      expect(html).toContain(`Justificativa do agente: “${proposta.justificativa}”`);
+  it("mostra o veredito com as duas categorias, as features e os endereços com rótulo neutro", () => {
+    const html = texto(pagina("incidente", lido.eventos.length, "inc-0001"));
+    expect(html).toContain("O modelo disse DDoS+DoS; com 37 origens, é um DDoS.");
+    expect(html).toContain("syn_flag_number");
+    expect(html).toContain("origem-1203.0.113.7");
+    expect(html).toContain("destino-1192.168.137.20");
+  });
+
+  it("texto de agente e texto de pessoa aparecem só nas duas vozes, nunca como texto do sistema", () => {
+    const html = pagina("incidente", lido.eventos.length, "inc-0001");
+    const doAgenteOuDePessoa: string[] = [];
+    for (const evento of lido.eventos) {
+      if (evento.incidente !== "inc-0001") continue;
+      if (evento.tipo === "recomendacao_emitida") doAgenteOuDePessoa.push(evento.dados.texto);
+      if (evento.tipo === "acao_proposta") doAgenteOuDePessoa.push(evento.dados.justificativa);
+      if ((evento.tipo === "acao_rejeitada" || evento.tipo === "acao_aprovada") && evento.dados.motivo) doAgenteOuDePessoa.push(evento.dados.motivo);
     }
-    expect(html).toContain("Exige aprovação humana");
-    expect(html).toContain("Sem aprovação humana");
-  });
-
-  it("mostra o motivo de risco alto alvo_na_rede_local e a recusa de incidente já resolvido", () => {
-    const flood = base.find((evento) => evento.tipo === "incidente_aberto")!;
-    const ultimo = base[base.length - 1];
-    const proposta = {
-      id: "ev-900001",
-      instante: ultimo.instante,
-      tipo: "acao_proposta",
-      incidente: flood.incidente,
-      dados: {
-        id: "prop-0900",
-        incidente: flood.incidente,
-        acao: "bloquear_ip",
-        alvo: "192.168.137.42",
-        alvo_com_rotulo: null,
-        parametros: { duracao: 10 },
-        justificativa: "Origem dentro da rede local.",
-        nova: false,
-        risco: "alto",
-        motivos_de_risco_alto: [{ codigo: "alvo_na_rede_local", descricao: MOTIVOS_DE_RISCO_ALTO.alvo_na_rede_local }],
-        exige_aprovacao: true,
-        estado: "aguardando_aprovacao",
-      },
-    };
-    const recusa = {
-      id: "ev-900002",
-      instante: ultimo.instante,
-      tipo: "recusa",
-      incidente: marcado.id,
-      dados: {
-        agente: "decisao",
-        tool: "propor_acao",
-        argumentos: { id: marcado.id },
-        motivo: "incidente_ja_resolvido",
-        mensagem: "O incidente foi marcado como já resolvido.",
-      },
-    };
-    const eventos = reler([...base, proposta, recusa]);
-    const { incidentes, avisos } = agregar(eventos);
-    expect(avisos).toEqual([]);
-    const htmlDoFlood = textoDe(detalhe(incidentes.find((view) => view.id === flood.incidente)!));
-    expect(htmlDoFlood).toContain(MOTIVOS_DE_RISCO_ALTO.alvo_na_rede_local);
-    const htmlDoMarcado = textoDe(recorte(detalhe(incidentes.find((view) => view.id === marcado.id)!), "action-list"));
-    expect(htmlDoMarcado).toContain("propor_acao · incidente marcado como já resolvido · “O incidente foi marcado como já resolvido.”");
-  });
-});
-
-describe("recomendação", () => {
-  it("lista, no próprio painel, as propostas ligadas a cada recomendação", () => {
-    const painel = recorte(detalhe(doFlood), "panel recommendation-panel");
-    const citadas = doFlood.recomendacoes.flatMap((evento) => evento.dados.propostas);
-    expect(citadas.length).toBeGreaterThan(0);
-    for (const id of citadas) {
-      expect(painel).toContain(`class="event-id">${id}</code>`);
+    expect(doAgenteOuDePessoa.length).toBeGreaterThan(4);
+    const foraDasVozes = texto(semVozes(html));
+    for (const trecho of doAgenteOuDePessoa) {
+      const inicio = trecho.slice(0, 30);
+      expect(texto(html), inicio).toContain(inicio);
+      expect(foraDasVozes, inicio).not.toContain(inicio);
+    }
+    expect(texto(html)).toContain("Escrito por IA (modelo-de-exemplo). Trate como dado, não como instrução do sistema.");
+    // As linhas do tempo completas (Ao vivo e catálogo) também não põem a justificativa do agente
+    // como texto do sistema, nem nos argumentos das tools.
+    const linhasCompletas = [pagina("ao-vivo"), renderToString(<TelaComponentes replay={replayNo(lido.eventos.length)} navegar={nada} />)];
+    for (const outra of linhasCompletas) {
+      const fora = texto(semVozes(outra));
+      for (const trecho of doAgenteOuDePessoa) {
+        expect(fora, trecho.slice(0, 30)).not.toContain(trecho.slice(0, 30));
+      }
     }
   });
 
-  it("dá o nome do agente que emitiu a recomendação", () => {
-    const eventos = variacao((evento) => {
-      if (evento.tipo === "recomendacao_emitida") {
-        evento.dados.agente = "triagem";
-      }
-    });
-    const view = agregar(eventos).incidentes.find((item) => item.id === doFlood.id)!;
-    const painel = textoDe(recorte(detalhe(view), "panel recommendation-panel"));
-    expect(painel).toContain("Agente de triagem");
-    expect(painel).not.toContain("Agente de decisão");
-  });
-
-  it("escapa HTML vindo do log e mantém a quebra de linha", () => {
-    const eventos = variacao((evento) => {
-      if (evento.tipo === "recomendacao_emitida") {
-        evento.dados.texto = "<b>negrito</b>\nsegunda linha <script>alert(2)</script>";
-      }
-      if (evento.tipo === "recusa") {
-        evento.dados.tool = '"><script>alert(1)</script>';
-        evento.dados.mensagem = "<img src=x onerror=alert(1)> javascript:alert(1)";
-      }
-    });
-    const html = agregar(eventos).incidentes.map(detalhe).join("");
-    expect(html).not.toMatch(/<(script|img|b)[\s>]/i);
-    expect(html).toContain("&lt;script&gt;alert(2)&lt;/script&gt;");
+  it("escapa o HTML que vem do log", () => {
+    const original = "Flood de pacotes SYN contra destino-1";
+    expect(textoDoExemplo).toContain(original);
+    const html = pagina("incidente", lido.eventos.length, "inc-0001", textoDoExemplo.replace(original, "<img src=x onerror=alert(1)>"));
+    expect(html).not.toContain("<img src=x");
     expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
-    // A quebra de linha chega ao HTML; o CSS (white-space: pre-line) a mostra.
-    expect(html).toContain("&lt;/b&gt;\nsegunda linha");
+  });
+
+  it("inc-0002 mostra a marca de já resolvido com o motivo da pessoa, e o botão fica desabilitado", () => {
+    const html = pagina("incidente", lido.eventos.length, "inc-0002");
+    expect(texto(html)).toContain("Bloqueei a origem no roteador antes de os agentes responderem.");
+    expect(texto(html)).toContain("Daqui em diante, o servidor recusa proposta e execução neste incidente.");
+    const botao = html.split("<button").find((trecho) => trecho.includes("Já resolvido</span>"));
+    expect(botao).toMatch(/^[^>]*disabled/);
+  });
+
+  it("um incidente que ainda não abriu oferece ir até a abertura", () => {
+    const html = texto(pagina("incidente", 10, "inc-0002"));
+    expect(html).toContain("inc-0002 ainda não foi aberto");
+    expect(html).toContain("Ir para o evento 46");
   });
 });
 
-describe("marca de já resolvido e categoria do modelo", () => {
-  const marca = base.find((evento) => evento.tipo === "incidente_marcado_resolvido")!;
-
-  it("aparece no detalhe, com canal, usuário e motivo entre aspas", () => {
-    if (marca.tipo !== "incidente_marcado_resolvido") {
-      throw new Error("o exemplo precisa de uma marca de já resolvido");
-    }
-    const aviso = textoDe(recorte(detalhe(marcado), "resolved-notice"));
-    expect(aviso).toContain("Marcado como já resolvido");
-    expect(aviso).toContain(marca.dados.canal === "terminal" ? "pelo terminal" : "pela interface");
-    expect(aviso).toContain(`por ${marca.dados.usuario}`);
-    if (marca.dados.motivo) {
-      expect(aviso).toContain(`“${marca.dados.motivo}”`);
-    }
+describe("telas do artigo", () => {
+  it("Tela 3 compara um alerta por janela com um incidente e onze chamadas, sem endereços reais por padrão", () => {
+    const html = pagina("isolado-integrado", lido.eventos.length);
+    expect(texto(html)).toContain(`${fmtInt(21_468)}alertas, um por janela`);
+    expect(texto(html)).toContain("11 chamadas à IA");
+    expect(texto(html)).toContain("Valores ilustrativos");
+    expect(html).not.toContain("203.0.113.7");
   });
 
-  it("na fila, o incidente marcado aparece como já resolvido, e o encerrado como encerrado", () => {
-    expect(fila(base)).toContain('state-resolved"><span></span>Já resolvido');
-    const aberto = base.find((evento) => evento.tipo === "incidente_aberto" && evento.incidente === marcado.id)!;
-    const encerramento = {
-      id: "ev-900003",
-      instante: base[base.length - 1].instante,
-      tipo: "incidente_encerrado",
-      incidente: marcado.id,
-      dados: { ...structuredClone(aberto.dados), estado: "encerrado" },
-    };
-    const html = fila(reler([...base, encerramento]));
-    expect(html).not.toContain("Já resolvido");
-    expect(html.match(/state-closed/g)).toHaveLength(final.incidentes.length);
+  it("Tela 4 soma tokens e chamadas do log e as chamadas evitadas", () => {
+    const html = texto(pagina("custo-latencia", lido.eventos.length));
+    expect(html).toContain(fmtInt(agregar(lido.eventos).resumo.tokens));
+    expect(html).toContain(fmtInt(10_752 - 13));
+    expect(html).toContain("O log não diz onde cada modelo roda.");
   });
 
-  it("mostra a categoria do modelo e a categoria do incidente", () => {
-    for (const view of final.incidentes) {
-      const html = detalhe(view);
-      expect(html).toContain(`Saída do modelo: <strong>${view.incidente.categoria_do_modelo}</strong>`);
-      expect(html).toContain(`attack-category">${view.incidente.categoria}</strong>`);
-    }
+  it("Tela 5 mostra a matriz real do ponto de operação", () => {
+    const qualidade = medir(CLASSES, MATRIZ);
+    const html = texto(pagina("qualidade"));
+    expect(html).toContain(fmtPct(qualidade.f1Macro, 1));
+    expect(html).toContain(fmtInt(MATRIZ[0][0]));
+    expect(html).toContain("regerado_janela_100_ponto.csv");
+    expect(html).not.toContain("ilustrativ");
+  });
+
+  it("Tela 6 avisa que os resultados são ilustrativos e leva o selo de planejada", () => {
+    const html = texto(pagina("seguranca-mcp"));
+    expect(html).toContain("Resultados ilustrativos");
+    expect(html).toContain("Planejada");
   });
 });
 
-describe("página no passo do replay", () => {
-  function pagina(passo: number): string {
+describe("ao vivo e relatório", () => {
+  it("sem log ao vivo configurado, a tela é a planejada, com o exemplo parado no ponto com mais pendências", () => {
+    const html = texto(pagina("ao-vivo"));
+    expect(html).toContain("Log de exemplo, não ao vivo");
+    expect(html).toContain("evento 28 de 52");
+    expect(vezes(html, "Uma pessoa precisa decidir antes de qualquer execução.")).toBe(2);
+    expect(html).toContain("Aberto às");
+    expect(html).not.toContain("Provedores de IA");
+  });
+
+  it("o relatório sai do log: capa, fatos, ações, recomendações e decisões humanas", () => {
+    const html = texto(pagina("relatorio", lido.eventos.length, "inc-0001"));
+    expect(html).toContain("SNT-2026-INC0001");
+    expect(html).toContain("inc-0001 · DDoS contra destino-1");
+    expect(html).toContain("Fatos do log");
+    expect(html).toContain("prop-0002 isolar_dispositivo rejeitada pelo terminal, por operador");
+    expect(html).toContain("O dispositivo não pode sair de serviço.");
+    expect(html).toContain("prop-0003 ativar_syn_cookies aprovada pelo terminal");
+    expect(html).toContain("Gerado pelo agente · Decisão");
+    expect(html).toContain("Planejada");
+  });
+});
+
+describe("chat com o modelo", () => {
+  const PROMPTS: Prompt[] = [
+    { nome: "triagem-do-alerta", titulo: "Triagem do alerta", texto: "# Triagem" },
+    { nome: "execucao-da-acao", titulo: "Execução da ação", texto: "# Execução" },
+  ];
+  const CONVERSA: MensagemDaConversa[] = [
+    { papel: "usuario", conteudo: "O que é um port scan?" },
+    { papel: "assistente", conteudo: "Uma varredura de portas.", modelo: "qwen3.8-27c", tokens_entrada: 67, tokens_saida: 191, tempo_ms: 9334 },
+  ];
+  function chat(props: Partial<Parameters<typeof TelaDoChat>[0]> = {}): string {
     return renderToString(
-      <Pagina
-        eventos={base}
-        avisos={[]}
-        passo={passo}
-        onMudarPasso={() => {}}
-        selecionadoId={null}
-        onSelecionar={() => {}}
-        carregando={false}
+      <TelaDoChat
+        modelos={["m-1", "m-2"]}
+        modelo="m-1"
+        onModelo={nada}
+        sistema=""
+        onSistema={nada}
+        prompts={PROMPTS}
+        skill=""
+        onCarregarPrompt={nada}
+        mensagens={[]}
+        texto=""
+        enviando={false}
         erro={null}
+        erroDeCarga={null}
+        onTexto={nada}
+        onEnviar={nada}
+        onLimpar={nada}
+        {...props}
       />,
     );
   }
 
-  it("mostra a fila e os contadores até o evento do passo", () => {
-    const segundaAbertura = base.findIndex((evento, indice) => evento.tipo === "incidente_aberto" && indice > 1);
-    for (const passo of [segundaAbertura, base.length]) {
-      const html = pagina(passo);
-      const ate = agregar(base.slice(0, passo));
-      expect(textoDe(recorte(html, "replay-position"))).toContain(`Evento ${passo} de ${base.length}`);
-      expect(recorte(html, "nav-count")).toContain(`>${ate.incidentes.length}<`);
-      expect(html.match(/class="incident-select"/g)).toHaveLength(ate.incidentes.length);
-      expect(textoDe(recorte(html, "metricas"))).toContain(ate.resumo.janelasClassificadas.toLocaleString("pt-BR"));
-    }
-    expect(agregar(base.slice(0, segundaAbertura)).incidentes.length).toBeLessThan(final.incidentes.length);
+  it("começa vazio, com as skills para carregar", () => {
+    const html = texto(chat());
+    expect(html).toContain("Nenhuma mensagem ainda");
+    expect(html).toContain("Triagem do alerta");
+    expect(html).toContain("Execução da ação");
   });
 
-  it("antes do primeiro evento, não há incidente", () => {
-    expect(pagina(0)).toContain("Nenhum incidente aberto até este ponto do replay.");
+  it("mostra a conversa nas duas vozes, com modelo, tokens e tempo sob a resposta", () => {
+    const html = chat({ mensagens: CONVERSA });
+    expect(html).toContain("sx-msg--user");
+    expect(html).toContain("sx-msg--assistant");
+    expect(texto(html)).toContain("258 tokens · 9,3 s");
+    expect(texto(html)).toContain("Uma varredura de portas.");
   });
 
-  it("mostra os avisos do log", () => {
-    const html = renderToString(
-      <Pagina eventos={base} avisos={["Aviso de teste."]} passo={base.length} onMudarPasso={() => {}} selecionadoId={null} onSelecionar={() => {}} carregando={false} erro={null} />,
-    );
-    expect(textoDe(recorte(html, "warning-banner"))).toContain("Aviso de teste.");
+  it("sem tokens informados, diz isso; resposta vazia avisa em vez de mostrar nada", () => {
+    const semUso: MensagemDaConversa[] = [{ papel: "assistente", conteudo: "", modelo: "m", tokens_entrada: null, tokens_saida: null, tempo_ms: 800 }];
+    const html = texto(chat({ mensagens: semUso }));
+    expect(html).toContain("tokens não informados");
+    expect(html).toContain("O modelo não devolveu texto.");
+  });
+
+  it("o erro de envio e o erro de carga aparecem separados, e o texto fica na caixa", () => {
+    const html = chat({ erro: "o campo sistema passa de 20000 caracteres", erroDeCarga: "O backend do chat não está no ar.", texto: "Minha pergunta" });
+    expect(texto(html)).toContain("Não foi possível obter a resposta.");
+    expect(texto(html)).toContain("Não foi possível carregar os modelos e as skills.");
+    expect(html).toContain("Minha pergunta");
+  });
+
+  it("enquanto espera a resposta, a caixa fica desabilitada e o chat avisa", () => {
+    const html = chat({ enviando: true, mensagens: [CONVERSA[0]] });
+    expect(html).toContain('aria-label="Aguardando o modelo"');
+    expect(html).toMatch(/<textarea[^>]*disabled/);
+  });
+
+  it("sem lista de modelos, o seletor fica sem opção", () => {
+    expect(texto(chat({ modelos: [], modelo: "" }))).toContain("Nenhum modelo");
+  });
+
+  it("a página do chat abre dentro da moldura, sem o controle do replay", () => {
+    const html = pagina("chat");
+    expect(texto(html)).toContain("Chat com o modelo");
+    expect(html).not.toContain("Controle do replay");
   });
 });
 
-describe("controle do replay", () => {
-  // O componente não tem estado: chamado como função, ele devolve os elementos, e o clique de cada
-  // botão pode ser chamado direto, sem navegador.
-  function botoes(passo: number, onMudar: (passo: number) => void) {
-    const encontrados: ReactElement<{ onClick: () => void; "aria-disabled": boolean; children: ReactNode }>[] = [];
-    const visitar = (no: ReactNode) => {
-      if (Array.isArray(no)) {
-        no.forEach(visitar);
-      } else if (no && typeof no === "object" && "props" in no) {
-        const elemento = no as ReactElement<{ children?: ReactNode }>;
-        if (elemento.type === "button") {
-          encontrados.push(elemento as (typeof encontrados)[number]);
-        }
-        visitar(elemento.props.children);
+describe("outras telas", () => {
+  it("a entrada explica o acesso e oferece o replay", () => {
+    const html = texto(renderToString(<TelaEntrar navegar={nada} />));
+    expect(html).toContain("Abrir o replay de demonstração");
+    expect(html).toContain("Acesso restrito");
+    expect(html).toContain("O replay funciona sem internet");
+  });
+
+  it("o catálogo desenha todos os componentes com o log de exemplo", () => {
+    const html: string = renderToString((<TelaComponentes replay={replayNo(lido.eventos.length)} navegar={nada} />) as ReactElement);
+    const classes = ["sx-logo", "sx-backdrop", "sx-btn", "sx-iconbtn", "sx-cat", "sx-status", "sx-risk", "sx-agent", "sx-channel", "sx-target", "sx-sidebar", "sx-mode", "sx-seg", "sx-tabs", "sx-panel", "sx-field", "sx-funnel", "sx-metric", "sx-conf", "sx-verdict", "sx-queue", "sx-features", "sx-addr", "sx-timeline", "sx-prop", "sx-voice", "sx-alert", "sx-empty", "sx-skel", "sx-tip", "sx-dialog", "sx-chart", "sx-bars", "sx-cm", "sx-msg", "sx-prompt", "sx-msel", "sx-providers", "sx-rpage", "sx-rfacts", "sx-kbd"];
+    for (const classe of classes) {
+      expect(html, classe).toMatch(new RegExp(`class="[^"]*\\b${classe}\\b`));
+    }
+  });
+
+  it("toda tela da moldura desenha no primeiro, num do meio e no último passo sem lançar erro", () => {
+    const telas: Tela[] = ["visao-geral", "incidente", "ao-vivo", "isolado-integrado", "custo-latencia", "qualidade", "seguranca-mcp", "relatorio", "componentes"];
+    for (const tela of telas) {
+      for (const passo of [1, 28, lido.eventos.length]) {
+        expect(() => pagina(tela, passo), `${tela} no passo ${passo}`).not.toThrow();
       }
-    };
-    visitar(ControleDoReplay({ eventos: base, passo, onMudar }));
-    return new Map(encontrados.map((botao) => [String(botao.props.children), botao]));
-  }
-
-  it("cada botão leva ao passo certo", () => {
-    const meio = Math.floor(base.length / 2);
-    const esperado = new Map([
-      ["Início", 0],
-      ["◀ Anterior", meio - 1],
-      ["Próximo ▶", meio + 1],
-      ["Fim", base.length],
-    ]);
-    for (const [texto, destino] of esperado) {
-      const onMudar = vi.fn();
-      botoes(meio, onMudar).get(texto)!.props.onClick();
-      expect(onMudar, texto).toHaveBeenCalledWith(destino);
     }
-  });
-
-  it("nas pontas, o botão fica inativo sem perder o foco e o clique não faz nada", () => {
-    for (const [passo, inativos] of [
-      [0, ["Início", "◀ Anterior"]],
-      [base.length, ["Próximo ▶", "Fim"]],
-    ] as const) {
-      const onMudar = vi.fn();
-      const mapa = botoes(passo, onMudar);
-      for (const texto of inativos) {
-        expect(mapa.get(texto)!.props["aria-disabled"]).toBe(true);
-        mapa.get(texto)!.props.onClick();
-      }
-      expect(onMudar).not.toHaveBeenCalled();
-    }
-    expect(renderToString(ControleDoReplay({ eventos: base, passo: 0, onMudar: () => {} }))).not.toContain("disabled=\"\"");
-  });
-});
-
-describe("error boundary", () => {
-  it("desenha de novo quando muda o incidente ou o passo", () => {
-    const limite = new LimiteDeErro({ parte: "a fila", chave: "b", children: null });
-    limite.state = { erro: new Error("falhou") };
-    const setState = vi.spyOn(limite, "setState").mockImplementation(() => {});
-    limite.componentDidUpdate({ parte: "a fila", chave: "b", children: null });
-    expect(setState).not.toHaveBeenCalled();
-    limite.componentDidUpdate({ parte: "a fila", chave: "a", children: null });
-    expect(setState).toHaveBeenCalledWith({ erro: null });
-  });
-
-  it("mostra a parte que falhou, no lugar dela", () => {
-    const limite = new LimiteDeErro({ parte: "a fila de incidentes", chave: "a", children: null });
-    limite.state = LimiteDeErro.getDerivedStateFromError(new Error("falhou ao desenhar"));
-    expect(textoDe(renderToString(limite.render() as ReactElement))).toContain("Não foi possível mostrar a fila de incidentes.falhou ao desenhar");
-  });
-});
-
-describe("resumo", () => {
-  it("o incidente marcado como já resolvido não conta como em acompanhamento", () => {
-    const html = textoDe(renderToString(<ResumoMetricas resumo={final.resumo} incidentes={final.incidentes} />));
-    const emAcompanhamento = final.incidentes.filter((view) => view.incidente.estado === "aberto" && !view.marcacao).length;
-    expect(html).toContain(`${emAcompanhamento} em acompanhamento`);
-    expect(final.incidentes.some((view) => view.incidente.estado === "aberto" && view.marcacao)).toBe(true);
   });
 });

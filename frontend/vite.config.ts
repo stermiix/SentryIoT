@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -13,6 +14,12 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/api": env.VITE_API_URL || "http://127.0.0.1:8000",
       },
+    },
+    test: {
+      // Um teste lê o CSS do design system como texto (`?raw`); sem isto, o Vitest devolve o CSS vazio.
+      css: { include: [/\.css(\?|$)/] },
+      // Os testes não dependem do `.env.local` de quem os roda.
+      env: { VITE_LOG_AO_VIVO: "", VITE_MODELOS_LOCAIS: "", VITE_MODELOS_NA_NUVEM: "" },
     },
   };
 });

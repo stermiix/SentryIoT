@@ -1,0 +1,322 @@
+/* Gerado por scripts/gerar-tokens.mjs a partir de tokens.json (SentryIoT). Não editar à mão. */
+
+:root, [data-theme="dark"] {
+  --petrol-900: #0d1f23;
+  --petrol-800: #132e35;
+  --petrol-700: #2d4a53;
+  --slate-600: #5a636a;
+  --slate-500: #69818d;
+  --slate-300: #afb3b7;
+  --bg-0: #020404;
+  --bg-1: #030708;
+  --surface-1: #071114;
+  --surface-2: var(--petrol-900);
+  --surface-3: var(--petrol-800);
+  --line-1: #1c3238;
+  --line-2: var(--petrol-700);
+  --line-control: #627982;
+  --scrim: rgba(2, 4, 4, 0.80);
+  --petrol-wash: rgba(19, 46, 53, 0.40);
+  --petrol-glow: rgba(45, 74, 83, 0.30);
+  --ink-1: #e9f2f5;
+  --ink-2: var(--slate-300);
+  --ink-3: #86979e;
+  --ink-4: var(--slate-600);
+  --ice: #d5eff8;
+  --ice-strong: #ecfaff;
+  --on-ice: #061116;
+  --glacier: #8dc8e0;
+  --glacier-deep: #4989a7;
+  --ice-tint-1: rgba(213, 239, 248, 0.05);
+  --ice-tint-2: rgba(213, 239, 248, 0.10);
+  --ice-edge: rgba(236, 250, 255, 0.14);
+  --ice-glow: rgba(141, 200, 224, 0.30);
+  --attention: #f6c45a;
+  --attention-tint: rgba(246, 196, 90, 0.14);
+  --attention-line: rgba(246, 196, 90, 0.55);
+  --on-attention: #1f1400;
+  --danger: #f5837d;
+  --danger-tint: rgba(245, 131, 125, 0.13);
+  --danger-line: rgba(245, 131, 125, 0.55);
+  --on-danger: #290b0a;
+  --success: #75d9a6;
+  --success-tint: rgba(117, 217, 166, 0.12);
+  --success-line: rgba(117, 217, 166, 0.50);
+  --on-success: #031b10;
+  --info: var(--glacier);
+  --info-tint: rgba(141, 200, 224, 0.12);
+  --neutral: #9ba7ad;
+  --neutral-tint: rgba(155, 167, 173, 0.12);
+  --cat-ddos: #f29d6c;
+  --cat-dos: #f7ccac;
+  --cat-flood: #f5b489;
+  --cat-mirai: #e294c8;
+  --cat-recon: #93b5f1;
+  --cat-spoofing: #bea5ee;
+  --cat-web: #72d0cd;
+  --cat-bruteforce: #cadb87;
+  --cat-benign: #88959b;
+  --chart-grid: var(--line-1);
+  --chart-axis: var(--ink-3);
+  --chart-1: var(--glacier);
+  --chart-2: var(--slate-300);
+  --heat-1: #12262e;
+  --heat-2: #1c4351;
+  --heat-3: #316c81;
+  --heat-4: #63a2bb;
+  --heat-5: #afd9ea;
+  --shadow-1: inset 0 1px 0 rgba(236, 250, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-2: inset 0 1px 0 rgba(236, 250, 255, 0.07), 0 12px 32px -12px rgba(0, 0, 0, 0.70);
+  --shadow-3: inset 0 1px 0 rgba(236, 250, 255, 0.08), 0 32px 80px -20px rgba(0, 0, 0, 0.85);
+  --shadow-glass: inset 0 1px 0 rgba(236, 250, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.50);
+  --shadow-attention: 0 0 0 1px rgba(246, 196, 90, 0.55), 0 0 32px -6px rgba(246, 196, 90, 0.35);
+  --focus-ring: 0 0 0 2px #030708, 0 0 0 4px #8dc8e0;
+}
+
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+  --control-sm: 32px;
+  --control-md: 40px;
+  --control-lg: 48px;
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-lg: 24px;
+  --sidebar-wide: 264px;
+  --sidebar-rail: 76px;
+  --dock-height: 72px;
+  --content-max: 1440px;
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --duration-pulse: 1800ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --z-sidebar: 20;
+  --z-dock: 30;
+  --z-popover: 40;
+  --z-modal: 50;
+  --opacity-disabled: 0.45;
+  --opacity-future: 0.38;
+  --font-display: "Inter Display", "Inter", system-ui, sans-serif;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Source Code Pro", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-voice: "Lora", Georgia, "Times New Roman", serif;
+}
+
+.display-xl {
+  font-family: var(--font-display);
+  font-size: 88px;
+  line-height: 88px;
+  font-weight: 300;
+  letter-spacing: -0.03em;
+}
+.display-lg {
+  font-family: var(--font-display);
+  font-size: 64px;
+  line-height: 68px;
+  font-weight: 300;
+  letter-spacing: -0.025em;
+}
+.display-md {
+  font-family: var(--font-display);
+  font-size: 44px;
+  line-height: 50px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.metric {
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 44px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+}
+.title-1 {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+.title-2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.title-3 {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+}
+.body-lg {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+}
+.body {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 400;
+}
+.body-strong {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
+}
+.body-sm {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+}
+.label {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+}
+.eyebrow-wide {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: 0.32em;
+}
+.data {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+.data-sm {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+.code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+}
+.voice-agent {
+  font-family: var(--font-voice);
+  font-size: 17px;
+  line-height: 27px;
+  font-weight: 400;
+  font-style: italic;
+}
+.voice-person {
+  font-family: var(--font-voice);
+  font-size: 17px;
+  line-height: 27px;
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Inter Display";
+  src: url("./fonts/InterDisplay-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter Display";
+  src: url("./fonts/InterDisplay-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter Display";
+  src: url("./fonts/InterDisplay-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter Display";
+  src: url("./fonts/InterDisplay-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("./fonts/Inter-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("./fonts/Inter-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("./fonts/Inter-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Source Code Pro";
+  src: url("./fonts/SourceCodePro-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Source Code Pro";
+  src: url("./fonts/SourceCodePro-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Lora";
+  src: url("./fonts/Lora-Variable.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Lora";
+  src: url("./fonts/Lora-Italic-Variable.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+}
