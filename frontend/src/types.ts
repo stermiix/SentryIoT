@@ -238,6 +238,8 @@ export interface PropostaView {
   acao: string;
   alvo: string;
   alvoComRotulo: string | null;
+  /** Os parâmetros da ação, como vieram na proposta (o prazo em minutos fica em `duracao`). */
+  parametros: Livre;
   justificativa: string;
   nova: boolean;
   risco: Risco;
@@ -269,6 +271,8 @@ export interface IncidenteView {
   recomendacoes: EventoDeRecomendacao[];
   propostas: PropostaView[];
   marcacao: MarcacaoView | null;
+  /** O endereço de cada rótulo neutro do incidente (origem-1, destino-1), na ordem em que apareceram. */
+  rotulos: ReadonlyMap<string, string>;
 }
 
 export interface ResumoGeral {

@@ -1,0 +1,54 @@
+/* O pouco que as telas do app acrescentam ao design system (src/design-system/styles.css).
+   Só tokens: nenhuma cor, espaço ou raio escrito à mão. Classes do app começam com "app-". */
+
+/* Lista de avisos dentro de um Alert. */
+.app-avisos { margin: var(--space-2) 0 0; padding-left: var(--space-5); display: flex; flex-direction: column; gap: var(--space-1); overflow-wrap: anywhere; }
+
+/* Parágrafos soltos dentro de painéis. */
+.app-nota { margin: 0; }
+.app-linha-com-icone { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Comando de terminal sugerido no diálogo de decisão. */
+.app-comando {
+  display: block; margin-top: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+  background: var(--scrim); border: 1px solid var(--line-1); color: var(--ink-1); white-space: pre-wrap; overflow-wrap: anywhere; user-select: all;
+}
+
+/* Ação nova descrita pelo agente, no diálogo de aprovação: blocos dentro da voz de agente. */
+.app-bloco-da-acao { display: block; margin-top: var(--space-2); }
+.app-bloco-da-acao:first-child { margin-top: 0; }
+.app-rotulo-da-acao { display: block; font-style: normal; }
+.app-passos { margin: var(--space-1) 0 0; padding-left: var(--space-5); }
+
+/* Recomendação com as propostas que ela cita. */
+.app-recomendacao { gap: var(--space-2); }
+.app-ligadas { list-style: none; margin: 0; padding: 0 0 0 var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+.app-ligadas li { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+
+/* Tela 3 e Tela 4. */
+.app-base { align-items: baseline; gap: var(--space-5); }
+.app-gelo { color: var(--ice); }
+.app-medida { gap: var(--space-2); }
+
+/* Dock da tela Ao vivo. */
+.app-dock-ao-vivo { justify-content: space-between; }
+
+/* Relatório: as páginas A4 lado a lado, quebrando a linha quando não cabem. */
+.app-relatorio { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: flex-start; }
+.app-relatorio > .sx-report { flex-shrink: 0; }
+.app-planejado { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); color: var(--ink-2); }
+.app-hora { margin-right: var(--space-2); }
+.app-celula { gap: 6px; }
+
+/* Catálogo de componentes. */
+.app-palco { height: 360px; min-height: 0; border-radius: var(--radius-md); }
+.app-demo-barra { height: 460px; padding: 0; }
+.app-espaco-dica { padding-top: var(--space-10); }
+
+/* Impressão: só o conteúdo da tela (o relatório em A4, as figuras do artigo), sem moldura. */
+@media print {
+  .sx-app { display: block; padding: 0; background: var(--bg-0); }
+  .sx-app__backdrop, .sx-app__side, .sx-app__dock, .sx-pagehead { display: none !important; }
+  .sx-app__content { padding: 0; }
+  .app-relatorio { display: block; overflow: visible; padding: 0; }
+}

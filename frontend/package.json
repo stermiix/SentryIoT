@@ -3,12 +3,13 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Interface web do SentryIoT. Versão mínima: fila de incidentes e detalhe, em modo replay.",
+  "description": "Interface web do SentryIoT, no design system SentryIoT: replay do log, telas do artigo e chat com o modelo.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "tokens": "node scripts/gerar-tokens.mjs",
     "sync:log": "node scripts/sync-log.mjs"
   },
   "dependencies": {

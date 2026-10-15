@@ -130,6 +130,8 @@ export interface Agregado {
   incidentes: IncidenteView[];
   /** Eventos que não cabem no ponto em que aparecem (aprovar proposta que não existe, por exemplo). */
   avisos: string[];
+  /** Os ids dos eventos que a reconstrução ignorou, por não caberem no estado em que aparecem. */
+  ignorados: ReadonlySet<string>;
 }
 
 // --- Reconstrução do estado ----------------------------------------------------------------
@@ -414,6 +416,7 @@ function aplicarProposta(estado: Estado, evento: Extract<Evento, { tipo: "acao_p
       acao: dados.acao,
       alvo: dados.alvo,
       alvoComRotulo: dados.alvo_com_rotulo,
+      parametros: dados.parametros,
       justificativa: dados.justificativa,
       nova: dados.nova,
       risco: dados.risco,
@@ -455,6 +458,7 @@ export function agregar(eventos: Evento[]): Agregado {
     promovidas: new Set(),
   };
   const montagens = new Map<string, Montagem>();
+  const ignorados = new Set<string>();
   const semAbertura = new Map<string, string[]>();
   let janelasClassificadas = 0;
   let chamadasLLM = 0;
@@ -474,6 +478,7 @@ export function agregar(eventos: Evento[]): Agregado {
     const problema = aplicar(estado, evento);
     if (problema) {
       avisos.push(`Evento ${citar(evento.id)} (${evento.tipo}) ignorado: ${problema}.`);
+      ignorados.add(evento.id);
       continue;
     }
     if (evento.incidente === null) {
@@ -498,6 +503,8 @@ export function agregar(eventos: Evento[]): Agregado {
         recomendacoes: [],
         propostas: [],
         marcacao: null,
+        // O mesmo mapa do estado: segue recebendo os rótulos dos endereços que aparecerem depois.
+        rotulos: estado.rotulos.get(evento.incidente) ?? new Map(),
       };
       montagens.set(evento.incidente, montagem);
     }
@@ -550,5 +557,6 @@ export function agregar(eventos: Evento[]): Agregado {
     },
     incidentes,
     avisos,
+    ignorados,
   };
 }
