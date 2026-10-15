@@ -98,10 +98,10 @@ Rótulo neutro de um endereço (`origem-1`, `destino-1`) com o IP real ao lado, 
 
 ### Sidebar
 
-Navegação lateral flutuante em pílula, nas versões larga e só com ícones. Degradê de cima para baixo (`petrol-800` → `on-ice` → `bg-0`) com luz glacier atrás do logo; o vão vazio acima do rodapé recebe a grade de pontos da capa do relatório.
+Navegação lateral flutuante em pílula, nas versões larga e só com ícones. Só preto e gelo: fundo preto (`bg-1` → `bg-0`), borda, textos, ícones e divisores em gelo de força menor, e o logo sem brilho; o vão vazio acima do rodapé recebe a grade de pontos da capa do relatório, também em gelo.
 
 - **Você fornece:** `logoSrc`, `sections` (rótulo + itens com `id`, `label`, `icon`, `count`, `attention`, `planned`), `activeId`, `onNavigate`, `collapsed`, `onToggle`, `footer` (provedor local e operador).
-- O item ativo é um degradê glacier com borda glacier; contagem âmbar (`attention`) quando há proposta aguardando; tela planejada leva um círculo tracejado e o rótulo esmaecido.
+- O item ativo é a única área de gelo da barra: preenchimento `ice` com texto e ícone `on-ice`, sem brilho. Contagem âmbar (`attention`) quando há proposta aguardando; tela planejada leva um círculo tracejado e o rótulo esmaecido. No rodapé, o ponto do modelo no ar também é gelo.
 - Recolhida, cada item mostra o nome como dica e `aria-label`.
 - Ocupa sempre a altura da janela, do topo ao pé, em qualquer tela.
 - Seções do SentryIoT: Operação (Visão geral, Incidentes, Ao vivo), Telas do artigo (3 a 6), Equipe (Chat com o modelo, Relatórios).
@@ -137,7 +137,7 @@ Abas sublinhadas para as seções de um mesmo objeto (Veredito · Agentes · Pro
 
 ### Panel
 
-A superfície de todo bloco: degradê suave do petróleo ao preto (`petrol-800` → `on-ice` → `bg-0`, luz no alto à direita), borda acesa em `glacier` no canto, cantos `radius-lg`.
+A superfície de todo bloco: degradê suave do grafite ao preto (`graphite-800` → `bg-1` → `bg-0`, luz no alto à direita), borda que clareia para gelo no canto aceso, cantos `radius-lg`.
 
 - **Você fornece:** `eyebrow` (rótulo mono), `title` (`title-3`), `actions` (à direita), `children`, `footer`, `flush` (tabelas de borda a borda), `tone="attention"` (halo âmbar quando algo dentro espera uma pessoa).
 - **Use** um título curto que diga o que há dentro ("Veredito", "Ações propostas"). Prefira deixar o halo âmbar no item que aguarda, não no painel inteiro.
@@ -246,7 +246,7 @@ Texto escrito por um agente de IA ou por uma pessoa, impossível de confundir co
 Dock que percorre o log evento a evento: início, anterior, reproduzir, próximo, fim, trilha com marcas e "evento 23 de 52".
 
 - **Você fornece:** `position`, `total`, `onChange`, `playing`, `onPlayToggle`, `current` (`id`, rótulo do evento, hora), `marks` (eventos de destaque com tom: incidente aberto, aguardando aprovação, decisões humanas), `keyboard` (← → Home End Espaço na página; padrão `true`).
-- O cursor é gelo; eventos passados preenchem a trilha em `glacier-deep`. Todas as telas mostram o estado até o cursor.
+- O cursor é gelo; eventos passados preenchem a trilha em gelo translúcido. Todas as telas mostram o estado até o cursor.
 
 ## Avisos
 
@@ -418,6 +418,6 @@ O relatório do incidente: capa A4 no estilo da capa de referência e duas pági
 
 Login com a marca de vidro ao fundo, na mesma linguagem da capa do relatório.
 
-- Composição: `GlassBackdrop variant="login"` sobre o chão em degradê (`on-ice` → `bg-0`); `Logo lg` e tagline em `eyebrow-wide`; barra de acento, "RESPOSTA AUTÔNOMA A INTRUSÃO", título "Entrar"; cartão de vidro com usuário, senha, "Entrar" (primário) e "Abrir o replay de demonstração"; selo "ACESSO RESTRITO".
+- Composição: `GlassBackdrop variant="login"` sobre o chão preto (`bg-1` → `bg-0`); `Logo lg` e tagline em `eyebrow-wide`; barra de acento, "RESPOSTA AUTÔNOMA A INTRUSÃO", título "Entrar"; cartão de vidro com usuário, senha, "Entrar" (primário) e "Abrir o replay de demonstração"; selo "ACESSO RESTRITO".
 - Estados: erro de senha (`Alert danger` + campo com erro), carregando (botão com giro). Cabe em 1440 × 900.
 - Código: `src/telas/Entrar.tsx`. O login passa por `src/operacao.ts`, que hoje explica que ainda não há login.
