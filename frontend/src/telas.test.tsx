@@ -10,6 +10,7 @@ import { textoDe } from "./html-de-teste";
 import { MOTIVOS_DE_RISCO_ALTO } from "./listas";
 import { agregar, lerLog } from "./log";
 import type { Rota, Tela } from "./rotas";
+import type { ResultadoDaSimulacao } from "./simulacao";
 import { TelaDoChat } from "./telas/Chat";
 import { TelaComponentes } from "./telas/Componentes";
 import { TelaEntrar } from "./telas/Entrar";
@@ -329,5 +330,90 @@ describe("outras telas", () => {
         expect(() => pagina(tela, passo), `${tela} no passo ${passo}`).not.toThrow();
       }
     }
+  });
+});
+
+describe("simulação", () => {
+  const RESULTADO: ResultadoDaSimulacao = {
+    arquivo: "Recon-PingSweep.pcap",
+    quadros: 22943,
+    ignorados: 12,
+    janelas: 227,
+    por_categoria: { Benign: 130, Recon: 96, "DDoS+DoS": 1 },
+    duracao_do_pcap_s: 9000,
+    processamento_s: 0.18,
+    modelo: "rf_regerado_janela_100.joblib",
+    ponto_de_operacao: { regra: "argmax", limiar: null, seguidas: 3 },
+    acionamento: { fecha_apos: 10, silencio_s: 60, reagrupa_s: 300, teto: 20 },
+    incidentes: [],
+    incidentes_alem_do_teto: 0,
+    log: "dados/eventos/simulacoes/x/eventos.jsonl",
+    eventos: textoDoExemplo,
+    para_o_llm: {
+      enviado: false,
+      motivo: "A simulação para na porta do modelo.",
+      agente: "triagem",
+      onde_roda: "modelo local",
+      incidente: "inc-0001",
+      pedido: {
+        model: "qwen-teste",
+        messages: [
+          { role: "system", content: "# Triagem do alerta" },
+          { role: "user", content: "Abriu o incidente inc-0001 (evento incidente_aberto)." },
+        ],
+        tools: [
+          { type: "function", function: { name: "obter_incidente", description: "" } },
+          { type: "function", function: { name: "obter_janelas", description: "" } },
+        ],
+        stream: false,
+        temperature: 0,
+      },
+      primeira_leitura: { tool: "obter_incidente", resultado: { id: "inc-0001", origens: [{ endereco: "203.0.113.7", quadros: 10 }] } },
+      visao_da_fronteira: { tool: "obter_resumo", resultado: { id: "inc-0001", origens: [{ rotulo: "origem-1", quadros: 10 }] } },
+    },
+  };
+
+  function simulacao(resultado: ResultadoDaSimulacao | null): string {
+    const rota: Rota = { tela: "simulacao", incidente: null };
+    return renderToString(
+      <Pagina rota={rota} replay={replayNo(lido.eventos.length)} navegar={nada} modelo={{ nome: "m", online: true }} simulacao={resultado} aoSimular={nada} />,
+    );
+  }
+
+  it("sem simulação, oferece anexar o pcap e iniciar, com o botão desabilitado até haver arquivo", () => {
+    const html = simulacao(null);
+    const textoDaTela = texto(html);
+
+    expect(textoDaTela).toContain("Simulação com um pcap");
+    expect(textoDaTela).toContain("Anexar pcap");
+    expect(textoDaTela).toContain("Nenhuma simulação ainda");
+    const botao = html.split("<button").find((trecho) => trecho.split("</button>")[0].includes("Iniciar simulação"));
+    expect(botao?.split(">")[0]).toContain("disabled");
+  });
+
+  it("com o resultado, mostra o fluxo até a porta do modelo e o pedido à triagem como não enviado", () => {
+    const textoDaTela = texto(simulacao(RESULTADO));
+
+    expect(textoDaTela).toContain("Do Recon-PingSweep.pcap até a porta do modelo");
+    expect(textoDaTela).toContain("227 janelas de 100 quadros");
+    expect(textoDaTela).toContain("pedido de inc-0001 montado, não enviado");
+    expect(textoDaTela).toContain("Não enviado");
+    expect(textoDaTela).toContain("qwen-teste");
+    expect(textoDaTela).toContain("obter_incidente, obter_janelas");
+    expect(textoDaTela).toContain("temperature");
+    expect(textoDaTela).toContain("inc-0001");
+  });
+
+  it("o bloco da fronteira traz só rótulos neutros, e o endereço fica no bloco do modelo local", () => {
+    const textoDaTela = texto(simulacao(RESULTADO));
+    const [local, fronteira] = textoDaTela.split("O que chegaria à fronteira");
+
+    expect(local).toContain("203.0.113.7");
+    expect(fronteira).toContain("origem-1");
+    expect(fronteira).not.toContain("203.0.113.7");
+  });
+
+  it("a barra lateral leva à simulação", () => {
+    expect(texto(pagina("visao-geral"))).toContain("Simulação");
   });
 });

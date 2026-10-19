@@ -16,6 +16,9 @@ classificador nem com os agentes. Ela só lê esse log, o que dá dois modos com
   na hora. Sem a variável, nenhum log é carregado e as telas abrem vazias.
 - **Ao vivo:** acompanha o log enquanto o sistema roda (planejado; ver "Ao vivo" abaixo).
 
+A tela Simulação é a exceção: ela manda um pcap ao backend, que roda o reprodutor e devolve o log
+gravado, e a interface passa a mostrar esse log nas outras telas.
+
 O formato do log é o contrato da tool MCP, em `codigo/mcp/contrato.json`. A interface não traz
 dado simulado: nenhum log vai no build, e o log de exemplo do stub (`codigo/mcp/exemplos/`) só
 entra nos testes.
@@ -27,6 +30,7 @@ entra nos testes.
 | Visão geral: funil janelas → incidentes → chamadas à IA, cartões e fila | `#/visao-geral` | funciona com o log |
 | Detalhe do incidente: veredito, features, propostas, endereços, rastro dos agentes, recomendações, histórico | `#/incidentes/<id>` | funciona com o log; as decisões só são oferecidas no fim do replay |
 | Ao vivo | `#/ao-vivo` | planejada; liga com `VITE_LOG_AO_VIVO`, e sem ela fica vazia |
+| Simulação: anexa um pcap, que passa pelo extrator, pelo classificador e pela política de acionamento até a porta do modelo da triagem, sem chamá-lo | `#/simulacao` | funciona com o backend (`POST /api/simulacao`) e o modelo do sistema em `modelos/`; o log da simulação passa a ser o das outras telas |
 | Tela 3, isolado × integrado | `#/isolado-integrado` | funciona com o log |
 | Tela 4, custo e latência | `#/custo-latencia` | funciona com o log; local × nuvem depende de `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM` |
 | Tela 5, qualidade do modelo | `#/qualidade-do-modelo` | matriz real da configuração 5 |

@@ -20,6 +20,7 @@ function secoes(props: PropsDaTela, ativa: Tela): NavSection[] {
         { id: "visao-geral", label: "Visão geral", icon: "layout-dashboard" },
         { id: "incidente", label: "Incidentes", icon: "shield-alert", count: contar && estado.incidentes.length > 0 ? estado.incidentes.length : undefined, attention: contar && estado.aguardando > 0 },
         { id: "ao-vivo", label: "Ao vivo", icon: "radio", planned: !AO_VIVO_CONFIGURADO },
+        { id: "simulacao", label: "Simulação", icon: "upload" },
       ],
     },
     {
