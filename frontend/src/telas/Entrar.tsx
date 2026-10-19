@@ -5,7 +5,7 @@ import type { Rota } from "../rotas";
 
 /**
  * A entrada do operador, com a marca de vidro ao fundo. O login ainda não existe: "Entrar" passa
- * por `operacao.entrar`, que hoje explica isso, e "Abrir o replay de demonstração" leva à visão geral.
+ * por `operacao.entrar`, que hoje explica isso, e "Abrir o replay" leva à visão geral.
  */
 export function TelaEntrar({ navegar }: { navegar: (rota: Rota) => void }) {
   const [usuario, setUsuario] = useState("");
@@ -69,7 +69,7 @@ export function TelaEntrar({ navegar }: { navegar: (rota: Rota) => void }) {
             </Button>
             <div className="sx-login__or data-sm">ou</div>
             <Button variant="secondary" size="lg" block icon="history" onClick={() => navegar({ tela: "visao-geral", incidente: null })}>
-              Abrir o replay de demonstração
+              Abrir o replay
             </Button>
           </form>
           <div className="sx-login__status data-sm">

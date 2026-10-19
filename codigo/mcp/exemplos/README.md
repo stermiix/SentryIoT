@@ -1,8 +1,8 @@
 # Log de eventos de exemplo
 
 `incidente_flood.jsonl` é o log de uma execução roteirizada do stub: um incidente de flood, do
-começo ao fim, e um incidente de força bruta que a pessoa resolve antes dos agentes. É o
-primeiro insumo do modo replay da interface web.
+começo ao fim, e um incidente de força bruta que a pessoa resolve antes dos agentes. Os testes
+da interface web o leem daqui; a interface em si não o carrega, para não mostrar dado simulado.
 
 **Os valores são ilustrativos.** O incidente, as janelas, os tokens, as durações e os horários
 vêm dos cenários do stub e de um relógio de mentira. Nada aqui saiu do classificador, de um
@@ -39,5 +39,5 @@ o roteiro mudarem, o teste falha até o arquivo ser gerado de novo.
     decisão vê a marca no resumo e só explica o incidente: nada é proposto nem aplicado.
 
 O arquivo tem 52 linhas e passa pelos 16 tipos de evento do contrato. O formato de cada linha
-está em `codigo/mcp/contrato.json`, na definição `Evento`. A interface lê uma cópia em
-`frontend/public/dados/`, feita com `npm run sync:log`; o CI confere que as duas são iguais.
+está em `codigo/mcp/contrato.json`, na definição `Evento`. Os testes da interface leem este
+arquivo direto daqui, sem cópia.

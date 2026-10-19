@@ -10,6 +10,8 @@ dados/processed/*
 
 # Log de eventos de uma execucao do sistema (o exemplo versionado fica em codigo/mcp/exemplos/)
 dados/eventos/
+# Log que a interface le no replay, posto em public/ so na maquina de quem roda: pode ter enderecos reais
+frontend/public/dados/
 
 # Modelos treinados
 *.pkl

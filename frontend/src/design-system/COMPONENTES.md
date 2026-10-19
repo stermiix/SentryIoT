@@ -98,11 +98,12 @@ Rótulo neutro de um endereço (`origem-1`, `destino-1`) com o IP real ao lado, 
 
 ### Sidebar
 
-Navegação lateral flutuante em pílula, nas versões larga e só com ícones. Degradê de cima para baixo (`petrol-800` → `on-ice` → `bg-0`) com luz glacier atrás do logo; o vão vazio acima do rodapé recebe a grade de pontos da capa do relatório.
+Navegação lateral flutuante em pílula, nas versões larga e só com ícones. Só preto e gelo: fundo preto (`bg-1` → `bg-0`), borda, textos, ícones e divisores em gelo de força menor, e o logo sem brilho; o vão vazio acima do rodapé recebe a grade de pontos da capa do relatório, também em gelo.
 
 - **Você fornece:** `logoSrc`, `sections` (rótulo + itens com `id`, `label`, `icon`, `count`, `attention`, `planned`), `activeId`, `onNavigate`, `collapsed`, `onToggle`, `footer` (provedor local e operador).
-- O item ativo é um degradê glacier com borda glacier; contagem âmbar (`attention`) quando há proposta aguardando; tela planejada leva um círculo tracejado e o rótulo esmaecido.
+- O item ativo é a única área de gelo da barra: preenchimento `ice` com texto e ícone `on-ice`, sem brilho. Contagem âmbar (`attention`) quando há proposta aguardando; tela planejada leva um círculo tracejado e o rótulo esmaecido. No rodapé, o ponto do modelo no ar também é gelo.
 - Recolhida, cada item mostra o nome como dica e `aria-label`.
+- Ocupa sempre a altura da janela, do topo ao pé, em qualquer tela.
 - Seções do SentryIoT: Operação (Visão geral, Incidentes, Ao vivo), Telas do artigo (3 a 6), Equipe (Chat com o modelo, Relatórios).
 
 ### PageHeader
@@ -136,7 +137,7 @@ Abas sublinhadas para as seções de um mesmo objeto (Veredito · Agentes · Pro
 
 ### Panel
 
-A superfície de todo bloco: degradê suave do petróleo ao preto (`petrol-800` → `on-ice` → `bg-0`, luz no alto à direita), borda acesa em `glacier` no canto, cantos `radius-lg`.
+A superfície de todo bloco: degradê suave do grafite ao preto (`graphite-800` → `bg-1` → `bg-0`, luz no alto à direita), borda que clareia para gelo no canto aceso, cantos `radius-lg`.
 
 - **Você fornece:** `eyebrow` (rótulo mono), `title` (`title-3`), `actions` (à direita), `children`, `footer`, `flush` (tabelas de borda a borda), `tone="attention"` (halo âmbar quando algo dentro espera uma pessoa).
 - **Use** um título curto que diga o que há dentro ("Veredito", "Ações propostas"). Prefira deixar o halo âmbar no item que aguarda, não no painel inteiro.
@@ -165,7 +166,7 @@ Seleção nativa com o mesmo visual dos campos: teclado e leitor de tela de gra�
 O argumento do trabalho de relance: **janelas classificadas → incidente → chamadas à IA**, e quanto custaria sem agregação.
 
 - **Você fornece:** `windows`, `incidents`, `aiCalls`, `counterfactual` (as janelas de ataque, as que virariam chamada), `scope` (ex.: "até o evento 52 de 52"), `footnote` (ex.: incidente marcado como já resolvido antes dos agentes).
-- O desenho mostra muitas janelas convergindo para um nó e se abrindo em uma chamada por ponto; o rodapé traz o contrafactual ("10.752 chamadas à IA, o risco de *Denial of Wallet*": só as janelas de ataque, passadas em `counterfactual`) e a razão, arredondada para baixo ("827× menos chamadas" no fim do log de exemplo).
+- O desenho mostra muitas janelas convergindo para um nó e se abrindo em uma chamada por ponto; o rodapé traz o contrafactual (as chamadas à IA que as janelas de ataque, passadas em `counterfactual`, custariam sem agregação: o risco de *Denial of Wallet*) e a razão, arredondada para baixo ("N× menos chamadas"). Com zero janelas, só o nó aparece, e o rodapé diz que nenhuma janela foi classificada.
 - **É o cartão mais importante da visão geral:** coloque no topo, na largura toda. Os números escalam com a largura (até 88 px).
 
 ### MetricCard
@@ -245,7 +246,7 @@ Texto escrito por um agente de IA ou por uma pessoa, impossível de confundir co
 Dock que percorre o log evento a evento: início, anterior, reproduzir, próximo, fim, trilha com marcas e "evento 23 de 52".
 
 - **Você fornece:** `position`, `total`, `onChange`, `playing`, `onPlayToggle`, `current` (`id`, rótulo do evento, hora), `marks` (eventos de destaque com tom: incidente aberto, aguardando aprovação, decisões humanas), `keyboard` (← → Home End Espaço na página; padrão `true`).
-- O cursor é gelo; eventos passados preenchem a trilha em `glacier-deep`. Todas as telas mostram o estado até o cursor.
+- O cursor é gelo; eventos passados preenchem a trilha em gelo translúcido. Todas as telas mostram o estado até o cursor.
 
 ## Avisos
 
@@ -290,7 +291,7 @@ Confirmação de toda decisão humana: aprovar proposta de risco alto, rejeitar 
 
 Área suave no tempo com dica flutuante; a segunda série é uma linha tracejada (funciona em cinza).
 
-- **Você fornece:** `series` (`name`, `values`), `labels` (eixo x, ex.: horários), `format`, `unit`, `height`, `ariaLabel`, `defaultIndex` (ponto com dica fixa para figuras).
+- **Você fornece:** `series` (`name`, `values`), `labels` (eixo x, ex.: horários), `format`, `unit`, `height` (pixels, ou `"fill"` para ocupar a altura do contêiner, que precisa ser uma coluna flex com espaço), `ariaLabel`, `defaultIndex` (ponto com dica fixa para figuras).
 - Setas ← → movem a dica quando o gráfico tem foco. Eixos em mono `chart-axis`, grade `chart-grid`.
 
 ### CategoryBars
@@ -359,20 +360,21 @@ Página interna A4 com cabeçalho corrido, seções numeradas e rodapé "Confide
 
 Visão geral: o funil do argumento, três cartões e a fila de incidentes, até o evento do cursor.
 
-- O `AggregationFunnel` ocupa a largura toda no topo. No log de exemplo, no fim do inc-0001 (evento 44): 10.946 janelas → 1 incidente → 11 chamadas à IA; no fim do log: 10.970 → 2 → 13. O contrafactual de *Denial of Wallet* conta só as janelas de ataque.
-- Cartões: aguardando aprovação, incidentes, tokens. Fila do exemplo: inc-0001 (DDoS, modelo DDoS+DoS, encerrado no fim) e inc-0002 (BruteForce, marcado como já resolvido).
+- O `AggregationFunnel` ocupa a largura toda no topo: janelas classificadas → incidentes → chamadas à IA, até o cursor. O contrafactual de *Denial of Wallet* conta só as janelas de ataque.
+- Cartões: aguardando aprovação, incidentes, tokens. Abaixo, a fila de incidentes.
+- Sem log carregado, tudo fica em zero, a fila diz que nenhum log foi carregado e o replay some do pé.
 - O replay no pé é interativo: arraste ou use ← → e tudo recalcula até o evento escolhido.
 
 ### TelaIncidente
 
-Detalhe do incidente; no evento 28 do log de exemplo, duas propostas de risco alto aguardam aprovação.
+Detalhe do incidente, no ponto do replay em que o cursor está.
 
 - Veredito com as duas categorias, features contra o benigno, propostas (aguardando primeiro), origens e destinos, rastro dos agentes, recomendações na voz de agente e o histórico de decisões com os eventos futuros esmaecidos.
 - "Já resolvido", "Aprovar" e "Rejeitar" abrem o `ConfirmDialog`.
 
 ### TelaAoVivo
 
-Modo ao vivo (planejado): o incidente aparece assim que o classificador o abre, antes dos agentes. Com `VITE_LOG_AO_VIVO`, a tela lê o log que está sendo gravado.
+Modo ao vivo (planejado): o incidente aparece assim que o classificador o abre, antes dos agentes. Com `VITE_LOG_AO_VIVO`, a tela lê o log que está sendo gravado; sem a variável, fica vazia.
 
 - Decisões pendentes à esquerda com aprovar/rejeitar pela interface; incidente recém-aberto com o andamento de cada agente e "Marcar como já resolvido"; eventos chegando. A barra de provedores entra quando a escolha do provedor dos agentes existir: o log não diz onde cada modelo roda.
 
@@ -380,7 +382,7 @@ Modo ao vivo (planejado): o incidente aparece assim que o classificador o abre, 
 
 Tela 3 (vira figura do artigo): o mesmo incidente com a saída crua do classificador de um lado e a resposta com agentes do outro.
 
-- No fim do log de exemplo: 21.468 alertas, um por janela, contra 1 incidente, 11 chamadas à IA, três propostas e o efeito "o incidente cessou". Alternância "Rótulos neutros | Com IPs" para a figura; "Imprimir a figura" imprime só o conteúdo.
+- À esquerda, as janelas do incidente, um alerta cada; à direita, 1 incidente, as chamadas à IA, as propostas e os efeitos. Tudo sai do log. Alternância "Rótulos neutros | Com IPs" para a figura; "Imprimir a figura" imprime só o conteúdo.
 
 ### TelaCustoLatencia
 
@@ -398,7 +400,7 @@ Tela 5: matriz de confusão 7 × 7, precisão, recall e F1 por classe e o benign
 
 Tela 6 (planejada): o teste de *tool poisoning*: o que foi injetado e se o agente caiu.
 
-- Três desfechos: agente resistiu, recusada pelo servidor, agente caiu (contido pela aprovação humana). Conteúdo injetado em bloco hachurado "não confiável"; o que o agente fez na voz de agente. Resultados ilustrativos.
+- Três desfechos: agente resistiu, recusada pelo servidor, agente caiu (contido pela aprovação humana). Conteúdo injetado em bloco hachurado "não confiável"; o que o agente fez na voz de agente. Até o teste rodar, os três cartões ficam em zero e a lista de testes, vazia.
 
 ### TelaChat
 
@@ -417,6 +419,6 @@ O relatório do incidente: capa A4 no estilo da capa de referência e duas pági
 
 Login com a marca de vidro ao fundo, na mesma linguagem da capa do relatório.
 
-- Composição: `GlassBackdrop variant="login"` sobre o chão em degradê (`on-ice` → `bg-0`); `Logo lg` e tagline em `eyebrow-wide`; barra de acento, "RESPOSTA AUTÔNOMA A INTRUSÃO", título "Entrar"; cartão de vidro com usuário, senha, "Entrar" (primário) e "Abrir o replay de demonstração"; selo "ACESSO RESTRITO".
+- Composição: `GlassBackdrop variant="login"` sobre o chão preto (`bg-1` → `bg-0`); `Logo lg` e tagline em `eyebrow-wide`; barra de acento, "RESPOSTA AUTÔNOMA A INTRUSÃO", título "Entrar"; cartão de vidro com usuário, senha, "Entrar" (primário) e "Abrir o replay"; selo "ACESSO RESTRITO".
 - Estados: erro de senha (`Alert danger` + campo com erro), carregando (botão com giro). Cabe em 1440 × 900.
 - Código: `src/telas/Entrar.tsx`. O login passa por `src/operacao.ts`, que hoje explica que ainda não há login.

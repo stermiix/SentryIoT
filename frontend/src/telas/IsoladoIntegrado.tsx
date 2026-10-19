@@ -1,17 +1,13 @@
 import { useState } from "react";
 import { detalheDoIncidente } from "../adaptador";
 import { Button, ClassifierVerdict, EmptyState, PageHeader, Panel, RiskBadge, Segmented, StatusBadge, TargetLabel, fmtInt } from "../design-system";
-import { Planejada } from "./comum";
 import { incidenteEscolhido } from "./Incidente";
 import type { PropsDaTela } from "./replay";
 
-// Quantas linhas do formato "uma por janela" a figura mostra antes de resumir o resto.
-const LINHAS_DE_EXEMPLO = 6;
-
 /**
  * Tela 3: o mesmo incidente sem agentes (um alerta por janela) e com agentes (um incidente, poucas
- * chamadas à IA, propostas e efeitos). O lado integrado sai do log; o lado isolado mostra o formato
- * de saída do classificador, com os valores do incidente.
+ * chamadas à IA, propostas e efeitos). Os dois lados saem do log: o isolado conta as janelas do
+ * incidente, que seriam um alerta cada.
  */
 export function TelaIsoladoIntegrado(props: PropsDaTela & { incidente?: string | null }) {
   const [enderecos, setEnderecos] = useState("rotulos");
@@ -44,26 +40,17 @@ export function TelaIsoladoIntegrado(props: PropsDaTela & { incidente?: string |
     return (
       <>
         {cabecalho}
-        <EmptyState icon="flag" title="Nenhum incidente neste ponto do replay">Avance o replay até o primeiro incidente aberto.</EmptyState>
+        {props.replay.estado.total === 0 ? (
+          <EmptyState icon="inbox" title="Nenhum incidente no log">Nenhum log de eventos carregado.</EmptyState>
+        ) : (
+          <EmptyState icon="flag" title="Nenhum incidente neste ponto do replay">Avance o replay até o primeiro incidente aberto.</EmptyState>
+        )}
       </>
     );
   }
 
   const { incidente } = detalhe;
   const comIps = enderecos === "ips";
-  const origem = detalhe.origens[0];
-  const rate = detalhe.features.find((feature) => feature.name === "Rate");
-  const linhas = Array.from({ length: Math.min(LINHAS_DE_EXEMPLO, incidente.windows) }, (_, i) => {
-    const campos: Record<string, unknown> = { janela: i + 1, previsto: incidente.modelCategory, confianca: incidente.confidence };
-    if (rate) {
-      campos.Rate = rate.value;
-    }
-    if (comIps && origem) {
-      campos.origem = origem.address;
-    }
-    return JSON.stringify(campos);
-  });
-  const resto = incidente.windows - linhas.length;
 
   return (
     <>
@@ -75,19 +62,6 @@ export function TelaIsoladoIntegrado(props: PropsDaTela & { incidente?: string |
               <span className="sx-bignum display-lg">{fmtInt(incidente.windows)}</span>
               <span className="body-lg sx-muted">alertas, um por janela</span>
             </div>
-            <pre className="sx-code code">
-              {linhas.join("\n")}
-              {resto > 0 && (
-                <>
-                  {"\n"}
-                  <b>… mais {fmtInt(resto)} linhas</b>
-                </>
-              )}
-            </pre>
-            <p className="body-sm sx-muted app-nota">
-              <Planejada>Valores ilustrativos</Planejada> As linhas mostram o formato da saída do classificador, uma por janela, com a categoria e a confiança do incidente; o log não
-              guarda as janelas uma a uma.
-            </p>
             <dl className="sx-kv body">
               <dt>Ação tomada</dt>
               <dd>nenhuma</dd>
@@ -133,8 +107,8 @@ export function TelaIsoladoIntegrado(props: PropsDaTela & { incidente?: string |
         </Panel>
       </div>
       <p className="sx-caption body-sm">
-        Figura: à esquerda, a saída do classificador isolado (uma linha por janela, no formato ilustrado); à direita, o mesmo tráfego agregado em um incidente e tratado por
-        três agentes. Contagens, veredito e propostas do log de exemplo, {id}, até o evento {props.replay.estado.passo} de {props.replay.estado.total}.
+        Figura: à esquerda, o classificador isolado, com um alerta por janela; à direita, o mesmo tráfego agregado em um incidente e tratado por três agentes. Contagens,
+        veredito e propostas do log, {id}, até o evento {props.replay.estado.passo} de {props.replay.estado.total}.
       </p>
     </>
   );

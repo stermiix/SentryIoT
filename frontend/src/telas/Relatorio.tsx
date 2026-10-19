@@ -45,7 +45,11 @@ export function TelaRelatorio(props: PropsDaTela & { incidente: string | null })
     <PageHeader
       eyebrow={id ? `Relatórios / ${id}` : "Relatórios"}
       title="Relatório de incidente"
-      meta={<span className="body-sm sx-muted">Gerado do log até o evento {replay.estado.passo} de {replay.estado.total}. Imprima em A4, sem margens.</span>}
+      meta={
+        <span className="body-sm sx-muted">
+          {replay.estado.total === 0 ? "Nenhum log de eventos carregado." : `Gerado do log até o evento ${replay.estado.passo} de ${replay.estado.total}. Imprima em A4, sem margens.`}
+        </span>
+      }
       actions={
         <>
           {detalhe && (
@@ -64,7 +68,9 @@ export function TelaRelatorio(props: PropsDaTela & { incidente: string | null })
     return (
       <>
         {cabecalho}
-        <EmptyState icon="file-text" title="Nenhum incidente para relatar">Avance o replay até um incidente aberto, ou escolha um na fila.</EmptyState>
+        <EmptyState icon="file-text" title="Nenhum incidente para relatar">
+          {replay.estado.total === 0 ? "O relatório sai do log de eventos, e nenhum log foi carregado." : "Avance o replay até um incidente aberto, ou escolha um na fila."}
+        </EmptyState>
       </>
     );
   }

@@ -6,17 +6,19 @@ import { CATEGORY, type AnyCategory, type ModelCategory } from './vocab';
 // Layout effect in the browser; plain effect where there is no DOM (server rendering in the tests).
 const useClientLayoutEffect = typeof window === 'undefined' ? React.useEffect : React.useLayoutEffect;
 
-function useWidth(ref: React.RefObject<HTMLElement>, fallback: number): number {
-  const [w, setW] = React.useState(fallback);
+function useSize(ref: React.RefObject<HTMLElement>, fallback: { w: number; h: number }): { w: number; h: number } {
+  const [size, setSize] = React.useState(fallback);
   useClientLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const ro = new ResizeObserver((entries) => { const cw = entries[0]?.contentRect.width; if (cw) setW(cw); });
+    const read = (w: number, h: number) => setSize((cur) => ({ w: w || cur.w, h: h || cur.h }));
+    const ro = new ResizeObserver((entries) => { const r = entries[0]?.contentRect; if (r) read(r.width, r.height); });
     ro.observe(el);
-    setW(el.getBoundingClientRect().width || fallback);
+    const r = el.getBoundingClientRect();
+    read(r.width, r.height);
     return () => ro.disconnect();
   }, []);
-  return w;
+  return size;
 }
 
 function niceMax(v: number): number {
@@ -40,7 +42,8 @@ export interface AreaChartProps {
   format?: (v: number) => string;
   /** Unit after the tooltip value. */
   unit?: string;
-  height?: number;
+  /** Pixels, or "fill": the chart takes the height of its container (a flex column that gives it room). */
+  height?: number | 'fill';
   /** Accessible summary of what the chart shows. */
   ariaLabel: string;
   /** Point shown with the tooltip when nothing is hovered (figures for the article). */
@@ -50,14 +53,17 @@ export interface AreaChartProps {
 
 /** Smooth area over time with a floating tooltip; arrow keys move the tooltip. */
 export function AreaChart({ series, labels, format = (v) => fmtInt(v), unit, height = 220, ariaLabel, defaultIndex, className }: AreaChartProps): React.ReactElement {
-  const ref = React.useRef<HTMLDivElement>(null);
-  const width = useWidth(ref as React.RefObject<HTMLElement>, 640);
+  const plot = React.useRef<HTMLDivElement>(null);
+  const fill = height === 'fill';
+  const size = useSize(plot as React.RefObject<HTMLElement>, { w: 640, h: 220 });
+  const width = size.w;
+  const h = fill ? Math.max(160, size.h) : height;
   const [hover, setHover] = React.useState<number | null>(defaultIndex ?? null);
   const padL = 56, padR = 16, padT = 16, padB = 32;
   const n = labels.length;
   const max = niceMax(Math.max(...series.flatMap((s) => s.values)) * 1.08);
   const x = (i: number) => padL + (n > 1 ? (i / (n - 1)) * (width - padL - padR) : 0);
-  const y = (v: number) => padT + (1 - v / max) * (height - padT - padB);
+  const y = (v: number) => padT + (1 - v / max) * (h - padT - padB);
   const path = (vals: number[]) => {
     let d = '';
     vals.forEach((v, i) => {
@@ -84,8 +90,9 @@ export function AreaChart({ series, labels, format = (v) => fmtInt(v), unit, hei
   const shown = hover != null && hover < n ? hover : defaultIndex != null && defaultIndex < n ? defaultIndex : null;
   const tipLeft = shown != null ? Math.min(Math.max(x(shown), 90), width - 90) : 0;
   return (
-    <div className={cx('sx-chart', className)} ref={ref} tabIndex={0} onKeyDown={onKey} onBlur={() => setHover(defaultIndex ?? null)} role="img" aria-label={ariaLabel}>
-      <svg width={width} height={height} onMouseMove={onMove} onMouseLeave={() => setHover(defaultIndex ?? null)}>
+    <div className={cx('sx-chart', fill && 'sx-chart--fill', className)} tabIndex={0} onKeyDown={onKey} onBlur={() => setHover(defaultIndex ?? null)} role="img" aria-label={ariaLabel}>
+      <div className="sx-chart__plot" ref={plot}>
+      <svg width={width} height={h} onMouseMove={onMove} onMouseLeave={() => setHover(defaultIndex ?? null)}>
         <defs>
           <linearGradient id="sx-area-fill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" style={{ stopColor: 'var(--glacier-deep)', stopOpacity: 0.55 }} />
@@ -99,18 +106,19 @@ export function AreaChart({ series, labels, format = (v) => fmtInt(v), unit, hei
           </g>
         ))}
         {labels.map((l, i) => (i % step === 0 || i === n - 1) && (
-          <text key={i} x={x(i)} y={height - 8} className="sx-chart__axis" textAnchor="middle">{l}</text>
+          <text key={i} x={x(i)} y={h - 8} className="sx-chart__axis" textAnchor="middle">{l}</text>
         ))}
         {main && <path d={path(main.values) + ` L${x(n - 1)} ${y(0)} L${x(0)} ${y(0)} Z`} fill="url(#sx-area-fill)" />}
         {series.slice(1).map((s) => <path key={s.name} d={path(s.values)} className="sx-chart__line2" />)}
         {main && <path d={path(main.values)} className="sx-chart__line" />}
         {shown != null && (
           <g>
-            <line x1={x(shown)} x2={x(shown)} y1={padT} y2={height - padB} className="sx-chart__cursor" />
+            <line x1={x(shown)} x2={x(shown)} y1={padT} y2={h - padB} className="sx-chart__cursor" />
             {series.map((s, k) => <circle key={s.name} cx={x(shown)} cy={y(s.values[shown])} r={k === 0 ? 6 : 4} className={k === 0 ? 'sx-chart__dot' : 'sx-chart__dot2'} />)}
           </g>
         )}
       </svg>
+      </div>
       {shown != null && (
         <div className="sx-chart__tip" style={{ left: tipLeft, top: 4 }}>
           <div className="data-sm sx-chart__tiplabel">{labels[shown]}</div>
