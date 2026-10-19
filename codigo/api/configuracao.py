@@ -5,6 +5,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 PRAZO_PADRAO_S = 300
+# Valores de LLM_RACIOCINIO e o que cada um manda em `chat_template_kwargs.enable_thinking`.
+RACIOCINIO = {"ligado": True, "desligado": False}
 # Variável obrigatória do ambiente e o atributo que a guarda, na ordem em que `faltando` relata.
 OBRIGATORIAS = (("LLM_BASE_URL", "url_base"), ("LLM_API_KEY", "chave"), ("LLM_MODEL", "modelo"))
 
@@ -36,6 +38,13 @@ class Configuracao:
     prazo_s: float = PRAZO_PADRAO_S
     # Os modelos que a interface pode escolher. Vazio quer dizer só o padrão (ver `modelos`).
     modelos_permitidos: tuple[str, ...] = ()
+    # Parâmetros de geração mandados em toda chamada, quando definidos; sem a variável, vale o
+    # padrão do provedor. O raciocínio vai em `chat_template_kwargs`, que o llama.cpp e o vLLM
+    # entendem; no gateway de 19/10, desligá-lo deixou a triagem 30% mais rápida, com os mesmos rótulos.
+    temperatura: float | None = None
+    semente: int | None = None
+    max_tokens: int | None = None
+    raciocinio: bool | None = None
 
     @classmethod
     def do_ambiente(cls, ambiente: Mapping[str, str]):
@@ -50,7 +59,24 @@ class Configuracao:
             ca=ambiente.get("LLM_CA_BUNDLE", "").strip() or None,
             prazo_s=float(prazo) if prazo else PRAZO_PADRAO_S,
             modelos_permitidos=tuple(nome for nome in permitidos if nome),
+            temperatura=_numero(ambiente, "LLM_TEMPERATURA", float, 0, 2),
+            semente=_numero(ambiente, "LLM_SEMENTE", int, 0, None),
+            max_tokens=_numero(ambiente, "LLM_MAX_TOKENS", int, 1, None),
+            raciocinio=_raciocinio(ambiente),
         )
+
+    def parametros(self):
+        """Os parâmetros de geração definidos, já com os nomes do corpo de `chat/completions`."""
+        corpo = {}
+        if self.temperatura is not None:
+            corpo["temperature"] = self.temperatura
+        if self.semente is not None:
+            corpo["seed"] = self.semente
+        if self.max_tokens is not None:
+            corpo["max_tokens"] = self.max_tokens
+        if self.raciocinio is not None:
+            corpo["chat_template_kwargs"] = {"enable_thinking": self.raciocinio}
+        return corpo
 
     def modelos(self):
         """Os modelos permitidos, com o padrão sempre na frente, venha a lista de onde vier."""
@@ -59,3 +85,27 @@ class Configuracao:
     def faltando(self):
         """Os nomes das variáveis obrigatórias que estão em branco."""
         return [variavel for variavel, atributo in OBRIGATORIAS if not getattr(self, atributo)]
+
+
+def _numero(ambiente, variavel, tipo, minimo, maximo):
+    """O número de uma variável opcional, ou None quando ela está em branco. Fora da faixa é erro."""
+    texto = ambiente.get(variavel, "").strip()
+    if not texto:
+        return None
+    try:
+        valor = tipo(texto)
+    except ValueError:
+        raise ValueError(f"{variavel} precisa ser um número{' inteiro' if tipo is int else ''}, e veio {texto!r}") from None
+    if valor < minimo or (maximo is not None and valor > maximo):
+        faixa = f"entre {minimo} e {maximo}" if maximo is not None else f"a partir de {minimo}"
+        raise ValueError(f"{variavel} precisa estar {faixa}, e veio {texto}")
+    return valor
+
+
+def _raciocinio(ambiente):
+    texto = ambiente.get("LLM_RACIOCINIO", "").strip().lower()
+    if not texto:
+        return None
+    if texto not in RACIOCINIO:
+        raise ValueError(f"LLM_RACIOCINIO precisa ser ligado ou desligado, e veio {texto!r}")
+    return RACIOCINIO[texto]

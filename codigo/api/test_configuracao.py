@@ -2,6 +2,8 @@
 
 import os
 
+import pytest
+
 from codigo.api.configuracao import Configuracao, carregar_env
 
 
@@ -74,3 +76,33 @@ def test_faltando_lista_as_obrigatorias_em_branco():
     config = Configuracao.do_ambiente({"LLM_BASE_URL": "", "LLM_MODEL": "m"})
 
     assert config.faltando() == ["LLM_BASE_URL", "LLM_API_KEY"]
+
+
+def test_parametros_de_geracao_ficam_de_fora_sem_as_variaveis():
+    config = Configuracao.do_ambiente({"LLM_BASE_URL": "https://g/v1", "LLM_API_KEY": "k", "LLM_MODEL": "m"})
+
+    assert config.parametros() == {}
+
+
+def test_parametros_de_geracao_lidos_do_ambiente_com_os_nomes_do_corpo():
+    config = Configuracao.do_ambiente({
+        "LLM_TEMPERATURA": "0", "LLM_SEMENTE": "7", "LLM_MAX_TOKENS": "2048", "LLM_RACIOCINIO": "Desligado",
+    })
+
+    assert config.parametros() == {
+        "temperature": 0.0, "seed": 7, "max_tokens": 2048, "chat_template_kwargs": {"enable_thinking": False},
+    }
+    assert Configuracao.do_ambiente({"LLM_RACIOCINIO": "ligado"}).parametros() == {"chat_template_kwargs": {"enable_thinking": True}}
+
+
+@pytest.mark.parametrize(("variavel", "valor", "trecho"), [
+    ("LLM_TEMPERATURA", "quente", "precisa ser um número"),
+    ("LLM_TEMPERATURA", "3", "entre 0 e 2"),
+    ("LLM_SEMENTE", "1.5", "número inteiro"),
+    ("LLM_MAX_TOKENS", "0", "a partir de 1"),
+    ("LLM_RACIOCINIO", "sim", "ligado ou desligado"),
+])
+def test_parametro_de_geracao_invalido_e_erro_com_o_nome_da_variavel(variavel, valor, trecho):
+    with pytest.raises(ValueError, match=variavel) as erro:
+        Configuracao.do_ambiente({variavel: valor})
+    assert trecho in str(erro.value)
