@@ -18,7 +18,7 @@ from starlette.routing import Route
 
 from codigo.api.prompts import ler_prompts
 from codigo.api.provedor import PAPEIS, ErroDoProvedor
-from codigo.api.simulacao import nome_do_pcap
+from codigo.api.simulacao import PcapInvalido, SemTrechoDeTeste, nome_do_pcap
 
 log = logging.getLogger(__name__)
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,6 +32,8 @@ LIMITE_DA_SOMA = 80_000  # caracteres de sistema e mensagens somados
 # Maior pcap aceito pela simulação. O extrator lê cerca de 160 mil quadros por segundo: um pcap
 # deste tamanho leva perto de um minuto.
 LIMITE_DO_PCAP = 600 * 1024 * 1024
+# O cabeçalho que só a interface manda nas rotas que gastam máquina.
+CABECALHO_DA_INTERFACE = ("X-SentryIoT", "interface")
 
 
 class PedidoInvalido(Exception):
@@ -138,38 +140,46 @@ def criar_app(
                 {"erro": "a simulação está desligada: falta o modelo do sistema em modelos/rf_regerado_janela_100.joblib"},
                 status_code=503,
             )
+        # Um cabeçalho próprio obriga o navegador a pedir licença (CORS) antes de uma página de outro
+        # site disparar a rota; o backend não dá essa licença, e o pedido não chega.
+        if request.headers.get(CABECALHO_DA_INTERFACE[0], "") != CABECALHO_DA_INTERFACE[1]:
+            return JSONResponse({"erro": f"falta o cabeçalho {CABECALHO_DA_INTERFACE[0]} da interface"}, status_code=403)
+        limite_mb = limite_do_pcap // (1024 * 1024)
         declarado = request.headers.get("content-length", "")
         if declarado.isdigit() and int(declarado) > limite_do_pcap:
-            return JSONResponse({"erro": f"o pcap passa do limite de {limite_do_pcap // (1024 * 1024)} MB"}, status_code=413)
-        if not simulador.trava.acquire(blocking=False):
+            return JSONResponse({"erro": f"o pcap passa do limite de {limite_mb} MB"}, status_code=413)
+        if simulador.trava.locked():
             return JSONResponse({"erro": "já há uma simulação em andamento; espere ela terminar"}, status_code=409)
         caminho = None
         try:
+            # O envio vem antes da trava: um cliente lento não segura a vez dos outros.
             with tempfile.NamedTemporaryFile(prefix="simulacao-", suffix=".pcap", delete=False) as arquivo:
                 caminho = arquivo.name
                 recebidos = 0
                 async for pedaco in request.stream():
                     recebidos += len(pedaco)
                     if recebidos > limite_do_pcap:
-                        return JSONResponse(
-                            {"erro": f"o pcap passa do limite de {limite_do_pcap // (1024 * 1024)} MB"}, status_code=413,
-                        )
+                        return JSONResponse({"erro": f"o pcap passa do limite de {limite_mb} MB"}, status_code=413)
                     arquivo.write(pedaco)
             if not recebidos:
                 return JSONResponse({"erro": "o corpo veio vazio: envie o pcap"}, status_code=400)
             nome = nome_do_pcap(request.query_params.get("nome"))
+            so_teste = request.query_params.get("so_teste", "") in ("1", "true", "sim")
+            if not simulador.trava.acquire(blocking=False):
+                return JSONResponse({"erro": "já há uma simulação em andamento; espere ela terminar"}, status_code=409)
             try:
-                resultado = await run_in_threadpool(simulador.simular, caminho, nome)
-            except ValueError as erro:  # pcapng, arquivo que não é pcap, enlace que não é Ethernet
+                resultado = await run_in_threadpool(simulador.simular, caminho, nome, so_teste)
+            except (PcapInvalido, SemTrechoDeTeste) as erro:  # o problema está no arquivo enviado ou no pedido
                 return JSONResponse({"erro": str(erro)}, status_code=400)
             except Exception:  # o detalhe vai para o log do servidor, não para a resposta
                 log.exception("falha inesperada na simulação")
                 return JSONResponse({"erro": "falha inesperada no backend ao processar o pcap"}, status_code=500)
+            finally:
+                simulador.trava.release()
             return JSONResponse(resultado)
         finally:
             if caminho is not None and os.path.exists(caminho):
                 os.remove(caminho)
-            simulador.trava.release()
 
     async def api_desconhecida(request: Request):
         return JSONResponse({"erro": "rota desconhecida"}, status_code=404)
