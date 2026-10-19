@@ -1,4 +1,3 @@
-
 # DDoS - Distributed Denial of Service
 
 - **Definição:** Múltiplos sistemas de origem comprometidos coordenam o envio de grandes volumes de pacotes ou requisições contra um alvo.

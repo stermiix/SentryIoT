@@ -1,4 +1,4 @@
-# Recon
+# Recon - Reconhecimento
 
 - **Definição:** Varredura sistemática e automatizada de endereçamento IP e portas lógicas na rede.
 - **Objetivo:** Coletar informações como hosts, portas, sistemas operacionais e serviços, de modo a identificar possíveis alvos ou pontos de entrada.
