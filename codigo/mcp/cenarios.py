@@ -43,6 +43,9 @@ class Cenario:
     quadros_por_janela: int
     # Valor típico, na janela, das features que não são zero nem calculadas a partir de outras.
     perfil: dict
+    # As janelas de verdade, quando o incidente veio de um pcap (`codigo.reprodutor`). Com elas,
+    # `obter_janelas` devolve janelas reais, e não as sorteadas em torno do perfil.
+    janelas_reais: tuple = ()
 
 
 def _instante(hora, minuto, segundo):
@@ -250,16 +253,21 @@ def janelas(cenario, incidente, limite):
     """Até `limite` janelas do incidente, espaçadas do começo ao fim dele.
 
     A janela de um índice sai sempre igual: os valores variam em torno do perfil do cenário,
-    com um sorteio que tem o identificador do incidente e o índice como semente.
+    com um sorteio que tem o identificador do incidente e o índice como semente. Num cenário com
+    `janelas_reais`, as janelas saem delas, também espaçadas.
     """
-    total = incidente.janelas
+    if cenario.janelas_reais:
+        return [cenario.janelas_reais[indice] for indice in _espacados(len(cenario.janelas_reais), limite)]
+    return [_janela(cenario, incidente, indice) for indice in _espacados(incidente.janelas, limite)]
+
+
+def _espacados(total, limite):
+    """Até `limite` posições entre 0 e `total` − 1, espaçadas do começo ao fim."""
     if limite >= total:
-        indices = range(total)
-    elif limite == 1:
-        indices = [0]
-    else:
-        indices = [posicao * (total - 1) // (limite - 1) for posicao in range(limite)]
-    return [_janela(cenario, incidente, indice) for indice in indices]
+        return range(total)
+    if limite == 1:
+        return [0]
+    return [posicao * (total - 1) // (limite - 1) for posicao in range(limite)]
 
 
 def _janela(cenario, incidente, indice):

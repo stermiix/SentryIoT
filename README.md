@@ -113,8 +113,10 @@ agrupa as tarefas concluídas por semana e por responsável.
 | `artigo/` | `Artigo_TCC2_SentryIoT.docx`, o artigo no template do Oriente (10 a 20 páginas); `esqueleto.md`, o rascunho e a fonte das correções; e `figuras/`, com os scripts que geram as figuras |
 | `codigo/captura/` | extrator de features: pacotes → 39 números |
 | `codigo/classificador/` | regeração dos dados de treino a partir dos pcaps, preparação, treino e avaliação do Random Forest |
-| `codigo/mcp/` | contrato das tools MCP, stub do servidor, política de risco, base local de mitigações e log de eventos; o servidor que expõe o classificador ainda será escrito |
-| `codigo/agente/` | skills dos agentes de triagem e de decisão; o código do sistema multiagente (triagem, decisão e execução), os prompts e a política de acionamento ainda serão escritos |
+| `codigo/reprodutor/` | reprodutor de tráfego: um pcap passa pelo extrator, pelo classificador e pela política de acionamento, e os incidentes vão para o log de eventos (`python -m codigo.reprodutor captura.pcap`) |
+| `codigo/mcp/` | contrato das tools MCP, stub do servidor, política de risco, base local de mitigações e log de eventos; o stub atende os incidentes do reprodutor quando recebe os cenários dele, e falta o processo do servidor ligado ao reprodutor |
+| `codigo/agente/` | skills dos agentes, recomendações de mitigação por categoria e os pedidos aos modelos (`pedidos.py`); o laço dos agentes e o orquestrador ainda serão escritos |
+| `codigo/api/` | backend fino da interface: chat com o modelo e simulação com um pcap (`python -m codigo.api`) |
 | `frontend/` | interface web do sistema, no design system SentryIoT (`frontend/src/design-system/`): replay do log, detalhe do incidente, telas do artigo, relatório e chat com o modelo (ver `frontend/README.md`) |
 | `dados/` | **`README.md` com a receita completa do ambiente e o mapa de arquivos** |
 | `experimentos/` | `notebooks/` de exploração e `resultados/` com métricas e tabelas |

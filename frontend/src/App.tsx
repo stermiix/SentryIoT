@@ -1,8 +1,9 @@
 import { Component, Suspense, lazy, useCallback, useEffect, useState, type ErrorInfo, type ReactNode } from "react";
 import { listarModelos } from "./chat";
 import { Alert, Skeleton } from "./design-system";
-import { CAMINHO_DO_LOG, agregar, carregarLog } from "./log";
+import { CAMINHO_DO_LOG, agregar, carregarLog, lerLog } from "./log";
 import { ancoraDa, lerRota, type Rota } from "./rotas";
+import type { ResultadoDaSimulacao } from "./simulacao";
 import { TelaAoVivo } from "./telas/AoVivo";
 import { ChatDoModelo } from "./telas/Chat";
 import { TelaCustoLatencia } from "./telas/CustoLatencia";
@@ -13,6 +14,7 @@ import { Moldura, type ModeloDoBackend } from "./telas/Moldura";
 import { TelaQualidadeModelo } from "./telas/QualidadeModelo";
 import { TelaRelatorio } from "./telas/Relatorio";
 import { TelaSegurancaMcp } from "./telas/SegurancaMcp";
+import { TelaSimulacao } from "./telas/Simulacao";
 import { TelaVisaoGeral } from "./telas/VisaoGeral";
 import { useReplay, type PropsDaTela } from "./telas/replay";
 import type { Evento } from "./types";
@@ -63,7 +65,16 @@ export class LimiteDeErro extends Component<PropsDoLimite, { erro: Error | null 
 }
 
 /** A tela da rota, já dentro da moldura. Separada do `App` para os testes a desenharem em qualquer passo. */
-export function Pagina({ rota, modelo, erroDoLog = null, ...props }: PropsDaTela & { rota: Rota; modelo: ModeloDoBackend; erroDoLog?: string | null }) {
+interface PropsDaPagina extends PropsDaTela {
+  rota: Rota;
+  modelo: ModeloDoBackend;
+  erroDoLog?: string | null;
+  /** A última simulação e o que fazer com uma nova (ver a tela Simulação). */
+  simulacao?: ResultadoDaSimulacao | null;
+  aoSimular?: (resultado: ResultadoDaSimulacao) => void;
+}
+
+export function Pagina({ rota, modelo, erroDoLog = null, simulacao = null, aoSimular, ...props }: PropsDaPagina) {
   const tela = (() => {
     switch (rota.tela) {
       case "visao-geral":
@@ -72,6 +83,8 @@ export function Pagina({ rota, modelo, erroDoLog = null, ...props }: PropsDaTela
         return <TelaIncidente {...props} incidente={rota.incidente} />;
       case "ao-vivo":
         return <TelaAoVivo />;
+      case "simulacao":
+        return <TelaSimulacao {...props} resultado={simulacao} aoSimular={aoSimular} />;
       case "isolado-integrado":
         return <TelaIsoladoIntegrado {...props} />;
       case "custo-latencia":
@@ -95,7 +108,8 @@ export function Pagina({ rota, modelo, erroDoLog = null, ...props }: PropsDaTela
     }
   })();
   // Telas que não dependem do replay não levam o controle dele no pé.
-  const semReplay = rota.tela === "chat" || rota.tela === "qualidade" || rota.tela === "seguranca-mcp" || rota.tela === "ao-vivo";
+  const semReplay =
+    rota.tela === "chat" || rota.tela === "qualidade" || rota.tela === "seguranca-mcp" || rota.tela === "ao-vivo" || rota.tela === "simulacao";
   return (
     <Moldura {...props} ativa={rota.tela} modelo={modelo} dock={semReplay ? null : undefined} cheia={rota.tela === "chat"}>
       {erroDoLog && !semReplay && (
@@ -148,6 +162,15 @@ export default function App() {
   // Sem log configurado, não há o que carregar: as telas abrem vazias.
   const [carregando, setCarregando] = useState(Boolean(CAMINHO_DO_LOG));
   const replay = useReplay(eventos, avisos);
+  const [simulacao, setSimulacao] = useState<ResultadoDaSimulacao | null>(null);
+  // O log da simulação passa a ser o das telas: a fila, o detalhe e o relatório mostram os incidentes do pcap.
+  const aoSimular = useCallback((resultado: ResultadoDaSimulacao) => {
+    const lido = lerLog(resultado.eventos);
+    setSimulacao(resultado);
+    setEventos(lido.eventos);
+    setAvisos([...lido.avisos, ...agregar(lido.eventos).avisos]);
+    setErro(null);
+  }, []);
 
   useEffect(() => {
     if (!CAMINHO_DO_LOG) {
@@ -175,5 +198,5 @@ export default function App() {
       </Moldura>
     );
   }
-  return <Pagina rota={rota} replay={replay} navegar={navegar} modelo={modelo} erroDoLog={erro} />;
+  return <Pagina rota={rota} replay={replay} navegar={navegar} modelo={modelo} erroDoLog={erro} simulacao={simulacao} aoSimular={aoSimular} />;
 }

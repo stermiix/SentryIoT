@@ -45,7 +45,7 @@ class Provedor:
         """
         conversa = [{"role": "system", "content": sistema}] if sistema else []
         conversa += [{"role": PAPEIS[m["papel"]], "content": m["conteudo"]} for m in mensagens]
-        corpo = {"model": modelo, "messages": conversa, "stream": False}
+        corpo = {"model": modelo, "messages": conversa, "stream": False, **self.config.parametros()}
         resposta = self._pedir("/chat/completions", corpo)
         try:
             mensagem = resposta["choices"][0]["message"]

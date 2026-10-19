@@ -1,5 +1,6 @@
 """Testes do cliente do provedor de LLM, sem rede: a função que abre a conexão é trocada."""
 
+import dataclasses
 import io
 import json
 import socket
@@ -63,6 +64,19 @@ def test_chat_monta_o_pedido_e_le_a_resposta_com_tokens():
         "stream": False,
         "messages": [{"role": "system", "content": "Seja breve."}, {"role": "user", "content": "Oi"}],
     }
+
+
+def test_parametros_de_geracao_da_configuracao_vao_no_corpo():
+    capturado = {}
+    config = dataclasses.replace(CONFIG, temperatura=0.0, semente=7, max_tokens=512, raciocinio=False)
+    provedor = Provedor(config, abrir=abrir_com({"choices": [{"message": {"content": "ok"}}]}, capturado))
+
+    provedor.chat("m-1", "", [{"papel": "usuario", "conteudo": "Oi"}])
+
+    assert capturado["corpo"]["temperature"] == 0.0
+    assert capturado["corpo"]["seed"] == 7
+    assert capturado["corpo"]["max_tokens"] == 512
+    assert capturado["corpo"]["chat_template_kwargs"] == {"enable_thinking": False}
 
 
 def test_sem_prompt_de_sistema_nao_manda_mensagem_de_sistema():

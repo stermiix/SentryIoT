@@ -5,6 +5,7 @@ export type Tela =
   | "visao-geral"
   | "incidente"
   | "ao-vivo"
+  | "simulacao"
   | "isolado-integrado"
   | "custo-latencia"
   | "qualidade"
@@ -25,6 +26,7 @@ const TRECHO: Record<Tela, string> = {
   "visao-geral": "visao-geral",
   incidente: "incidentes",
   "ao-vivo": "ao-vivo",
+  simulacao: "simulacao",
   "isolado-integrado": "isolado-integrado",
   "custo-latencia": "custo-latencia",
   qualidade: "qualidade-do-modelo",

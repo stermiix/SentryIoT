@@ -7,6 +7,7 @@ resposta lenta não pode travar as outras rotas.
 
 import logging
 import os
+import tempfile
 import time
 
 from starlette.applications import Starlette
@@ -17,6 +18,7 @@ from starlette.routing import Route
 
 from codigo.api.prompts import ler_prompts
 from codigo.api.provedor import PAPEIS, ErroDoProvedor
+from codigo.api.simulacao import nome_do_pcap
 
 log = logging.getLogger(__name__)
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,6 +29,9 @@ LIMITE_DO_SISTEMA = 20_000  # caracteres do prompt de sistema
 LIMITE_DA_MENSAGEM = 8_000  # caracteres de cada mensagem
 LIMITE_DE_MENSAGENS = 40  # mensagens no histórico
 LIMITE_DA_SOMA = 80_000  # caracteres de sistema e mensagens somados
+# Maior pcap aceito pela simulação. O extrator lê cerca de 160 mil quadros por segundo: um pcap
+# deste tamanho leva perto de um minuto.
+LIMITE_DO_PCAP = 600 * 1024 * 1024
 
 
 class PedidoInvalido(Exception):
@@ -77,8 +82,14 @@ def _ler_pedido_de_chat(corpo):
     return modelo, sistema, lidas
 
 
-def criar_app(config, chamar_provedor, pasta_de_skills=PASTA_DE_SKILLS, pasta_construida=PASTA_CONSTRUIDA):
-    """O app ASGI. Com `pasta_construida` existente, serve a interface construída fora de `/api`."""
+def criar_app(
+    config, chamar_provedor, pasta_de_skills=PASTA_DE_SKILLS, pasta_construida=PASTA_CONSTRUIDA, simulador=None,
+    limite_do_pcap=LIMITE_DO_PCAP,
+):
+    """O app ASGI. Com `pasta_construida` existente, serve a interface construída fora de `/api`.
+
+    `simulador` atende `/api/simulacao` (ver `codigo/api/simulacao.py`); sem ele, a rota responde 503.
+    """
     async def chat(request: Request):
         faltando = config.faltando()
         if faltando:
@@ -121,6 +132,45 @@ def criar_app(config, chamar_provedor, pasta_de_skills=PASTA_DE_SKILLS, pasta_co
     async def prompts(request: Request):
         return JSONResponse({"prompts": await run_in_threadpool(ler_prompts, pasta_de_skills)})
 
+    async def simulacao(request: Request):
+        if simulador is None or not simulador.disponivel():
+            return JSONResponse(
+                {"erro": "a simulação está desligada: falta o modelo do sistema em modelos/rf_regerado_janela_100.joblib"},
+                status_code=503,
+            )
+        declarado = request.headers.get("content-length", "")
+        if declarado.isdigit() and int(declarado) > limite_do_pcap:
+            return JSONResponse({"erro": f"o pcap passa do limite de {limite_do_pcap // (1024 * 1024)} MB"}, status_code=413)
+        if not simulador.trava.acquire(blocking=False):
+            return JSONResponse({"erro": "já há uma simulação em andamento; espere ela terminar"}, status_code=409)
+        caminho = None
+        try:
+            with tempfile.NamedTemporaryFile(prefix="simulacao-", suffix=".pcap", delete=False) as arquivo:
+                caminho = arquivo.name
+                recebidos = 0
+                async for pedaco in request.stream():
+                    recebidos += len(pedaco)
+                    if recebidos > limite_do_pcap:
+                        return JSONResponse(
+                            {"erro": f"o pcap passa do limite de {limite_do_pcap // (1024 * 1024)} MB"}, status_code=413,
+                        )
+                    arquivo.write(pedaco)
+            if not recebidos:
+                return JSONResponse({"erro": "o corpo veio vazio: envie o pcap"}, status_code=400)
+            nome = nome_do_pcap(request.query_params.get("nome"))
+            try:
+                resultado = await run_in_threadpool(simulador.simular, caminho, nome)
+            except ValueError as erro:  # pcapng, arquivo que não é pcap, enlace que não é Ethernet
+                return JSONResponse({"erro": str(erro)}, status_code=400)
+            except Exception:  # o detalhe vai para o log do servidor, não para a resposta
+                log.exception("falha inesperada na simulação")
+                return JSONResponse({"erro": "falha inesperada no backend ao processar o pcap"}, status_code=500)
+            return JSONResponse(resultado)
+        finally:
+            if caminho is not None and os.path.exists(caminho):
+                os.remove(caminho)
+            simulador.trava.release()
+
     async def api_desconhecida(request: Request):
         return JSONResponse({"erro": "rota desconhecida"}, status_code=404)
 
@@ -128,6 +178,7 @@ def criar_app(config, chamar_provedor, pasta_de_skills=PASTA_DE_SKILLS, pasta_co
         Route("/api/chat", chat, methods=["POST"]),
         Route("/api/modelos", modelos, methods=["GET"]),
         Route("/api/prompts", prompts, methods=["GET"]),
+        Route("/api/simulacao", simulacao, methods=["POST"]),
         Route("/api", api_desconhecida, methods=["GET", "POST", "PUT", "PATCH", "DELETE"]),
         Route("/api/{resto:path}", api_desconhecida, methods=["GET", "POST", "PUT", "PATCH", "DELETE"]),
     ]

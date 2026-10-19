@@ -11,6 +11,7 @@ import pytest
 
 from codigo.captura.extrator import (
     COLUNAS,
+    JANELA_PADRAO,
     CapturaIncompleta,
     Enderecos,
     Extrator,
@@ -201,8 +202,12 @@ def test_protocolo_da_janela_e_a_moda_e_o_menor_no_empate():
 QUADRO_IPV6 = eth(0x86DD, b"\x60" + b"\x00" * 39)
 
 
+def test_janela_padrao_e_a_do_sistema():
+    assert Extrator().janela == JANELA_PADRAO == 100
+
+
 def test_extrator_devolve_linha_a_cada_janela():
-    extrator = Extrator()
+    extrator = Extrator(janela=10)
     saidas = [extrator.alimentar(i * 0.1, quadro_tcp()) for i in range(25)]
     prontas = [i for i, linha in enumerate(saidas) if linha is not None]
     assert prontas == [9, 19]
@@ -308,7 +313,7 @@ def test_gravar_csv_segue_o_formato_oficial():
 def test_main_converte_pcap_em_csv(tmp_path, capsys):
     entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
     entrada.write_bytes(pcap([(i, 0, quadro_tcp()) for i in range(20)]))
-    assert main([str(entrada), str(saida)]) == 0
+    assert main(["--janela", "10", str(entrada), str(saida)]) == 0
     assert len(saida.read_text().splitlines()) == 3
     assert "2 linhas" in capsys.readouterr().err
 
@@ -399,7 +404,7 @@ def test_main_aceita_o_tamanho_da_janela(tmp_path):
 def test_main_avisa_captura_cortada_e_termina_bem(tmp_path, capsys):
     entrada, saida = tmp_path / "entrada.pcap", tmp_path / "saida.csv"
     entrada.write_bytes(pcap([(i, 0, quadro_tcp()) for i in range(12)])[:-5])
-    assert main([str(entrada), str(saida)]) == 0
+    assert main(["--janela", "10", str(entrada), str(saida)]) == 0
     assert "aviso" in capsys.readouterr().err
     assert len(saida.read_text().splitlines()) == 3
 

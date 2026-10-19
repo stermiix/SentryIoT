@@ -294,8 +294,9 @@ Saídas que foram avaliadas:
 
 A decisão, em 10/10/2026, foi a segunda: ver "Regeração dos dados de treino".
 
-O extrator aceita qualquer tamanho de janela: `--janela 100` na linha de comando ou
-`Extrator(janela=100)` no código.
+O extrator aceita qualquer tamanho de janela. Desde 19/10/2026 o padrão é 100, a do sistema; para
+comparar com o CSV oficial nas classes de janela de 10, use `--janela 10` na linha de comando ou
+`Extrator(janela=10)` no código.
 
 O teste direto, com cinco pcaps extraídos nas duas janelas e pontuados pelo modelo de 7
 categorias, está em `experimentos/resultados/teste_da_janela.md`. Para refazê-lo:
