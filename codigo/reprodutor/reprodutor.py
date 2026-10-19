@@ -392,17 +392,18 @@ def montar_cenario(incidente, numero, classificador, referencia, arquivo):
         confianca=round(sum(j.confianca for j in da_categoria) / len(da_categoria), 2),
         inicio=_instante(incidente.ataque[0].inicio),
         fim=_instante(incidente.ataque[-1].fim),
-        janelas=len(da_categoria),
+        janelas=len(incidente.ataque),
         origens_distintas=origens_distintas,
         distribuido=distribuido,
         origens=_contados(incidente.origens),
         destinos=_contados(incidente.destinos),
         features_principais=principais,
     )
-    # O índice da janela é a posição dela entre as janelas do incidente, as que `janelas` conta,
-    # mesmo quando só uma parte delas é guardada.
-    passo = max(1, math.ceil(len(da_categoria) / JANELAS_GUARDADAS))
-    guardadas = [(posicao, j) for posicao, j in enumerate(da_categoria) if posicao % passo == 0 and j.origem and j.destino]
+    # O incidente reúne todas as janelas de ataque da sequência, de qualquer categoria; a categoria,
+    # a confiança e as features principais vêm das janelas da categoria mais frequente. O índice da
+    # janela guardada é a posição dela entre as que `janelas` conta, mesmo quando só uma parte é guardada.
+    passo = max(1, math.ceil(len(incidente.ataque) / JANELAS_GUARDADAS))
+    guardadas = [(posicao, j) for posicao, j in enumerate(incidente.ataque) if posicao % passo == 0 and j.origem and j.destino]
     reais = tuple(
         Janela(
             indice=posicao, instante=_instante(j.inicio), categoria_do_modelo=j.categoria,

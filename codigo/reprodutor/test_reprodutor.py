@@ -312,3 +312,23 @@ def test_cliente_mcp_le_o_incidente_real_do_servidor_subido_com_os_cenarios(tmp_
     assert ATACANTE not in str(resumo_da_decisao) and VITIMA not in str(resumo_da_decisao)
     tipos = [evento.tipo for evento in ler(log)]
     assert tipos.count("incidente_aberto") == 1
+
+
+def test_incidente_conta_todas_as_janelas_de_ataque_e_a_categoria_e_a_mais_frequente(tmp_path):
+    class ModeloMisto(ModeloFalso):
+        """Recon na primeira janela de ataque de cada sequência, DDoS+DoS nas outras."""
+
+        def predict_proba(self, X):
+            ataque = (X[:, COLUNAS.index("syn_flag_number")] > 0.5).astype(float)
+            primeira = np.r_[ataque[:1], ataque[1:] * (1 - ataque[:-1])]
+            return np.column_stack([1 - ataque, (ataque - primeira) * 0.9, primeira * 0.9 + ataque * 0.1 * (1 - primeira)])
+
+    c = Classificador(ModeloMisto(), tuple(COLUNAS), PontoDeOperacao(None, 3), "misto.joblib")
+    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [benigno(1), ataque(3), benigno(10)]), c)
+
+    cenario = cenarios_da_reproducao(reproducao, c)[0]
+
+    assert cenario.incidente.categoria_do_modelo == "DDoS+DoS"
+    assert cenario.incidente.janelas == 3
+    assert [j.categoria_do_modelo for j in cenario.janelas_reais] == ["Recon", "DDoS+DoS", "DDoS+DoS"]
+    assert cenario.lote.por_categoria == {"Recon": 1, "DDoS+DoS": 2}
