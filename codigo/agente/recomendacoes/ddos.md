@@ -2,6 +2,7 @@
 
 - **Definição:** Múltiplos sistemas de origem comprometidos coordenam o envio de grandes volumes de pacotes ou requisições contra um alvo.
 - **Objetivo:** Comprometer a disponibilidade dos recursos de rede, aplicações ou serviços.
+- **No SentryIoT:** o classificador não separa DDoS de DoS (categoria `DDoS+DoS` do modelo); a separação sai da quantidade de origens do incidente, e este arquivo vale para o incidente com categoria `DDoS`.
 
 ## Mitigações recomendadas
 
