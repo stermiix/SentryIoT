@@ -331,7 +331,7 @@ def test_diferenca_conhecida_quadro_ipv4_ilegivel(tmp_path, autores):
     with pytest.raises(AttributeError):
         autores.Feature_extraction().pcap_evaluation(str(caminho), str(tmp_path / "autores"))
     assert not (tmp_path / "autores.csv").exists()
-    (linha,) = extrair(ler_pcap(caminho))
+    (linha,) = extrair(ler_pcap(caminho), janela=10)
     assert linha["Number"] == 2
 
 
@@ -340,7 +340,7 @@ def test_diferenca_conhecida_instante_zero(tmp_path, autores):
     gravar_pcap(caminho, [(0, 0, quadro_tcp()), (5, 0, quadro_tcp()), (7, 0, quadro_tcp())])
     assert autores.Feature_extraction().pcap_evaluation(str(caminho), str(tmp_path / "autores"))
     (dele,) = ler_oficial(tmp_path / "autores.csv")
-    (minha,) = extrair(ler_pcap(caminho))
+    (minha,) = extrair(ler_pcap(caminho), janela=10)
     # Para os autores, instante anterior igual a zero é ausência de quadro anterior: o segundo
     # quadro fica com intervalo 0, e não 5. Só a coluna IAT muda.
     assert colunas_divergentes(minha, dele) == ["IAT"]
@@ -356,6 +356,6 @@ def test_diferenca_conhecida_quadro_grande_que_o_dpkt_nao_decodifica_inteiro(tmp
     gravar_pcap(caminho, em_sequencia(quadros))
     assert autores.Feature_extraction().pcap_evaluation(str(caminho), str(tmp_path / "autores"))
     deles = ler_oficial(tmp_path / "autores.csv")
-    minhas = list(extrair(ler_pcap(caminho)))
+    minhas = list(extrair(ler_pcap(caminho), janela=10))
     assert sum(linha["Number"] for linha in deles) == 3
     assert sum(linha["Number"] for linha in minhas) == 4

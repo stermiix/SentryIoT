@@ -83,7 +83,7 @@ def montar_caso(tmp_path, adulterar=False):
     quadros = [(i, 0, quadro_udp() if i % 3 == 0 else quadro_tcp(flags=0x10)) for i in range(35)]
     caminho_pcap = tmp_path / "Caso.pcap"
     caminho_pcap.write_bytes(pcap(quadros))
-    blocos = [list(extrair(p)) for p in fatiar(ler_pcap(caminho_pcap), limite=1000)]
+    blocos = [list(extrair(p, janela=10)) for p in fatiar(ler_pcap(caminho_pcap), limite=1000)]
     linhas = [l for bloco in reversed(blocos) for l in bloco]
     if adulterar:
         linhas[1] = linhas[1] | {"Rate": linhas[1]["Rate"] * 2}
@@ -206,7 +206,7 @@ def test_main_acha_csv_de_pcap_numerado_e_reclama_do_que_nao_tem_csv(tmp_path, c
     (tmp_path / "Solto.pcap").write_bytes(dados)
     (tmp_path / "Flood").mkdir()
     with open(tmp_path / "Flood" / "Flood1.pcap.csv", "w", newline="") as arquivo:
-        gravar_csv(extrair(ler_pcap(tmp_path / "Flood1.pcap")), arquivo)
+        gravar_csv(extrair(ler_pcap(tmp_path / "Flood1.pcap"), janela=10), arquivo)
     saida = tmp_path / "relatorio.md"
     assert main(["--dataset", str(tmp_path), "--saida", str(saida)]) == 1
     assert "Solto.pcap" in capsys.readouterr().err
@@ -227,7 +227,7 @@ def test_main_trata_csv_oficial_invalido_sem_derrubar_a_execucao(tmp_path, capsy
         (tmp_path / f"{nome}.pcap").write_bytes(dados)
         (tmp_path / nome).mkdir()
     with open(tmp_path / "Bom" / "Bom.pcap.csv", "w", newline="") as arquivo:
-        gravar_csv(extrair(ler_pcap(tmp_path / "Bom.pcap")), arquivo)
+        gravar_csv(extrair(ler_pcap(tmp_path / "Bom.pcap"), janela=10), arquivo)
     (tmp_path / "Ruim" / "Ruim.pcap.csv").write_text(",".join(COLUNAS) + "\n" + ",".join(["texto"] * 39) + "\n")
     saida = tmp_path / "relatorio.md"
     assert main(["--dataset", str(tmp_path), "--saida", str(saida)]) == 2
@@ -247,7 +247,7 @@ def test_main_nao_trata_nome_de_pcap_como_padrao_de_busca(tmp_path, capsys):
     (tmp_path / "[ab].pcap").write_bytes(dados)
     (tmp_path / "sub").mkdir()
     with open(tmp_path / "sub" / "a.pcap.csv", "w", newline="") as arquivo:
-        gravar_csv(extrair(ler_pcap(tmp_path / "a.pcap")), arquivo)
+        gravar_csv(extrair(ler_pcap(tmp_path / "a.pcap"), janela=10), arquivo)
     saida = tmp_path / "relatorio.md"
     assert main(["--dataset", str(tmp_path), "--saida", str(saida)]) == 1
     assert "[ab].pcap" in capsys.readouterr().err

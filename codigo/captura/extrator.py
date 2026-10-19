@@ -14,8 +14,8 @@ As opções `preencher` e `limitar`, desligadas por padrão, aproximam o tamanho
 passa no fio, e não do que a máquina que capturou gravou (veja `tamanho_no_fio`).
 
 Uso, a partir da raiz do repositório:
-    python -m codigo.captura.extrator entrada.pcap saida.csv
-    python -m codigo.captura.extrator --janela 100 entrada.pcap saida.csv
+    python -m codigo.captura.extrator entrada.pcap saida.csv              # janela de 100, a do sistema
+    python -m codigo.captura.extrator --janela 10 entrada.pcap saida.csv  # a do CSV oficial na maioria das classes
     python -m codigo.captura.extrator --preencher --limitar entrada.pcap saida.csv
 """
 import argparse
@@ -67,6 +67,9 @@ COLUNAS = (
 # (SCTP, por exemplo) o dpkt gasta memória e tempo que crescem com o quadrado do tamanho do quadro.
 PREFIXO_DECODIFICADO = 1600
 JANELA_MAXIMA = 10_000
+# A janela do sistema (decisão de 2026-10-10). O CSV oficial usa 10 na maior parte das classes e 100
+# nas de flood; para comparar com ele, peça a janela de 10.
+JANELA_PADRAO = 100
 # Maior registro aceito num pcap: é o limite de captura mais alto do tcpdump e do Wireshark.
 MAIOR_REGISTRO = 262_144
 # O CSV é descarregado no disco a cada tantas linhas, ou depois de tantos segundos.
@@ -269,7 +272,7 @@ class Extrator:
     pelo tipo Ethernet, quando o quadro chega por `alimentar`.
     """
 
-    def __init__(self, janela=10, enderecos=False, preencher=False, limitar=False):
+    def __init__(self, janela=JANELA_PADRAO, enderecos=False, preencher=False, limitar=False):
         # A janela guarda os quadros até fechar, então a memória cresce com ela. Um número com
         # parte decimal ou um booleano não é tamanho de janela.
         if isinstance(janela, bool) or not hasattr(type(janela), "__index__"):
@@ -323,7 +326,7 @@ class Extrator:
         return linha
 
 
-def extrair(quadros, janela=10, enderecos=False, preencher=False, limitar=False):
+def extrair(quadros, janela=JANELA_PADRAO, enderecos=False, preencher=False, limitar=False):
     """Gera as janelas de uma sequência de (instante, quadro): as linhas de features ou, com
     `enderecos`, os pares (linha, Enderecos). `preencher` e `limitar` são as de `tamanho_no_fio`."""
     yield from _janelas(Extrator(janela, enderecos, preencher, limitar), quadros)
@@ -590,8 +593,8 @@ def main(argv=None):
     analisador.add_argument(
         "--janela",
         type=_janela,
-        default=10,
-        help="quadros por linha: 10 (padrão) ou 100, como nas classes de flood do dataset",
+        default=JANELA_PADRAO,
+        help="quadros por linha: 100 (padrão, a janela do sistema) ou 10, a do CSV oficial na maior parte das classes",
     )
     analisador.add_argument(
         "--preencher",
