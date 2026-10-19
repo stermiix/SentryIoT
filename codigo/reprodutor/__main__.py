@@ -13,11 +13,11 @@ from codigo.reprodutor.reprodutor import (
     SILENCIO_S,
     TETO_DE_INCIDENTES,
     Classificador,
+    PcapInvalido,
     caminho_dos_cenarios,
-    cenarios_da_reproducao,
     gerar_referencia,
     gravar,
-    proximo_numero,
+    inicio_do_teste,
     reproduzir,
     resumo,
 )
@@ -30,36 +30,55 @@ def main(argv=None):
     analisador.add_argument("pcap", nargs="?", help="o pcap a reproduzir")
     analisador.add_argument("--log", help="log de eventos a gravar (padrão: dados/eventos/reproducoes/<pcap>-<instante>.jsonl)")
     analisador.add_argument("--modelo", default=str(MODELO_PADRAO), help="modelo do sistema, com o ponto de operação ao lado")
-    analisador.add_argument("--fecha-apos", type=int, default=FECHA_APOS, help="janelas benignas seguidas que encerram o incidente")
-    analisador.add_argument("--silencio", type=float, default=SILENCIO_S, help="segundos sem janela que encerram o incidente")
-    analisador.add_argument("--reagrupa", type=float, default=REAGRUPA_S, help="segundos em que a mesma categoria e o mesmo endereço reabrem o incidente")
+    analisador.add_argument(
+        "--so-teste", action="store_true",
+        help="reproduz só o trecho do pcap que ficou fora do treino do modelo do sistema (pelo manifesto da regeração)",
+    )
+    analisador.add_argument("--fecha-apos", type=int, default=FECHA_APOS, help="janelas seguidas sem o incidente que o encerram")
+    analisador.add_argument("--silencio", type=float, default=SILENCIO_S, help="segundos sem janela que encerram os incidentes")
+    analisador.add_argument(
+        "--reagrupa", type=float, default=REAGRUPA_S, help="segundos em que a mesma categoria e um endereço em comum reabrem o incidente",
+    )
     analisador.add_argument("--teto", type=int, default=TETO_DE_INCIDENTES, help="incidentes por pcap")
     analisador.add_argument("--gerar-referencia", action="store_true", help="regrava referencia_benigno.json a partir dos dados regerados")
     argumentos = analisador.parse_args(argv)
 
     if argumentos.gerar_referencia:
         print(f"referência gravada em {gerar_referencia()}")
-        return
+        return 0
     if not argumentos.pcap:
         analisador.error("diga o pcap a reproduzir")
+    a_partir = 0
+    if argumentos.so_teste:
+        a_partir = inicio_do_teste(argumentos.pcap)
+        if a_partir is None:
+            print(f"erro: {Path(argumentos.pcap).name} não tem trecho fora do treino no manifesto da regeração", file=sys.stderr)
+            return 1
     classificador = Classificador.carregar(argumentos.modelo)
-    reproducao = reproduzir(
-        argumentos.pcap, classificador, fecha_apos=argumentos.fecha_apos, silencio_s=argumentos.silencio,
-        reagrupa_s=argumentos.reagrupa, teto=argumentos.teto,
-    )
+    try:
+        reproducao = reproduzir(
+            argumentos.pcap, classificador, fecha_apos=argumentos.fecha_apos, silencio_s=argumentos.silencio,
+            reagrupa_s=argumentos.reagrupa, teto=argumentos.teto, a_partir_da_janela=a_partir,
+        )
+    except PcapInvalido as erro:
+        print(f"erro: {erro}", file=sys.stderr)
+        return 1
     carimbo = datetime.datetime.now(tz=datetime.UTC).astimezone().strftime("%Y%m%d-%H%M%S")
     log = Path(argumentos.log) if argumentos.log else PASTA_DOS_LOGS / f"{Path(argumentos.pcap).stem}-{carimbo}.jsonl"
-    log.parent.mkdir(parents=True, exist_ok=True)
-    cenarios = cenarios_da_reproducao(reproducao, classificador, primeiro=proximo_numero(log))
-    gravar(cenarios, reproducao, log)
-    json.dump(resumo(reproducao, cenarios, classificador, argumentos.fecha_apos, argumentos.silencio, argumentos.reagrupa, argumentos.teto), sys.stdout, indent=1, ensure_ascii=False)
+    cenarios, deslocamento = gravar(reproducao, classificador, log)
+    saida = resumo(
+        reproducao, cenarios, classificador, deslocamento, argumentos.fecha_apos, argumentos.silencio, argumentos.reagrupa,
+        argumentos.teto, a_partir,
+    )
+    json.dump(saida, sys.stdout, indent=1, ensure_ascii=False)
     print(f"\nlog de eventos: {log}", file=sys.stderr)
     print(
         f"servidor MCP com estes incidentes: python -m codigo.mcp.stub --agente triagem --log {log} "
         f"--cenarios {caminho_dos_cenarios(log)}",
         file=sys.stderr,
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

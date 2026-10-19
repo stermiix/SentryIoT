@@ -1,10 +1,16 @@
 """Testes do reprodutor, com um pcap montado no teste e um modelo de mentira.
 
-O modelo de mentira chama de ataque (DDoS+DoS) toda janela com maioria de SYN, e de benigna o
-resto: assim cada regra da política de acionamento é conferida com janelas escolhidas a dedo.
+O modelo de mentira chama de DDoS+DoS toda janela com maioria de SYN, de Recon toda janela com
+maioria de ICMP e de benigna o resto: assim cada regra da política de acionamento e dos papéis é
+conferida com janelas escolhidas a dedo.
 """
 
+import asyncio
+import datetime
+import json
 import socket
+import sys
+from pathlib import Path
 
 import dpkt
 import numpy as np
@@ -13,13 +19,18 @@ import pytest
 from codigo.captura.extrator import COLUNAS
 from codigo.classificador.operacao import PontoDeOperacao
 from codigo.mcp.acoes import reconstruir
-from codigo.mcp.eventos import ler
+from codigo.mcp.cenarios import ler_cenarios
+from codigo.mcp.eventos import Registro, ler
 from codigo.mcp.stub import Stub
+from codigo.reprodutor import reprodutor
 from codigo.reprodutor.reprodutor import (
     JANELA,
     Classificador,
+    PcapInvalido,
+    caminho_dos_cenarios,
     cenarios_da_reproducao,
     gravar,
+    inicio_do_teste,
     ler_referencia,
     reproduzir,
     resumo,
@@ -27,6 +38,7 @@ from codigo.reprodutor.reprodutor import (
 
 VITIMA = "192.168.1.50"
 ATACANTE = "192.168.1.66"
+AGORA = datetime.datetime(2026, 10, 19, 21, 0, 0, tzinfo=datetime.UTC)
 
 
 class ModeloFalso:
@@ -34,50 +46,83 @@ class ModeloFalso:
     feature_importances_ = np.array([1.0 if coluna == "syn_flag_number" else 0.01 for coluna in COLUNAS])
 
     def predict_proba(self, X):
-        ataque = (X[:, COLUNAS.index("syn_flag_number")] > 0.5).astype(float)
-        return np.column_stack([1 - ataque, ataque * 0.9, ataque * 0.1])
+        syn = (X[:, COLUNAS.index("syn_flag_number")] > 0.5).astype(float)
+        icmp = (X[:, COLUNAS.index("ICMP")] > 0.5).astype(float) * (1 - syn)
+        return np.column_stack([1 - syn - icmp, syn * 0.9, syn * 0.1 + icmp])
+
+
+class ModeloArp(ModeloFalso):
+    classes_ = np.array(["Benign", "Spoofing"])
+
+    def predict_proba(self, X):
+        de_arp = (X[:, COLUNAS.index("ARP")] > 0.5).astype(float)
+        return np.column_stack([1 - de_arp, de_arp])
 
 
 def classificador(seguidas=3):
     return Classificador(ModeloFalso(), tuple(COLUNAS), PontoDeOperacao(None, seguidas), "falso.joblib")
 
 
-def quadro(origem, destino, syn):
-    tcp = dpkt.tcp.TCP(sport=40000, dport=80, flags=dpkt.tcp.TH_SYN if syn else dpkt.tcp.TH_ACK)
-    ip = dpkt.ip.IP(src=socket.inet_aton(origem), dst=socket.inet_aton(destino), p=dpkt.ip.IP_PROTO_TCP, data=tcp, ttl=64)
-    eth = dpkt.ethernet.Ethernet(src=b"\x02\x00\x00\x00\x00\x01", dst=b"\x02\x00\x00\x00\x00\x02", type=dpkt.ethernet.ETH_TYPE_IP, data=ip)
-    return bytes(eth)
+def _eth(ip):
+    return bytes(dpkt.ethernet.Ethernet(
+        src=b"\x02\x00\x00\x00\x00\x01", dst=b"\x02\x00\x00\x00\x00\x02", type=dpkt.ethernet.ETH_TYPE_IP, data=ip,
+    ))
+
+
+def tcp(origem, destino, flags):
+    segmento = dpkt.tcp.TCP(sport=40000, dport=80, flags=flags)
+    return _eth(dpkt.ip.IP(src=socket.inet_aton(origem), dst=socket.inet_aton(destino), p=dpkt.ip.IP_PROTO_TCP, data=segmento, ttl=64))
+
+
+def icmp(origem, destino):
+    eco = dpkt.icmp.ICMP(type=8, data=dpkt.icmp.ICMP.Echo(id=1, seq=1))
+    return _eth(dpkt.ip.IP(src=socket.inet_aton(origem), dst=socket.inet_aton(destino), p=dpkt.ip.IP_PROTO_ICMP, data=eco, ttl=64))
+
+
+def arp(anunciado, mac_do_atacante=b"\x02\x00\x00\x00\x00\x66"):
+    resposta = dpkt.arp.ARP(op=dpkt.arp.ARP_OP_REPLY, sha=mac_do_atacante, spa=socket.inet_aton(anunciado),
+                            tha=b"\xff" * 6, tpa=socket.inet_aton("192.168.1.255"))
+    return bytes(dpkt.ethernet.Ethernet(src=mac_do_atacante, dst=b"\xff" * 6, type=dpkt.ethernet.ETH_TYPE_ARP, data=resposta))
 
 
 def escrever_pcap(caminho, blocos, passo=0.01):
-    """`blocos`: (janelas, de_ataque, origens, pausa_antes_s, destino). Cada janela tem 100 quadros."""
+    """`blocos`: (janelas, gerador de quadro por posição, pausa_antes_s). Cada janela tem 100 quadros."""
     ts = 1_700_000_000.0
     with open(caminho, "wb") as arquivo:
         escritor = dpkt.pcap.Writer(arquivo)
-        for janelas, de_ataque, origens, pausa, destino in blocos:
+        for janelas, gerar, pausa in blocos:
             ts += pausa
-            for i in range(janelas * JANELA):
-                origem = origens[i % len(origens)]
-                escritor.writepkt(quadro(origem, destino, de_ataque), ts=ts)
+            for i in range(int(janelas * JANELA)):
+                escritor.writepkt(gerar(i), ts=ts)
                 ts += passo
     return caminho
 
 
 def benigno(janelas, pausa=0.0):
-    return (janelas, False, ["192.168.1.10", "192.168.1.11"], pausa, VITIMA)
+    return (janelas, lambda i: tcp(("192.168.1.10", "192.168.1.11")[i % 2], VITIMA, dpkt.tcp.TH_ACK), pausa)
 
 
-def ataque(janelas, origens=(ATACANTE,), pausa=0.0, destino=VITIMA):
-    return (janelas, True, list(origens), pausa, destino)
+def ataque(janelas, origens=(ATACANTE,), pausa=0.0, destino=VITIMA, respostas=0):
+    """SYN das origens para o destino; com `respostas`, a vítima manda tantos SYN-ACK por SYN."""
+    ciclo = 1 + respostas
+
+    def gerar(i):
+        origem = origens[(i // ciclo) % len(origens)]
+        if i % ciclo == 0:
+            return tcp(origem, destino, dpkt.tcp.TH_SYN)
+        return tcp(destino, origem, dpkt.tcp.TH_SYN | dpkt.tcp.TH_ACK)
+
+    return (janelas, gerar, pausa)
+
+
+def varredura(janelas, scanner, alvos, pausa=0.0):
+    return (janelas, lambda i: icmp(scanner, alvos[i % len(alvos)]), pausa)
 
 
 def test_trafego_benigno_nao_abre_incidente(tmp_path):
     r = reproduzir(escrever_pcap(tmp_path / "b.pcap", [benigno(6)]), classificador())
 
-    assert r.janelas == 6
-    assert r.quadros == 600
-    assert dict(r.por_categoria) == {"Benign": 6}
-    assert r.incidentes == []
+    assert (r.janelas, r.quadros, dict(r.por_categoria), r.incidentes) == (6, 600, {"Benign": 6}, [])
 
 
 def test_incidente_abre_na_terceira_janela_de_ataque_seguida(tmp_path):
@@ -86,7 +131,7 @@ def test_incidente_abre_na_terceira_janela_de_ataque_seguida(tmp_path):
     assert len(r.incidentes) == 1
     incidente = r.incidentes[0]
     assert [j.indice for j in incidente.ataque] == [2, 3, 4, 5, 6]
-    # Abriu no fim da terceira janela de ataque: 300 quadros depois do primeiro, a 10 ms cada.
+    assert [j.indice for j in incidente.abertura.ataque] == [2, 3, 4]
     assert incidente.aberto_em - incidente.primeira_janela_de_ataque == pytest.approx(2.99, abs=1e-4)
 
 
@@ -110,19 +155,49 @@ def test_fecha_apos_janelas_benignas_e_reagrupa_o_mesmo_ataque(tmp_path):
     junto = reproduzir(caminho, classificador())
     separado = reproduzir(caminho, classificador(), reagrupa_s=0)
 
-    assert len(junto.incidentes) == 1
-    assert junto.incidentes[0].reaberturas == 1
+    assert len(junto.incidentes) == 1 and junto.incidentes[0].reaberturas == 1
     assert len(separado.incidentes) == 2
 
 
 def test_mesmo_alvo_com_outra_origem_se_junta_e_sem_endereco_em_comum_nao(tmp_path):
     mesmo_alvo = escrever_pcap(tmp_path / "a.pcap", [ataque(4, ("10.0.0.1",)), benigno(10), ataque(3, ("10.0.0.9",))])
     outro_alvo = escrever_pcap(
-        tmp_path / "b.pcap", [ataque(4, ("10.0.0.1",)), benigno(10), ataque(3, ("10.0.0.9",), destino="10.0.0.200")],
+        tmp_path / "b.pcap",
+        [ataque(4, ("10.0.0.1",)), benigno(10), ataque(3, ("10.0.0.9",), destino="10.0.0.200")],
     )
 
     assert len(reproduzir(mesmo_alvo, classificador()).incidentes) == 1
     assert len(reproduzir(outro_alvo, classificador()).incidentes) == 2
+
+
+def test_reagrupamento_olha_alem_do_incidente_encerrado_mais_novo(tmp_path):
+    # A (flood de P contra X), B (varredura de Q) e de novo A depois que B se encerrou: a nova
+    # rajada de A reabre A, mesmo com B encerrado depois dele.
+    p, x, q = "10.0.0.1", "10.0.0.20", "10.0.0.7"
+    caminho = escrever_pcap(tmp_path / "a.pcap", [
+        ataque(4, (p,), destino=x), benigno(10), varredura(4, q, ["10.0.0.30", "10.0.0.31"]), benigno(10),
+        ataque(4, (p,), destino=x), benigno(10),
+    ])
+
+    r = reproduzir(caminho, classificador())
+
+    assert [i.categoria_principal() for i in r.incidentes] == ["DDoS+DoS", "Recon"]
+    assert r.incidentes[0].reaberturas == 1
+
+
+def test_dois_ataques_ao_mesmo_tempo_ficam_em_incidentes_diferentes(tmp_path):
+    # Flood de P e varredura de Q intercalados janela a janela.
+    p, q = "10.0.0.1", "10.0.0.7"
+
+    def gerar(i):
+        if (i // JANELA) % 2 == 0:
+            return tcp(p, VITIMA, dpkt.tcp.TH_SYN)
+        return icmp(q, f"10.0.1.{i % 50}")
+
+    r = reproduzir(escrever_pcap(tmp_path / "a.pcap", [(12, gerar, 0.0), benigno(12)]), classificador())
+
+    assert sorted(i.categoria_principal() for i in r.incidentes) == ["DDoS+DoS", "Recon"]
+    assert all(len(i.ataque) == 6 for i in r.incidentes)
 
 
 def test_pausa_na_captura_encerra_o_incidente_e_nao_entra_no_atraso(tmp_path):
@@ -131,48 +206,125 @@ def test_pausa_na_captura_encerra_o_incidente_e_nao_entra_no_atraso(tmp_path):
     r = reproduzir(caminho, classificador(), reagrupa_s=0)
 
     assert len(r.incidentes) == 2
-    # A janela que contém a pausa não entra em sequência: a segunda abre três janelas depois dela.
     segundo = r.incidentes[1]
     assert segundo.aberto_em - segundo.primeira_janela_de_ataque < 60
     assert r.janelas == 8
 
 
-def test_teto_de_incidentes(tmp_path):
-    caminho = escrever_pcap(tmp_path / "a.pcap", [ataque(4), benigno(10), ataque(4), benigno(10), ataque(4)])
+def test_teto_de_incidentes_conta_uma_vez_por_sequencia(tmp_path):
+    caminho = escrever_pcap(tmp_path / "a.pcap", [
+        ataque(4), benigno(10), ataque(40, destino="10.0.0.200", origens=("10.0.0.9",)), benigno(10),
+    ])
 
-    r = reproduzir(caminho, classificador(), reagrupa_s=0, teto=2)
+    r = reproduzir(caminho, classificador(), reagrupa_s=0, teto=1)
 
-    assert len(r.incidentes) == 2
+    assert len(r.incidentes) == 1
     assert r.alem_do_teto == 1
 
 
-@pytest.mark.parametrize(("origens", "categoria", "distribuido"), [
-    ((ATACANTE,), "DoS", False),
-    ((f"10.9.0.{i}" for i in range(1, 8)), "DDoS", True),
-])
-def test_regra_das_origens_separa_dos_de_ddos(tmp_path, origens, categoria, distribuido):
-    caminho = escrever_pcap(tmp_path / "a.pcap", [ataque(5, tuple(origens))])
-    c = classificador()
+def test_ultima_janela_incompleta_e_descartada(tmp_path):
+    r = reproduzir(escrever_pcap(tmp_path / "a.pcap", [ataque(2.5)]), classificador())
 
-    cenario = cenarios_da_reproducao(reproduzir(caminho, c), c)[0]
+    assert (r.janelas, r.incompletas, sum(r.por_categoria.values())) == (2, 1, 2)
 
-    assert cenario.incidente.categoria_do_modelo == "DDoS+DoS"
-    assert cenario.incidente.categoria == categoria
-    assert cenario.incidente.distribuido is distribuido
-    assert cenario.incidente.destinos[0].endereco == VITIMA
+
+def test_so_o_trecho_a_partir_de_uma_janela(tmp_path):
+    caminho = escrever_pcap(tmp_path / "a.pcap", [ataque(4), benigno(10), ataque(4)])
+
+    r = reproduzir(caminho, classificador(), a_partir_da_janela=14)
+
+    assert r.puladas == 14
+    assert sum(r.por_categoria.values()) == 4
+    assert [j.indice for j in r.incidentes[0].ataque] == [14, 15, 16, 17]
+
+
+def test_inicio_do_teste_vem_do_manifesto_da_regeracao(tmp_path):
+    manifesto = tmp_path / "m.json"
+    manifesto.write_text(json.dumps({
+        "pcaps": [{"arquivo": "A.pcap", "janelas": {"100": {"extraidas": 100}}},
+                  {"arquivo": "B1.pcap", "janelas": {"100": {"extraidas": 10}}},
+                  {"arquivo": "B2.pcap", "janelas": {"100": {"extraidas": 10}}}],
+        "rotulos": [{"arquivos": ["A.pcap"]}, {"arquivos": ["B1.pcap", "B2.pcap"]}],
+    }))
+
+    assert inicio_do_teste("A.pcap", manifesto) == 70
+    assert inicio_do_teste("/x/B2.pcap", manifesto) == 0
+    assert inicio_do_teste("B1.pcap", manifesto) is None
+    assert inicio_do_teste("C.pcap", manifesto) is None
+
+
+def test_arquivo_que_nao_e_pcap_vira_pcap_invalido(tmp_path):
+    caminho = tmp_path / "x.pcap"
+    caminho.write_bytes(b"isto nao e um pcap, so texto qualquer")
+
+    with pytest.raises(PcapInvalido, match="não é um arquivo pcap"):
+        reproduzir(caminho, classificador())
+
+
+# --- Papéis: quem ataca e quem é atacado ------------------------------------------------------
+
+
+def _cenario(tmp_path, blocos, c=None):
+    c = c or classificador()
+    return cenarios_da_reproducao(reproduzir(escrever_pcap(tmp_path / "a.pcap", blocos), c), c)[0]
+
+
+@pytest.mark.parametrize("respostas", [0, 1, 2])
+def test_respostas_da_vitima_nao_poem_o_atacante_entre_os_destinos(tmp_path, respostas):
+    incidente = _cenario(tmp_path, [ataque(6, respostas=respostas), benigno(10)]).incidente
+
+    assert incidente.origens[0].endereco == ATACANTE
+    assert incidente.destinos[0].endereco == VITIMA
+    assert ATACANTE not in [d.endereco for d in incidente.destinos]
+    assert (incidente.categoria, incidente.distribuido, incidente.origens_distintas) == ("DoS", False, 1)
+
+
+def test_ddos_com_respostas_continua_distribuido(tmp_path):
+    incidente = _cenario(tmp_path, [ataque(6, origens=("10.9.0.1", "10.9.0.2"), respostas=3), benigno(10)]).incidente
+
+    assert (incidente.categoria, incidente.distribuido) == ("DDoS", True)
+    assert {o.endereco for o in incidente.origens} == {"10.9.0.1", "10.9.0.2"}
+
+
+def test_varredura_poe_o_scanner_na_origem_e_os_alvos_nos_destinos(tmp_path):
+    alvos = [f"10.0.1.{i}" for i in range(1, 61)]
+
+    def gerar(i):
+        # Pedido do scanner seguido da resposta do alvo, para 60 alvos.
+        alvo = alvos[(i // 2) % len(alvos)]
+        return icmp("10.0.0.7", alvo) if i % 2 == 0 else icmp(alvo, "10.0.0.7")
+
+    incidente = _cenario(tmp_path, [(5, gerar, 0.0), benigno(10)]).incidente
+
+    assert incidente.categoria == "Recon"
+    assert [o.endereco for o in incidente.origens] == ["10.0.0.7"]
+    assert "10.0.0.7" not in [d.endereco for d in incidente.destinos]
+
+
+def test_arp_spoofing_lista_os_anunciados_e_obter_janelas_nao_quebra(tmp_path):
+    c = Classificador(ModeloArp(), tuple(COLUNAS), PontoDeOperacao(None, 3), "arp.joblib")
+    caminho = escrever_pcap(tmp_path / "a.pcap", [(5, lambda i: arp(("192.168.1.1", "192.168.1.20")[i % 2]), 0.0)])
+    reproducao = reproduzir(caminho, c)
+    log = tmp_path / "eventos.jsonl"
+
+    cenarios, _ = gravar(reproducao, c, log, relogio=lambda: AGORA)
+
+    incidente = cenarios[0].incidente
+    assert incidente.categoria == "Spoofing"
+    assert {o.endereco for o in incidente.origens} == {"192.168.1.1", "192.168.1.20"}
+    assert incidente.destinos == [] and incidente.origens_distintas == 2
+    fatia = Stub(Registro(log), agente="triagem", cenarios=cenarios).chamar("obter_janelas", id="inc-0001", limite=5)
+    assert fatia.janelas == []
+
+
+# --- Do incidente ao log e ao servidor --------------------------------------------------------
 
 
 def test_incidente_no_formato_do_contrato_com_features_e_janelas_reais(tmp_path):
-    c = classificador()
-    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [benigno(1), ataque(5), benigno(10)]), c)
-
-    cenario = cenarios_da_reproducao(reproducao, c)[0]
+    cenario = _cenario(tmp_path, [benigno(1), ataque(5), benigno(10)])
 
     incidente = cenario.incidente
-    assert incidente.id == "inc-0001"
-    assert incidente.janelas == 5
-    assert incidente.confianca == 0.9
-    assert incidente.origens[0].endereco == ATACANTE
+    assert (incidente.id, incidente.janelas, incidente.confianca) == ("inc-0001", 5, 0.9)
     assert incidente.features_principais[0].nome == "syn_flag_number"
     assert incidente.features_principais[0].valor == 1.0
     assert incidente.features_principais[0].referencia_benigno == ler_referencia()["syn_flag_number"]
@@ -181,101 +333,108 @@ def test_incidente_no_formato_do_contrato_com_features_e_janelas_reais(tmp_path)
     assert cenario.lote.por_categoria == {"DDoS+DoS": 5}
 
 
-def test_log_gravado_e_lido_pelo_servidor_com_as_janelas_reais(tmp_path):
-    c = classificador()
-    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [benigno(3), ataque(5), benigno(10)]), c)
-    cenarios = cenarios_da_reproducao(reproducao, c)
-    log = tmp_path / "eventos.jsonl"
-
-    registro = gravar(cenarios, reproducao, log)
-
-    tipos = [evento.tipo for evento in ler(log)]
-    assert tipos == ["janelas_classificadas", "incidente_aberto", "janelas_classificadas"]
-    assert list(reconstruir(ler(log)).incidentes) == ["inc-0001"]
-    stub = Stub(registro, agente="triagem", cenarios=cenarios)
-    fatia = stub.chamar("obter_janelas", id="inc-0001", limite=2)
-    assert fatia.total == 5
-    assert [j.indice for j in fatia.janelas] == [0, 4]
-    assert fatia.janelas[0].origem == ATACANTE
-
-
-def test_resumo_traz_o_atraso_de_deteccao_e_a_politica(tmp_path):
-    c = classificador()
-    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [ataque(3)]), c, nome="captura.pcap")
-    cenarios = cenarios_da_reproducao(reproducao, c)
-
-    saida = resumo(reproducao, cenarios, c)
-
-    assert saida["arquivo"] == "captura.pcap"
-    assert saida["incidentes"][0]["atraso_de_deteccao_s"] == pytest.approx(2.99, abs=1e-3)
-    assert saida["ponto_de_operacao"] == {"regra": "argmax", "limiar": None, "seguidas": 3}
-    assert saida["acionamento"]["fecha_apos"] == 10
-
-
-# --- Do reprodutor ao processo do servidor MCP ------------------------------------------------
-
-
-def test_gravar_deixa_os_cenarios_ao_lado_do_log_e_eles_voltam_iguais(tmp_path):
-    from codigo.mcp.cenarios import ler_cenarios
-    from codigo.reprodutor.reprodutor import caminho_dos_cenarios
-
-    c = classificador()
-    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [ataque(5), benigno(10)]), c)
-    cenarios = cenarios_da_reproducao(reproducao, c)
-    log = tmp_path / "eventos.jsonl"
-
-    gravar(cenarios, reproducao, log)
-
-    lidos = ler_cenarios(caminho_dos_cenarios(log))
-    assert caminho_dos_cenarios(log).name == "eventos.cenarios.json"
-    assert [x.incidente for x in lidos] == [x.incidente for x in cenarios]
-    assert lidos[0].janelas_reais == cenarios[0].janelas_reais
-    assert lidos[0].lote == cenarios[0].lote
-
-
-def test_segunda_reproducao_no_mesmo_log_continua_a_numeracao(tmp_path):
-    from codigo.mcp.cenarios import ler_cenarios
-    from codigo.reprodutor.reprodutor import caminho_dos_cenarios, proximo_numero
-
-    c = classificador()
-    log = tmp_path / "eventos.jsonl"
-    assert proximo_numero(log) == 1
-    primeira = reproduzir(escrever_pcap(tmp_path / "a.pcap", [ataque(5), benigno(10)]), c)
-    gravar(cenarios_da_reproducao(primeira, c), primeira, log)
-    segunda = reproduzir(escrever_pcap(tmp_path / "b.pcap", [ataque(4), benigno(10)]), c)
-
-    gravar(cenarios_da_reproducao(segunda, c, primeiro=proximo_numero(log)), segunda, log)
-
-    assert list(reconstruir(ler(log)).incidentes) == ["inc-0001", "inc-0002"]
-    assert [x.incidente.id for x in ler_cenarios(caminho_dos_cenarios(log))] == ["inc-0001", "inc-0002"]
-
-
 def test_indice_da_janela_guardada_e_a_posicao_dela_no_incidente(tmp_path, monkeypatch):
-    from codigo.reprodutor import reprodutor
-
     monkeypatch.setattr(reprodutor, "JANELAS_GUARDADAS", 2)
-    c = classificador()
-    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [ataque(5), benigno(10)]), c)
 
-    cenario = cenarios_da_reproducao(reproducao, c)[0]
+    cenario = _cenario(tmp_path, [ataque(5), benigno(10)])
 
     assert cenario.incidente.janelas == 5
     assert [j.indice for j in cenario.janelas_reais] == [0, 3]
 
 
+def test_log_na_ordem_dos_fatos_com_a_abertura_do_momento_e_o_relogio_de_reproducao(tmp_path):
+    c = classificador()
+    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [benigno(3), ataque(5), benigno(10)]), c)
+    log = tmp_path / "eventos.jsonl"
+
+    cenarios, deslocamento = gravar(reproducao, c, log, relogio=lambda: AGORA)
+
+    eventos = ler(log)
+    assert [e.tipo for e in eventos] == ["janelas_classificadas", "incidente_aberto", "incidente_atualizado", "janelas_classificadas"]
+    aberto, atualizado = eventos[1].dados, eventos[2].dados
+    assert (aberto.janelas, atualizado.janelas) == (3, 5)
+    assert sum(e.dados.janelas for e in eventos if e.tipo == "janelas_classificadas") == reproducao.janelas
+    # A última janela do pcap acontece agora; a abertura, no fim da terceira janela de ataque.
+    assert eventos[-1].instante == AGORA
+    assert eventos[1].instante == datetime.datetime.fromtimestamp(reproducao.incidentes[0].aberto_em + deslocamento, tz=datetime.UTC)
+    assert atualizado.inicio < atualizado.fim <= AGORA
+    assert reconstruir(eventos).incidentes["inc-0001"] == cenarios[0].incidente
+
+
+def test_segunda_reproducao_no_mesmo_log_continua_a_numeracao_e_o_relogio(tmp_path):
+    c = classificador()
+    log = tmp_path / "eventos.jsonl"
+    primeira = reproduzir(escrever_pcap(tmp_path / "a.pcap", [ataque(5), benigno(10)]), c)
+    gravar(primeira, c, log, relogio=lambda: AGORA)
+    segunda = reproduzir(escrever_pcap(tmp_path / "b.pcap", [ataque(4), benigno(10)]), c)
+
+    gravar(segunda, c, log, relogio=lambda: AGORA)
+
+    assert list(reconstruir(ler(log)).incidentes) == ["inc-0001", "inc-0002"]
+    assert [x.incidente.id for x in ler_cenarios(caminho_dos_cenarios(log))] == ["inc-0001", "inc-0002"]
+
+
+def test_cenarios_ao_lado_do_log_voltam_iguais_e_so_o_dono_le(tmp_path):
+    c = classificador()
+    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [ataque(5), benigno(10)]), c)
+    log = tmp_path / "eventos.jsonl"
+
+    cenarios, _ = gravar(reproducao, c, log, relogio=lambda: AGORA)
+
+    arquivo = caminho_dos_cenarios(log)
+    assert arquivo.name == "eventos.cenarios.json"
+    assert arquivo.stat().st_mode & 0o777 == 0o600
+    lidos = ler_cenarios(arquivo)
+    assert [x.incidente for x in lidos] == [x.incidente for x in cenarios]
+    assert lidos[0].janelas_reais == cenarios[0].janelas_reais
+
+
+def test_incidente_fica_no_relogio_de_reproducao_e_nao_dura_anos(tmp_path):
+    c = classificador()
+    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [ataque(5), benigno(10)]), c)
+    log = tmp_path / "eventos.jsonl"
+    cenarios, _ = gravar(reproducao, c, log)
+
+    resumo_do_servidor = Stub(Registro(log), agente="decisao", cenarios=cenarios).chamar("obter_resumo", id="inc-0001")
+
+    assert resumo_do_servidor.duracao_s < 60
+    assert abs((cenarios[0].incidente.fim - datetime.datetime.now(tz=datetime.UTC)).total_seconds()) < 60
+
+
+def test_incidente_conta_todas_as_janelas_de_ataque_e_a_categoria_e_a_mais_frequente(tmp_path):
+    # Uma janela de varredura seguida de duas de flood contra o mesmo alvo.
+    def gerar(i):
+        return icmp(ATACANTE, VITIMA) if i < JANELA else tcp(ATACANTE, VITIMA, dpkt.tcp.TH_SYN)
+
+    cenario = _cenario(tmp_path, [benigno(1), (3, gerar, 0.0), benigno(10)])
+
+    assert cenario.incidente.categoria_do_modelo == "DDoS+DoS"
+    assert cenario.incidente.janelas == 3
+    assert [j.categoria_do_modelo for j in cenario.janelas_reais] == ["Recon", "DDoS+DoS", "DDoS+DoS"]
+
+
+def test_resumo_traz_o_atraso_o_relogio_e_a_politica(tmp_path):
+    c = classificador()
+    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [ataque(3)]), c, nome="captura.pcap")
+    log = tmp_path / "eventos.jsonl"
+    cenarios, deslocamento = gravar(reproducao, c, log, relogio=lambda: AGORA)
+
+    saida = resumo(reproducao, cenarios, c, deslocamento)
+
+    assert saida["arquivo"] == "captura.pcap"
+    assert saida["incidentes"][0]["atraso_de_deteccao_s"] == pytest.approx(2.99, abs=1e-3)
+    assert saida["ponto_de_operacao"] == {"regra": "argmax", "limiar": None, "seguidas": 3}
+    assert saida["relogio"]["deslocamento_s"] == pytest.approx(deslocamento)
+    assert saida["trecho"] == {"a_partir_da_janela": 0, "so_teste": False}
+
+
 def test_cliente_mcp_le_o_incidente_real_do_servidor_subido_com_os_cenarios(tmp_path):
-    import asyncio
-    import sys
-    from pathlib import Path
-
     from mcp import Client, StdioServerParameters
-
-    from codigo.reprodutor.reprodutor import caminho_dos_cenarios
 
     c = classificador()
     reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [benigno(2), ataque(5), benigno(10)]), c)
     log = tmp_path / "eventos.jsonl"
-    gravar(cenarios_da_reproducao(reproducao, c), reproducao, log)
+    gravar(reproducao, c, log)
     raiz = Path(__file__).resolve().parents[2]
 
     def conversar(agente, roteiro):
@@ -310,25 +469,4 @@ def test_cliente_mcp_le_o_incidente_real_do_servidor_subido_com_os_cenarios(tmp_
     # O servidor não abriu os incidentes de exemplo: o inc-0004 não existe neste log.
     assert "Não existe incidente" in exemplo
     assert ATACANTE not in str(resumo_da_decisao) and VITIMA not in str(resumo_da_decisao)
-    tipos = [evento.tipo for evento in ler(log)]
-    assert tipos.count("incidente_aberto") == 1
-
-
-def test_incidente_conta_todas_as_janelas_de_ataque_e_a_categoria_e_a_mais_frequente(tmp_path):
-    class ModeloMisto(ModeloFalso):
-        """Recon na primeira janela de ataque de cada sequência, DDoS+DoS nas outras."""
-
-        def predict_proba(self, X):
-            ataque = (X[:, COLUNAS.index("syn_flag_number")] > 0.5).astype(float)
-            primeira = np.r_[ataque[:1], ataque[1:] * (1 - ataque[:-1])]
-            return np.column_stack([1 - ataque, (ataque - primeira) * 0.9, primeira * 0.9 + ataque * 0.1 * (1 - primeira)])
-
-    c = Classificador(ModeloMisto(), tuple(COLUNAS), PontoDeOperacao(None, 3), "misto.joblib")
-    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [benigno(1), ataque(3), benigno(10)]), c)
-
-    cenario = cenarios_da_reproducao(reproducao, c)[0]
-
-    assert cenario.incidente.categoria_do_modelo == "DDoS+DoS"
-    assert cenario.incidente.janelas == 3
-    assert [j.categoria_do_modelo for j in cenario.janelas_reais] == ["Recon", "DDoS+DoS", "DDoS+DoS"]
-    assert cenario.lote.por_categoria == {"Recon": 1, "DDoS+DoS": 2}
+    assert [evento.tipo for evento in ler(log)].count("incidente_aberto") == 1
