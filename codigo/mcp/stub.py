@@ -33,7 +33,7 @@ from pydantic import TypeAdapter, ValidationError
 from codigo.mcp import acoes
 from codigo.mcp.acoes import PedidoRecusado, carregar_politica, reconstruir, resumir
 from codigo.mcp.base import carregar, mitigacoes, pesquisar
-from codigo.mcp.cenarios import CENARIOS, efeito, evoluir, janelas
+from codigo.mcp.cenarios import CENARIOS, efeito, evoluir, janelas, ler_cenarios
 from codigo.mcp.eventos import CAMINHO_PADRAO, LogInvalido, Registro, novo
 from codigo.mcp.tipos import (
     AGENTES,
@@ -213,6 +213,13 @@ class Stub:
                 if identificador not in abertos:
                     rascunhos.append(novo("janelas_classificadas", cenario.lote))
                     rascunhos.append(novo("incidente_aberto", cenario.incidente, identificador))
+                elif not _mesmo_incidente(abertos[identificador], cenario.incidente):
+                    # Um log de outra execução com o mesmo identificador: servir este cenário daria
+                    # janelas e efeitos de outro incidente.
+                    raise ValueError(
+                        f"o log já tem um {identificador} diferente do cenário {cenario.nome}: use outro log, "
+                        "ou passe os cenários da execução que gravou este log com --cenarios"
+                    )
             return None, rascunhos
 
         self.registro.atualizar(decidir)
@@ -376,6 +383,11 @@ class Stub:
         return verificado, rascunhos
 
 
+def _mesmo_incidente(no_log, do_cenario):
+    """Se o incidente do log é o do cenário: mesmo começo e mesma categoria do modelo."""
+    return no_log.inicio == do_cenario.inicio and no_log.categoria_do_modelo == do_cenario.categoria_do_modelo
+
+
 def _limpar(valor):
     if isinstance(valor, str):
         return mascarar_enderecos(valor)
@@ -460,12 +472,20 @@ def main(argv=None):
             "desenvolvimento: um mesmo cliente consegue propor e executar"
         ),
     )
+    analisador.add_argument(
+        "--cenarios",
+        help=(
+            "arquivo de cenários gravado pelo reprodutor de tráfego (codigo.reprodutor), ao lado do log. Com ele, o "
+            "servidor atende os incidentes do pcap, com as janelas reais, no lugar dos quatro cenários de exemplo"
+        ),
+    )
     try:
         argumentos = analisador.parse_args(argv)
     except SystemExit as encerramento:
         return encerramento.code
     try:
-        stub = Stub(Registro(argumentos.log), agente=argumentos.agente)
+        cenarios = ler_cenarios(argumentos.cenarios) if argumentos.cenarios else CENARIOS
+        stub = Stub(Registro(argumentos.log), agente=argumentos.agente, cenarios=cenarios)
         stub.abrir_incidentes()
     except (OSError, ValueError) as erro:
         print(f"erro: {erro}", file=sys.stderr)

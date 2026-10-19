@@ -14,9 +14,11 @@ Cada cenário traz o roteiro do que acontece depois de cada ação aplicada: `ef
 depende só da ordem das ações, não de qual ação foi escolhida.
 """
 import ipaddress
+import json
 import random
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 
 from codigo.captura.extrator import COLUNAS, CONTAGENS
 from codigo.mcp.tipos import Incidente, Janela, LoteDeJanelas
@@ -308,3 +310,56 @@ def _features(cenario, sorteio):
     for contagem, flag in CONTAGENS:
         features[contagem] = round(features[flag] * numero)
     return features
+
+
+# --- Cenários em arquivo -----------------------------------------------------------------------
+# O reprodutor de tráfego (`codigo.reprodutor`) grava os cenários dos incidentes reais ao lado do
+# log, e o servidor os lê com `python -m codigo.mcp.stub --cenarios`: é o que leva os incidentes de
+# um pcap para o processo do servidor, que roda separado.
+
+
+def para_json(cenario):
+    return {
+        "nome": cenario.nome,
+        "descricao": cenario.descricao,
+        "incidente": cenario.incidente.model_dump(mode="json"),
+        "lote": cenario.lote.model_dump(mode="json"),
+        "efeitos": list(cenario.efeitos),
+        "quadros_por_janela": cenario.quadros_por_janela,
+        "perfil": cenario.perfil,
+        "janelas_reais": [janela.model_dump(mode="json") for janela in cenario.janelas_reais],
+    }
+
+
+def de_json(dados):
+    return Cenario(
+        nome=dados["nome"],
+        descricao=dados["descricao"],
+        incidente=Incidente.model_validate(dados["incidente"]),
+        lote=LoteDeJanelas.model_validate(dados["lote"]),
+        efeitos=tuple(dados["efeitos"]),
+        quadros_por_janela=int(dados["quadros_por_janela"]),
+        perfil=dict(dados["perfil"]),
+        janelas_reais=tuple(Janela.model_validate(janela) for janela in dados.get("janelas_reais", ())),
+    )
+
+
+def gravar_cenarios(cenarios, caminho):
+    caminho = Path(caminho)
+    provisorio = caminho.with_name(caminho.name + ".parcial")
+    provisorio.write_text(json.dumps([para_json(c) for c in cenarios], ensure_ascii=False) + "\n", encoding="utf-8")
+    provisorio.replace(caminho)
+    return caminho
+
+
+def ler_cenarios(caminho):
+    """Os cenários gravados por `gravar_cenarios`. Arquivo fora do formato levanta ValueError."""
+    try:
+        dados = json.loads(Path(caminho).read_text(encoding="utf-8"))
+        cenarios = tuple(de_json(item) for item in dados)
+    except (KeyError, TypeError, json.JSONDecodeError) as erro:
+        raise ValueError(f"{caminho}: arquivo de cenários fora do formato ({erro})") from None
+    identificadores = [c.incidente.id for c in cenarios]
+    if len(set(identificadores)) != len(identificadores):
+        raise ValueError(f"{caminho}: identificador de incidente repetido")
+    return cenarios

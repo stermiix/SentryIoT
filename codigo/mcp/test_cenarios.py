@@ -223,3 +223,26 @@ def test_incidente_que_diminui_cresce_menos_do_que_o_que_persiste():
     assert inicial.janelas < diminuiu.janelas < persiste.janelas
     assert diminuiu.estado == "aberto"
     assert diminuiu.fim == persiste.fim
+
+
+def test_cenarios_vao_e_voltam_do_arquivo(tmp_path):
+    from codigo.mcp.cenarios import gravar_cenarios, ler_cenarios
+
+    caminho = gravar_cenarios(CENARIOS, tmp_path / "cenarios.json")
+
+    assert ler_cenarios(caminho) == CENARIOS
+
+
+def test_arquivo_de_cenarios_com_id_repetido_ou_fora_do_formato_e_recusado(tmp_path):
+    import pytest
+
+    from codigo.mcp.cenarios import gravar_cenarios, ler_cenarios
+
+    repetido = gravar_cenarios([CENARIOS[0], CENARIOS[0]], tmp_path / "repetido.json")
+    quebrado = tmp_path / "quebrado.json"
+    quebrado.write_text('[{"nome": "x"}]')
+
+    with pytest.raises(ValueError, match="repetido"):
+        ler_cenarios(repetido)
+    with pytest.raises(ValueError, match="fora do formato"):
+        ler_cenarios(quebrado)

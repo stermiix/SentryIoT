@@ -13,9 +13,11 @@ from codigo.reprodutor.reprodutor import (
     SILENCIO_S,
     TETO_DE_INCIDENTES,
     Classificador,
+    caminho_dos_cenarios,
     cenarios_da_reproducao,
     gerar_referencia,
     gravar,
+    proximo_numero,
     reproduzir,
     resumo,
 )
@@ -45,13 +47,18 @@ def main(argv=None):
         argumentos.pcap, classificador, fecha_apos=argumentos.fecha_apos, silencio_s=argumentos.silencio,
         reagrupa_s=argumentos.reagrupa, teto=argumentos.teto,
     )
-    cenarios = cenarios_da_reproducao(reproducao, classificador)
     carimbo = datetime.datetime.now(tz=datetime.UTC).astimezone().strftime("%Y%m%d-%H%M%S")
     log = Path(argumentos.log) if argumentos.log else PASTA_DOS_LOGS / f"{Path(argumentos.pcap).stem}-{carimbo}.jsonl"
     log.parent.mkdir(parents=True, exist_ok=True)
+    cenarios = cenarios_da_reproducao(reproducao, classificador, primeiro=proximo_numero(log))
     gravar(cenarios, reproducao, log)
     json.dump(resumo(reproducao, cenarios, classificador, argumentos.fecha_apos, argumentos.silencio, argumentos.reagrupa, argumentos.teto), sys.stdout, indent=1, ensure_ascii=False)
     print(f"\nlog de eventos: {log}", file=sys.stderr)
+    print(
+        f"servidor MCP com estes incidentes: python -m codigo.mcp.stub --agente triagem --log {log} "
+        f"--cenarios {caminho_dos_cenarios(log)}",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":

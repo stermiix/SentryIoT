@@ -59,8 +59,8 @@ import numpy as np
 from codigo.captura.extrator import COLUNAS, Extrator, ler_pcap
 from codigo.classificador import operacao
 from codigo.classificador.treinar import carregar_modelo
-from codigo.mcp.cenarios import Cenario
-from codigo.mcp.eventos import Registro, novo
+from codigo.mcp.cenarios import Cenario, gravar_cenarios
+from codigo.mcp.eventos import Registro, ler, novo
 from codigo.mcp.tipos import (
     DDOS_E_DOS,
     EnderecoContado,
@@ -399,15 +399,17 @@ def montar_cenario(incidente, numero, classificador, referencia, arquivo):
         destinos=_contados(incidente.destinos),
         features_principais=principais,
     )
+    # O índice da janela é a posição dela entre as janelas do incidente, as que `janelas` conta,
+    # mesmo quando só uma parte delas é guardada.
     passo = max(1, math.ceil(len(da_categoria) / JANELAS_GUARDADAS))
-    guardadas = [j for j in da_categoria[::passo] if j.origem and j.destino]
+    guardadas = [(posicao, j) for posicao, j in enumerate(da_categoria) if posicao % passo == 0 and j.origem and j.destino]
     reais = tuple(
         Janela(
             indice=posicao, instante=_instante(j.inicio), categoria_do_modelo=j.categoria,
             confianca=round(j.confianca, 2), origem=j.origem, destino=j.destino,
             features={coluna: _finito(valor) for coluna, valor in zip(COLUNAS, j.valores, strict=True)},
         )
-        for posicao, j in enumerate(guardadas)
+        for posicao, j in guardadas
     )
     lote = LoteDeJanelas(janelas=sum(incidente.por_categoria.values()), por_categoria=dict(incidente.por_categoria))
     perfil = {nome: round(float(v), 4) for nome, v in medianas.items() if _finito(float(v)) is not None}
@@ -421,12 +423,32 @@ def montar_cenario(incidente, numero, classificador, referencia, arquivo):
     )
 
 
-def cenarios_da_reproducao(reproducao, classificador, referencia=None):
+def cenarios_da_reproducao(reproducao, classificador, referencia=None, primeiro=1):
+    """Os cenários dos incidentes, numerados a partir de `primeiro` (ver `proximo_numero`)."""
     referencia = referencia if referencia is not None else ler_referencia()
     return [
         montar_cenario(incidente, numero, classificador, referencia, reproducao.arquivo)
-        for numero, incidente in enumerate(reproducao.incidentes, start=1)
+        for numero, incidente in enumerate(reproducao.incidentes, start=primeiro)
     ]
+
+
+def proximo_numero(caminho_do_log):
+    """O número do próximo incidente num log que pode já ter incidentes de outra reprodução."""
+    caminho = Path(caminho_do_log)
+    if not caminho.exists() or caminho.stat().st_size == 0:
+        return 1
+    numeros = [
+        int(evento.incidente.removeprefix("inc-"))
+        for evento in ler(caminho)
+        if evento.tipo == "incidente_aberto" and evento.incidente and evento.incidente.removeprefix("inc-").isdigit()
+    ]
+    return max(numeros, default=0) + 1
+
+
+def caminho_dos_cenarios(caminho_do_log):
+    """Onde ficam os cenários de um log: ao lado dele, com `.cenarios.json` no lugar de `.jsonl`."""
+    caminho = Path(caminho_do_log)
+    return caminho.with_name(caminho.stem + ".cenarios.json")
 
 
 def gravar(cenarios, reproducao, caminho_do_log, relogio=None):
@@ -444,6 +466,15 @@ def gravar(cenarios, reproducao, caminho_do_log, relogio=None):
         rascunhos.append(novo("janelas_classificadas", LoteDeJanelas(janelas=sum(resto.values()), por_categoria=dict(resto))))
     if rascunhos:
         registro.gravar(*rascunhos)
+    # Os cenários vão ao lado do log, somados aos de reproduções anteriores no mesmo log, para o
+    # servidor (`python -m codigo.mcp.stub --cenarios`) atender todos os incidentes dele.
+    destino = caminho_dos_cenarios(caminho_do_log)
+    anteriores = []
+    if destino.exists():
+        from codigo.mcp.cenarios import ler_cenarios
+
+        anteriores = [c for c in ler_cenarios(destino) if c.incidente.id not in {n.incidente.id for n in cenarios}]
+    gravar_cenarios([*anteriores, *cenarios], destino)
     return registro
 
 

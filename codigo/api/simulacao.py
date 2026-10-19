@@ -19,6 +19,7 @@ from codigo.mcp import acoes
 from codigo.mcp.eventos import ler
 from codigo.reprodutor.reprodutor import (
     Classificador,
+    caminho_dos_cenarios,
     cenarios_da_reproducao,
     gravar,
     reproduzir,
@@ -72,6 +73,7 @@ class Simulador:
         gravar(cenarios, reproducao, log)
         saida = resumo(reproducao, cenarios, classificador)
         saida["log"] = _relativo(log)
+        saida["cenarios"] = _relativo(caminho_dos_cenarios(log))
         saida["eventos"] = log.read_text(encoding="utf-8") if log.exists() else ""
         saida["para_o_llm"] = self._para_o_llm(cenarios, log) if cenarios else None
         (pasta / "resumo.json").write_text(

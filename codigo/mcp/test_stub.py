@@ -1135,3 +1135,22 @@ def test_main_explica_log_estragado_e_nao_sobe_o_servidor(tmp_path, capsys):
         assert main(["--log", str(log), "--agente", agente]) == 1
         assert "linha 1" in capsys.readouterr().err
     assert log.read_text(encoding="utf-8") == "isto não é um evento\n"
+
+
+def test_stub_recusa_log_com_o_mesmo_identificador_de_outro_incidente(tmp_path):
+    import dataclasses
+
+    import pytest
+
+    from codigo.mcp.cenarios import CENARIOS
+    from codigo.mcp.eventos import Registro
+    from codigo.mcp.stub import Stub
+
+    log = tmp_path / "eventos.jsonl"
+    Stub(Registro(log), agente="triagem").abrir_incidentes()
+    outro = dataclasses.replace(
+        CENARIOS[0], incidente=CENARIOS[0].incidente.model_copy(update={"inicio": CENARIOS[1].incidente.inicio}),
+    )
+
+    with pytest.raises(ValueError, match="já tem um inc-0001 diferente"):
+        Stub(Registro(log), agente="triagem", cenarios=(outro,)).abrir_incidentes()

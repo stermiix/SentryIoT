@@ -210,3 +210,105 @@ def test_resumo_traz_o_atraso_de_deteccao_e_a_politica(tmp_path):
     assert saida["incidentes"][0]["atraso_de_deteccao_s"] == pytest.approx(2.99, abs=1e-3)
     assert saida["ponto_de_operacao"] == {"regra": "argmax", "limiar": None, "seguidas": 3}
     assert saida["acionamento"]["fecha_apos"] == 10
+
+
+# --- Do reprodutor ao processo do servidor MCP ------------------------------------------------
+
+
+def test_gravar_deixa_os_cenarios_ao_lado_do_log_e_eles_voltam_iguais(tmp_path):
+    from codigo.mcp.cenarios import ler_cenarios
+    from codigo.reprodutor.reprodutor import caminho_dos_cenarios
+
+    c = classificador()
+    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [ataque(5), benigno(10)]), c)
+    cenarios = cenarios_da_reproducao(reproducao, c)
+    log = tmp_path / "eventos.jsonl"
+
+    gravar(cenarios, reproducao, log)
+
+    lidos = ler_cenarios(caminho_dos_cenarios(log))
+    assert caminho_dos_cenarios(log).name == "eventos.cenarios.json"
+    assert [x.incidente for x in lidos] == [x.incidente for x in cenarios]
+    assert lidos[0].janelas_reais == cenarios[0].janelas_reais
+    assert lidos[0].lote == cenarios[0].lote
+
+
+def test_segunda_reproducao_no_mesmo_log_continua_a_numeracao(tmp_path):
+    from codigo.mcp.cenarios import ler_cenarios
+    from codigo.reprodutor.reprodutor import caminho_dos_cenarios, proximo_numero
+
+    c = classificador()
+    log = tmp_path / "eventos.jsonl"
+    assert proximo_numero(log) == 1
+    primeira = reproduzir(escrever_pcap(tmp_path / "a.pcap", [ataque(5), benigno(10)]), c)
+    gravar(cenarios_da_reproducao(primeira, c), primeira, log)
+    segunda = reproduzir(escrever_pcap(tmp_path / "b.pcap", [ataque(4), benigno(10)]), c)
+
+    gravar(cenarios_da_reproducao(segunda, c, primeiro=proximo_numero(log)), segunda, log)
+
+    assert list(reconstruir(ler(log)).incidentes) == ["inc-0001", "inc-0002"]
+    assert [x.incidente.id for x in ler_cenarios(caminho_dos_cenarios(log))] == ["inc-0001", "inc-0002"]
+
+
+def test_indice_da_janela_guardada_e_a_posicao_dela_no_incidente(tmp_path, monkeypatch):
+    from codigo.reprodutor import reprodutor
+
+    monkeypatch.setattr(reprodutor, "JANELAS_GUARDADAS", 2)
+    c = classificador()
+    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [ataque(5), benigno(10)]), c)
+
+    cenario = cenarios_da_reproducao(reproducao, c)[0]
+
+    assert cenario.incidente.janelas == 5
+    assert [j.indice for j in cenario.janelas_reais] == [0, 3]
+
+
+def test_cliente_mcp_le_o_incidente_real_do_servidor_subido_com_os_cenarios(tmp_path):
+    import asyncio
+    import sys
+    from pathlib import Path
+
+    from mcp import Client, StdioServerParameters
+
+    from codigo.reprodutor.reprodutor import caminho_dos_cenarios
+
+    c = classificador()
+    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [benigno(2), ataque(5), benigno(10)]), c)
+    log = tmp_path / "eventos.jsonl"
+    gravar(cenarios_da_reproducao(reproducao, c), reproducao, log)
+    raiz = Path(__file__).resolve().parents[2]
+
+    def conversar(agente, roteiro):
+        parametros = StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "codigo.mcp.stub", "--agente", agente, "--log", str(log), "--cenarios", str(caminho_dos_cenarios(log))],
+            cwd=raiz,
+        )
+
+        async def sessao():
+            async with Client(parametros) as cliente:
+                return await roteiro(cliente)
+
+        return asyncio.run(asyncio.wait_for(sessao(), timeout=60))
+
+    async def triagem(cliente):
+        incidente = await cliente.call_tool("obter_incidente", {"id": "inc-0001"})
+        janelas = await cliente.call_tool("obter_janelas", {"id": "inc-0001", "limite": 3})
+        exemplo = await cliente.call_tool("obter_incidente", {"id": "inc-0004"})
+        return incidente.structured_content, janelas.structured_content, exemplo.content[0].text
+
+    async def decisao(cliente):
+        return (await cliente.call_tool("obter_resumo", {"id": "inc-0001"})).structured_content
+
+    incidente, janelas, exemplo = conversar("triagem", triagem)
+    resumo_da_decisao = conversar("decisao", decisao)
+
+    assert incidente["categoria"] == "DoS"
+    assert incidente["origens"][0]["endereco"] == ATACANTE
+    assert [j["indice"] for j in janelas["janelas"]] == [0, 2, 4]
+    assert janelas["janelas"][0]["origem"] == ATACANTE
+    # O servidor não abriu os incidentes de exemplo: o inc-0004 não existe neste log.
+    assert "Não existe incidente" in exemplo
+    assert ATACANTE not in str(resumo_da_decisao) and VITIMA not in str(resumo_da_decisao)
+    tipos = [evento.tipo for evento in ler(log)]
+    assert tipos.count("incidente_aberto") == 1
