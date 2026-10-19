@@ -1,7 +1,7 @@
 # Mirai - Botnet IoT
 
 - **Definição:** Família de malware que compromete dispositivos IoT e os integra a uma botnet, permitindo sua utilização em ataques distribuídos.
-- **Objetivo:** Estabelecer uma botnet para disparar ataques em larga escala e encaminhar tráfego encapsulado.
+- **Objetivo:** Estabelecer uma botnet para disparar ataques em larga escala, como floods UDP e floods de pacotes encapsulados em GRE.
 
 ## Mitigações recomendadas
 

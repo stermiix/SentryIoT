@@ -2,6 +2,7 @@
 
 - **Definição:** Ataque realizado a partir de uma única origem, por meio do envio excessivo de pacotes ou requisições, ou da exploração de falhas em protocolos e serviços.
 - **Objetivo:** Comprometer a disponibilidade dos recursos de rede, aplicações ou serviços.
+- **No SentryIoT:** o classificador não separa DDoS de DoS (categoria `DDoS+DoS` do modelo); a separação sai da quantidade de origens do incidente, e este arquivo vale para o incidente com categoria `DoS`.
 
 ## Mitigações recomendadas
 

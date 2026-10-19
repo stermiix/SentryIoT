@@ -1,6 +1,6 @@
 # Spoofing - Falsificação de identidade/endereço
 
-- **Definição:** Falsificação de identificadores de camada de rede ou enlace, como endereços MAC ou registros DNS.
+- **Definição:** Falsificação de identificadores ou de respostas de rede, como a associação entre endereço IP e endereço MAC, no ARP, ou as respostas de resolução de nomes, no DNS.
 - **Objetivo:** Redirecionar, interceptar ou alterar comunicações, fazendo sistemas confiarem em identidades ou respostas falsas.
 
 ## Mitigações recomendadas
