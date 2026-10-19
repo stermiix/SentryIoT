@@ -348,6 +348,10 @@ describe("simulação", () => {
     incidentes: [],
     incidentes_alem_do_teto: 0,
     log: "dados/eventos/simulacoes/x/eventos.jsonl",
+    cenarios: "dados/eventos/simulacoes/x/eventos.cenarios.json",
+    janelas_puladas: 159,
+    janelas_incompletas: 1,
+    trecho: { a_partir_da_janela: 159, so_teste: true },
     eventos: textoDoExemplo,
     para_o_llm: {
       enviado: false,
@@ -395,7 +399,8 @@ describe("simulação", () => {
     const textoDaTela = texto(simulacao(RESULTADO));
 
     expect(textoDaTela).toContain("Do Recon-PingSweep.pcap até a porta do modelo");
-    expect(textoDaTela).toContain("227 janelas de 100 quadros");
+    expect(textoDaTela).toContain("227 janelas de 100 quadros, das quais 159 do trecho de treino ficaram de fora");
+    expect(textoDaTela).not.toContain("inclui o trecho do pcap usado no treino");
     expect(textoDaTela).toContain("pedido de inc-0001 montado, não enviado");
     expect(textoDaTela).toContain("Não enviado");
     expect(textoDaTela).toContain("qwen-teste");
@@ -411,6 +416,12 @@ describe("simulação", () => {
     expect(local).toContain("203.0.113.7");
     expect(fronteira).toContain("origem-1");
     expect(fronteira).not.toContain("203.0.113.7");
+  });
+
+  it("avisa quando a simulação inclui o trecho de treino do modelo", () => {
+    const comTreino = { ...RESULTADO, janelas_puladas: 0, trecho: { a_partir_da_janela: 0, so_teste: false } };
+
+    expect(texto(simulacao(comTreino))).toContain("inclui o trecho do pcap usado no treino do modelo");
   });
 
   it("a barra lateral leva à simulação", () => {
