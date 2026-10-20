@@ -52,6 +52,11 @@ export interface ResultadoDaSimulacao {
   quadros: number;
   ignorados: number;
   janelas: number;
+  /** Janelas do trecho de treino, extraídas mas não classificadas (com "só o trecho de teste"). */
+  janelas_puladas: number;
+  /** A última janela, quando não chega a 100 quadros, é descartada. */
+  janelas_incompletas: number;
+  trecho: { a_partir_da_janela: number; so_teste: boolean };
   por_categoria: Record<string, number>;
   duracao_do_pcap_s: number;
   processamento_s: number;
@@ -61,6 +66,8 @@ export interface ResultadoDaSimulacao {
   incidentes: IncidenteDaSimulacao[];
   incidentes_alem_do_teto: number;
   log: string;
+  /** Os cenários ao lado do log, para subir o servidor MCP com `--cenarios`. */
+  cenarios: string;
   /** O log de eventos gravado, em JSON Lines, para as outras telas lerem. */
   eventos: string;
   para_o_llm: ParaOLlm | null;
@@ -82,13 +89,20 @@ export class ErroDaSimulacao extends Error {
 type Buscar = typeof fetch;
 const buscarPadrao: Buscar = (entrada, init) => fetch(entrada, init);
 
-/** O arquivo vai cru no corpo, com o nome na consulta; o backend aceita um por vez. */
-export async function iniciarSimulacao(arquivo: Blob, nome: string, buscar: Buscar = buscarPadrao): Promise<ResultadoDaSimulacao> {
+/** O cabeçalho que o backend exige nas rotas que gastam máquina: uma página de outro site não o manda sem licença. */
+export const CABECALHO_DA_INTERFACE = { "X-SentryIoT": "interface" } as const;
+
+/**
+ * O arquivo vai cru no corpo, com o nome na consulta; o backend aceita um por vez. Com `soTeste`,
+ * só o trecho do pcap que ficou fora do treino do modelo é classificado.
+ */
+export async function iniciarSimulacao(arquivo: Blob, nome: string, soTeste = false, buscar: Buscar = buscarPadrao): Promise<ResultadoDaSimulacao> {
   let resposta: Response;
+  const consulta = `nome=${encodeURIComponent(nome)}${soTeste ? "&so_teste=1" : ""}`;
   try {
-    resposta = await buscar(`/api/simulacao?nome=${encodeURIComponent(nome)}`, {
+    resposta = await buscar(`/api/simulacao?${consulta}`, {
       method: "POST",
-      headers: { "Content-Type": "application/vnd.tcpdump.pcap" },
+      headers: { "Content-Type": "application/vnd.tcpdump.pcap", ...CABECALHO_DA_INTERFACE },
       body: arquivo,
     });
   } catch {

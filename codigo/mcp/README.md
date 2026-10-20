@@ -30,9 +30,16 @@ Todos os comandos são dados a partir da raiz do repositório, com o ambiente do
     python -m codigo.mcp.stub --agente triagem
     python -m codigo.mcp.stub --agente decisao --log outro/caminho.jsonl
     python -m codigo.mcp.stub --agente todos
+    python -m codigo.mcp.stub --agente triagem --log captura.jsonl --cenarios captura.cenarios.json
 
 O transporte é stdio: quem inicia o processo é o cliente MCP. Na partida o stub grava no log a
-abertura dos quatro incidentes, se eles ainda não estiverem lá.
+abertura dos quatro incidentes de exemplo, se eles ainda não estiverem lá.
+
+Com `--cenarios`, o stub atende os incidentes de um pcap no lugar dos de exemplo: o reprodutor de
+tráfego (`python -m codigo.reprodutor`) grava o log e, ao lado dele, os cenários com as janelas
+reais, e imprime o comando para subir o stub sobre eles. Se o log já tem um incidente com o mesmo
+identificador e outro começo ou outra categoria, o stub recusa subir, em vez de servir as janelas
+de outro incidente.
 
 `--agente` é obrigatório. Com `triagem`, `decisao` ou `execucao`, o servidor só expõe as tools
 da linha desse agente e registra o nome dele em cada chamada. O indicado é um processo por

@@ -36,12 +36,13 @@ function etapas(r: ResultadoDaSimulacao): Etapa[] {
   const { regra, limiar, seguidas } = r.ponto_de_operacao;
   const eventos = r.eventos.split("\n").filter(Boolean).length;
   const alem = r.incidentes_alem_do_teto > 0 ? `, mais ${fmtInt(r.incidentes_alem_do_teto)} além do teto` : "";
+  const puladas = r.janelas_puladas > 0 ? `, das quais ${fmtInt(r.janelas_puladas)} do trecho de treino ficaram de fora da classificação` : "";
   return [
     { icone: "file-text", titulo: "pcap", detalhe: `${r.arquivo}: ${fmtInt(r.quadros)} quadros`, feita: true },
     {
       icone: "scan-search",
       titulo: "Extrator",
-      detalhe: `${fmtInt(r.janelas)} janelas de 100 quadros; ${fmtInt(r.ignorados)} quadros fora do filtro (nem IPv4 nem ARP)`,
+      detalhe: `${fmtInt(r.janelas)} janelas de 100 quadros${puladas}; ${fmtInt(r.ignorados)} quadros fora do filtro (nem IPv4 nem ARP)`,
       feita: true,
     },
     {
@@ -91,6 +92,7 @@ function duracao(valor: number): string {
 export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: PropsDaSimulacao) {
   const entrada = useRef<HTMLInputElement>(null);
   const [arquivo, setArquivo] = useState<File | null>(null);
+  const [soTeste, setSoTeste] = useState(true);
   const [rodando, setRodando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -101,7 +103,7 @@ export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: 
     setRodando(true);
     setErro(null);
     try {
-      aoSimular?.(await iniciarSimulacao(arquivo, arquivo.name));
+      aoSimular?.(await iniciarSimulacao(arquivo, arquivo.name, soTeste));
     } catch (falha) {
       setErro(falha instanceof ErroDaSimulacao ? falha.message : "Falha inesperada ao enviar o pcap.");
     } finally {
@@ -150,6 +152,10 @@ export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: 
                 "Nenhum arquivo escolhido. Formato pcap clássico, Ethernet, até 600 MB."
               )}
             </span>
+            <label className="body-sm app-opcao">
+              <input type="checkbox" checked={soTeste} onChange={(evento) => setSoTeste(evento.target.checked)} disabled={rodando} />
+              Só o trecho que o modelo não viu no treino
+            </label>
             <Button variant="primary" icon="play" onClick={iniciar} disabled={!arquivo || rodando} loading={rodando}>
               {rodando ? "Processando…" : "Iniciar simulação"}
             </Button>
@@ -169,6 +175,12 @@ export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: 
           </Panel>
         ) : (
           <>
+            {!resultado.trecho.so_teste && (
+              <Alert tone="attention" title="Esta simulação inclui o trecho do pcap usado no treino do modelo." className="sx-span-12">
+                Os incidentes servem para demonstrar o fluxo, e não para medir a detecção. Para medir, marque "só o trecho que o modelo não viu
+                no treino" ou use um pcap que ficou inteiro fora do treino.
+              </Alert>
+            )}
             <Panel className="sx-span-12" eyebrow="Fluxo" title={`Do ${resultado.arquivo} até a porta do modelo`}>
               <ol className="app-fluxo">
                 {etapas(resultado).map((etapa) => (

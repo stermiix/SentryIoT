@@ -30,7 +30,7 @@ entra nos testes.
 | Visão geral: funil janelas → incidentes → chamadas à IA, cartões e fila | `#/visao-geral` | funciona com o log |
 | Detalhe do incidente: veredito, features, propostas, endereços, rastro dos agentes, recomendações, histórico | `#/incidentes/<id>` | funciona com o log; as decisões só são oferecidas no fim do replay |
 | Ao vivo | `#/ao-vivo` | planejada; liga com `VITE_LOG_AO_VIVO`, e sem ela fica vazia |
-| Simulação: anexa um pcap, que passa pelo extrator, pelo classificador e pela política de acionamento até a porta do modelo da triagem, sem chamá-lo | `#/simulacao` | funciona com o backend (`POST /api/simulacao`) e o modelo do sistema em `modelos/`; o log da simulação passa a ser o das outras telas |
+| Simulação: anexa um pcap, que passa pelo extrator, pelo classificador e pela política de acionamento até a porta do modelo da triagem, sem chamá-lo | `#/simulacao` | funciona com o backend (`POST /api/simulacao`, com o cabeçalho `X-SentryIoT: interface`) e o modelo do sistema em `modelos/`; por padrão classifica só o trecho do pcap que ficou fora do treino; o log da simulação passa a ser o das outras telas |
 | Tela 3, isolado × integrado | `#/isolado-integrado` | funciona com o log |
 | Tela 4, custo e latência | `#/custo-latencia` | funciona com o log; local × nuvem depende de `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM` |
 | Tela 5, qualidade do modelo | `#/qualidade-do-modelo` | matriz real da configuração 5 |

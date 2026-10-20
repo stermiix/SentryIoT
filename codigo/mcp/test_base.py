@@ -245,3 +245,14 @@ def test_pesquisa_na_base_provisoria_acha_medidas_fora_do_catalogo(consulta, ori
     assert primeiro.origem == origem
     assert palavra_do_titulo in primeiro.titulo
     assert primeiro.acao is None
+
+
+def test_toda_categoria_de_ataque_tem_medida_ligada_ao_catalogo():
+    """Sem isso, um incidente da categoria chega ao agente de decisão sem nenhuma mitigação."""
+    from codigo.mcp.base import carregar, mitigacoes
+    from codigo.mcp.tipos import CATEGORIAS
+
+    secoes = carregar()
+    sem_medida = [categoria for categoria in CATEGORIAS if categoria != "Benign" and not mitigacoes(secoes, categoria)]
+
+    assert sem_medida == []

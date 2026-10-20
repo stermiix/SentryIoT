@@ -16,7 +16,8 @@ const RESULTADO = {
   arquivo: "a.pcap", quadros: 700, ignorados: 0, janelas: 7, por_categoria: { Benign: 2, "DDoS+DoS": 5 },
   duracao_do_pcap_s: 7, processamento_s: 0.1, modelo: "rf.joblib", ponto_de_operacao: { regra: "argmax", limiar: null, seguidas: 3 },
   acionamento: { fecha_apos: 10 }, incidentes: [], incidentes_alem_do_teto: 0, log: "dados/eventos/simulacoes/x/eventos.jsonl",
-  eventos: "", para_o_llm: null,
+  cenarios: "dados/eventos/simulacoes/x/eventos.cenarios.json", janelas_puladas: 0, janelas_incompletas: 1,
+  trecho: { a_partir_da_janela: 0, so_teste: false }, eventos: "", para_o_llm: null,
 };
 
 describe("acesso à simulação", () => {
@@ -24,17 +25,18 @@ describe("acesso à simulação", () => {
     const chamadas: Chamada[] = [];
     const pcap = new Blob([new Uint8Array([1, 2, 3])]);
 
-    const recebido = await iniciarSimulacao(pcap, "meu ataque.pcap", fetchQueResponde(200, RESULTADO, chamadas));
+    const recebido = await iniciarSimulacao(pcap, "meu ataque.pcap", true, fetchQueResponde(200, RESULTADO, chamadas));
 
     expect(recebido).toEqual(RESULTADO);
-    expect(chamadas[0].url).toBe("/api/simulacao?nome=meu%20ataque.pcap");
+    expect(chamadas[0].url).toBe("/api/simulacao?nome=meu%20ataque.pcap&so_teste=1");
+    expect(new Headers(chamadas[0].init.headers).get("X-SentryIoT")).toBe("interface");
     expect(chamadas[0].init.method).toBe("POST");
     expect(chamadas[0].init.body).toBe(pcap);
     expect(new Headers(chamadas[0].init.headers).get("Content-Type")).toBe("application/vnd.tcpdump.pcap");
   });
 
   it("erro do backend vira ErroDaSimulacao com a mensagem dele", async () => {
-    const falha = iniciarSimulacao(new Blob([]), "a.pcapng", fetchQueResponde(400, { erro: "a entrada está em pcapng" }));
+    const falha = iniciarSimulacao(new Blob([]), "a.pcapng", false, fetchQueResponde(400, { erro: "a entrada está em pcapng" }));
 
     await expect(falha).rejects.toThrow(ErroDaSimulacao);
     await expect(falha).rejects.toMatchObject({ tipo: "backend", status: 400, message: "a entrada está em pcapng" });
@@ -45,13 +47,13 @@ describe("acesso à simulação", () => {
       throw new TypeError("Failed to fetch");
     }) as typeof fetch;
 
-    await expect(iniciarSimulacao(new Blob([]), "a.pcap", semRede)).rejects.toMatchObject({ tipo: "rede", status: null });
+    await expect(iniciarSimulacao(new Blob([]), "a.pcap", false, semRede)).rejects.toMatchObject({ tipo: "rede", status: null });
   });
 
   it("recusa resposta fora do formato, e uma que diga que o pedido foi enviado", async () => {
-    await expect(iniciarSimulacao(new Blob([]), "a.pcap", fetchQueResponde(200, { arquivo: "a.pcap" }))).rejects.toThrow("fora do formato");
+    await expect(iniciarSimulacao(new Blob([]), "a.pcap", false, fetchQueResponde(200, { arquivo: "a.pcap" }))).rejects.toThrow("fora do formato");
     const enviado = { ...RESULTADO, para_o_llm: { enviado: true, pedido: {} } };
-    await expect(iniciarSimulacao(new Blob([]), "a.pcap", fetchQueResponde(200, enviado))).rejects.toThrow("fora do formato");
+    await expect(iniciarSimulacao(new Blob([]), "a.pcap", false, fetchQueResponde(200, enviado))).rejects.toThrow("fora do formato");
   });
 
   it("mostra o tamanho do arquivo e os parâmetros do pedido", () => {

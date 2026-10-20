@@ -9,8 +9,9 @@ from pathlib import Path
 import pytest
 
 from codigo.api.configuracao import Configuracao
-from codigo.api.servidor import criar_app
-from codigo.api.simulacao import Simulador, nome_do_pcap
+from codigo.api.servidor import CABECALHO_DA_INTERFACE, criar_app
+from codigo.api.simulacao import SemTrechoDeTeste, Simulador, nome_do_pcap
+from codigo.reprodutor.reprodutor import PcapInvalido
 from codigo.reprodutor.test_reprodutor import (
     ATACANTE,
     VITIMA,
@@ -21,16 +22,20 @@ from codigo.reprodutor.test_reprodutor import (
 )
 
 CONFIG = Configuracao(url_base="https://g/v1", chave="k", modelo="modelo-local", temperatura=0.0, raciocinio=False)
+CABECALHO = (CABECALHO_DA_INTERFACE[0].lower().encode(), CABECALHO_DA_INTERFACE[1].encode())
 
 
-def enviar(app, corpo, nome="a.pcap"):
+def enviar(app, corpo, nome="a.pcap", consulta="", cabecalho=True):
     """Um POST com o pcap no corpo, direto no app ASGI. Devolve (status, json)."""
+    partes = [f"nome={nome}"] if nome is not None else []
+    partes += [consulta] if consulta else []
+    cabecalhos = [(b"host", b"teste"), (b"content-type", b"application/vnd.tcpdump.pcap"), (b"content-length", str(len(corpo)).encode())]
+    if cabecalho:
+        cabecalhos.append(CABECALHO)
     scope = {
         "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "POST", "scheme": "http",
         "path": "/api/simulacao", "raw_path": b"/api/simulacao", "root_path": "",
-        "query_string": f"nome={nome}".encode() if nome is not None else b"",
-        "headers": [(b"host", b"teste"), (b"content-type", b"application/vnd.tcpdump.pcap"),
-                    (b"content-length", str(len(corpo)).encode())],
+        "query_string": "&".join(partes).encode(), "headers": cabecalhos,
         "client": ("127.0.0.1", 1), "server": ("teste", 80),
     }
     # O corpo chega em dois pedaços, como numa conexão de verdade.
@@ -64,8 +69,8 @@ class SimuladorFalso:
     def disponivel(self):
         return True
 
-    def simular(self, caminho, nome):
-        self.recebido = (Path(caminho).read_bytes(), nome, caminho)
+    def simular(self, caminho, nome, so_teste=False):
+        self.recebido = (Path(caminho).read_bytes(), nome, caminho, so_teste, self.trava.locked())
         if self.erro:
             raise self.erro
         return self.resposta
@@ -82,16 +87,25 @@ def test_sem_simulador_a_rota_responde_503():
     assert "modelo do sistema" in corpo["erro"]
 
 
-def test_rota_grava_o_corpo_num_arquivo_chama_o_simulador_e_apaga_o_arquivo():
+def test_sem_o_cabecalho_da_interface_a_rota_recusa():
+    simulador = SimuladorFalso()
+
+    status, corpo = enviar(app_com(simulador), b"pcap", cabecalho=False)
+
+    assert status == 403
+    assert CABECALHO_DA_INTERFACE[0] in corpo["erro"]
+    assert simulador.recebido is None
+
+
+def test_rota_grava_o_corpo_num_arquivo_chama_o_simulador_com_a_trava_e_apaga_o_arquivo():
     simulador = SimuladorFalso({"incidentes": []})
 
-    status, corpo = enviar(app_com(simulador), b"0123456789", nome="../../etc/Meu pcap.pcap")
+    status, corpo = enviar(app_com(simulador), b"0123456789", nome="../../etc/Meu pcap.pcap", consulta="so_teste=1")
 
     assert status == 200
     assert corpo == {"incidentes": []}
-    dados, nome, caminho = simulador.recebido
-    assert dados == b"0123456789"
-    assert nome == "Meu_pcap.pcap"
+    dados, nome, caminho, so_teste, com_a_trava = simulador.recebido
+    assert (dados, nome, so_teste, com_a_trava) == (b"0123456789", "Meu_pcap.pcap", True, True)
     assert not os.path.exists(caminho)
     assert not simulador.trava.locked()
 
@@ -117,13 +131,22 @@ def test_pcap_grande_demais_ou_vazio_e_recusado(corpo):
     assert not simulador.trava.locked()
 
 
-def test_arquivo_que_nao_e_pcap_vira_400_com_a_mensagem_do_leitor():
-    simulador = SimuladorFalso(erro=ValueError("a entrada não é um arquivo pcap"))
-
-    status, corpo = enviar(app_com(simulador), b"nao sou pcap")
+@pytest.mark.parametrize("erro", [PcapInvalido("a entrada não é um arquivo pcap"), SemTrechoDeTeste("x.pcap não tem trecho")])
+def test_erro_do_arquivo_ou_do_pedido_vira_400_com_a_mensagem(erro):
+    status, corpo = enviar(app_com(SimuladorFalso(erro=erro)), b"nao sou pcap")
 
     assert status == 400
-    assert corpo["erro"] == "a entrada não é um arquivo pcap"
+    assert corpo["erro"] == str(erro)
+
+
+def test_erro_do_servidor_vira_500_sem_detalhe():
+    simulador = SimuladorFalso(erro=ValueError("o ponto de operação é de outro modelo"))
+
+    status, corpo = enviar(app_com(simulador), b"pcap")
+
+    assert status == 500
+    assert "outro modelo" not in corpo["erro"]
+    assert not simulador.trava.locked()
 
 
 def test_nome_do_pcap_fica_so_com_o_ultimo_trecho_e_caracteres_seguros():
@@ -139,7 +162,9 @@ def test_simulador_leva_o_incidente_ate_a_porta_da_triagem_sem_chamar_o_modelo(t
     saida = simulador.simular(pcap, "a.pcap")
 
     assert [i["id"] for i in saida["incidentes"]] == ["inc-0001"]
-    assert len(saida["eventos"].splitlines()) == 3
+    assert [json.loads(linha)["tipo"] for linha in saida["eventos"].splitlines()] == [
+        "janelas_classificadas", "incidente_aberto", "incidente_atualizado", "janelas_classificadas",
+    ]
     para_o_llm = saida["para_o_llm"]
     assert para_o_llm["enviado"] is False
     assert para_o_llm["agente"] == "triagem"
@@ -154,7 +179,9 @@ def test_simulador_leva_o_incidente_ate_a_porta_da_triagem_sem_chamar_o_modelo(t
     assert ATACANTE not in fronteira and VITIMA not in fronteira
     assert "origem-1" in fronteira
     pasta = next((tmp_path / "simulacoes").iterdir())
-    assert (pasta / "eventos.jsonl").exists()
+    assert pasta.stat().st_mode & 0o777 == 0o700
+    for arquivo in ("eventos.jsonl", "eventos.cenarios.json", "resumo.json"):
+        assert (pasta / arquivo).stat().st_mode & 0o777 == 0o600, arquivo
     assert "eventos" not in json.loads((pasta / "resumo.json").read_text())
 
 
@@ -167,3 +194,23 @@ def test_simulador_sem_incidente_nao_monta_pedido(tmp_path):
     assert saida["incidentes"] == []
     assert saida["para_o_llm"] is None
     assert saida["janelas"] == 4
+
+
+def test_so_teste_pula_o_trecho_de_treino_pelo_manifesto(tmp_path, monkeypatch):
+    from codigo.api import simulacao
+
+    manifesto = tmp_path / "m.json"
+    manifesto.write_text(json.dumps({
+        "pcaps": [{"arquivo": "a.pcap", "janelas": {"100": {"extraidas": 20}}}], "rotulos": [{"arquivos": ["a.pcap"]}],
+    }))
+    monkeypatch.setattr(simulacao, "MANIFESTO", manifesto)
+    pcap = escrever_pcap(tmp_path / "a.pcap", [ataque(14), benigno(6)])
+    simulador = Simulador(CONFIG, pasta=tmp_path / "simulacoes", classificador=classificador())
+
+    saida = simulador.simular(pcap, "a.pcap", so_teste=True)
+
+    assert saida["janelas_puladas"] == 14
+    assert saida["trecho"] == {"a_partir_da_janela": 14, "so_teste": True}
+    assert saida["incidentes"] == []
+    with pytest.raises(SemTrechoDeTeste):
+        simulador.simular(pcap, "outro.pcap", so_teste=True)
