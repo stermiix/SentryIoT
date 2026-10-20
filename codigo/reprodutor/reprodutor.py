@@ -375,7 +375,10 @@ def reproduzir(
     def processar(janela, categoria, contagens):
         reproducao.por_categoria[categoria] += 1
         if categoria == benigno:
-            reproducao.fundo.acrescentar(contagens)
+            # O fundo é o tráfego benigno fora de incidente: a janela benigna no meio de um flood é,
+            # quase sempre, ataque que o modelo deixou passar, e traria os atacantes para o fundo.
+            if not abertos:
+                reproducao.fundo.acrescentar(contagens)
             sequencia.clear()
             estado["descartando"] = False
             for incidente in abertos:
