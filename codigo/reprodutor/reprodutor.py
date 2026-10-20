@@ -573,7 +573,7 @@ def _papeis(incidente, categoria_do_modelo, fundo=None):
         atacante = max(iniciadores, key=lambda e: abre[e] - recebe_abertura[e])
     else:
         atacante = max(fortes, key=lambda e: (enviados[e] - recebidos[e], candidatos[e]))
-    alvos = {destino for (origem, destino) in pares if origem == atacante and _unicast(destino)}
+    alvos = {destino for (origem, destino) in pares if origem == atacante and destino != atacante and _unicast(destino)}
     if not alvos:
         return _papeis_pelo_volume(pares)
     if categoria_do_modelo == "Recon":
@@ -584,6 +584,8 @@ def _papeis(incidente, categoria_do_modelo, fundo=None):
     origens = Counter({
         origem: pares[origem, alvo] for origem in fortes if (origem, alvo) in pares and origem != alvo
     })
+    if not origens:
+        return _papeis_pelo_volume(pares)
     destinos = Counter()
     for (origem, destino), n in pares.items():
         if origem in origens and destino not in origens:

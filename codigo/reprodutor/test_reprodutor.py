@@ -508,3 +508,15 @@ def test_cliente_mcp_le_o_incidente_real_do_servidor_subido_com_os_cenarios(tmp_
     assert "Não existe incidente" in exemplo
     assert ATACANTE not in str(resumo_da_decisao) and VITIMA not in str(resumo_da_decisao)
     assert [evento.tipo for evento in ler(log)].count("incidente_aberto") == 1
+
+
+def test_endereco_que_manda_para_si_mesmo_nao_quebra_os_papeis(tmp_path):
+    def gerar(i):
+        if i % 2:
+            return tcp(ATACANTE, ATACANTE, dpkt.tcp.TH_SYN)
+        return tcp(ATACANTE, VITIMA, dpkt.tcp.TH_SYN)
+
+    incidente = _cenario(tmp_path, [(5, gerar, 0.0), benigno(10)]).incidente
+
+    assert incidente.categoria in ("DoS", "DDoS")
+    assert incidente.origens
