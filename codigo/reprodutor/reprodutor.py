@@ -41,9 +41,13 @@ aos modelos:
   dela deixam de ser guardadas até uma benigna.
 Os números são parâmetros, porque o experimento ponta a ponta vai comparar valores.
 
-Papéis. O alvo do incidente é quem recebe mais quadros de abertura de conexão (SYN sem ACK), quando
-eles pesam no tráfego; senão, numa varredura, o atacante é quem fala com mais destinos; nos outros
-casos, o alvo é quem recebe de mais origens. As origens são quem manda quadros ao alvo, e os
+Papéis. O alvo do incidente é quem recebe mais quadros de abertura de conexão (SYN sem ACK) além do
+fundo, quando há pelo menos `MINIMO_DE_ABERTURAS` deles; senão, numa varredura, o atacante é quem fala com mais destinos, fora os
+endereços protegidos e críticos da política (o gateway fala com todos); nos outros casos, o alvo é
+o endereço que mais recebe quadros. Multicast e broadcast nunca são o alvo: um anúncio de SSDP
+recebe de todos os dispositivos da rede. As escolhas usam o excesso de cada par de endereços sobre
+o fundo das janelas benignas do mesmo pcap: num ataque de pouco volume, o tráfego normal da rede
+domina as contagens, e o par do atacante é o que aparece quase só nas janelas de ataque. As origens são quem manda quadros ao alvo, e os
 destinos, para onde essas origens mandam: as respostas da vítima não põem o atacante entre os
 destinos. O incidente é distribuído quando a maior origem responde por menos de
 `PARCELA_DA_MAIOR_ORIGEM` dos quadros enviados ao alvo; é a regra que separa DDoS de DoS, que o
@@ -103,8 +107,12 @@ REAGRUPA_S = 300.0
 ENDERECOS_DA_CHAVE = 3
 TETO_DE_INCIDENTES = 20
 PARCELA_DA_MAIOR_ORIGEM = 0.8
-# Fração dos quadros do incidente em SYN sem ACK a partir da qual eles definem quem é o alvo.
-PESO_DAS_ABERTURAS = 0.1
+# Aberturas de conexão (SYN sem ACK) que bastam para apontar o atacante entre os que mais se
+# destacam: quem inicia conexões é o sentido do ataque, mesmo quando a vítima responde com mais
+# quadros.
+MINIMO_DE_ABERTURAS = 3
+# Uma origem conta como candidata a atacante se o destaque dela chega a esta fração do maior.
+DESTAQUE_RELATIVO = 0.5
 LIMITE_DE_CONTADOS = 20_000
 CONTADOS_DEPOIS_DA_PODA = 5_000
 # Quantos endereços o incidente lista, quantas features principais e quantas janelas reais guarda
@@ -220,6 +228,9 @@ class IncidenteReproduzido:
     destinos: Counter = field(default_factory=Counter)
     pares: Counter = field(default_factory=Counter)
     aberturas: Counter = field(default_factory=Counter)
+    # Em quantas janelas do incidente cada endereço aparece como origem e como destino.
+    presenca_origem: Counter = field(default_factory=Counter)
+    presenca_destino: Counter = field(default_factory=Counter)
     # Janelas benignas depois da última de ataque: só contam no lote se outra de ataque vier.
     benignas_pendentes: int = 0
     # Janelas seguidas que não são dele; com `fecha_apos` delas, ele se encerra.
@@ -255,11 +266,16 @@ class IncidenteReproduzido:
             contagem = getattr(self, nome)
             contagem.update(getattr(contagens, nome))
             _podar(contagem)
+        self.presenca_origem.update(contagens.origens.keys())
+        self.presenca_destino.update(contagens.destinos.keys())
+        _podar(self.presenca_origem)
+        _podar(self.presenca_destino)
 
     def copia(self):
         return IncidenteReproduzido(
             self.primeira_janela_de_ataque, self.aberto_em, list(self.ataque), Counter(self.por_categoria),
             Counter(self.origens), Counter(self.destinos), Counter(self.pares), Counter(self.aberturas),
+            Counter(self.presenca_origem), Counter(self.presenca_destino),
         )
 
 
@@ -277,6 +293,23 @@ class Reproducao:
     incidentes: list = field(default_factory=list)
     alem_do_teto: int = 0
     segundos: float = 0.0
+    # O fundo contra o qual os papéis são escolhidos: em quantas janelas benignas cada endereço
+    # aparece como origem e como destino, e quantas janelas benignas houve.
+    fundo: "Fundo" = field(default_factory=lambda: Fundo())
+
+
+@dataclass
+class Fundo:
+    origens: Counter = field(default_factory=Counter)
+    destinos: Counter = field(default_factory=Counter)
+    janelas: int = 0
+
+    def acrescentar(self, contagens):
+        self.janelas += 1
+        self.origens.update(contagens.origens.keys())
+        self.destinos.update(contagens.destinos.keys())
+        _podar(self.origens)
+        _podar(self.destinos)
 
 
 def _enderecos_principais(origens, destinos):
@@ -342,6 +375,7 @@ def reproduzir(
     def processar(janela, categoria, contagens):
         reproducao.por_categoria[categoria] += 1
         if categoria == benigno:
+            reproducao.fundo.acrescentar(contagens)
             sequencia.clear()
             estado["descartando"] = False
             for incidente in abertos:
@@ -477,31 +511,79 @@ def ler_referencia(caminho=REFERENCIA):
     return json.loads(Path(caminho).read_text(encoding="utf-8"))["mediana"]
 
 
-def _papeis(incidente, categoria_do_modelo):
-    """Origens, destinos, origens distintas e se é distribuído, pelo sentido do tráfego (ver o docstring)."""
+_NAO_ATACANTES = None
+
+
+def _nao_atacantes():
+    """Os endereços protegidos e críticos da política (gateway, DNS, captura): nunca o atacante de uma varredura."""
+    global _NAO_ATACANTES
+    if _NAO_ATACANTES is None:
+        from codigo.mcp.acoes import carregar_politica
+
+        politica = carregar_politica()
+        _NAO_ATACANTES = frozenset(str(e) for e in (*politica.enderecos_protegidos, *politica.enderecos_criticos))
+    return _NAO_ATACANTES
+
+
+def _unicast(endereco):
+    """Se o endereço (em bytes) pode ser o alvo de um ataque: nem multicast nem broadcast."""
+    return not (endereco[0] >= 224 or endereco[-1] in (0, 255))
+
+
+def _destaque(presenca, janelas, no_fundo, janelas_do_fundo):
+    """Quanto a presença de cada endereço nas janelas do incidente passa da presença nas benignas."""
+    return Counter({
+        endereco: n / janelas - (no_fundo.get(endereco, 0) / janelas_do_fundo if janelas_do_fundo else 0.0)
+        for endereco, n in presenca.items()
+    })
+
+
+def _papeis(incidente, categoria_do_modelo, fundo=None):
+    """Origens, destinos, origens distintas e se é distribuído (ver "Papéis" no docstring).
+
+    O atacante aparece em quase todas as janelas do incidente e quase nunca nas benignas; o gateway e
+    os dispositivos comuns aparecem nas duas. Entre os endereços que mais se destacam como origem, o
+    atacante é o que abre conexões (SYN sem ACK) ou, sem elas, o que manda mais do que recebe. O alvo
+    é o destino do atacante que mais se destaca. As contagens devolvidas são quadros de verdade.
+    """
     pares, aberturas = incidente.pares, incidente.aberturas
     if not pares:
         return incidente.origens, Counter(), len(incidente.origens), False
-    if aberturas and sum(aberturas.values()) >= PESO_DAS_ABERTURAS * sum(pares.values()):
-        recebidas = Counter()
-        for (_, destino), n in aberturas.items():
-            recebidas[destino] += n
-        alvo = recebidas.most_common(1)[0][0]
-    elif categoria_do_modelo == "Recon":
-        leque, enviados = Counter(), Counter()
-        for (origem, _), n in pares.items():
-            leque[origem] += 1
-            enviados[origem] += n
-        atacante = max(leque, key=lambda origem: (leque[origem], enviados[origem]))
-        destinos = Counter({destino: n for (origem, destino), n in pares.items() if origem == atacante})
-        return Counter({atacante: sum(destinos.values())}), destinos, 1, False
+    fundo = fundo or Fundo()
+    janelas = len(incidente.ataque)
+    como_origem = _destaque(incidente.presenca_origem, janelas, fundo.origens, fundo.janelas)
+    como_destino = _destaque(incidente.presenca_destino, janelas, fundo.destinos, fundo.janelas)
+    enviados, recebidos, abre, recebe_abertura = Counter(), Counter(), Counter(), Counter()
+    for (origem, destino), n in pares.items():
+        enviados[origem] += n
+        recebidos[destino] += n
+    for (origem, destino), n in aberturas.items():
+        abre[origem] += n
+        recebe_abertura[destino] += n
+    candidatos = {
+        e: d for e, d in como_origem.items()
+        if d > 0 and e in enviados and _unicast(e) and _ip(e) not in _nao_atacantes()
+    }
+    if not candidatos:
+        return _papeis_pelo_volume(pares)
+    maior = max(candidatos.values())
+    fortes = [e for e, d in candidatos.items() if d >= DESTAQUE_RELATIVO * maior]
+    iniciadores = [e for e in fortes if abre[e] - recebe_abertura[e] >= MINIMO_DE_ABERTURAS]
+    if iniciadores:
+        atacante = max(iniciadores, key=lambda e: abre[e] - recebe_abertura[e])
     else:
-        leque, recebidos = Counter(), Counter()
-        for (_, destino), n in pares.items():
-            leque[destino] += 1
-            recebidos[destino] += n
-        alvo = max(leque, key=lambda destino: (leque[destino], recebidos[destino]))
-    origens = Counter({origem: n for (origem, destino), n in pares.items() if destino == alvo})
+        atacante = max(fortes, key=lambda e: (enviados[e] - recebidos[e], candidatos[e]))
+    alvos = {destino for (origem, destino) in pares if origem == atacante and _unicast(destino)}
+    if not alvos:
+        return _papeis_pelo_volume(pares)
+    if categoria_do_modelo == "Recon":
+        destinos = Counter({destino: pares[atacante, destino] for destino in alvos})
+        return Counter({atacante: enviados[atacante]}), destinos, 1, False
+    alvo = max(alvos, key=lambda d: (como_destino.get(d, 0.0), pares[atacante, d]))
+    # As origens são as que se destacam e mandam ao alvo: no DDoS, várias; no DoS, uma.
+    origens = Counter({
+        origem: pares[origem, alvo] for origem in fortes if (origem, alvo) in pares and origem != alvo
+    })
     destinos = Counter()
     for (origem, destino), n in pares.items():
         if origem in origens and destino not in origens:
@@ -510,15 +592,31 @@ def _papeis(incidente, categoria_do_modelo):
     return origens, destinos, len(origens), max(origens.values()) / total < PARCELA_DA_MAIOR_ORIGEM
 
 
+def _papeis_pelo_volume(pares):
+    """Sem origem que se destaque (origem forjada a cada quadro): o alvo é quem mais recebe."""
+    recebidos, leque = Counter(), Counter()
+    for (_, destino), n in pares.items():
+        if _unicast(destino):
+            recebidos[destino] += n
+            leque[destino] += 1
+    if not recebidos:
+        return Counter(), Counter(), 0, False
+    alvo = max(recebidos, key=lambda destino: (recebidos[destino], leque[destino]))
+    origens = Counter({origem: n for (origem, destino), n in pares.items() if destino == alvo})
+    destinos = Counter({alvo: recebidos[alvo]})
+    total = sum(origens.values())
+    return origens, destinos, len(origens), max(origens.values()) / total < PARCELA_DA_MAIOR_ORIGEM
+
+
 def _contados(contagem):
     return [EnderecoContado(endereco=_ip(ip), quadros=n) for ip, n in contagem.most_common(ENDERECOS_LISTADOS)]
 
 
-def montar_incidente(incidente, identificador, classificador, referencia, deslocamento):
+def montar_incidente(incidente, identificador, classificador, referencia, deslocamento, fundo=None):
     """O incidente no formato do contrato, no relógio de reprodução."""
     categoria_do_modelo = incidente.categoria_principal()
     da_categoria = [j for j in incidente.ataque if j.categoria == categoria_do_modelo]
-    origens, destinos, origens_distintas, distribuido = _papeis(incidente, categoria_do_modelo)
+    origens, destinos, origens_distintas, distribuido = _papeis(incidente, categoria_do_modelo, fundo)
     categoria = ("DDoS" if distribuido else "DoS") if categoria_do_modelo == DDOS_E_DOS else categoria_do_modelo
     valores = np.array([j.valores for j in da_categoria], dtype=np.float64)
     valores[~np.isfinite(valores)] = np.nan
@@ -553,9 +651,9 @@ def _instante(ts, deslocamento):
     return datetime.datetime.fromtimestamp(ts + deslocamento, tz=datetime.UTC)
 
 
-def montar_cenario(incidente, identificador, classificador, referencia, arquivo, deslocamento):
+def montar_cenario(incidente, identificador, classificador, referencia, arquivo, deslocamento, fundo=None):
     """O incidente final dentro de um cenário que o servidor MCP atende, com as janelas reais."""
-    dados, medianas = montar_incidente(incidente, identificador, classificador, referencia, deslocamento)
+    dados, medianas = montar_incidente(incidente, identificador, classificador, referencia, deslocamento, fundo)
     # O índice da janela guardada é a posição dela entre as que `janelas` conta, mesmo quando só
     # uma parte é guardada. Janela sem destino IP (ARP) não cabe no contrato e fica de fora.
     passo = max(1, math.ceil(len(incidente.ataque) / JANELAS_GUARDADAS))
@@ -584,7 +682,7 @@ def cenarios_da_reproducao(reproducao, classificador, referencia=None, primeiro=
     """Os cenários dos incidentes, numerados a partir de `primeiro`, no relógio dado por `deslocamento`."""
     referencia = referencia if referencia is not None else ler_referencia()
     return [
-        montar_cenario(incidente, f"inc-{numero:04d}", classificador, referencia, reproducao.arquivo, deslocamento)
+        montar_cenario(incidente, f"inc-{numero:04d}", classificador, referencia, reproducao.arquivo, deslocamento, reproducao.fundo)
         for numero, incidente in enumerate(reproducao.incidentes, start=primeiro)
     ]
 
@@ -630,7 +728,7 @@ def gravar(reproducao, classificador, caminho_do_log, *, referencia=None, relogi
         anterior = Counter()
         for ordem, (cenario, incidente) in enumerate(zip(cenarios, reproducao.incidentes, strict=True)):
             identificador = cenario.incidente.id
-            abertura, _ = montar_incidente(incidente.abertura, identificador, classificador, referencia, deslocamento)
+            abertura, _ = montar_incidente(incidente.abertura, identificador, classificador, referencia, deslocamento, reproducao.fundo)
             quando = _instante(incidente.aberto_em, deslocamento)
             lote = _lote(incidente.janelas_ate_abrir - anterior)
             anterior = incidente.janelas_ate_abrir

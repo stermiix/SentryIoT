@@ -301,6 +301,44 @@ def test_varredura_poe_o_scanner_na_origem_e_os_alvos_nos_destinos(tmp_path):
     assert "10.0.0.7" not in [d.endereco for d in incidente.destinos]
 
 
+def test_gateway_falando_com_todos_nao_vira_o_scanner(tmp_path):
+    # O gateway da política (192.168.137.1) manda pouco a muitos dispositivos; o scanner pinga 40 alvos.
+    alvos = [f"192.168.137.{i}" for i in range(100, 140)]
+    dispositivos = [f"192.168.137.{i}" for i in range(10, 90)]
+
+    def gerar(i):
+        if i % 4 == 3:
+            return icmp("192.168.137.1", dispositivos[i % len(dispositivos)])
+        return icmp("192.168.137.178", alvos[i % len(alvos)])
+
+    incidente = _cenario(tmp_path, [(5, gerar, 0.0), benigno(10)]).incidente
+
+    assert [o.endereco for o in incidente.origens] == ["192.168.137.178"]
+
+
+def test_multicast_que_recebe_de_todos_nao_vira_o_alvo_de_um_flood(tmp_path):
+    # Flood ICMP de 2 origens contra a vítima, com anúncios de SSDP de 30 dispositivos no meio.
+    def gerar(i):
+        if i % 5 == 4:
+            return icmp(f"192.168.1.{100 + i % 30}", "239.255.255.250")
+        return icmp(("10.9.0.1", "10.9.0.2")[i % 2], VITIMA)
+
+    c = Classificador(ModeloSemSyn(), tuple(COLUNAS), PontoDeOperacao(None, 3), "icmp.joblib")
+    incidente = _cenario(tmp_path, [(5, gerar, 0.0), benigno(10)], c).incidente
+
+    assert incidente.destinos[0].endereco == VITIMA
+    assert {o.endereco for o in incidente.origens} == {"10.9.0.1", "10.9.0.2"}
+    assert incidente.categoria == "DDoS"
+
+
+class ModeloSemSyn(ModeloFalso):
+    """ICMP vira DDoS+DoS, como num flood ICMP."""
+
+    def predict_proba(self, X):
+        de_icmp = (X[:, COLUNAS.index("ICMP")] > 0.5).astype(float)
+        return np.column_stack([1 - de_icmp, de_icmp, np.zeros(len(X))])
+
+
 def test_arp_spoofing_lista_os_anunciados_e_obter_janelas_nao_quebra(tmp_path):
     c = Classificador(ModeloArp(), tuple(COLUNAS), PontoDeOperacao(None, 3), "arp.joblib")
     caminho = escrever_pcap(tmp_path / "a.pcap", [(5, lambda i: arp(("192.168.1.1", "192.168.1.20")[i % 2]), 0.0)])
