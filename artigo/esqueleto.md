@@ -144,8 +144,8 @@ tabela por categoria no corte por tempo, no ponto de operação, com dois contro
 com o pcap inteiro fora do treino e o alarme falso com cada pcap benigno fora do treino (decisão de
 2026-10-13, `ROADMAP.md`). O macro-F1 é relatado, mas não é o número principal: dá o mesmo peso a
 categorias com 273 e com 214.373 janelas de teste e não mostra onde o modelo erra. A acurácia
-global também não é: DDoS e DoS somam 89,5% das linhas do `MERGED_CSV`, e um modelo que
-respondesse DDoS para tudo acertaria 72,3%.
+global também não é: DDoS e DoS somam 89,5% das linhas do `MERGED_CSV`, e, com as duas juntas,
+um modelo que respondesse DDoS+DoS para tudo acertaria 78,4% das janelas de teste do sistema.
 
 Na fase exploratória, o Random Forest (scikit-learn, 100 árvores, parâmetros padrão) foi treinado
 e avaliado na amostra do `MERGED_CSV` descrita acima, com 80% das linhas para o treino e 20% para
@@ -256,11 +256,13 @@ do incidente, e não as janelas, e o detalhe vem em fatias de até 20 janelas. N
 executada num ambiente simulado, com aprovação humana e possibilidade de desfazer (ver
 `codigo/mcp/README.md` e `codigo/mcp/politica.toml`).
 
-Arquitetura híbrida (Figura 1; decisões de 2026-10-10 e 2026-10-11): os agentes de triagem e de
-execução, e a verificação do efeito, rodam num modelo local, o Qwen3 8B servido pelo Ollama num
-computador do laboratório (GPU RTX 2070 Super); só o agente de decisão pode usar um modelo de
-fronteira pela nuvem, acessado pelo OpenRouter. A garantia de que nenhum endereço da rede chega a
-ele está no servidor, e não no prompt: o agente de decisão não tem as tools que devolvem endereços
+Arquitetura híbrida (Figura 1; decisões de 2026-10-10, 2026-10-11 e 2026-10-19): o orquestrador
+roda num modelo de fronteira, pela nuvem, e os agentes de triagem e de execução, com a verificação
+do efeito, rodam no modelo local, um Qwen de 27 bilhões de parâmetros (`qwen3.8-27c`) servido por
+um gateway compatível com a API da OpenAI `[CONFERIR: quantização, que a API não expõe]`. Nos
+testes, esse gateway é um serviço interno de outra organização, e os dados são os do CICIoT2023,
+públicos; numa implantação, o modelo local precisa rodar na infraestrutura de quem opera a rede.
+A garantia de que nenhum endereço da rede chega à fronteira está no servidor, e não no prompt: o agente de decisão não tem as tools que devolvem endereços
 e lê o incidente por `obter_resumo`, montado pelo servidor com um rótulo neutro (`origem-1`,
 `destino-1`) no lugar de cada endereço. Ele propõe a ação com o rótulo; o servidor troca o rótulo
 pelo endereço e calcula o risco sobre o endereço real, e só o agente de execução, local e o único
@@ -276,11 +278,13 @@ A busca na internet dos agentes fica desligada por padrão, e por isso nenhum da
 máquina por ela; a comparação com a busca ligada fica como experimento. O custo em tokens é
 medido por chamada: cada chamada ao modelo grava no log o agente, o modelo e os tokens de entrada
 e de saída, e o contador da interface mostra quantas chamadas um incidente gerou. O risco de
-Denial of Wallet será tratado pela política de acionamento `[a escrever]`, no orquestrador, que
-agrupará os alertas do mesmo ataque e fará de um flood de centenas de janelas por segundo um único
-incidente, e não centenas de chamadas ao modelo. Hoje não há teto de incidentes enviados ao
-modelo da nuvem, e origens forjadas podem abrir vários incidentes: esse teto também cabe à
-política de acionamento.
+Denial of Wallet é tratado pela política de acionamento (primeira versão no reprodutor de tráfego,
+`codigo/reprodutor/`; decisão de 2026-10-19), que reúne as janelas do mesmo ataque num incidente
+só: um flood de 264 mil janelas vira 4 incidentes, um por sessão de captura, e as rajadas de uma
+varredura contra alvos diferentes reabrem o mesmo incidente. O que ainda passa é o ataque de pouco
+volume em rajadas espaçadas: o `DNS_Spoofing.pcap` dá 51 incidentes em 28 horas
+(`experimentos/resultados/reproducao_dos_pcaps.md`). Hoje o teto é de 20 incidentes por pcap; um
+teto por tempo, e o que fazer com os incidentes acima dele, ainda está em aberto.
 
 A pessoa que opera a rede será avisada no instante em que o incidente abrir, antes dos agentes
 `[a implementar no modo ao vivo da interface]`, e pode marcar o incidente como já resolvido. A
@@ -342,8 +346,8 @@ alarmes com 3 janelas seguidas. A hora é a soma da duração das janelas do pca
 | `BenignTraffic1.pcap` | 29.549 | argmax | 0,8% | 6,0 | 0,8 | 1,0% |
 
 No corte por tempo, DDoS+DoS e Mirai passam de 98% de recall e de precisão. Recon (55,0%), Web
-(35,1%) e BruteForce (34,4%) ficam bem abaixo, e o que eles perdem vai sobretudo para Benign
-(Figura 3), o que explica a precisão de 63,3% da categoria benigna. O macro-F1 é de 75,6% (de
+(35,1%) e BruteForce (34,4%) ficam bem abaixo. O que Recon e Web perdem vai sobretudo para Benign
+(Figura 3), e BruteForce perde 72 janelas para Recon e 62 para Benign, o que explica a precisão de 63,3% da categoria benigna. O macro-F1 é de 75,6% (de
 75,4% a 75,7% entre as sementes), e 0,85% das janelas benignas de teste viram ataque. Com o melhor
 limiar (t = 0,61), que perdeu na validação, o teste teria 1,0% do benigno como ataque, e o recall
 de Recon e o de Spoofing cairiam 4,6 e 6,6 pontos (diferenças que contam). Com o pcap inteiro fora
@@ -382,13 +386,13 @@ Rascunho a partir do que já foi medido:
   janela, não o comportamento do tráfego (seção 3.3; Figura 4). A regeração em janela única
   resolve isso ao custo de treinar só com os pcaps disponíveis, e os resultados valem para a
   janela de 100.
-- **Tráfego de fundo no treino**: entre 33% e 87% das janelas de 10 dos pcaps de varredura, força
-  bruta, Web e spoofing não contêm nenhum quadro do atacante
+- **Tráfego de fundo no treino**: entre 3,3% e 66,9% das janelas de 100 dos pcaps de varredura,
+  força bruta, Web e spoofing não contêm nenhum quadro do atacante (na janela de 10, entre 33% e 87%)
   (`experimentos/resultados/janelas_sem_atacante.md`; Figura 5). O treino do sistema põe as da
   parte de treino como benignas, e parte delas pode conter efeito do ataque: o modelo aprende a
   chamar de benigno o que se parece com elas, e o recall de Recon e o de Spoofing caem (seção 4.1).
-  O fundo da parte de teste não tem rótulo e fica fora do teste; o modelo classifica 10,2% dele
-  como ataque, uma estimativa do alarme durante um ataque, e não um erro medido.
+  O fundo da parte de teste não tem rótulo e fica fora do teste; o modelo classifica 13,3% dele
+  como ataque, no ponto de operação, uma estimativa do alarme durante um ataque, e não um erro medido.
 - **A regra que adotou o fundo no treino**: a condição sobre o `Recon-PortScan.pcap` foi atendida
   pela média, com queda de 3,53 pontos no trecho de teste do pcap, mas o intervalo de 95% da queda
   vai de 1,77 a 5,29 pontos e não exclui uma queda acima do limite de 5. No pcap inteiro, a queda
@@ -429,11 +433,24 @@ Rascunho a partir do que já foi medido:
   dentro do mesmo pcap, o que tende a superestimar o resultado.
 - **Separação entre DDoS e DoS**: por janela, as faixas de IPs de origem das duas categorias se
   cruzam, e a contagem inclui os IPs da vítima e do tráfego de fundo
-  (`experimentos/resultados/regeracao.md`); a regra no nível do incidente ainda não foi medida.
+  (`experimentos/resultados/regeracao.md`). No nível do incidente, a regra pela parcela da maior
+  origem acerta 19 de 20 incidentes dos pcaps de DoS e 34 de 63 dos de DDoS: ela tende a dizer DoS
+  (`experimentos/resultados/reproducao_dos_pcaps.md`).
+- **Quem atacou**: o atacante do incidente é escolhido pela presença dos endereços nas janelas do
+  incidente contra o tráfego benigno; nos pcaps de ataque, a primeira origem listada é um atacante
+  em 119 de 231 incidentes, e nunca no spoofing, em que o quadro ARP só traz o IP anunciado, e não
+  o do atacante. Uma origem errada é contida pela política de risco: bloquear uma origem da rede
+  local é de risco alto e só acontece com a aprovação de uma pessoa.
+- **O artefato de captura na implantação**: com os quadros como passam no fio, completados até 60
+  bytes e limitados a 1.514, o modelo do sistema dá 26 alarmes nas 8 horas do `BenignTraffic2.pcap`,
+  contra 4 com os quadros como o dataset gravou (`experimentos/resultados/reproducao_dos_pcaps.md`).
+  Uma implantação que capture como o fio precisaria retreinar o modelo com os quadros normalizados.
 - **O atacante também gera tráfego comum**: 27,1% das janelas de 100 dos pcaps benignos têm ao
   menos um quadro de um MAC atacante, e entram no treino como benignas.
-- **Modelo local**: os agentes de triagem e execução rodam num modelo de 8 bilhões de parâmetros,
-  mais fraco que o de fronteira; a comparação entre as configurações mede esse custo.
+- **Modelo local**: os agentes de triagem e execução rodam num Qwen de 27 bilhões de parâmetros,
+  mais fraco que o de fronteira; a comparação entre as configurações mede esse custo. Mesmo com
+  temperatura 0 e semente fixa, o texto das respostas varia entre repetições, e cada caso dos
+  experimentos é repetido.
 
 ## 6. Conclusão
 
