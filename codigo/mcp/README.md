@@ -146,7 +146,8 @@ prompt:
 - o rótulo segue a ordem em que o endereço apareceu no incidente e não muda quando o incidente é
   atualizado e a lista é reordenada. O papel faz parte do rótulo: o endereço que aparece nas
   origens e nos destinos ganha um de cada;
-- `propor_acao` aceita o rótulo como alvo (`origem-1`, `destino-1`, `admin@destino-1`). O servidor
+- `propor_acao` aceita o rótulo como alvo (`origem-1`, `destino-1`, `admin@destino-1`,
+  `23/tcp@destino-1`). O servidor
   o troca pelo endereço, calcula o risco sobre o endereço real e grava os dois na proposta:
   `alvo`, com o endereço, e `alvo_com_rotulo`. Na resposta à linha de decisão, `alvo` volta com o
   rótulo. Da linha de decisão, alvo com endereço é recusado (`alvo_malformado`): o agente não
@@ -321,7 +322,7 @@ dispositivo atacado não é recusado: volta com `"risco": "alto"`, `"exige_aprov
 Da linha de decisão, o alvo com endereço e o rótulo que não existe são recusados:
 
 ```
-Na linha de decisão, o alvo de bloquear_ip é o rótulo neutro de um endereço do incidente, sozinho e escrito como vem em obter_resumo, como origem-1, destino-1 ou admin@destino-1, e não um endereço. Uma ação nova também pode descrever o alvo em texto, sem endereço e sem rótulo.
+Na linha de decisão, o alvo de bloquear_ip é o rótulo neutro de um endereço do incidente, sozinho e escrito como vem em obter_resumo, como origem-1, destino-1, admin@destino-1 ou 23/tcp@destino-1, e não um endereço. Uma ação nova também pode descrever o alvo em texto, sem endereço e sem rótulo.
 O rótulo 'origem-9' não existe no incidente inc-0001. Os rótulos dele são: origem-1, origem-2, origem-3, origem-4, origem-5, destino-1.
 ```
 
@@ -382,7 +383,8 @@ A proposta prop-0002 é de risco alto e aguarda aprovação humana. Ela só pode
 {"bloqueios": [{"id": "exec-0001", "proposta": "prop-0001", "incidente": "inc-0001",
                 "acao": "bloquear_ip", "alvo": "203.0.113.7", "parametros": {"duracao": 10},
                 "estado": "aplicada", "aplicada_em": "2026-10-11T14:44:46.254555Z", "desfeita_em": null}],
- "limites": [], "isolamentos": [], "credenciais_revogadas": [], "outras_medidas": []}
+ "limites": [], "isolamentos": [], "credenciais_revogadas": [], "portas_fechadas": [],
+ "outras_medidas": []}
 ```
 
 **`desfazer_acao`** (execução)
@@ -407,6 +409,7 @@ o que fica gravado; da linha de decisão, o endereço é escrito com o rótulo n
 | `bloquear_ip` | Endereço IP de origem | `duracao`, em minutos, opcional | Baixo com `duracao` de até 15, sobre origem do incidente fora da rede local, se as condições abaixo valerem. Sem prazo, com prazo maior, sobre destino ou sobre endereço da rede local, alto |
 | `isolar_dispositivo` | Endereço IP do dispositivo | nenhum | Sempre alto |
 | `revogar_credencial` | `usuario@endereco` | nenhum | Sempre alto |
+| `fechar_porta` | `porta/protocolo@endereco`, como `23/tcp@192.168.137.31` | nenhum | Sempre alto |
 | Ação nova | Texto de uma linha | `descricao`, `passos`, `efeito_esperado`, `como_desfazer` e, se houver, `fonte` | Sempre alto |
 
 O risco não depende só do nome da ação e da duração. Uma proposta é de risco baixo quando
@@ -455,7 +458,7 @@ e na tela do comando `aprovar`. Saem todos os motivos que valem, nesta ordem:
 
 | Código | Frase | Quando |
 |---|---|---|
-| `acao_sempre_de_risco_alto` | A ação é sempre de risco alto, qualquer que seja o alvo ou o prazo. | `isolar_dispositivo`, `revogar_credencial`, ação promovida ao catálogo e ação de base que a política marca como de risco alto |
+| `acao_sempre_de_risco_alto` | A ação é sempre de risco alto, qualquer que seja o alvo ou o prazo. | `isolar_dispositivo`, `revogar_credencial`, `fechar_porta`, ação promovida ao catálogo e ação de base que a política marca como de risco alto |
 | `acao_nova` | A ação é nova, fora do catálogo. | Ação que não está no catálogo |
 | `prazo_acima_do_limite` | A medida não tem prazo, ou o prazo pedido passa do máximo aceito para risco baixo. | `bloquear_ip` sem `duracao`, ou `duracao` acima do prazo máximo da ação |
 | `alvo_fora_do_incidente` | O alvo não está entre as origens nem entre os destinos do incidente. | Ação de base sobre endereço que o incidente não traz |
@@ -479,9 +482,11 @@ risco baixo não executa depois que o incidente encerra.
 Os números (60 e 15 minutos, 5 e 10 medidas, 10 propostas pendentes, 10 propostas liberadas), os
 alvos em que cada ação é de risco baixo (`alvos_de_risco_baixo`, com `"origens"` ou
 `"origens_e_destinos"`), os endereços protegidos e críticos e as redes locais ficam em
-`politica.toml`. Três regras ficam no código e o arquivo não as baixa: `isolar_dispositivo`,
-`revogar_credencial` e toda ação nova são sempre de risco alto. Um `politica.toml` que marque uma
-das duas primeiras como de risco baixo é recusado na leitura.
+`politica.toml`. Quatro regras ficam no código e o arquivo não as baixa: `isolar_dispositivo`,
+`revogar_credencial`, `fechar_porta` e toda ação nova são sempre de risco alto. Um `politica.toml`
+que marque uma das três primeiras como de risco baixo é recusado na leitura. Fechar uma porta
+corta um serviço do dispositivo, e a porta é inferida das portas do incidente: por isso a
+proposta espera a aprovação de uma pessoa.
 
 ### Fila de aprovação e propostas liberadas
 
@@ -542,7 +547,8 @@ de aprovação, ao log e, pelos parâmetros de uma ação nova, ao agente de exe
   recusado, porque o que vem depois de `%` é texto livre. IPv4 escrito como IPv6
   (`::ffff:192.168.137.1`) vira o IPv4. Em `revogar_credencial`, o usuário usa letras sem
   acento, números, ponto, hífen e sublinhado, tem até 64 caracteres e não começa por ponto nem
-  por hífen.
+  por hífen. Em `fechar_porta`, a porta vai de 1 a 65535, sem zero à esquerda, e o protocolo é
+  `tcp` ou `udp`, em minúsculas.
 - A mensagem de recusa mostra no máximo um trecho escapado do que veio. Os endereços desse trecho
   viram o marcador antes do corte final, para que nenhum pedaço de endereço sobre dele. O valor
   grande é cortado primeiro com folga (64 caracteres além do trecho, mais que qualquer endereço), e
@@ -775,6 +781,10 @@ a 0.4.0. O que mudou em relação à 0.3.0, para quem já usava o stub:
   (`tcp` ou `udp`) e os quadros de cada uma, e `obter_resumo` traz as mesmas portas com o rótulo
   do destino (`PortaRotulada`). O campo tem valor padrão: um log gravado com a 0.3.0 continua
   legível, com a lista vazia. Uma porta de um destino que o incidente não lista é recusada.
+- **Ação nova no catálogo de base.** `fechar_porta`, com o alvo `porta/protocolo@endereco`, ou
+  `porta/protocolo@rótulo` na linha de decisão, sempre de risco alto e sem prazo. O ambiente
+  ganhou o grupo `portas_fechadas`, e `politica.toml`, a seção `[fechar_porta]`: um arquivo de
+  política sem ela é recusado na leitura.
 
 O que mudou da 0.2.0 para a 0.3.0:
 

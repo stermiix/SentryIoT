@@ -1,6 +1,6 @@
 """Catálogo de ações, política de risco e ambiente simulado do SentryIoT.
 
-O catálogo de base tem quatro ações. Ele é o ponto de partida do agente de decisão, não um
+O catálogo de base tem cinco ações. Ele é o ponto de partida do agente de decisão, não um
 limite: o agente pode propor uma ação nova, fora do catálogo, desde que diga os passos e como
 desfazer. A autonomia é graduada pelo risco. Ação de risco baixo é aplicada sem aprovação;
 ação de risco alto e toda ação nova só são aplicadas depois que uma pessoa aprova.
@@ -11,8 +11,8 @@ nem crítico, a duração cabe no prazo e nem o incidente nem o sistema todo ati
 medidas de risco baixo ativas. O papel depende da ação: limitar a taxa vale para origem e para
 destino, e bloquear só para origem fora da rede local, porque o destino é o dispositivo atacado,
 bloqueá-lo tira a vítima do ar, e a origem de um flood é forjável. Os números e os papéis ficam
-em `politica.toml`. O piso fica aqui, no código: isolar_dispositivo, revogar_credencial e toda
-ação nova são sempre de risco alto.
+em `politica.toml`. O piso fica aqui, no código: isolar_dispositivo, revogar_credencial,
+fechar_porta e toda ação nova são sempre de risco alto.
 
 O agente de decisão não conhece endereço (arquitetura híbrida). Cada endereço do incidente ganha
 um rótulo neutro (`origem-1`, `destino-1`), o resumo que ele lê é montado aqui, sem endereço, e
@@ -165,7 +165,7 @@ class _AcaoDeBase:
     alvo: str
     # Como o alvo é escrito na linha de decisão, que só conhece os rótulos neutros do incidente.
     alvo_com_rotulo: str
-    # "ip" ou "credencial": o formato que o alvo precisa ter.
+    # "ip", "credencial" ou "porta": o formato que o alvo precisa ter.
     tipo_de_alvo: str
     # "obrigatoria", "opcional" ou None, quando a ação não aceita prazo.
     duracao: str | None
@@ -211,10 +211,20 @@ BASE = {
         grupo="credenciais_revogadas",
         como_desfazer="Restabelecer a credencial com desfazer_acao.",
     ),
+    "fechar_porta": _AcaoDeBase(
+        descricao="Fecha no firewall do gateway o acesso a uma porta de um dispositivo.",
+        alvo="Porta, protocolo e dispositivo, no formato porta/protocolo@endereco, como 23/tcp@192.168.137.31",
+        alvo_com_rotulo="Porta, protocolo e dispositivo, no formato porta/protocolo@rotulo, como 23/tcp@destino-1",
+        tipo_de_alvo="porta",
+        duracao=None,
+        grupo="portas_fechadas",
+        como_desfazer="Reabrir a porta com desfazer_acao.",
+    ),
 }
-# Piso do código: nenhum arquivo de política baixa o risco destas ações. Ação nova, fora da base,
-# também é sempre de risco alto, mesmo depois de promovida ao catálogo.
-_SEMPRE_DE_RISCO_ALTO = ("isolar_dispositivo", "revogar_credencial")
+# Piso do código: nenhum arquivo de política baixa o risco destas ações. Fechar uma porta corta um
+# serviço do dispositivo, e a porta é inferida do incidente. Ação nova, fora da base, também é
+# sempre de risco alto, mesmo depois de promovida ao catálogo.
+_SEMPRE_DE_RISCO_ALTO = ("isolar_dispositivo", "revogar_credencial", "fechar_porta")
 # Nomes das seções e das chaves de `politica.toml`.
 _PRAZO = "prazo_maximo_de_risco_baixo"
 _ALVOS = "alvos_de_risco_baixo"
@@ -246,8 +256,12 @@ _POSICOES_NO_NAT64_LOCAL = ((6, 7, 9, 10), (7, 9, 10, 11), (9, 10, 11, 12), (12,
 _ISATAP = (bytes.fromhex("00005efe"), bytes.fromhex("02005efe"))
 # ULA: a faixa de endereços IPv6 de uso local, que conta sempre como rede local.
 _ULA = ipaddress.ip_network("fc00::/7")
-# Alvo escrito com o rótulo neutro de um endereço do incidente: o rótulo só, ou usuario@rótulo.
-_ALVO_COM_ROTULO = re.compile(r"(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,63}@)?(?:origem|destino)-[1-9][0-9]{0,5}")
+# Alvo escrito com o rótulo neutro de um endereço do incidente: o rótulo só, usuario@rótulo ou
+# porta/protocolo@rótulo.
+_ALVO_COM_ROTULO = re.compile(r"(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,63}@|[1-9][0-9]{0,4}/(?:tcp|udp)@)?(?:origem|destino)-[1-9][0-9]{0,5}")
+# Porta e protocolo do alvo de fechar_porta: sem zero à esquerda, e o protocolo em minúsculas.
+_PORTA = re.compile(r"([1-9][0-9]{0,4})/(tcp|udp)")
+_MAIOR_PORTA = 65_535
 # O que parece um rótulo sem ser escrito como ele: outra caixa, zero à esquerda, espaço no lugar do
 # hífen, ou o rótulo no meio de um texto. Na linha de decisão, o alvo assim é recusado.
 _PARECE_ROTULO = re.compile(r"(?i)(?:origem|destino)[\s_-]*[0-9]")
@@ -421,7 +435,8 @@ def _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros):
         # Ação nova ou promovida: é sempre de risco alto, e o alvo é texto livre, sem o que conferir.
         return ["acao_sempre_de_risco_alto" if acao in estado.promovidas else "acao_nova"]
     regra = politica.acoes[acao]
-    # O alvo de revogar_credencial é usuario@endereco: o que se compara com o incidente é o endereço.
+    # O alvo de revogar_credencial e o de fechar_porta trazem o endereço depois da arroba: é ele que
+    # se compara com o incidente.
     endereco = alvo.rpartition("@")[2]
     origens, destinos = _enderecos_do_incidente(estado, incidente)
     valem = set()
@@ -869,7 +884,7 @@ def _conferir_proposta_nova(estado, proposta):
 
 
 def catalogo(estado, politica, com_rotulos=False):
-    """As ações que o agente pode propor: as quatro de base e as promovidas, nessa ordem.
+    """As ações que o agente pode propor: as cinco de base e as promovidas, nessa ordem.
 
     Com `com_rotulos`, o alvo de cada ação de base é descrito com os rótulos neutros, como a
     linha de decisão o escreve.
@@ -1020,7 +1035,8 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa, s
         raise PedidoRecusado(
             "alvo_malformado",
             f"Na linha de decisão, o alvo{de_qual} é o rótulo neutro de um endereço do incidente, sozinho e escrito "
-            "como vem em obter_resumo, como origem-1, destino-1 ou admin@destino-1, e não um endereço. Uma ação "
+            "como vem em obter_resumo, como origem-1, destino-1, admin@destino-1 ou 23/tcp@destino-1, e não um "
+            "endereço. Uma ação "
             "nova também pode descrever o alvo em texto, sem endereço e sem rótulo.",
         )
 
@@ -1167,8 +1183,9 @@ def _alvo_de_base(acao, alvo, com_rotulo=None):
         if definicao.tipo_de_alvo == "ip" and arroba:
             raise PedidoRecusado(
                 "alvo_malformado",
-                f"O alvo de {acao} é o rótulo de um endereço do incidente, como origem-1, sem usuário: o formato "
-                f"usuario@rótulo é só de revogar_credencial. Veio {resumir(com_rotulo)}.",
+                f"O alvo de {acao} é o rótulo de um endereço do incidente, como origem-1, sem nada antes dele: o "
+                f"formato usuario@rótulo é só de revogar_credencial, e porta/protocolo@rótulo, só de fechar_porta. "
+                f"Veio {resumir(com_rotulo)}.",
             )
         if definicao.tipo_de_alvo == "credencial" and (not arroba or not _USUARIO.fullmatch(usuario)):
             raise PedidoRecusado(
@@ -1176,6 +1193,12 @@ def _alvo_de_base(acao, alvo, com_rotulo=None):
                 f"O alvo de {acao} precisa ter o formato usuario@rótulo, como admin@destino-1. O usuário usa letras "
                 f"sem acento, números, ponto, hífen e sublinhado, e não começa por ponto nem por hífen. Veio "
                 f"{resumir(com_rotulo)}.",
+            )
+        if definicao.tipo_de_alvo == "porta" and (not arroba or _porta(usuario) is None):
+            raise PedidoRecusado(
+                "alvo_malformado",
+                f"O alvo de {acao} precisa ter o formato porta/protocolo@rótulo, como 23/tcp@destino-1. {_DA_PORTA} "
+                f"Veio {resumir(com_rotulo)}.",
             )
     if definicao.tipo_de_alvo == "ip":
         endereco = _endereco(alvo)
@@ -1188,6 +1211,15 @@ def _alvo_de_base(acao, alvo, com_rotulo=None):
     cabe = isinstance(alvo, str) and len(alvo) <= _MAIOR_ALVO
     usuario, arroba, dispositivo = alvo.strip().rpartition("@") if cabe else ("", "", "")
     endereco = _endereco(dispositivo)
+    if definicao.tipo_de_alvo == "porta":
+        porta = _porta(usuario)
+        if not arroba or porta is None or endereco is None:
+            raise PedidoRecusado(
+                "alvo_malformado",
+                f"O alvo de {acao} precisa ter o formato porta/protocolo@endereco, como 23/tcp@192.168.137.31. "
+                f"{_DA_PORTA} Veio {resumir(alvo)}.",
+            )
+        return f"{porta}@{endereco}"
     if not arroba or not _USUARIO.fullmatch(usuario) or endereco is None:
         raise PedidoRecusado(
             "alvo_malformado",
@@ -1196,6 +1228,17 @@ def _alvo_de_base(acao, alvo, com_rotulo=None):
             f"Veio {resumir(alvo)}.",
         )
     return f"{usuario}@{endereco}"
+
+
+_DA_PORTA = "A porta vai de 1 a 65535, sem zero à esquerda, e o protocolo é tcp ou udp, em minúsculas."
+
+
+def _porta(texto):
+    """A porta e o protocolo como vêm no alvo de fechar_porta, ou None se o texto não tem esse formato."""
+    achado = _PORTA.fullmatch(texto)
+    if achado is None or int(achado[1]) > _MAIOR_PORTA:
+        return None
+    return texto
 
 
 def _alvo_livre(acao, alvo):

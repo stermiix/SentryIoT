@@ -24,7 +24,7 @@ Formato de um documento do levantamento:
     | Texto da medida. | `bloquear_ip` | [Nome da fonte](https://...) |
 
 Cada linha da tabela é uma medida: o texto vira o título do trecho, e a fonte, o texto dele. A
-ação do catálogo é `nenhuma` quando nenhuma das quatro ações aplica a medida, e a fonte é
+ação do catálogo é `nenhuma` quando nenhuma das cinco ações aplica a medida, e a fonte é
 obrigatória. As colunas são achadas pelo nome, na linha de cabeçalho.
 
 A base também aceita a medida escrita em texto corrido, numa seção própria:

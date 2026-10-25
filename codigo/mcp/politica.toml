@@ -13,10 +13,10 @@
 #     baixo ativas.
 # Fora disso a proposta não é recusada: vira de risco alto e espera a aprovação.
 #
-# A equipe ajusta os valores sem mexer no código. Três regras não estão neste arquivo, porque
-# ficam no código e não podem ser afrouxadas daqui: isolar_dispositivo, revogar_credencial e toda
-# ação nova, fora do catálogo de base, são sempre de risco alto. Quem trocar o risco das duas
-# primeiras para "baixo" recebe erro na leitura do arquivo.
+# A equipe ajusta os valores sem mexer no código. Quatro regras não estão neste arquivo, porque
+# ficam no código e não podem ser afrouxadas daqui: isolar_dispositivo, revogar_credencial,
+# fechar_porta e toda ação nova, fora do catálogo de base, são sempre de risco alto. Quem trocar o
+# risco das três primeiras para "baixo" recebe erro na leitura do arquivo.
 
 [limitar_taxa]
 risco = "baixo"
@@ -40,6 +40,10 @@ alvos_de_risco_baixo = "origens"
 risco = "alto"
 
 [revogar_credencial]
+risco = "alto"
+
+[fechar_porta]
+# Fechar a porta corta um serviço do dispositivo, e a porta é inferida do incidente.
 risco = "alto"
 
 [limites]

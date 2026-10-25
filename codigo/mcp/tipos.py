@@ -589,7 +589,7 @@ class ResumoDoIncidente(Modelo):
     portas: list[PortaRotulada] = Field(
         description=(
             "Portas de destino que mais receberam quadros, com o rótulo do destino, da maior para a menor. Porta "
-            "não é endereço: vem como está"
+            "não é endereço: vem como está. É daqui que sai o alvo de fechar_porta, como 23/tcp@destino-1"
         )
     )
     ultimo_efeito: Efeito | None = Field(
@@ -604,6 +604,7 @@ class Ambiente(Modelo):
     limites: list[Execucao]
     isolamentos: list[Execucao]
     credenciais_revogadas: list[Execucao]
+    portas_fechadas: list[Execucao]
     outras_medidas: list[Execucao] = Field(description="Ações novas ou promovidas ao catálogo")
 
 
@@ -648,8 +649,8 @@ class EntradaProporAcao(Modelo):
     alvo: str = Field(
         description=(
             f"Sobre o que a ação age, em até {TEXTO_CURTO} caracteres. O formato depende da ação. Um endereço do "
-            "incidente é escrito com o rótulo neutro do resumo, como origem-1, destino-1 ou admin@destino-1; o "
-            "agente de decisão não escreve endereço"
+            "incidente é escrito com o rótulo neutro do resumo, como origem-1, destino-1, admin@destino-1 ou "
+            "23/tcp@destino-1; o agente de decisão não escreve endereço"
         )
     )
     parametros: dict[str, Any] = Field(

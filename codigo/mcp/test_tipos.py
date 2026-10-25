@@ -530,7 +530,7 @@ def test_acao_nova_exige_descricao_passos_efeito_e_como_desfazer():
 def test_ambiente_separa_as_medidas_ativas_por_tipo():
     ambiente = Ambiente.model_validate({
         "bloqueios": [EXECUCAO], "limites": [], "isolamentos": [], "credenciais_revogadas": [],
-        "outras_medidas": [],
+        "portas_fechadas": [], "outras_medidas": [],
     })
     assert ambiente.bloqueios[0].alvo == "203.0.113.7"
 

@@ -85,5 +85,11 @@ export const MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO = 20;
 // O catálogo de base e as ações que são sempre de risco alto não estão no contrato: vêm de
 // `BASE` e `_SEMPRE_DE_RISCO_ALTO`, em `codigo/mcp/acoes.py`, e `contrato.test.ts` também as confere
 // lá. A reconstrução precisa delas para as mesmas regras do `reconstruir`.
-export const ACOES_DE_BASE = ["limitar_taxa", "bloquear_ip", "isolar_dispositivo", "revogar_credencial"] as const;
-export const SEMPRE_DE_RISCO_ALTO = ["isolar_dispositivo", "revogar_credencial"] as const;
+export const ACOES_DE_BASE = [
+  "limitar_taxa",
+  "bloquear_ip",
+  "isolar_dispositivo",
+  "revogar_credencial",
+  "fechar_porta",
+] as const;
+export const SEMPRE_DE_RISCO_ALTO = ["isolar_dispositivo", "revogar_credencial", "fechar_porta"] as const;

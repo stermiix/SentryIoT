@@ -269,6 +269,12 @@
           },
           "type": "array"
         },
+        "portas_fechadas": {
+          "items": {
+            "$ref": "#/$defs/Execucao"
+          },
+          "type": "array"
+        },
         "outras_medidas": {
           "description": "Ações novas ou promovidas ao catálogo",
           "items": {
@@ -282,6 +288,7 @@
         "limites",
         "isolamentos",
         "credenciais_revogadas",
+        "portas_fechadas",
         "outras_medidas"
       ],
       "title": "Ambiente",
@@ -650,7 +657,7 @@
           "type": "string"
         },
         "alvo": {
-          "description": "Sobre o que a ação age, em até 200 caracteres. O formato depende da ação. Um endereço do incidente é escrito com o rótulo neutro do resumo, como origem-1, destino-1 ou admin@destino-1; o agente de decisão não escreve endereço",
+          "description": "Sobre o que a ação age, em até 200 caracteres. O formato depende da ação. Um endereço do incidente é escrito com o rótulo neutro do resumo, como origem-1, destino-1, admin@destino-1 ou 23/tcp@destino-1; o agente de decisão não escreve endereço",
           "type": "string"
         },
         "parametros": {
@@ -2748,7 +2755,7 @@
           "type": "array"
         },
         "portas": {
-          "description": "Portas de destino que mais receberam quadros, com o rótulo do destino, da maior para a menor. Porta não é endereço: vem como está",
+          "description": "Portas de destino que mais receberam quadros, com o rótulo do destino, da maior para a menor. Porta não é endereço: vem como está. É daqui que sai o alvo de fechar_porta, como 23/tcp@destino-1",
           "items": {
             "$ref": "#/$defs/PortaRotulada"
           },
