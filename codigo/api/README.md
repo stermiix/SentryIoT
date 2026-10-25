@@ -1,8 +1,8 @@
 # Servidor fino da interface
 
 Backend em Python (Starlette e uvicorn) que serve a API da interface web. Nesta etapa ele
-expõe o chat com o modelo do provedor de LLM configurado; a chave do provedor fica só aqui,
-nunca no navegador.
+expõe o chat com o modelo do provedor de LLM configurado e a simulação com um pcap, que vai até
+a porta do modelo da triagem; a chave do provedor fica só aqui, nunca no navegador.
 
 Todos os comandos são dados a partir da raiz do repositório, com o ambiente do
 `requirements.txt` ativo.
@@ -19,6 +19,13 @@ Copie `.env.example` para `.env` na raiz (o `.env` é ignorado pelo git) e preen
 | `LLM_MODELOS_PERMITIDOS` | Modelos que a tela pode escolher, separados por vírgula; o padrão entra sempre na frente | só o `LLM_MODEL` |
 | `LLM_CA_BUNDLE` | PEM da CA do provedor, quando o certificado é interno | cadeia do sistema |
 | `LLM_TIMEOUT_S` | Prazo de cada chamada ao provedor, em segundos | 300 |
+| `LLM_RACIOCINIO` | `ligado` ou `desligado`; vai em `chat_template_kwargs.enable_thinking` | o do provedor |
+| `LLM_TEMPERATURA` | Temperatura, de 0 a 2 | o do provedor |
+| `LLM_SEMENTE` | Semente, inteiro a partir de 0 | o do provedor |
+| `LLM_MAX_TOKENS` | Teto de tokens de saída, inteiro a partir de 1 | o do provedor |
+
+Os quatro parâmetros de geração vão em toda chamada quando definidos; o `.env.example` traz os
+valores medidos em 19/10 no gateway interno. Valor fora da faixa impede o servidor de subir.
 
 Variável já definida no ambiente vence a do arquivo.
 
@@ -42,16 +49,64 @@ No desenvolvimento da interface, o Vite (`npm run dev` em `frontend/`) encaminha
   `papel` em `usuario` ou `assistente` e `modelo` vazio para usar o padrão. Chama o provedor sem
   streaming e devolve `{"conteudo", "modelo", "tokens_entrada", "tokens_saida", "tempo_ms"}`.
   Tokens vêm nulos quando o provedor não informa o uso.
+- `POST /api/simulacao`: recebe um pcap no corpo e o leva até a porta do modelo da triagem, sem
+  chamar o provedor. Ver "Simulação com um pcap", abaixo.
 
 Rota sob `/api` que não existe devolve 404 em JSON. Fora de `/api`, se `frontend/dist/`
 existir, o servidor serve a interface construída: `/` e qualquer caminho desconhecido devolvem o
 `index.html`, e os arquivos da pasta saem com o tipo certo; nada fora da pasta é servido. Sem a
 pasta, só a API responde.
 
-Erros vêm como `{"erro": "..."}`, com o nome do campo na mensagem: 400 para corpo que não é
-JSON, campo ausente ou com tipo errado, modelo fora da lista permitida ou conversa fora dos
-limites; 502 quando o provedor recusa ou não responde (com `codigo`, o status dele, ou nulo);
+Os erros do chat vêm como `{"erro": "..."}`, com o nome do campo na mensagem: 400 para corpo
+que não é JSON, campo ausente ou com tipo errado, modelo fora da lista permitida ou conversa fora
+dos limites; 502 quando o provedor recusa ou não responde (com `codigo`, o status dele, ou nulo);
 503 quando falta variável obrigatória (com `faltando`).
+
+## Simulação com um pcap
+
+`POST /api/simulacao?nome=<arquivo>&so_teste=1` recebe o pcap cru no corpo, e não num formulário,
+e o passa pelo reprodutor de tráfego (`codigo/reprodutor/`): extrator, modelo do sistema e
+política de acionamento. Os incidentes vão para um log de eventos novo, e o primeiro deles ganha
+o pedido que o orquestrador mandaria ao modelo da triagem. A chamada ao modelo fica de fora:
+`para_o_llm.enviado` é sempre falso por enquanto.
+
+- `nome` é o nome do arquivo enviado. Fica só o último trecho do caminho, com caracteres
+  seguros, e o padrão é `captura.pcap`. É por ele que `so_teste` acha o pcap no manifesto.
+- `so_teste` (`1`, `true` ou `sim`) classifica só o trecho do pcap que ficou fora do treino do
+  modelo do sistema, pelo `experimentos/resultados/manifesto_regeracao.json`. As janelas
+  anteriores são extraídas, para manter o alinhamento, mas não são classificadas, e a resposta
+  as conta em `janelas_puladas`. O pcap que ficou inteiro no teste é lido todo; o que ficou
+  inteiro no treino, ou que não está na regeração, recebe 400.
+- A rota exige o cabeçalho `X-SentryIoT: interface`, que só a interface manda. Um cabeçalho
+  próprio obriga o navegador a pedir licença (CORS) antes de uma página de outro site disparar a
+  rota, e o backend não dá essa licença.
+- Roda uma simulação por vez. O envio do arquivo vem antes da trava, para um cliente lento não
+  segurar a vez dos outros.
+
+A resposta é o resumo do reprodutor: quadros, janelas, janelas por categoria, relógio de
+reprodução, trecho lido, modelo, ponto de operação, parâmetros da política de acionamento e os
+incidentes, com categoria, confiança, instantes e atraso de detecção. Vêm ainda:
+
+| Campo | O que traz |
+|---|---|
+| `log`, `cenarios` | Os caminhos do log de eventos e dos cenários gravados, relativos à raiz do repositório |
+| `eventos` | O texto do log de eventos, em JSONL |
+| `para_o_llm` | Nulo quando não abriu incidente. Senão: `enviado` (sempre `false`), `motivo`, `agente` (`triagem`), `onde_roda`, `incidente`, o `pedido` no formato de `chat/completions` (montado por `codigo/agente/pedidos.py`), a `primeira_leitura`, que é o resultado de `obter_incidente`, com os endereços, e a `visao_da_fronteira`, que é o de `obter_resumo`, com rótulos neutros no lugar dos endereços |
+
+Cada simulação grava em `dados/eventos/simulacoes/<instante>-<pcap>/`, fora do git, o
+`eventos.jsonl`, o `eventos.cenarios.json` e o `resumo.json`, que é a resposta sem `eventos`. Os
+três trazem endereços da rede, e por isso a pasta só abre para o dono (700) e os arquivos só são
+lidos e escritos por ele (600). O pcap enviado vai para um arquivo temporário, apagado no fim,
+com sucesso ou com erro.
+
+Os erros vêm em `{"erro": "..."}`: 400 para corpo vazio, arquivo que o extrator não lê (pcapng,
+outro formato ou outro tipo de enlace) ou `so_teste` sem trecho fora do treino; 403 sem o
+cabeçalho da interface; 409 com outra simulação em andamento; 413 para pcap acima de 600 MB (o
+extrator lê cerca de 160 mil quadros por segundo, e um pcap desse tamanho leva perto de um
+minuto); 500, sem detalhe, para falha do próprio backend; e 503 sem o modelo do sistema em
+`modelos/rf_regerado_janela_100.joblib`. Sem o modelo, o servidor sobe com um aviso, e só a
+simulação fica desligada. O JSON do ponto de operação precisa estar ao lado do modelo e ser dele
+(o SHA-256 é conferido); se não for, a simulação falha com 500.
 
 ## Limites
 
@@ -90,6 +145,7 @@ launchd ou equivalente) com o diretório de trabalho na raiz do repositório.
 | `configuracao.py` | Leitura do `.env` e da configuração do provedor |
 | `provedor.py` | Cliente de `chat/completions`, só com a biblioteca padrão; o orquestrador vai reaproveitá-lo |
 | `prompts.py` | Leitura das skills dos agentes como prompts de sistema |
+| `simulacao.py` | A simulação com um pcap: o reprodutor, a pasta da simulação e o pedido à triagem, sem chamada ao provedor |
 | `servidor.py` | As rotas, em Starlette |
 | `__main__.py` | A linha de comando |
 | `test_*.py` | Testes sem rede: o provedor e a abertura da conexão são trocados |
