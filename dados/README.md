@@ -372,7 +372,7 @@ conforme a quantidade de pacotes.
 pastas e roda as rodadas com `--capturas`:
 
     python -m codigo.classificador.regerar --janelas 100 --preencher --destino dados/processed/regerado_preenchido --saida experimentos/resultados/regeracao_preenchido
-    python -m codigo.classificador.regerar --janelas 100 --preencher --limitar --destino dados/processed/regerado_no_fio --saida experimentos/resultados/regeracao_no_fio
+    python -m codigo.classificador.regerar --janelas 100 --preencher --limitar --destino dados/processed/regerado_preenchido_limitado --saida experimentos/resultados/regeracao_preenchido_limitado
     python -m codigo.classificador.rodadas --capturas --nucleos 4
 
 **O que sai.** `dados/processed/regerado/janela_<W>/<rotulo>.csv.gz`, fora do git, com as 39
@@ -514,16 +514,34 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `mcp/base_provisoria/` | Os documentos da base local. Conteúdo provisório do stub, a substituir pelo levantamento de mitigações da equipe |
 | `mcp/eventos.py` | Gravação e leitura do log de eventos, que a interface web lê |
 | `mcp/cenarios.py` | Os quatro incidentes de exemplo do stub, com números ilustrativos: flood, força bruta, varredura de portas e falso positivo |
-| `mcp/stub.py` | O servidor MCP de mentira: responde às dez tools com os cenários, para a frente de agentes trabalhar antes de o modelo existir |
+| `mcp/stub.py` | O servidor MCP: responde às dez tools com os quatro cenários de exemplo ou, com `--cenarios`, com os incidentes reais de um pcap gravados pelo reprodutor. Nesse modo de reprodução, é o servidor da PoC (decisão de 2026-10-25) |
 | `mcp/aprovar.py` | O comando de terminal com que a pessoa aprova, rejeita ou promove uma proposta de ação, e marca um incidente como já resolvido |
 | `mcp/roteiro.py` | Gera `mcp/exemplos/incidente_flood.jsonl`, o log de exemplo de um incidente inteiro, usado nos testes do MCP e da interface web |
 | `mcp/exemplos/` | O log de exemplo e o seu README, que explica o incidente passo a passo |
-| `mcp/servidor.py` | **(a criar)** O servidor MCP de verdade, que expõe o classificador pelas mesmas tools do contrato |
-| `agente/skills/` | As instruções dos agentes de triagem e de decisão: triagem do alerta, análise por categoria e recomendação de mitigação. A do agente de execução ainda não foi escrita |
+| `agente/skills/` | As instruções dos três agentes: triagem do alerta, análise por categoria, recomendação de mitigação e execução da ação |
+| `agente/recomendacoes/` | Levantamento de mitigações por categoria, com as fontes |
+| `agente/pedidos.py` | Os pedidos aos modelos no formato de `chat/completions`, montados sem chamar ninguém: o prompt de sistema vem da skill do agente, e as tools são as da linha dele. Hoje só a simulação da interface o usa, para montar o pedido à triagem |
 | `agente/agentes.py` | **(a criar)** O sistema multiagente: triagem, decisão e execução |
 | `agente/prompts/` | **(a criar)** Os prompts de cada agente, em arquivos separados |
-| `agente/acionamento.py` | **(a criar)** A política de acionamento: agrega, deduplica e decide quando vale chamar a LLM. Sem isso, um flood geraria centenas de chamadas por segundo |
 | `agente/teste_tool_poisoning.py` | **(a criar)** O experimento de segurança do MCP: uma tool com descrição envenenada, para medir se o agente cai |
+
+**Frente do reprodutor de tráfego** (`codigo/reprodutor/`)
+
+| Arquivo | O que faz |
+|---|---|
+| `reprodutor.py` | Leva um pcap pelo extrator, pelo modelo do sistema e pela política de acionamento, que reúne as janelas do mesmo ataque num incidente só (primeira versão, decisão de 2026-10-19), e grava os incidentes no log de eventos do contrato, com os cenários ao lado para o servidor MCP atender |
+| `__main__.py` | A linha de comando: `python -m codigo.reprodutor <pcap>`, com `--so-teste` para só o trecho fora do treino e os parâmetros da política. O log vai para `dados/eventos/reproducoes/`, fora do git |
+| `avaliar.py` | Roda o reprodutor nos 38 pcaps e confere os incidentes com os MACs dos atacantes. Gera `experimentos/resultados/reproducao_dos_pcaps.md` e o manifesto |
+| `referencia_benigno.json` | A mediana de cada feature no tráfego benigno do treino, mostrada ao lado das features principais do incidente |
+
+**Backend da interface** (`codigo/api/`)
+
+| Arquivo | O que faz |
+|---|---|
+| `README.md` | Como configurar e subir o servidor, e o que cada rota recebe e devolve |
+| `servidor.py` | As rotas: o chat com o modelo, as skills como prompts e a simulação com um pcap |
+| `simulacao.py` | A simulação: o pcap enviado pela tela passa pelo reprodutor e chega até a porta do modelo da triagem, sem chamada. Grava em `dados/eventos/simulacoes/`, fora do git |
+| `configuracao.py`, `provedor.py`, `prompts.py` | A leitura do `.env`, o cliente de `chat/completions` e a leitura das skills |
 
 **Resultados** — `experimentos/`
 
@@ -548,8 +566,9 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `resultados/rodadas_de_teste.md` | Os controles do modelo de 10/10, que continuam valendo como referência. As tabelas estão nos `rodadas_*.csv`, e tudo, em `manifesto_rodadas.json` |
 | `resultados/rodadas_normalizadas.md` | A comparação entre o modelo de 10/10 e os treinos com o quadro normalizado e com o fundo como benigno, com a regra de adoção da configuração 5. As tabelas estão nos `rodadas_normalizadas_*.csv`, e tudo, em `manifesto_rodadas_normalizadas.json` |
 | `resultados/ponto_de_operacao.md` | O ponto de operação nas configurações 5 e 0: a regra escolhida em cada semente e rotação, as medidas no teste com o argmax, o melhor limiar e a regra escolhida, os alarmes no pcap benigno de fora, o fundo, os pcaps de ataque que alarmam e a conferência dos modelos salvos. As tabelas estão nos `ponto_de_operacao_*.csv`, e tudo, em `manifesto_ponto_de_operacao.json` |
-| `resultados/regeracao_preenchido/`, `resultados/regeracao_no_fio/` | Os manifestos das regerações com o quadro completado até 60 bytes e com o quadro como no fio |
-| `resultados/avaliacao_agentes.csv` | **(a criar)** A qualidade das recomendações, a tabela que ainda não tem métrica definida |
+| `resultados/regeracao_preenchido/`, `resultados/regeracao_preenchido_limitado/` | Os manifestos das regerações com o quadro completado até 60 bytes e com o quadro como no fio |
+| `resultados/reproducao_dos_pcaps.md` | Os 38 pcaps pelo reprodutor, com os incidentes conferidos com os MACs dos atacantes: janelas com atacante, origem e destino principais, categoria DDoS ou DoS, atraso de detecção, alarmes falsos nos pcaps benignos e o efeito de capturar os quadros como no fio. Tudo está em `manifesto_reproducao_dos_pcaps.json` |
+| `resultados/avaliacao_agentes.csv` | **(a criar)** A qualidade das recomendações: por incidente, se a ação é aceitável no alvo certo pelo gabarito por categoria, com o acerto da triagem ao lado (decisão de 2026-10-25) |
 | `resultados/custo_latencia.csv` | **(a criar)** Tokens e tempo de resposta por alerta |
 | `notebooks/` | Exploração livre. Nada que vá para o artigo nasce aqui sem virar script |
 
@@ -561,14 +580,14 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `ruff.toml` | A configuração do `ruff`, o lint do CI |
 | `.github/workflows/` | O CI (`ci.yml`: lint, testes, auditoria das dependências e build do frontend) e o CodeQL (`codeql.yml`) |
 | `frontend/` | A interface web, com o seu próprio README |
-| `.env.example` | **(a criar)** Modelo das variáveis de ambiente (chave da LLM). O `.env` de verdade nunca entra no git |
+| `.env.example` | Modelo das variáveis do provedor de LLM: endereço, chave, modelo e parâmetros de geração. O `.env` de verdade nunca entra no git |
 
 ### Ordem em que essas coisas nascem
 
 1. `mcp/contrato.json` — destrava as duas frentes
 2. `captura/extrator.py` e `captura/calibrar.py`, o caminho crítico; depois, `captura/calibrar_conjunto.py`
 3. `classificador/mapeamento.py` → `explorar.py` e `amostrar.py` → `preparar.py` → `treinar.py` → `avaliar.py` → `experimento.py` → `janela.py` → `atacantes.py` → `regerar.py` → `treinar_regerado.py` → `rodadas.py` → `operacao.py` e `ponto_de_operacao.py`
-4. `mcp/stub.py` (em paralelo a tudo, desde o contrato) → `mcp/servidor.py`
+4. `mcp/stub.py` (em paralelo a tudo, desde o contrato) → `reprodutor/`, cujos incidentes o stub atende com `--cenarios`
 5. `agente/` — depois que o servidor responde
 6. `experimentos/resultados/` — as tabelas vazias devem existir **antes** dos experimentos
 
