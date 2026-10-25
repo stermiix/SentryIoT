@@ -4,9 +4,10 @@ O orquestrador dos agentes vai mandar estes pedidos ao provedor, no formato de `
 Enquanto ele não existe, a simulação da interface monta o primeiro pedido e o mostra: o pcap chega
 até a porta do modelo da triagem, e a chamada fica de fora.
 
-Arquitetura híbrida (decisão de 19/10/2026): o orquestrador roda no modelo de fronteira, e a
-triagem e a execução, no modelo local. O que chega à fronteira é o resumo do incidente montado
-pelo servidor, com rótulos neutros no lugar dos endereços (`obter_resumo`).
+Arquitetura híbrida (decisões de 19/10 e 25/10/2026): o agente de decisão roda no modelo de
+fronteira e coordena o incidente, e a triagem e a execução rodam no modelo local. O orquestrador não
+é um quarto agente: é o código que encadeia os três. O que chega à fronteira é o resumo do incidente
+montado pelo servidor, com rótulos neutros no lugar dos endereços (`obter_resumo`).
 """
 
 from pathlib import Path
