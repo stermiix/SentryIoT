@@ -51,12 +51,15 @@ dele; a triagem segue igual.
    A diferença entre os dois campos nesse caso é esperada. Olhar `distribuido` e
    `origens_distintas` para confirmar se batem com a categoria (ex.: DDoS com uma origem só é
    suspeito).
-3. Olhar `confianca`. Com confiança baixa (abaixo de um limiar a calibrar, por exemplo 0,7) ou
-   categoria e confiança inconsistentes com `origens_distintas`, chamar `obter_janelas(id, 20)` e
-   conferir se a maioria das janelas concorda com o resumo.
+3. Olhar `confianca`. **Com confiança abaixo de 0,6, o rótulo é duvidoso**, qualquer que seja a
+   quantidade de janelas e o que as janelas mostrem (decisão de 2026-10-25). Nos 235 incidentes da
+   avaliação dos 38 pcaps, esse limiar pegou 24 dos 57 alarmes falsos e marcou como duvidosos só
+   4 dos 178 ataques verdadeiros (`experimentos/resultados/limiar_da_triagem.md`). Com confiança
+   de 0,6 ou mais, mas categoria e confiança inconsistentes com `origens_distintas`, chamar
+   `obter_janelas(id, 20)` e conferir se a maioria das janelas concorda com o resumo.
 4. Decidir o rótulo da triagem: **coerente** (segue para o agente de decisão), **duvidoso**
-   (confiança baixa ou incoerência; ver o cenário `inc-0004` em `codigo/mcp/README.md`, falso
-   positivo de uma câmera enviando vídeo) ou **ruído** (poucas janelas, sem padrão).
+   (confiança abaixo de 0,6 ou incoerência; ver o cenário `inc-0004` em `codigo/mcp/README.md`,
+   falso positivo de uma câmera enviando vídeo) ou **ruído** (poucas janelas, sem padrão).
 
 A triagem olha um incidente por vez. Juntar incidentes do mesmo ataque não é tarefa dela: não há
 tool que liste os incidentes, e quem agrupa alertas é a política de acionamento, no orquestrador,
