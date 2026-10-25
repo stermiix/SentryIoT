@@ -30,6 +30,16 @@ reposicionamento pedido pela banca do TCC I (ver `README.md`, seção "Correçõ
 I"). O título também precisa mudar: o do TCC I era "Detecção de Ataques em IoT com IA Preditiva
 via MCP", e o do TCC II deve dizer detecção e resposta.
 
+Apresentar o público-alvo (decisão de 2026-10-25): as redes de casas e de pequenos negócios, como
+um restaurante, com televisores, câmeras, sensores e assistentes de voz na mesma rede e sem equipe
+de segurança. O motivo principal é o tamanho da rede do dataset: o CICIoT2023 é uma rede de
+laboratório única, com 105 dispositivos IoT e os atacantes do lado de dentro (NETO et al., 2023)
+`[CONFERIR: o número de dispositivos no artigo do dataset]`, o que corresponde a uma casa ou a um
+pequeno comércio, e não à rede de uma empresa. Nesse tamanho, uma caixa só captura o tráfego e
+aplica as respostas (seção 3.1); quem não tem equipe de segurança é quem mais precisa de um agente
+que explique o incidente e proponha a resposta; e o custo de tokens pesa mais num orçamento
+pequeno (seção 3.5). A implantação numa empresa fica para os trabalhos futuros (seção 6).
+
 ## 2. Trabalhos correlatos
 
 `[PENDENTE: texto]`. Fontes conferidas em 11/10/2026 (referências completas no fim):
@@ -85,8 +95,10 @@ inspecionar capturas, e o pcapng que ele grava por padrão se converte em pcap c
 `editcap -F pcap`. O Scapy também não é usado, porque a extração precisa repetir o cálculo dos
 autores, feito com `dpkt`.
 
-Numa implantação em rede pequena, o gateway do SentryIoT fica entre o modem da operadora e os
-aparelhos e, de preferência, é também o ponto de acesso Wi-Fi. No modo comum do Wi-Fi, um aparelho
+Numa implantação numa casa ou num pequeno comércio, o público-alvo do trabalho (seção 1), como um
+restaurante com televisores, câmeras, sensores e assistentes de voz na rede, o gateway do SentryIoT
+fica entre o modem da operadora e os aparelhos e, de preferência, é também o ponto de acesso
+Wi-Fi. No modo comum do Wi-Fi, um aparelho
 não fala direto com outro: todo quadro passa pelo ponto de acesso. Assim o gateway vê também o
 tráfego de um aparelho para outro, que é o dos ataques do CICIoT2023, em que os atacantes estão na
 mesma rede das vítimas. Os aparelhos IoT ficam numa rede própria, separada da de computadores e
@@ -261,8 +273,14 @@ O servidor da PoC é o servidor MCP em modo de reprodução, que atende os incid
 reprodutor de tráfego. O contrato, na versão 0.3.0,
 tem 10 tools MCP divididas entre os três agentes (triagem, decisão e execução) e grava cada passo
 num log de eventos em JSONL. O incidente traz a categoria do modelo, que junta DDoS e DoS
-(`DDoS+DoS`), e a categoria depois da regra que separa os dois pela quantidade de origens. A
-política de risco separa as ações de risco baixo, aplicadas sem aprovação, das de risco alto, que
+(`DDoS+DoS`), e a categoria depois da regra que separa os dois pela quantidade de origens. As
+respostas saem de um catálogo de cinco ações: `limitar_taxa`, `bloquear_ip`,
+`isolar_dispositivo`, `revogar_credencial` e `fechar_porta`, esta acrescentada em 2026-10-25
+`[a implementar]`, que fecha no firewall do gateway o acesso a uma porta de um dispositivo, com o
+alvo no formato `23/tcp@destino-1`. Para isso, o incidente passa a trazer as portas de destino mais
+frequentes, tiradas dos cabeçalhos TCP e UDP fora das 39 features, e o resumo lido pelo agente de
+decisão as mostra `[a implementar]`. Fora do catálogo, o agente pode propor uma ação nova, que é
+sempre de risco alto. A política de risco separa as ações de risco baixo, aplicadas sem aprovação, das de risco alto, que
 dependem de aprovação humana, e limita a 10 as propostas que aguardam aprovação em cada incidente,
 porque a fila é lida por uma pessoa e um agente enganado por conteúdo vindo da rede poderia
 enchê-la. Como a origem de um flood UDP ou ICMP pode ser forjada, bloquear uma origem da rede
@@ -280,10 +298,13 @@ descarta o veredito da triagem, propõe a ação e propõe outra quando o efeito
 a anterior não resolveu. O encadeamento dos agentes (chamar a triagem, esperar a aprovação no log
 e chamar a execução) fica em código, num orquestrador que não é um quarto agente
 `[a implementar]`. Os agentes de triagem e de execução, com a verificação do efeito, rodam no
-modelo local, um Qwen de 27 bilhões de parâmetros (`qwen3.8-27c`) servido por um gateway
-compatível com a API da OpenAI `[CONFERIR: quantização, que a API não expõe]`. Nos
-testes, esse gateway é um serviço interno de outra organização, e os dados são os do CICIoT2023,
-públicos; numa implantação, o modelo local precisa rodar na infraestrutura de quem opera a rede.
+modelo local, um Qwen de 27 bilhões de parâmetros (`qwen3.8-27c`), chamado por uma API compatível
+com a da OpenAI. Na PoC, quem serve o modelo é um llama.cpp num gateway interno de outra
+organização, numa rede que não é da equipe, com hardware e quantização desconhecidos
+`[CONFERIR: quantização, que a API não expõe]`, e os dados que passam por ele são os do
+CICIoT2023, públicos. Numa implantação, o modelo local fica num servidor dentro da rede atendida,
+no próprio gateway, se ele comportar, ou numa máquina ao lado, e o código não muda: só o endereço
+do servidor (`LLM_BASE_URL`).
 A garantia de que nenhum endereço da rede chega à fronteira está no servidor, e não no prompt: o agente de decisão não tem as tools que devolvem endereços
 e lê o incidente por `obter_resumo`, montado pelo servidor com um rótulo neutro (`origem-1`,
 `destino-1`) no lugar de cada endereço. Ele propõe a ação com o rótulo; o servidor troca o rótulo
@@ -538,11 +559,30 @@ Rascunho a partir do que já foi medido:
   mais fraco que o de fronteira; a comparação entre as configurações mede esse custo. Mesmo com
   temperatura 0 e semente fixa, o texto das respostas varia entre repetições, e cada caso dos
   experimentos é repetido. Um modelo desse tamanho pede placa de vídeo ou bastante memória, além
-  do que o gateway precisa para a captura, o classificador e o servidor MCP (seção 3.5).
+  do que o gateway precisa para a captura, o classificador e o servidor MCP (seção 3.5). Para o
+  público-alvo, uma casa ou um pequeno negócio, esse hardware é caro. A saída é a configuração
+  híbrida com um modelo local menor, de qualidade não medida neste trabalho, ou um serviço
+  contratado que rode o modelo para vários clientes; nesse caso o dado sai da rede atendida, mas
+  vai para quem foi contratado, e não para um provedor de IA.
 
 ## 6. Conclusão
 
 `[PENDENTE]` — escrever por último.
+
+Trabalho futuro a incluir: a implantação numa empresa (decisão de 2026-10-25). Ali a caixa no
+caminho do tráfego não serve, porque uma falha dela pararia a rede. O tráfego das redes IoT chega a
+sensores passivos por espelhamento de porta no switch ou por um TAP, fora do caminho, um por prédio
+ou andar, com a captura, o extrator e o classificador; só os incidentes seguem para uma central com
+o servidor MCP, os agentes, a interface e o modelo local num servidor com GPU, compartilhado entre
+os sensores. A resposta deixa de ser aplicada pelo gateway e passa a ser feita por integração: o
+agente de execução chama o firewall da empresa, o controle de acesso à rede, para a quarentena, e o
+diretório de contas, onde `revogar_credencial` tem uma implementação natural. A política de risco e
+o contrato das ações não mudam, só a parte que executa, hoje simulada. Ficam dois desafios. O
+primeiro é o volume: o centro de uma rede corporativa passa de 1 Gbps, e o extrator em Python lê
+cerca de 151 mil quadros por segundo num núcleo (seção 3.5), o que pede um extrator por rede IoT ou
+uma reescrita numa linguagem compilada. O segundo é a janela de 100 quadros consecutivos, que numa
+rede movimentada cobre poucos milissegundos e mistura muitos aparelhos, longe das condições do
+laboratório do dataset.
 
 ## Referências
 
