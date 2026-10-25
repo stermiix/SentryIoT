@@ -33,8 +33,8 @@ via MCP", e o do TCC II deve dizer detecção e resposta.
 Apresentar o público-alvo (decisão de 2026-10-25): as redes de casas e de pequenos negócios, como
 um restaurante, com televisores, câmeras, sensores e assistentes de voz na mesma rede e sem equipe
 de segurança. O motivo principal é o tamanho da rede do dataset: o CICIoT2023 é uma rede de
-laboratório única, com 105 dispositivos IoT e os atacantes do lado de dentro (NETO et al., 2023)
-`[CONFERIR: o número de dispositivos no artigo do dataset]`, o que corresponde a uma casa ou a um
+laboratório única, com 105 dispositivos IoT, em que os próprios dispositivos IoT maliciosos atacam
+os outros (NETO et al., 2023), o que corresponde a uma casa ou a um
 pequeno comércio, e não à rede de uma empresa. Nesse tamanho, uma caixa só captura o tráfego e
 aplica as respostas (seção 3.1); quem não tem equipe de segurança é quem mais precisa de um agente
 que explique o incidente e proponha a resposta; e o custo de tokens pesa mais num orçamento
