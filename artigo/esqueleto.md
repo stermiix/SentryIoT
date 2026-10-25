@@ -241,7 +241,8 @@ pcaps, então os números não se comparam diretamente com os do artigo do datas
 
 ### 3.5 Servidor MCP e sistema multiagente
 
-`[PENDENTE: ligar à implementação real do servidor, hoje em stub]` O contrato, na versão 0.3.0,
+O servidor da PoC é o servidor MCP em modo de reprodução, que atende os incidentes reais do
+reprodutor de tráfego. O contrato, na versão 0.3.0,
 tem 10 tools MCP divididas entre os três agentes (triagem, decisão e execução) e grava cada passo
 num log de eventos em JSONL. O incidente traz a categoria do modelo, que junta DDoS e DoS
 (`DDoS+DoS`), e a categoria depois da regra que separa os dois pela quantidade de origens. A
@@ -256,10 +257,14 @@ do incidente, e não as janelas, e o detalhe vem em fatias de até 20 janelas. N
 executada num ambiente simulado, com aprovação humana e possibilidade de desfazer (ver
 `codigo/mcp/README.md` e `codigo/mcp/politica.toml`).
 
-Arquitetura híbrida (Figura 1; decisões de 2026-10-10, 2026-10-11 e 2026-10-19): o orquestrador
-roda num modelo de fronteira, pela nuvem, e os agentes de triagem e de execução, com a verificação
-do efeito, rodam no modelo local, um Qwen de 27 bilhões de parâmetros (`qwen3.8-27c`) servido por
-um gateway compatível com a API da OpenAI `[CONFERIR: quantização, que a API não expõe]`. Nos
+Arquitetura híbrida (Figura 1; decisões de 2026-10-10, 2026-10-11, 2026-10-19 e 2026-10-25): o
+agente de decisão roda num modelo de fronteira, pela nuvem, e coordena o incidente. Ele aceita ou
+descarta o veredito da triagem, propõe a ação e propõe outra quando o efeito verificado mostra que
+a anterior não resolveu. O encadeamento dos agentes (chamar a triagem, esperar a aprovação no log
+e chamar a execução) fica em código, num orquestrador que não é um quarto agente
+`[a implementar]`. Os agentes de triagem e de execução, com a verificação do efeito, rodam no
+modelo local, um Qwen de 27 bilhões de parâmetros (`qwen3.8-27c`) servido por um gateway
+compatível com a API da OpenAI `[CONFERIR: quantização, que a API não expõe]`. Nos
 testes, esse gateway é um serviço interno de outra organização, e os dados são os do CICIoT2023,
 públicos; numa implantação, o modelo local precisa rodar na infraestrutura de quem opera a rede.
 A garantia de que nenhum endereço da rede chega à fronteira está no servidor, e não no prompt: o agente de decisão não tem as tools que devolvem endereços
@@ -269,15 +274,16 @@ pelo endereço e calcula o risco sobre o endereço real, e só o agente de execu
 com credenciais, recebe o endereço. Toda resposta à linha de decisão passa ainda por um filtro
 que troca por um marcador qualquer endereço que tenha sobrado em texto livre. O veredito da
 triagem, texto livre escrito pelo modelo local, precisa passar pelo mesmo filtro antes de chegar
-ao agente de decisão `[a implementar no orquestrador]`. O orquestrador aceitará três
+ao agente de decisão `[a implementar]`. O orquestrador aceitará três
 configurações, tudo local, tudo na nuvem e híbrida, e a comparação entre elas em qualidade, custo
 e tempo é resultado do artigo. Isso responde ao ponto da banca sobre riscos de IA em nuvem e à
 alternativa on-premises.
 
 A busca na internet dos agentes fica desligada por padrão, e por isso nenhum dado da rede sai da
-máquina por ela; a comparação com a busca ligada fica como experimento. O custo em tokens é
-medido por chamada: cada chamada ao modelo grava no log o agente, o modelo e os tokens de entrada
-e de saída, e o contador da interface mostra quantas chamadas um incidente gerou. O risco de
+máquina por ela; a comparação com a busca ligada fica como experimento. O custo em tokens será
+medido por chamada: cada chamada ao modelo vai gravar no log o agente, o modelo e os tokens de
+entrada e de saída `[a implementar]`, e o contador da interface mostra quantas chamadas um
+incidente gerou. O risco de
 Denial of Wallet é tratado pela política de acionamento (primeira versão no reprodutor de tráfego,
 `codigo/reprodutor/`; decisão de 2026-10-19), que reúne as janelas do mesmo ataque num incidente
 só: um flood de 264 mil janelas vira 4 incidentes, um por sessão de captura, e as rajadas de uma
@@ -305,10 +311,16 @@ do de 10/10, e a latência dele ainda não foi medida.
 `[PENDENTE]` Cenários: DDoS, varredura de portas e força bruta, reproduzidos a partir dos pcaps
 do CICIoT2023. Comparações: a saída isolada do classificador contra a saída integrada, com os
 agentes, no mesmo incidente, como previa o TCC I; e as três configurações dos agentes (tudo
-local, tudo na nuvem e híbrida). Medidas: qualidade da recomendação `[métrica a definir]`; tokens
-e custo por incidente; tempo entre a abertura do incidente e a remediação, com e sem a marca de já
-resolvido; e propostas aprovadas, rejeitadas e desfeitas. Segurança do MCP: o teste de tool
-poisoning `[a escrever]`.
+local, tudo na nuvem e híbrida). Medidas: qualidade da recomendação; tokens e custo por
+incidente; tempo entre a abertura do incidente e a remediação, com e sem a marca de já resolvido;
+e propostas aprovadas, rejeitadas e desfeitas. A qualidade da recomendação é a porcentagem de
+incidentes com uma ação aceitável no alvo certo, conferida contra um gabarito por categoria fixado
+no repositório antes da primeira rodada (decisão de 2026-10-25). O gabarito diz que ações do
+catálogo são aceitáveis em cada categoria e em que alvo, e o alvo é conferido com os atacantes do
+dataset, identificados pelo MAC. O acerto da triagem vem ao lado, e uma rubrica de 1 a 5
+(adequação, alvo, proporcionalidade e justificativa) avalia uma amostra de 9 casos, um por cenário
+e configuração, para cobrir a justificativa, que a conferência automática não vê. Segurança do
+MCP: o teste de tool poisoning `[a escrever]`.
 
 ## 4. Resultados
 
