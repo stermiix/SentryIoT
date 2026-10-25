@@ -437,6 +437,12 @@ Rascunho a partir do que já foi medido:
   em 24,9%, o de Spoofing em 63,0%, o de Mirai em 55,3% e o de Web em 29,4% (Tabela 1). Cada pcap
   de Recon e de Web é uma técnica diferente, e tirar o pcap tira também a técnica do treino.
   BruteForce tem um pcap só.
+- **Uma rede diferente da do dataset**: o classificador foi treinado e testado só com o tráfego
+  do laboratório do CICIoT2023, com os mesmos dispositivos, os mesmos sete atacantes e o mesmo
+  tráfego normal; mesmo as medidas com o pcap inteiro fora do treino vêm dessa rede. O desempenho
+  numa rede real, com outros dispositivos e outro tráfego normal, não foi medido, e o recall e o
+  alarme falso podem ser outros. O TTL e o tamanho dos quadros, que pesam nas decisões do modelo,
+  dependem dos dispositivos e de como o tráfego é capturado (itens abaixo).
 - **Alarme falso conforme o pcap benigno**: com cada pcap benigno fora do treino, a fração
   classificada como ataque vai de 0,8% a 6,0% no ponto de operação (Tabela 2). A regra foi
   escolhida com no máximo 1% de alarme falso na validação, que vem dos outros dois pcaps
