@@ -162,7 +162,7 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
             ],
             "efeito_esperado": "A fila de conexões pendentes deixa de esgotar, mesmo com o flood em curso.",
             "como_desfazer": "Desativar SYN cookies na pilha TCP do dispositivo atacado.",
-            "fonte": "Base local: flood.md, seção sobre SYN cookies.",
+            "fonte": "Base local: ddos.md, medida sobre SYN cookies (MITRE ATT&CK T1499).",
         },
         justificativa=(
             "O bloqueio de uma origem não resolveu, porque o ataque vem de 37 origens. SYN cookies não "

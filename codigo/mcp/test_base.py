@@ -101,6 +101,73 @@ def test_pasta_que_nao_existe_da_erro(tmp_path):
         carregar(tmp_path / "nao_existe")
 
 
+# --- tabela do levantamento ------------------------------------------------------------------
+
+LEVANTAMENTO = """# Flood de teste - Ataque de volume
+
+Categorias: DDoS
+
+- **Definição:** introdução em lista, que não entra em nenhuma medida.
+
+## Mitigações recomendadas
+
+| Mitigações Recomendadas | Ação do catálogo | Fonte |
+| --- | --- | --- |
+| Filtrar as origens confirmadas do ataque. | `bloquear_ip` | [MITRE ATT&CK — T1498](https://attack.mitre.org/techniques/T1498/) |
+| Habilitar SYN cookies no serviço atacado. | nenhuma | [MITRE ATT&CK — T1499](https://attack.mitre.org/techniques/T1499/); [IETF — RFC 4987](https://www.rfc-editor.org/info/rfc4987/) |
+"""
+
+
+def test_cada_linha_da_tabela_vira_uma_medida_com_a_fonte_no_texto(tmp_path):
+    (tmp_path / "ddos.md").write_text(LEVANTAMENTO, encoding="utf-8")
+    secoes = carregar(tmp_path)
+    assert [(s.origem, s.titulo, s.acao, s.categorias) for s in secoes] == [
+        ("ddos.md", "Filtrar as origens confirmadas do ataque.", "bloquear_ip", ("DDoS",)),
+        ("ddos.md", "Habilitar SYN cookies no serviço atacado.", None, ("DDoS",)),
+    ]
+    # O link em markdown vira nome e endereço, que o modelo lê sem a sintaxe.
+    assert secoes[0].texto == "Fonte: MITRE ATT&CK — T1498 (https://attack.mitre.org/techniques/T1498/)"
+    assert secoes[1].texto == (
+        "Fonte: MITRE ATT&CK — T1499 (https://attack.mitre.org/techniques/T1499/); "
+        "IETF — RFC 4987 (https://www.rfc-editor.org/info/rfc4987/)"
+    )
+    assert mitigacoes(secoes, "DDoS") == [secoes[0].trecho()]
+    assert pesquisar(secoes, "syn cookies")[0].titulo == "Habilitar SYN cookies no serviço atacado."
+
+
+def test_as_colunas_sao_achadas_pelo_nome_e_nao_pela_posicao(tmp_path):
+    invertida = LEVANTAMENTO.replace("| Ação do catálogo | Fonte |", "| Fonte | Ação do catálogo |").replace(
+        "| `bloquear_ip` | [MITRE ATT&CK — T1498](https://attack.mitre.org/techniques/T1498/) |",
+        "| [MITRE ATT&CK — T1498](https://attack.mitre.org/techniques/T1498/) | `bloquear_ip` |",
+    ).replace(
+        "| nenhuma | [MITRE ATT&CK — T1499](https://attack.mitre.org/techniques/T1499/); "
+        "[IETF — RFC 4987](https://www.rfc-editor.org/info/rfc4987/) |",
+        "| [MITRE ATT&CK — T1499](https://attack.mitre.org/techniques/T1499/) | nenhuma |",
+    )
+    (tmp_path / "ddos.md").write_text(invertida, encoding="utf-8")
+    assert [(s.acao, s.texto[:26]) for s in carregar(tmp_path)] == [
+        ("bloquear_ip", "Fonte: MITRE ATT&CK — T149"), (None, "Fonte: MITRE ATT&CK — T149"),
+    ]
+
+
+@pytest.mark.parametrize("troca,trecho_do_erro", [
+    (("| Ação do catálogo | Fonte |", "| Ação | Fonte |"), "precisa das colunas"),
+    (("| Ação do catálogo | Fonte |", "| Ação do catálogo | Origem |"), "precisa das colunas"),
+    (("`bloquear_ip`", "`desligar_tudo`"), "desligar_tudo"),
+    (("| nenhuma |", "| nenhuma | a mais |"), "colunas do cabeçalho"),
+    (("[MITRE ATT&CK — T1498](https://attack.mitre.org/techniques/T1498/)", ""), "sem a fonte"),
+    (("## Mitigações recomendadas\n", "## Mitigações recomendadas\n\nTexto solto ao lado da tabela.\n"), "tabela e texto"),
+], ids=["sem a coluna da ação", "sem a coluna da fonte", "ação fora do catálogo", "linha com coluna a mais",
+        "medida sem fonte", "seção com tabela e texto"])
+def test_tabela_fora_do_formato_da_erro_com_o_nome_do_arquivo(tmp_path, troca, trecho_do_erro):
+    antes, depois = troca
+    assert antes in LEVANTAMENTO
+    (tmp_path / "ruim.md").write_text(LEVANTAMENTO.replace(antes, depois, 1), encoding="utf-8")
+    with pytest.raises(ValueError, match=rf"ruim\.md.*{trecho_do_erro}"):
+        carregar(tmp_path)
+
+
+
 # --- mitigações por categoria ----------------------------------------------------------------
 
 
@@ -196,51 +263,49 @@ def test_pesquisa_devolve_no_maximo_o_limite_de_trechos(tmp_path):
     assert len(pesquisar(carregar(tmp_path), "limitar taxa", limite=5)) == 5
 
 
-# --- a base provisória que acompanha o stub --------------------------------------------------
+# --- o levantamento da equipe, que é a base do servidor -------------------------------------
 
 
-def test_base_provisoria_tem_o_aviso_de_conteudo_provisorio():
-    aviso = (PASTA_PADRAO / "README.md").read_text(encoding="utf-8")
-    assert PASTA_PADRAO.name == "base_provisoria"
-    assert "conteúdo provisório do stub" in aviso
-    assert "levantamento de mitigações" in aviso
+def test_a_base_padrao_e_o_levantamento_de_mitigacoes_da_equipe():
+    assert PASTA_PADRAO.parts[-2:] == ("agente", "recomendacoes")
+    assert {secao.origem for secao in carregar()} == {
+        "bruteforce.md", "ddos.md", "dos.md", "mirai.md", "recon.md", "spoofing.md", "web.md",
+    }
 
 
-def test_base_provisoria_e_valida_e_so_usa_categorias_e_acoes_conhecidas():
-    secoes = carregar()
-    assert len({secao.origem for secao in secoes}) >= 3
-    for secao in secoes:
+def test_levantamento_e_valido_e_so_usa_categorias_e_acoes_conhecidas():
+    for secao in carregar():
         assert (PASTA_PADRAO / secao.origem).is_file()
-        assert set(secao.categorias) <= set(CATEGORIAS)
+        assert len(secao.categorias) == 1 and secao.categorias[0] in CATEGORIAS
         assert secao.acao is None or secao.acao in BASE
         assert secao.titulo and secao.texto
 
 
-def test_base_provisoria_nao_cita_fonte_norma_nem_link():
-    for arquivo in PASTA_PADRAO.glob("*.md"):
-        texto = arquivo.read_text(encoding="utf-8")
-        for proibido in ("http", "www.", "ISO", "NIST", "RFC", "OWASP", "et al"):
-            assert proibido not in texto, f"{arquivo.name} cita {proibido}"
+def test_toda_medida_do_levantamento_cita_a_fonte_com_o_endereco():
+    for secao in carregar():
+        assert secao.texto.startswith("Fonte: "), secao.titulo
+        assert "https://" in secao.texto, secao.titulo
 
 
-@pytest.mark.parametrize("categoria", ["DDoS", "DoS", "BruteForce", "Recon"])
-def test_base_provisoria_cobre_as_categorias_dos_cenarios_do_stub(categoria):
-    recomendadas = mitigacoes(carregar(), categoria)
-    assert recomendadas
-    assert all(trecho.acao in BASE for trecho in recomendadas)
+def test_cada_documento_do_levantamento_e_de_uma_categoria_so():
+    # DDoS e DoS ficam em arquivos separados porque a categoria do incidente já vem separada.
+    categoria_do_arquivo = {secao.origem: secao.categorias for secao in carregar()}
+    assert categoria_do_arquivo["ddos.md"] == ("DDoS",)
+    assert categoria_do_arquivo["dos.md"] == ("DoS",)
 
 
-def test_base_provisoria_nao_recomenda_acao_para_trafego_benigno():
+def test_levantamento_nao_recomenda_acao_para_trafego_benigno():
     assert mitigacoes(carregar(), "Benign") == []
 
 
 @pytest.mark.parametrize("consulta,origem,palavra_do_titulo", [
-    ("syn flood", "flood.md", "SYN cookies"),
-    ("bloqueio de conta após tentativas", "forca_bruta.md", "conta"),
-    ("fechar portas sem uso", "varredura.md", "portas"),
-    ("falso positivo", "alerta_duvidoso.md", "falso positivo"),
+    ("syn flood", "ddos.md", "SYN cookies"),
+    ("autenticação multifator", "bruteforce.md", "MFA"),
+    ("fechar portas sem uso", "recon.md", "portas"),
+    ("dnssec", "spoofing.md", "DNSSEC"),
+    ("sql injection", "web.md", "SQL Injection"),
 ])
-def test_pesquisa_na_base_provisoria_acha_medidas_fora_do_catalogo(consulta, origem, palavra_do_titulo):
+def test_pesquisa_no_levantamento_acha_medidas_fora_do_catalogo(consulta, origem, palavra_do_titulo):
     primeiro = pesquisar(carregar(), consulta)[0]
     assert primeiro.origem == origem
     assert palavra_do_titulo in primeiro.titulo

@@ -510,8 +510,7 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `mcp/contrato.json` | O mesmo contrato em JSON Schema, gerado de `tipos.py`. Um teste falha se os dois divergirem. É ele que destrava as duas frentes em paralelo |
 | `mcp/acoes.py` | O catálogo de ações, as ações novas, a política de risco, os rótulos neutros, o resumo do incidente e o ambiente simulado, com desfazer |
 | `mcp/politica.toml` | Os limites da política de risco, que a equipe ajusta sem mexer no código |
-| `mcp/base.py` | A leitura da base local de documentos e a busca usada por `pesquisar_solucoes` |
-| `mcp/base_provisoria/` | Os documentos da base local. Conteúdo provisório do stub, a substituir pelo levantamento de mitigações da equipe |
+| `mcp/base.py` | A leitura da base de mitigações e a busca usada por `pesquisar_solucoes`. A base é o levantamento da equipe em `agente/recomendacoes/`, com a ação do catálogo e a fonte de cada medida |
 | `mcp/eventos.py` | Gravação e leitura do log de eventos, que a interface web lê |
 | `mcp/cenarios.py` | Os quatro incidentes de exemplo do stub, com números ilustrativos: flood, força bruta, varredura de portas e falso positivo |
 | `mcp/stub.py` | O servidor MCP de mentira: responde às dez tools com os cenários, para a frente de agentes trabalhar antes de o modelo existir |

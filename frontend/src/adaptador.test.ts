@@ -128,7 +128,7 @@ describe("ação nova", () => {
       steps: ["Ativar SYN cookies na pilha TCP do dispositivo atacado.", "Conferir se o dispositivo volta a aceitar conexões legítimas."],
       expected: "A fila de conexões pendentes deixa de esgotar, mesmo com o flood em curso.",
       undo: "Desativar SYN cookies na pilha TCP do dispositivo atacado.",
-      source: "Base local: flood.md, seção sobre SYN cookies.",
+      source: "Base local: ddos.md, medida sobre SYN cookies (MITRE ATT&CK T1499).",
     });
   });
 
