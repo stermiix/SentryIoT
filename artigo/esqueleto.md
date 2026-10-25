@@ -69,9 +69,9 @@ nuvem só nos experimentos, em vez de um único modelo comercial em nuvem.
 ### 3.1 Captura e extração de features
 
 O sistema processa tráfego bruto em arquivo pcap, e não apenas o CSV pré-processado do dataset, o
-que responde ao avaliador 2 do TCC I. A captura da rede grava um arquivo pcap, com `tcpdump`,
-Wireshark ou ferramenta equivalente `[PENDENTE: fechar a ferramenta, decisão em aberto no
-ROADMAP.md]`; a extração das 39 features por janela de quadros é feita com `dpkt`, como no código
+que responde ao avaliador 2 do TCC I. A captura da rede grava um arquivo pcap com o `tcpdump`, a
+mesma ferramenta com que os autores do dataset capturaram e fatiaram os pcaps (decisão de
+2026-10-25); a extração das 39 features por janela de quadros é feita com `dpkt`, como no código
 dos autores do dataset, e não com o Scapy previsto no TCC I. No código dos autores, o Scapy só é
 importado para Zigbee e Bluetooth e não contribui para nenhuma das 39 colunas.
 
@@ -81,9 +81,25 @@ trabalho estão no repositório do projeto (OLIVEIRA et al., 2026). O trabalho n
 loco em dispositivos IoT reais: seria inviável no prazo, e o tráfego capturado não teria rótulo.
 O papel da captura é cumprido pelos pcaps brutos do CICIoT2023, que o extrator lê da mesma forma
 que leria um arquivo gravado na rede. O Wireshark não é necessário ao sistema: serve para
-inspecionar capturas, e a gravação pode ser feita com `tcpdump`. O Scapy também não é usado,
-porque a extração precisa repetir o cálculo dos autores, feito com `dpkt`. A captura ao vivo fica
-como um adaptador futuro sobre o mesmo extrator.
+inspecionar capturas, e o pcapng que ele grava por padrão se converte em pcap com
+`editcap -F pcap`. O Scapy também não é usado, porque a extração precisa repetir o cálculo dos
+autores, feito com `dpkt`.
+
+Numa implantação em rede pequena, o gateway do SentryIoT fica entre o modem da operadora e os
+aparelhos e, de preferência, é também o ponto de acesso Wi-Fi. No modo comum do Wi-Fi, um aparelho
+não fala direto com outro: todo quadro passa pelo ponto de acesso. Assim o gateway vê também o
+tráfego de um aparelho para outro, que é o dos ataques do CICIoT2023, em que os atacantes estão na
+mesma rede das vítimas. Os aparelhos IoT ficam numa rede própria, separada da de computadores e
+celulares, e o tráfego entre as redes também cruza o gateway, que é onde as ações do catálogo
+seriam aplicadas, no firewall dele. Ali o `tcpdump` grava a interface da rede IoT de forma
+contínua, com o quadro inteiro (`-s 0`; um limite curto encolhe as colunas de tamanho) e um
+arquivo novo a cada intervalo (`-G`). A gravação é feita na interface da rede, e não no enlace que
+leva várias redes com etiqueta de VLAN, porque o extrator descarta o quadro etiquetado, como o
+código dos autores. A PoC lê arquivos fechados; a classe `Extrator` já recebe um quadro por vez, e
+a captura ao vivo fica como um adaptador futuro sobre ela. Num teste de 25/10, 5.000 quadros do
+Wi-Fi de um notebook, gravados com `tcpdump -i en0`, passaram pelo reprodutor sem conversão, do
+extrator à abertura de incidentes: um arquivo gravado fora do dataset entra no sistema. Os achados
+desse teste estão nas Limitações.
 
 O extrator (`codigo/captura/extrator.py`) foi calibrado em duas etapas. Na primeira, contra os
 CSVs oficiais de 5 pcaps, um por família (DDoS, DoS, Mirai, Recon e BruteForce), somando 167.304
@@ -443,6 +459,18 @@ Rascunho a partir do que já foi medido:
   numa rede real, com outros dispositivos e outro tráfego normal, não foi medido, e o recall e o
   alarme falso podem ser outros. O TTL e o tamanho dos quadros, que pesam nas decisões do modelo,
   dependem dos dispositivos e de como o tráfego é capturado (itens abaixo).
+- **Tráfego que não é de IoT**: o tráfego benigno do treino é só de dispositivos IoT. No teste de
+  captura de 25/10 (seção 3.1), o tráfego normal de um notebook deu 8 das 23 janelas como
+  Spoofing e abriu um incidente de Spoofing, com confiança de 0,54. Computadores e celulares têm
+  outro tráfego normal, e o sistema foi pensado para vigiar a rede dos aparelhos IoT.
+- **IPv6**: o extrator só mede quadros IPv4 e ARP, como o código dos autores, e ignora o IPv6. No
+  mesmo teste, 2.674 dos 5.000 quadros (53%) eram IPv6. Um ataque feito só por IPv6 não é visto.
+- **Tráfego que não cruza o gateway**: o sistema só vê o que passa pelo ponto de captura. Numa
+  rede em que o gateway não é o ponto de acesso, nem separa a rede IoT das outras, o ataque de um
+  aparelho contra outro da mesma rede não chega a ele. Sensores em Zigbee ou Bluetooth, fora da
+  rede IP, também ficam de fora.
+- **DDoS vindo da internet**: um flood volumétrico de fora lota o link da operadora antes de
+  chegar ao gateway. Bloquear as origens no gateway não libera o link; isso pede ação do provedor.
 - **Alarme falso conforme o pcap benigno**: com cada pcap benigno fora do treino, a fração
   classificada como ataque vai de 0,8% a 6,0% no ponto de operação (Tabela 2). A regra foi
   escolhida com no máximo 1% de alarme falso na validação, que vem dos outros dois pcaps
@@ -505,7 +533,8 @@ Rascunho a partir do que já foi medido:
 - **Modelo local**: os agentes de triagem e execução rodam num Qwen de 27 bilhões de parâmetros,
   mais fraco que o de fronteira; a comparação entre as configurações mede esse custo. Mesmo com
   temperatura 0 e semente fixa, o texto das respostas varia entre repetições, e cada caso dos
-  experimentos é repetido.
+  experimentos é repetido. Um modelo desse tamanho pede placa de vídeo ou bastante memória, além
+  do que o gateway precisa para a captura, o classificador e o servidor MCP (seção 3.5).
 
 ## 6. Conclusão
 
