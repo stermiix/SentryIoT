@@ -69,9 +69,14 @@ def _eth(ip):
     ))
 
 
-def tcp(origem, destino, flags):
-    segmento = dpkt.tcp.TCP(sport=40000, dport=80, flags=flags)
+def tcp(origem, destino, flags, porta=80):
+    segmento = dpkt.tcp.TCP(sport=40000, dport=porta, flags=flags)
     return _eth(dpkt.ip.IP(src=socket.inet_aton(origem), dst=socket.inet_aton(destino), p=dpkt.ip.IP_PROTO_TCP, data=segmento, ttl=64))
+
+
+def udp(origem, destino, porta):
+    datagrama = dpkt.udp.UDP(sport=40000, dport=porta, data=b"x")
+    return _eth(dpkt.ip.IP(src=socket.inet_aton(origem), dst=socket.inet_aton(destino), p=dpkt.ip.IP_PROTO_UDP, data=datagrama, ttl=64))
 
 
 def icmp(origem, destino):
@@ -353,6 +358,48 @@ def test_arp_spoofing_lista_os_anunciados_e_obter_janelas_nao_quebra(tmp_path):
     assert incidente.destinos == [] and incidente.origens_distintas == 2
     fatia = Stub(Registro(log), agente="triagem", cenarios=cenarios).chamar("obter_janelas", id="inc-0001", limite=5)
     assert fatia.janelas == []
+
+
+def test_incidente_lista_as_portas_atacadas_so_nos_destinos_listados(tmp_path):
+    # As respostas da vítima vão para a porta 80 do atacante, que não é destino do incidente.
+    incidente = _cenario(tmp_path, [ataque(6, respostas=1), benigno(10)]).incidente
+
+    assert [(p.destino, p.porta, p.protocolo, p.quadros) for p in incidente.portas] == [(VITIMA, 80, "tcp", 300)]
+
+
+def test_portas_do_tcp_e_do_udp_saem_da_mais_atacada_para_a_menos(tmp_path):
+    def gerar(i):
+        # Em cada 10 quadros, 6 SYN para a porta 23, 1 para a 2323 e 3 datagramas para a 1900.
+        resto = i % 10
+        if resto < 6:
+            return tcp(ATACANTE, VITIMA, dpkt.tcp.TH_SYN, porta=23)
+        return tcp(ATACANTE, VITIMA, dpkt.tcp.TH_SYN, porta=2323) if resto == 6 else udp(ATACANTE, VITIMA, 1900)
+
+    incidente = _cenario(tmp_path, [(5, gerar, 0.0), benigno(10)]).incidente
+
+    assert [(p.porta, p.protocolo, p.quadros) for p in incidente.portas] == [
+        (23, "tcp", 300), (1900, "udp", 150), (2323, "tcp", 50),
+    ]
+
+
+def test_flood_icmp_e_arp_spoofing_nao_tem_porta(tmp_path):
+    c = Classificador(ModeloSemSyn(), tuple(COLUNAS), PontoDeOperacao(None, 3), "icmp.joblib")
+    assert _cenario(tmp_path, [(5, lambda i: icmp(ATACANTE, VITIMA), 0.0), benigno(10)], c).incidente.portas == []
+    c = Classificador(ModeloArp(), tuple(COLUNAS), PontoDeOperacao(None, 3), "arp.joblib")
+    caminho = escrever_pcap(tmp_path / "b.pcap", [(5, lambda i: arp(("192.168.1.1", "192.168.1.20")[i % 2]), 0.0)])
+    assert cenarios_da_reproducao(reproduzir(caminho, c), c)[0].incidente.portas == []
+
+
+def test_agente_de_decisao_le_as_portas_com_o_rotulo_do_destino(tmp_path):
+    c = classificador()
+    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [ataque(6), benigno(10)]), c)
+    log = tmp_path / "eventos.jsonl"
+    cenarios, _ = gravar(reproducao, c, log, relogio=lambda: AGORA)
+
+    resumo_do_incidente = Stub(Registro(log), agente="decisao", cenarios=cenarios).chamar("obter_resumo", id="inc-0001")
+
+    assert [(p.destino, p.porta, p.protocolo) for p in resumo_do_incidente.portas] == [("destino-1", 80, "tcp")]
+    assert VITIMA not in resumo_do_incidente.model_dump_json()
 
 
 # --- Do incidente ao log e ao servidor --------------------------------------------------------

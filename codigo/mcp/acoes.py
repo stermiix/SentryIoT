@@ -65,6 +65,7 @@ from codigo.mcp.tipos import (
     NomeDeAcao,
     ParametroDeAcao,
     ParametrosDeAcaoNova,
+    PortaRotulada,
     Promocao,
     Proposta,
     ResumoDoIncidente,
@@ -908,7 +909,8 @@ def resumo_do_incidente(estado, politica, identificador):
 
     O agente de decisão pode estar num modelo de nuvem (arquitetura híbrida, decisão de
     2026-10-10). Em vez dos endereços, o resumo traz os rótulos neutros, com a contagem de
-    quadros e se o endereço é protegido pela política. Traz também o último efeito verificado e a
+    quadros e se o endereço é protegido pela política, e as portas atacadas com o rótulo do
+    destino. Traz também o último efeito verificado e a
     marca de já resolvido, para o agente saber o que já foi tentado e quando só deve explicar.
     """
     incidente = estado.incidentes[identificador]
@@ -936,6 +938,14 @@ def resumo_do_incidente(estado, politica, identificador):
         origens=rotulados(incidente.origens, "origem"),
         destinos=rotulados(incidente.destinos, "destino"),
         features_principais=incidente.features_principais,
+        # O contrato garante que a porta é de um destino listado, e todo destino listado tem rótulo.
+        portas=[
+            PortaRotulada(
+                destino=rotulo_de[("destino", item.destino)], porta=item.porta, protocolo=item.protocolo,
+                quadros=item.quadros,
+            )
+            for item in incidente.portas
+        ],
         ultimo_efeito=estado.ultimos_efeitos.get(identificador),
     )
 

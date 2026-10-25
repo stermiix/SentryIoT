@@ -38,7 +38,7 @@ from typing_extensions import TypedDict
 from codigo.captura.extrator import COLUNAS
 from codigo.classificador.mapeamento import CATEGORIAS
 
-VERSAO = "0.3.0"
+VERSAO = "0.4.0"
 # Máximo de janelas que o agente recebe por chamada. Um flood tem milhares de janelas, e mandar
 # todas para a LLM custaria tokens demais.
 LIMITE_DE_JANELAS = 20
@@ -313,6 +313,10 @@ EnderecoIP = Annotated[
 Proporcao = Annotated[float, Field(ge=0, le=1)]
 Contagem = Annotated[int, Field(ge=0)]
 Rotulo = Annotated[str, StringConstraints(pattern=ROTULO)]
+# A porta 0 não designa serviço nenhum, e o firewall não fecha uma porta que não existe.
+Porta = Annotated[int, Field(ge=1, le=65_535)]
+PROTOCOLOS_DE_TRANSPORTE = ("tcp", "udp")
+Transporte = Literal[PROTOCOLOS_DE_TRANSPORTE]
 
 
 class Modelo(BaseModel):
@@ -327,6 +331,13 @@ class Modelo(BaseModel):
 class EnderecoContado(Modelo):
     endereco: EnderecoIP = Field(description="Endereço IP, sem zona")
     quadros: Contagem = Field(description="Quadros desse endereço no incidente")
+
+
+class PortaContada(Modelo):
+    destino: EnderecoIP = Field(description="Destino do incidente que recebe os quadros nessa porta")
+    porta: Porta = Field(description="Porta de destino do TCP ou do UDP")
+    protocolo: Transporte
+    quadros: Contagem = Field(description="Quadros enviados a essa porta do destino no incidente")
 
 
 class FeaturePrincipal(Modelo):
@@ -357,6 +368,22 @@ class Incidente(Modelo):
     features_principais: list[FeaturePrincipal] = Field(
         description="Features que mais pesaram, com o valor de referência do tráfego benigno"
     )
+    # Com valor padrão, para que um log gravado antes das portas continue legível.
+    portas: list[PortaContada] = Field(
+        default_factory=list,
+        description=(
+            "Portas de destino que mais receberam quadros nos destinos listados, da maior para a menor. Vem "
+            "vazia sem TCP nem UDP, como num ARP spoofing ou num flood ICMP"
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _portas_sao_de_destinos_listados(self):
+        listados = {item.endereco for item in self.destinos}
+        fora = sorted({porta.destino for porta in self.portas} - listados)
+        if fora:
+            raise ValueError(f"as portas citam destinos que o incidente não lista: {', '.join(fora)}")
+        return self
 
     @model_validator(mode="after")
     def _categoria_cabe_no_que_o_modelo_disse(self):
@@ -373,6 +400,13 @@ class EnderecoRotulado(Modelo):
     rotulo: Rotulo = Field(description="Rótulo neutro do endereço no incidente, como origem-1 ou destino-1")
     quadros: Contagem = Field(description="Quadros desse endereço no incidente")
     protegido: bool = Field(description="Verdadeiro quando o endereço é protegido pela política, como o gateway")
+
+
+class PortaRotulada(Modelo):
+    destino: Rotulo = Field(description="Rótulo neutro do destino que recebe os quadros nessa porta, como destino-1")
+    porta: Porta = Field(description="Porta de destino do TCP ou do UDP")
+    protocolo: Transporte
+    quadros: Contagem = Field(description="Quadros enviados a essa porta do destino no incidente")
 
 
 # As 39 features, com os nomes das colunas do extrator. O valor é nulo quando o extrator não
@@ -551,6 +585,12 @@ class ResumoDoIncidente(Modelo):
     destinos: list[EnderecoRotulado] = Field(description="Destinos com mais quadros, do maior para o menor")
     features_principais: list[FeaturePrincipal] = Field(
         description="Features que mais pesaram, com o valor de referência do tráfego benigno"
+    )
+    portas: list[PortaRotulada] = Field(
+        description=(
+            "Portas de destino que mais receberam quadros, com o rótulo do destino, da maior para a menor. Porta "
+            "não é endereço: vem como está"
+        )
     )
     ultimo_efeito: Efeito | None = Field(
         description="O último efeito verificado no incidente, depois de uma ação aplicada, ou nulo"

@@ -13,6 +13,7 @@ export const ESTADOS_DA_PROPOSTA = ["aguardando_aprovacao", "liberada", "rejeita
 export const ESTADOS_DA_EXECUCAO = ["aplicada", "desfeita"] as const;
 export const RESULTADOS_DO_EFEITO = ["cessou", "diminuiu", "persiste"] as const;
 export const ORIGENS_DE_ACAO = ["base", "promovida"] as const;
+export const PROTOCOLOS_DE_TRANSPORTE = ["tcp", "udp"] as const;
 
 // Código de cada motivo de risco alto e a frase que a pessoa lê antes de aprovar. A tela mostra
 // esta frase, que é do sistema, e não a que veio no log.

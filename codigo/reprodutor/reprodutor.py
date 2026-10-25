@@ -59,6 +59,10 @@ Contagens. As contagens de endereço de um incidente são podadas para os `CONTA
 mais frequentes quando passam de `LIMITE_DE_CONTADOS`: com origem forjada, a memória fica limitada,
 e os mais frequentes, que são os que o incidente lista, continuam certos.
 
+Portas. O incidente lista as `PORTAS_LISTADAS` portas de destino do TCP e do UDP que mais receberam
+quadros, só entre os destinos que ele lista: é por elas que o agente escolhe a porta a fechar. A
+porta vem do cabeçalho de transporte de cada quadro e não entra nas 39 features.
+
 As features principais do incidente são as de maior importância no Random Forest, com o valor
 mediano nas janelas da categoria e a mediana do tráfego benigno do treino ao lado
 (`referencia_benigno.json`, gerado por `python -m codigo.reprodutor --gerar-referencia`).
@@ -93,6 +97,7 @@ from codigo.mcp.tipos import (
     Incidente,
     Janela,
     LoteDeJanelas,
+    PortaContada,
 )
 
 JANELA = 100
@@ -118,11 +123,14 @@ CONTADOS_DEPOIS_DA_PODA = 5_000
 # Quantos endereços o incidente lista, quantas features principais e quantas janelas reais guarda
 # para `obter_janelas`.
 ENDERECOS_LISTADOS = 10
+PORTAS_LISTADAS = 5
 FEATURES_PRINCIPAIS = 5
 JANELAS_GUARDADAS = 1000
 # Em um replay a ação não age sobre o tráfego gravado: a verificação do efeito é simulada e dá
 # "cessou" na primeira ação aplicada. Entra nas limitações do experimento.
 EFEITOS_DO_REPLAY = ("cessou",)
+# Número do protocolo no cabeçalho IPv4 e o nome dele no contrato.
+_TRANSPORTE = {6: "tcp", 17: "udp"}
 
 
 class PcapInvalido(ValueError):
@@ -137,11 +145,12 @@ class _ExtratorComContagens(Extrator):
     """O extrator do sistema, que devolve com cada janela os quadros por par de endereços e o período dela.
 
     Lê a lista de medidas da janela antes de o extrator fechá-la. A origem de um quadro ARP é o
-    IP que ele anuncia, a única origem que um spoofing de ARP tem.
+    IP que ele anuncia, a única origem que um spoofing de ARP tem. As portas são contadas por
+    destino, protocolo e porta.
     """
 
     def _fechar(self):
-        origens, destinos, pares, aberturas = Counter(), Counter(), Counter(), Counter()
+        origens, destinos, pares, aberturas, portas = Counter(), Counter(), Counter(), Counter(), Counter()
         for medida in self._pendentes:
             origem = medida["ip_origem"] or medida["ip_arp"]
             destino = medida["ip_destino"]
@@ -149,12 +158,14 @@ class _ExtratorComContagens(Extrator):
                 origens[origem] += 1
             if destino:
                 destinos[destino] += 1
+                if medida["porta_destino"]:
+                    portas[destino, medida["Protocol Type"], medida["porta_destino"]] += 1
             if origem and destino:
                 pares[origem, destino] += 1
                 if medida["syn_flag_number"] and not medida["ack_flag_number"]:
                     aberturas[origem, destino] += 1
         inicio, fim, quadros = self._pendentes[0]["ts"], self._pendentes[-1]["ts"], len(self._pendentes)
-        return super()._fechar(), _Contagens(origens, destinos, pares, aberturas), inicio, fim, quadros
+        return super()._fechar(), _Contagens(origens, destinos, pares, aberturas, portas), inicio, fim, quadros
 
 
 @dataclass
@@ -163,6 +174,8 @@ class _Contagens:
     destinos: Counter
     pares: Counter
     aberturas: Counter
+    # Quadros por (destino, protocolo, porta de destino).
+    portas: Counter = field(default_factory=Counter)
 
 
 @dataclass(frozen=True)
@@ -231,6 +244,7 @@ class IncidenteReproduzido:
     # Em quantas janelas do incidente cada endereço aparece como origem e como destino.
     presenca_origem: Counter = field(default_factory=Counter)
     presenca_destino: Counter = field(default_factory=Counter)
+    portas: Counter = field(default_factory=Counter)
     # Janelas benignas depois da última de ataque: só contam no lote se outra de ataque vier.
     benignas_pendentes: int = 0
     # Janelas seguidas que não são dele; com `fecha_apos` delas, ele se encerra.
@@ -262,7 +276,7 @@ class IncidenteReproduzido:
         self.sem_ele = 0
         self.ataque.append(janela)
         self.por_categoria[janela.categoria] += 1
-        for nome in ("origens", "destinos", "pares", "aberturas"):
+        for nome in ("origens", "destinos", "pares", "aberturas", "portas"):
             contagem = getattr(self, nome)
             contagem.update(getattr(contagens, nome))
             _podar(contagem)
@@ -275,7 +289,7 @@ class IncidenteReproduzido:
         return IncidenteReproduzido(
             self.primeira_janela_de_ataque, self.aberto_em, list(self.ataque), Counter(self.por_categoria),
             Counter(self.origens), Counter(self.destinos), Counter(self.pares), Counter(self.aberturas),
-            Counter(self.presenca_origem), Counter(self.presenca_destino),
+            Counter(self.presenca_origem), Counter(self.presenca_destino), Counter(self.portas),
         )
 
 
@@ -617,6 +631,18 @@ def _contados(contagem):
     return [EnderecoContado(endereco=_ip(ip), quadros=n) for ip, n in contagem.most_common(ENDERECOS_LISTADOS)]
 
 
+def _portas(portas, destinos):
+    """As portas mais atacadas entre os destinos que o incidente lista, da que recebe mais quadros para a que recebe menos."""
+    listados = {ip for ip, _ in destinos.most_common(ENDERECOS_LISTADOS)}
+    escolhidas = [
+        (chave, n) for chave, n in portas.most_common() if chave[0] in listados and chave[1] in _TRANSPORTE
+    ][:PORTAS_LISTADAS]
+    return [
+        PortaContada(destino=_ip(destino), porta=porta, protocolo=_TRANSPORTE[protocolo], quadros=n)
+        for (destino, protocolo, porta), n in escolhidas
+    ]
+
+
 def montar_incidente(incidente, identificador, classificador, referencia, deslocamento, fundo=None):
     """O incidente no formato do contrato, no relógio de reprodução."""
     categoria_do_modelo = incidente.categoria_principal()
@@ -648,6 +674,7 @@ def montar_incidente(incidente, identificador, classificador, referencia, desloc
         origens=_contados(origens),
         destinos=_contados(destinos),
         features_principais=principais,
+        portas=_portas(incidente.portas, destinos),
     )
     return dados, medianas
 

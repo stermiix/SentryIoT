@@ -187,7 +187,8 @@ Os exemplos abaixo são respostas reais do stub. Onde aparece `...`, a resposta 
  "janelas": 10734, "origens_distintas": 37, "distribuido": true,
  "origens": [{"endereco": "203.0.113.7", "quadros": 61240}, ...],
  "destinos": [{"endereco": "192.168.137.20", "quadros": 1073352}],
- "features_principais": [{"nome": "Rate", "valor": 35778.4, "referencia_benigno": 96.2}, ...]}
+ "features_principais": [{"nome": "Rate", "valor": 35778.4, "referencia_benigno": 96.2}, ...],
+ "portas": [{"destino": "192.168.137.20", "porta": 80, "protocolo": "tcp", "quadros": 1073352}]}
 ```
 
 `categoria_do_modelo` é o que o classificador disse, entre as 7 categorias do modelo do sistema,
@@ -196,7 +197,10 @@ que não separa DDoS de DoS e responde `DDoS+DoS` (`codigo/classificador/prepara
 as 8 categorias, e é a que os agentes usam. O contrato recusa a combinação que a regra não
 produziria, como `categoria` Recon com `categoria_do_modelo` `DDoS+DoS`. Os endereços de `origens`
 e `destinos` são endereços IP validados, e o `nome` de cada feature é uma das 39 colunas do
-extrator.
+extrator. `portas` traz até 5 portas de destino do TCP e do UDP, as que mais receberam quadros
+entre os destinos listados. A porta sai do cabeçalho de transporte de cada quadro e não é uma das
+39 features: serve para o agente escolher a porta de `fechar_porta`. Vem vazia sem TCP nem UDP,
+como num ARP spoofing ou num flood ICMP, e num log gravado antes da versão 0.4.0.
 
 **`obter_janelas`** (triagem)
 
@@ -226,10 +230,12 @@ Pedido acima de 20 devolve 20. Uma feature vem nula quando o extrator não produ
  "origens": [{"rotulo": "origem-1", "quadros": 61240, "protegido": false}, ...],
  "destinos": [{"rotulo": "destino-1", "quadros": 1073352, "protegido": false}],
  "features_principais": [{"nome": "Rate", "valor": 35778.4, "referencia_benigno": 96.2}, ...],
+ "portas": [{"destino": "destino-1", "porta": 80, "protocolo": "tcp", "quadros": 1073352}],
  "ultimo_efeito": null}
 ```
 
-`protegido` diz se o endereço é protegido ou crítico pela política, sem dizer qual é. Depois de
+`protegido` diz se o endereço é protegido ou crítico pela política, sem dizer qual é. As portas
+vêm com o rótulo do destino; a porta não é endereço e vem como está. Depois de
 uma ação aplicada e verificada, `ultimo_efeito` traz o último efeito verificado no incidente, na
 ordem do log:
 
@@ -763,7 +769,14 @@ de exemplo direto daqui: depois de gerá-lo de novo, rode também o `npm test` e
 ## Versão do contrato
 
 A versão fica em `contrato.json`, no campo `versao`, e sai de `VERSAO`, em `tipos.py`. A atual é
-a 0.3.0. O que mudou em relação à 0.2.0, para quem já usava o stub:
+a 0.4.0. O que mudou em relação à 0.3.0, para quem já usava o stub:
+
+- **Portas no incidente.** `Incidente` ganhou `portas`, com o destino, a porta, o protocolo
+  (`tcp` ou `udp`) e os quadros de cada uma, e `obter_resumo` traz as mesmas portas com o rótulo
+  do destino (`PortaRotulada`). O campo tem valor padrão: um log gravado com a 0.3.0 continua
+  legível, com a lista vazia. Uma porta de um destino que o incidente não lista é recusada.
+
+O que mudou da 0.2.0 para a 0.3.0:
 
 - **Categoria do modelo.** `categoria_do_modelo`, no incidente e nas janelas, e `por_categoria`,
   em `janelas_classificadas`, usam as 7 categorias do modelo do sistema, com `DDoS+DoS` junto.

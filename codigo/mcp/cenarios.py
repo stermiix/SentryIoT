@@ -60,6 +60,13 @@ def _contados(*pares):
     return [{"endereco": endereco, "quadros": quadros} for endereco, quadros in pares]
 
 
+def _portas(*quadras):
+    return [
+        {"destino": destino, "porta": porta, "protocolo": protocolo, "quadros": quadros}
+        for destino, porta, protocolo, quadros in quadras
+    ]
+
+
 def _principais(*trios):
     return [{"nome": nome, "valor": valor, "referencia_benigno": referencia} for nome, valor, referencia in trios]
 
@@ -92,6 +99,7 @@ CENARIOS = (
                 ("Rate", 35778.4, 96.2), ("syn_flag_number", 1.0, 0.06), ("IAT", 0.000028, 0.0104),
                 ("Tot size", 54.0, 310.5),
             ),
+            portas=_portas(("192.168.137.20", 80, "tcp", 1_073_352)),
         ),
         lote=LoteDeJanelas(janelas=10_946, por_categoria={"DDoS+DoS": 10_734, "Benign": 212}),
         efeitos=("persiste", "cessou"),
@@ -124,6 +132,7 @@ CENARIOS = (
             features_principais=_principais(
                 ("SSH", 1.0, 0.02), ("Rate", 11.8, 96.2), ("psh_flag_number", 0.4, 0.21), ("Tot size", 98.4, 310.5),
             ),
+            portas=_portas(("192.168.137.31", 22, "tcp", 912)),
         ),
         lote=LoteDeJanelas(janelas=24, por_categoria={"BruteForce": 18, "Benign": 6}),
         efeitos=("cessou",),
@@ -160,6 +169,11 @@ CENARIOS = (
                 ("syn_flag_number", 0.5, 0.06), ("rst_flag_number", 0.5, 0.01), ("Tot size", 57.0, 310.5),
                 ("Rate", 16.2, 96.2),
             ),
+            # Numa varredura, cada porta recebe poucos quadros: as cinco listadas empatam.
+            portas=_portas(
+                ("192.168.137.20", 22, "tcp", 2), ("192.168.137.20", 23, "tcp", 2), ("192.168.137.31", 22, "tcp", 2),
+                ("192.168.137.31", 23, "tcp", 2), ("192.168.137.42", 80, "tcp", 2),
+            ),
         ),
         lote=LoteDeJanelas(janelas=15, por_categoria={"Recon": 10, "Benign": 5}),
         efeitos=("diminuiu", "cessou"),
@@ -195,6 +209,7 @@ CENARIOS = (
                 ("Rate", 310.4, 96.2), ("Tot size", 1242.0, 310.5), ("ack_flag_number", 1.0, 0.62),
                 ("syn_flag_number", 0.0, 0.06),
             ),
+            portas=_portas(("198.51.100.90", 443, "tcp", 900)),
         ),
         lote=LoteDeJanelas(janelas=152, por_categoria={"DDoS+DoS": 9, "Benign": 143}),
         efeitos=("cessou",),
