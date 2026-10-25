@@ -254,8 +254,9 @@ local é de risco alto, os endereços críticos (o servidor MCP, o host do model
 resolvedor DNS) são protegidos, e o teto de medidas de risco baixo ativas vale por incidente (5) e
 para o sistema todo (10). O custo de tokens é contido de outra forma: os agentes recebem o resumo
 do incidente, e não as janelas, e o detalhe vem em fatias de até 20 janelas. Na PoC, a resposta é
-executada num ambiente simulado, com aprovação humana e possibilidade de desfazer (ver
-`codigo/mcp/README.md` e `codigo/mcp/politica.toml`).
+executada num ambiente simulado, com aprovação humana e possibilidade de desfazer, e a verificação
+do efeito responde sempre que o ataque cessou (seção 5; ver `codigo/mcp/README.md` e
+`codigo/mcp/politica.toml`).
 
 Arquitetura híbrida (Figura 1; decisões de 2026-10-10, 2026-10-11, 2026-10-19 e 2026-10-25): o
 agente de decisão roda num modelo de fronteira, pela nuvem, e coordena o incidente. Ele aceita ou
@@ -289,8 +290,17 @@ Denial of Wallet é tratado pela política de acionamento (primeira versão no r
 só: um flood de 264 mil janelas vira 4 incidentes, um por sessão de captura, e as rajadas de uma
 varredura contra alvos diferentes reabrem o mesmo incidente. O que ainda passa é o ataque de pouco
 volume em rajadas espaçadas: o `DNS_Spoofing.pcap` dá 51 incidentes em 28 horas
-(`experimentos/resultados/reproducao_dos_pcaps.md`). Hoje o teto é de 20 incidentes por pcap; um
-teto por tempo, e o que fazer com os incidentes acima dele, ainda está em aberto.
+(`experimentos/resultados/reproducao_dos_pcaps.md`). Nos experimentos, que reproduzem um pcap por
+vez, o teto é de 20 incidentes por pcap. Num sistema ligado o tempo todo não há pcap para contar, e
+o teto passa a ser por tempo (decisão de 2026-10-25) `[a implementar]`. Até 10 incidentes por hora,
+somando todos os ataques, vão ao modelo de fronteira. Acima disso, o incidente abre normalmente e
+segue pela configuração tudo local, sem custo de tokens, e a pessoa que opera a rede é avisada de
+que ele será tratado só pelo modelo local, de menor capacidade. A rota local aceita até 5
+incidentes esperando a vez; acima disso, a pessoa é avisada e fica só a saída do classificador,
+sem os agentes, até abrir vaga. Os dois valores são parâmetros: no pior caso medido, cerca de 2
+incidentes por hora, o primeiro comporta uns 5 ataques lentos ao mesmo tempo. A política de risco,
+a troca de endereços por rótulos e a aprovação humana valem nas duas rotas, porque estão no
+servidor.
 
 A pessoa que opera a rede será avisada no instante em que o incidente abrir, antes dos agentes
 `[a implementar no modo ao vivo da interface]`, e pode marcar o incidente como já resolvido. A
@@ -319,8 +329,15 @@ no repositório antes da primeira rodada (decisão de 2026-10-25). O gabarito di
 catálogo são aceitáveis em cada categoria e em que alvo, e o alvo é conferido com os atacantes do
 dataset, identificados pelo MAC. O acerto da triagem vem ao lado, e uma rubrica de 1 a 5
 (adequação, alvo, proporcionalidade e justificativa) avalia uma amostra de 9 casos, um por cenário
-e configuração, para cobrir a justificativa, que a conferência automática não vê. Segurança do
-MCP: o teste de tool poisoning `[a escrever]`.
+e configuração, para cobrir a justificativa, que a conferência automática não vê. Nos
+experimentos, as propostas de risco alto passam por um aprovador automático com regra fixa
+(decisão de 2026-10-25) `[a implementar]`: ele aprova a proposta que o gabarito aceita e rejeita as
+demais, inclusive a ação nova, contada à parte. Isso inclui todo bloqueio de atacante, porque os
+atacantes do dataset estão numa rede que a política trata como local. O tempo até a remediação é
+relatado em duas partes, a detecção (da primeira janela do ataque à abertura do incidente) e os
+agentes (da abertura à execução), sem o tempo de uma pessoa aprovar. A aprovação por uma pessoa
+aparece só na demonstração. Segurança do MCP: o teste de tool poisoning `[a escrever]`, se couber
+antes da submissão (seção 5).
 
 ## 4. Resultados
 
@@ -459,6 +476,26 @@ Rascunho a partir do que já foi medido:
   Uma implantação que capture como o fio precisaria retreinar o modelo com os quadros normalizados.
 - **O atacante também gera tráfego comum**: 27,1% das janelas de 100 dos pcaps benignos têm ao
   menos um quadro de um MAC atacante, e entram no treino como benignas.
+- **Ambiente simulado e efeito fixo**: o servidor MCP da PoC atende incidentes de pcaps
+  reproduzidos, e não de uma captura ao vivo, e aplicar uma ação é só gravar o evento no log, sem
+  rede em que ela aja (decisão de 2026-10-25). A verificação do efeito responde sempre que o ataque
+  cessou. Os experimentos medem se os agentes escolhem uma ação aceitável no alvo certo e em quanto
+  tempo ela é executada, e não se ela faria o ataque parar; o caso em que o agente de decisão propõe
+  outra ação porque a primeira não resolveu não é exercitado. `[Se houver tempo: o efeito de
+  bloquear_ip medido no próprio pcap, tirando os pacotes da origem bloqueada a partir do bloqueio.]`
+- **Aprovação nos experimentos**: as ações de risco alto são aprovadas por uma regra fixa
+  (seção 3.6), e o tempo até a remediação não inclui o de uma pessoa decidir, que numa operação
+  real pode passar de minutos.
+- **Teto por hora e rota de menor capacidade**: a regra por tempo dos incidentes (seção 3.5) não
+  foi implementada nem medida, e tem uma brecha. Um atacante pode gastar a cota da nuvem com
+  ruído, rajadas que bastam para abrir incidentes, para que o ataque real caia na rota local ou,
+  passado o segundo teto, só na saída do classificador. O estrago é limitado porque a política de
+  risco, a troca de endereços por rótulos e a aprovação humana estão no servidor e valem nas duas
+  rotas: um modelo mais fraco pode recomendar pior, mas não executa ação de risco alto sem
+  aprovação. A comparação entre as configurações (seção 4.2) mede quanto se perde na rota local.
+- **O que pode ficar fora do calendário** `[CONFERIR na revisão final]`: se não couberem antes da
+  submissão, o teste de tool poisoning (seção 3.6) e a ligação dos agentes à interface ficam de
+  fora, e a aprovação na PoC é feita pelo comando de terminal.
 - **Modelo local**: os agentes de triagem e execução rodam num Qwen de 27 bilhões de parâmetros,
   mais fraco que o de fronteira; a comparação entre as configurações mede esse custo. Mesmo com
   temperatura 0 e semente fixa, o texto das respostas varia entre repetições, e cada caso dos
