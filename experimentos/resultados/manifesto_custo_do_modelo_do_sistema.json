@@ -1,0 +1,95 @@
+{
+ "gerado_por": "python -m codigo.reprodutor.custo",
+ "gerado_em": "2026-10-25T18:48:29-03:00",
+ "versoes": {
+  "python": "3.11.2",
+  "scikit-learn": "1.9.1",
+  "numpy": "2.4.6"
+ },
+ "maquina": {
+  "sistema": "macOS-27.0.1-arm64-arm-64bit",
+  "processador": "Apple M5",
+  "memoria_bytes": 17179869184
+ },
+ "modelo": {
+  "arquivo": "rf_regerado_janela_100.joblib",
+  "sha256": "422fb3b4ca19803926a81dcb9e3466dc7863f2da70494528956e7cf51464dd15",
+  "bytes": 365581500,
+  "nos": 3046126,
+  "profundidade_media": 48.1,
+  "profundidade_maxima": 56
+ },
+ "codigo": {
+  "reprodutor/custo.py": "1933260e666b6a66d164f0e312faf8d95a94938de15dcb9193c63f3a954c9fdd",
+  "reprodutor/reprodutor.py": "9fec25a921a5b6d518d219c312ffe489a00ab5ad0e24ae2314a4eef8b8813298",
+  "captura/extrator.py": "0039ccfebfb23cb337e8439d6db8f55983a422e5d5f966f191d5100a1af78506",
+  "classificador/rodadas.py": "a44ed22885418493e352073d65e1d0d132bb60a7f4a4633a06eaff7f69d9f556"
+ },
+ "pcaps": [
+  {
+   "arquivo": "BenignTraffic2.pcap",
+   "janelas": 300
+  },
+  {
+   "arquivo": "DDoS-SYN_Flood1.pcap",
+   "janelas": 300
+  },
+  {
+   "arquivo": "DoS-SYN_Flood1.pcap",
+   "janelas": 300
+  },
+  {
+   "arquivo": "Mirai-greip_flood21.pcap",
+   "janelas": 300
+  },
+  {
+   "arquivo": "Recon-PortScan.pcap",
+   "janelas": 300
+  },
+  {
+   "arquivo": "DNS_Spoofing.pcap",
+   "janelas": 300
+  },
+  {
+   "arquivo": "XSS.pcap",
+   "janelas": 114
+  },
+  {
+   "arquivo": "DictionaryBruteForce.pcap",
+   "janelas": 300
+  }
+ ],
+ "carga": {
+  "importar_s": 0.6612415420022444,
+  "carga_s": 0.13728695799727575,
+  "memoria_antes": 158449664.0,
+  "memoria_depois": 896368640.0
+ },
+ "medidas": {
+  "janelas": 2214,
+  "latencia_predict_proba": {
+   "mediana_ms": 1.6674790003889939,
+   "p95_ms": 1.7856267490060418,
+   "p99_ms": 1.8613046698374092
+  },
+  "latencia_do_caminho": {
+   "mediana_ms": 1.6814794980746228,
+   "p95_ms": 1.7877562506328104,
+   "p99_ms": 1.8356087505890173
+  },
+  "lote_ms": 8.550250000553206,
+  "vazao_do_extrator": {
+   "arquivo": "Recon-PortScan.pcap",
+   "pacotes": 831856,
+   "janelas": 8228,
+   "segundos": 5.511801707998529
+  },
+  "vazao_do_reprodutor": {
+   "arquivo": "Recon-PortScan.pcap",
+   "quadros": 831856,
+   "janelas": 8227,
+   "segundos": 5.824446834001719
+  }
+ },
+ "pico_de_memoria": 910491648
+}

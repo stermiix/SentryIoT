@@ -531,6 +531,7 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `reprodutor.py` | Leva um pcap pelo extrator, pelo modelo do sistema e pela política de acionamento, que reúne as janelas do mesmo ataque num incidente só (primeira versão, decisão de 2026-10-19), e grava os incidentes no log de eventos do contrato, com os cenários ao lado para o servidor MCP atender |
 | `__main__.py` | A linha de comando: `python -m codigo.reprodutor <pcap>`, com `--so-teste` para só o trecho fora do treino e os parâmetros da política. O log vai para `dados/eventos/reproducoes/`, fora do git |
 | `avaliar.py` | Roda o reprodutor nos 38 pcaps e confere os incidentes com os MACs dos atacantes. Gera `experimentos/resultados/reproducao_dos_pcaps.md` e o manifesto |
+| `custo.py` | Mede o custo do modelo do sistema na operação, num núcleo: a latência de uma janela isolada no trecho de teste de um pcap por categoria, o lote de 1.000 janelas, a vazão do extrator e do reprodutor e a memória. Gera `experimentos/resultados/custo_do_modelo_do_sistema.md` e o manifesto (`nice -n 10 python -m codigo.reprodutor.custo`) |
 | `referencia_benigno.json` | A mediana de cada feature no tráfego benigno do treino, mostrada ao lado das features principais do incidente |
 
 **Backend da interface** (`codigo/api/`)
@@ -567,6 +568,7 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `resultados/ponto_de_operacao.md` | O ponto de operação nas configurações 5 e 0: a regra escolhida em cada semente e rotação, as medidas no teste com o argmax, o melhor limiar e a regra escolhida, os alarmes no pcap benigno de fora, o fundo, os pcaps de ataque que alarmam e a conferência dos modelos salvos. As tabelas estão nos `ponto_de_operacao_*.csv`, e tudo, em `manifesto_ponto_de_operacao.json` |
 | `resultados/regeracao_preenchido/`, `resultados/regeracao_preenchido_limitado/` | Os manifestos das regerações com o quadro completado até 60 bytes e com o quadro como no fio |
 | `resultados/reproducao_dos_pcaps.md` | Os 38 pcaps pelo reprodutor, com os incidentes conferidos com os MACs dos atacantes: janelas com atacante, origem e destino principais, categoria DDoS ou DoS, atraso de detecção, alarmes falsos nos pcaps benignos e o efeito de capturar os quadros como no fio. Tudo está em `manifesto_reproducao_dos_pcaps.json` |
+| `resultados/custo_do_modelo_do_sistema.md` | O custo do modelo do sistema na operação: latência de uma janela, lote, vazão do extrator e do reprodutor, tempo de leitura e memória, com a máquina da medida. Tudo está em `manifesto_custo_do_modelo_do_sistema.json` |
 | `resultados/avaliacao_agentes.csv` | **(a criar)** A qualidade das recomendações: por incidente, se a ação é aceitável no alvo certo pelo gabarito por categoria, com o acerto da triagem ao lado (decisão de 2026-10-25) |
 | `resultados/custo_latencia.csv` | **(a criar)** Tokens e tempo de resposta por alerta |
 | `notebooks/` | Exploração livre. Nada que vá para o artigo nasce aqui sem virar script |

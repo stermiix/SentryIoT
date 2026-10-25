@@ -328,9 +328,13 @@ estava aplicado pode ser desfeito, e o agente de decisão, que vê a marca no re
 incidente. O log grava o instante de cada etapa, da janela à verificação (Figura 2), o que permite
 medir o tempo entre detecção e remediação, com e sem intervenção humana. Do lado da detecção, a
 janela de 100 quadros fecha, na mediana, em 5 ms em DDoS e DoS e entre 1,3 s e 2,5 s em Recon,
-BruteForce e Web, e a classificação de uma janela leva 1,6 ms no modelo de 10/10
-(`experimentos/resultados/rodadas_de_teste.md`); o modelo do sistema ocupa 365,6 MB em disco, o dobro
-do de 10/10, e a latência dele ainda não foi medida.
+BruteForce e Web. No modelo do sistema, que ocupa 365,6 MB em disco, o dobro do de 10/10, a
+classificação de uma janela isolada leva 1,68 ms na mediana e 1,79 ms no p95, num núcleo, da linha
+do extrator à probabilidade, e um lote de 1.000 janelas, 8,6 ms. O processo com o modelo carregado
+ocupa cerca de 900 MB de memória. O extrator lê cerca de 151 mil quadros por segundo, e o reprodutor
+inteiro, com a classificação e a política de acionamento, 143 mil, também num núcleo, num MacBook
+Pro M5 com 16 GB (`experimentos/resultados/custo_do_modelo_do_sistema.md`). No modelo de 10/10, a
+janela levava 1,6 ms (`experimentos/resultados/rodadas_de_teste.md`).
 
 ### 3.6 Avaliação da PoC e dos agentes
 
