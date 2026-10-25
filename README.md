@@ -25,10 +25,11 @@ cobre a detecção e a resposta.
   10/10/2026, com o orientador, porque o CICIoT2023 cobre os três cenários da PoC. Ver
   `dados/README.md` e `ROADMAP.md`.
 - **Stack:** Python, Pandas, scikit-learn, dpkt, servidor MCP, agentes LLM.
-- **Agentes:** três papéis (triagem, decisão e execução), em arquitetura híbrida: triagem e
-  execução no modelo local, e só a decisão pode usar um modelo de fronteira na nuvem. O servidor
-  MCP entrega à decisão um resumo em que cada endereço vira um rótulo neutro, e só a execução
-  recebe o endereço real. Ver `ROADMAP.md` e `codigo/mcp/README.md`.
+- **Agentes:** três papéis (triagem, decisão e execução), em arquitetura híbrida: o agente de
+  decisão roda num modelo de fronteira na nuvem e coordena o incidente, e triagem e execução rodam
+  no modelo local, o `qwen3.8-27c` de um gateway interno. O encadeamento entre eles é código, e não
+  um quarto agente. O servidor MCP entrega à decisão um resumo em que cada endereço vira um rótulo
+  neutro, e só a execução recebe o endereço real. Ver `ROADMAP.md` e `codigo/mcp/README.md`.
 - **Cenários da PoC:** DDoS, port scan e brute force. O cenário de exfiltração foi retirado em
   10/10/2026, em decisão com o orientador: o CICIoT2023 não tem essa classe, e os datasets de
   referência da área também não cobrem esse vetor com dados rotulados suficientes.
@@ -51,9 +52,11 @@ mudaram o escopo do trabalho:
    registrar que a stack real dos autores do dataset usa `dpkt` como parser, `tcpdump` para
    captura e `mergecap` para juntar capturas; o Scapy aparece só para Zigbee e Bluetooth.
 3. **Riscos de IA em nuvem, custo de tokens e a alternativa on-premises.** Resposta adotada:
-   arquitetura híbrida, com triagem e execução num modelo local e só a decisão podendo usar um
-   modelo de nuvem, sem endereço da rede, o que o servidor MCP garante; os agentes recebem o
-   resumo do incidente, e não as janelas (`ROADMAP.md`; seção 3.5 de `artigo/esqueleto.md`).
+   arquitetura híbrida, com triagem e execução no modelo local (o `qwen3.8-27c` de um gateway
+   interno) e só o agente de decisão num modelo de fronteira, sem endereço da rede, o que o
+   servidor MCP garante. Ele coordena o incidente e o encadeamento é código, para a nuvem não
+   cobrar um segundo papel a cada incidente; os agentes recebem o resumo do incidente, e não as
+   janelas (`ROADMAP.md`; seção 3.5 de `artigo/esqueleto.md`).
 4. **Limites de análise por NetFlow vs. PCAP.** Resposta adotada: o sistema lê o pcap, porque as
    39 features medem cada quadro da janela, o que um registro de fluxo não guarda (seção 3.1 de
    `artigo/esqueleto.md`).
@@ -114,7 +117,7 @@ agrupa as tarefas concluídas por semana e por responsável.
 | `codigo/captura/` | extrator de features: pacotes → 39 números |
 | `codigo/classificador/` | regeração dos dados de treino a partir dos pcaps, preparação, treino e avaliação do Random Forest |
 | `codigo/reprodutor/` | reprodutor de tráfego: um pcap passa pelo extrator, pelo classificador e pela política de acionamento, e os incidentes vão para o log de eventos (`python -m codigo.reprodutor captura.pcap`) |
-| `codigo/mcp/` | contrato das tools MCP, stub do servidor, política de risco, base local de mitigações e log de eventos; o stub atende os incidentes do reprodutor quando recebe os cenários dele, e falta o processo do servidor ligado ao reprodutor |
+| `codigo/mcp/` | contrato das tools MCP, stub do servidor, política de risco, base local de mitigações e log de eventos; com os cenários do reprodutor (`--cenarios`), o stub é o servidor da PoC, em modo de reprodução |
 | `codigo/agente/` | skills dos agentes, recomendações de mitigação por categoria e os pedidos aos modelos (`pedidos.py`); o laço dos agentes e o orquestrador ainda serão escritos |
 | `codigo/api/` | backend fino da interface: chat com o modelo e simulação com um pcap (`python -m codigo.api`) |
 | `frontend/` | interface web do sistema, no design system SentryIoT (`frontend/src/design-system/`): replay do log, detalhe do incidente, telas do artigo, relatório e chat com o modelo (ver `frontend/README.md`) |

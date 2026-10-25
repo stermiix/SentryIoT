@@ -30,6 +30,16 @@ reposicionamento pedido pela banca do TCC I (ver `README.md`, seção "Correçõ
 I"). O título também precisa mudar: o do TCC I era "Detecção de Ataques em IoT com IA Preditiva
 via MCP", e o do TCC II deve dizer detecção e resposta.
 
+Apresentar o público-alvo (decisão de 2026-10-25): as redes de casas e de pequenos negócios, como
+um restaurante, com televisores, câmeras, sensores e assistentes de voz na mesma rede e sem equipe
+de segurança. O motivo principal é o tamanho da rede do dataset: o CICIoT2023 é uma rede de
+laboratório única, com 105 dispositivos IoT, em que os próprios dispositivos IoT maliciosos atacam
+os outros (NETO et al., 2023), o que corresponde a uma casa ou a um
+pequeno comércio, e não à rede de uma empresa. Nesse tamanho, uma caixa só captura o tráfego e
+aplica as respostas (seção 3.1); quem não tem equipe de segurança é quem mais precisa de um agente
+que explique o incidente e proponha a resposta; e o custo de tokens pesa mais num orçamento
+pequeno (seção 3.5). A implantação numa empresa fica para os trabalhos futuros (seção 6).
+
 ## 2. Trabalhos correlatos
 
 `[PENDENTE: texto]`. Fontes conferidas em 11/10/2026 (referências completas no fim):
@@ -69,9 +79,9 @@ nuvem só nos experimentos, em vez de um único modelo comercial em nuvem.
 ### 3.1 Captura e extração de features
 
 O sistema processa tráfego bruto em arquivo pcap, e não apenas o CSV pré-processado do dataset, o
-que responde ao avaliador 2 do TCC I. A captura da rede grava um arquivo pcap, com `tcpdump`,
-Wireshark ou ferramenta equivalente `[PENDENTE: fechar a ferramenta, decisão em aberto no
-ROADMAP.md]`; a extração das 39 features por janela de quadros é feita com `dpkt`, como no código
+que responde ao avaliador 2 do TCC I. A captura da rede grava um arquivo pcap com o `tcpdump`, a
+mesma ferramenta com que os autores do dataset capturaram e fatiaram os pcaps (decisão de
+2026-10-25); a extração das 39 features por janela de quadros é feita com `dpkt`, como no código
 dos autores do dataset, e não com o Scapy previsto no TCC I. No código dos autores, o Scapy só é
 importado para Zigbee e Bluetooth e não contribui para nenhuma das 39 colunas.
 
@@ -81,9 +91,27 @@ trabalho estão no repositório do projeto (OLIVEIRA et al., 2026). O trabalho n
 loco em dispositivos IoT reais: seria inviável no prazo, e o tráfego capturado não teria rótulo.
 O papel da captura é cumprido pelos pcaps brutos do CICIoT2023, que o extrator lê da mesma forma
 que leria um arquivo gravado na rede. O Wireshark não é necessário ao sistema: serve para
-inspecionar capturas, e a gravação pode ser feita com `tcpdump`. O Scapy também não é usado,
-porque a extração precisa repetir o cálculo dos autores, feito com `dpkt`. A captura ao vivo fica
-como um adaptador futuro sobre o mesmo extrator.
+inspecionar capturas, e o pcapng que ele grava por padrão se converte em pcap com
+`editcap -F pcap`. O Scapy também não é usado, porque a extração precisa repetir o cálculo dos
+autores, feito com `dpkt`.
+
+Numa implantação numa casa ou num pequeno comércio, o público-alvo do trabalho (seção 1), como um
+restaurante com televisores, câmeras, sensores e assistentes de voz na rede, o gateway do SentryIoT
+fica entre o modem da operadora e os aparelhos e, de preferência, é também o ponto de acesso
+Wi-Fi. No modo comum do Wi-Fi, um aparelho
+não fala direto com outro: todo quadro passa pelo ponto de acesso. Assim o gateway vê também o
+tráfego de um aparelho para outro, que é o dos ataques do CICIoT2023, em que os atacantes estão na
+mesma rede das vítimas. Os aparelhos IoT ficam numa rede própria, separada da de computadores e
+celulares, e o tráfego entre as redes também cruza o gateway, que é onde as ações do catálogo
+seriam aplicadas, no firewall dele. Ali o `tcpdump` grava a interface da rede IoT de forma
+contínua, com o quadro inteiro (`-s 0`; um limite curto encolhe as colunas de tamanho) e um
+arquivo novo a cada intervalo (`-G`). A gravação é feita na interface da rede, e não no enlace que
+leva várias redes com etiqueta de VLAN, porque o extrator descarta o quadro etiquetado, como o
+código dos autores. A PoC lê arquivos fechados; a classe `Extrator` já recebe um quadro por vez, e
+a captura ao vivo fica como um adaptador futuro sobre ela. Num teste de 25/10, 5.000 quadros do
+Wi-Fi de um notebook, gravados com `tcpdump -i en0`, passaram pelo reprodutor sem conversão, do
+extrator à abertura de incidentes: um arquivo gravado fora do dataset entra no sistema. Os achados
+desse teste estão nas Limitações.
 
 O extrator (`codigo/captura/extrator.py`) foi calibrado em duas etapas. Na primeira, contra os
 CSVs oficiais de 5 pcaps, um por família (DDoS, DoS, Mirai, Recon e BruteForce), somando 167.304
@@ -241,11 +269,18 @@ pcaps, então os números não se comparam diretamente com os do artigo do datas
 
 ### 3.5 Servidor MCP e sistema multiagente
 
-`[PENDENTE: ligar à implementação real do servidor, hoje em stub]` O contrato, na versão 0.3.0,
+O servidor da PoC é o servidor MCP em modo de reprodução, que atende os incidentes reais do
+reprodutor de tráfego. O contrato, na versão 0.3.0,
 tem 10 tools MCP divididas entre os três agentes (triagem, decisão e execução) e grava cada passo
 num log de eventos em JSONL. O incidente traz a categoria do modelo, que junta DDoS e DoS
-(`DDoS+DoS`), e a categoria depois da regra que separa os dois pela quantidade de origens. A
-política de risco separa as ações de risco baixo, aplicadas sem aprovação, das de risco alto, que
+(`DDoS+DoS`), e a categoria depois da regra que separa os dois pela quantidade de origens. As
+respostas saem de um catálogo de cinco ações: `limitar_taxa`, `bloquear_ip`,
+`isolar_dispositivo`, `revogar_credencial` e `fechar_porta`, esta acrescentada em 2026-10-25
+`[a implementar]`, que fecha no firewall do gateway o acesso a uma porta de um dispositivo, com o
+alvo no formato `23/tcp@destino-1`. Para isso, o incidente passa a trazer as portas de destino mais
+frequentes, tiradas dos cabeçalhos TCP e UDP fora das 39 features, e o resumo lido pelo agente de
+decisão as mostra `[a implementar]`. Fora do catálogo, o agente pode propor uma ação nova, que é
+sempre de risco alto. A política de risco separa as ações de risco baixo, aplicadas sem aprovação, das de risco alto, que
 dependem de aprovação humana, e limita a 10 as propostas que aguardam aprovação em cada incidente,
 porque a fila é lida por uma pessoa e um agente enganado por conteúdo vindo da rede poderia
 enchê-la. Como a origem de um flood UDP ou ICMP pode ser forjada, bloquear uma origem da rede
@@ -253,15 +288,23 @@ local é de risco alto, os endereços críticos (o servidor MCP, o host do model
 resolvedor DNS) são protegidos, e o teto de medidas de risco baixo ativas vale por incidente (5) e
 para o sistema todo (10). O custo de tokens é contido de outra forma: os agentes recebem o resumo
 do incidente, e não as janelas, e o detalhe vem em fatias de até 20 janelas. Na PoC, a resposta é
-executada num ambiente simulado, com aprovação humana e possibilidade de desfazer (ver
-`codigo/mcp/README.md` e `codigo/mcp/politica.toml`).
+executada num ambiente simulado, com aprovação humana e possibilidade de desfazer, e a verificação
+do efeito responde sempre que o ataque cessou (seção 5; ver `codigo/mcp/README.md` e
+`codigo/mcp/politica.toml`).
 
-Arquitetura híbrida (Figura 1; decisões de 2026-10-10, 2026-10-11 e 2026-10-19): o orquestrador
-roda num modelo de fronteira, pela nuvem, e os agentes de triagem e de execução, com a verificação
-do efeito, rodam no modelo local, um Qwen de 27 bilhões de parâmetros (`qwen3.8-27c`) servido por
-um gateway compatível com a API da OpenAI `[CONFERIR: quantização, que a API não expõe]`. Nos
-testes, esse gateway é um serviço interno de outra organização, e os dados são os do CICIoT2023,
-públicos; numa implantação, o modelo local precisa rodar na infraestrutura de quem opera a rede.
+Arquitetura híbrida (Figura 1; decisões de 2026-10-10, 2026-10-11, 2026-10-19 e 2026-10-25): o
+agente de decisão roda num modelo de fronteira, pela nuvem, e coordena o incidente. Ele aceita ou
+descarta o veredito da triagem, propõe a ação e propõe outra quando o efeito verificado mostra que
+a anterior não resolveu. O encadeamento dos agentes (chamar a triagem, esperar a aprovação no log
+e chamar a execução) fica em código, num orquestrador que não é um quarto agente
+`[a implementar]`. Os agentes de triagem e de execução, com a verificação do efeito, rodam no
+modelo local, um Qwen de 27 bilhões de parâmetros (`qwen3.8-27c`), chamado por uma API compatível
+com a da OpenAI. Na PoC, quem serve o modelo é um llama.cpp num gateway interno de outra
+organização, numa rede que não é da equipe, com hardware e quantização desconhecidos
+`[CONFERIR: quantização, que a API não expõe]`, e os dados que passam por ele são os do
+CICIoT2023, públicos. Numa implantação, o modelo local fica num servidor dentro da rede atendida,
+no próprio gateway, se ele comportar, ou numa máquina ao lado, e o código não muda: só o endereço
+do servidor (`LLM_BASE_URL`).
 A garantia de que nenhum endereço da rede chega à fronteira está no servidor, e não no prompt: o agente de decisão não tem as tools que devolvem endereços
 e lê o incidente por `obter_resumo`, montado pelo servidor com um rótulo neutro (`origem-1`,
 `destino-1`) no lugar de cada endereço. Ele propõe a ação com o rótulo; o servidor troca o rótulo
@@ -269,22 +312,32 @@ pelo endereço e calcula o risco sobre o endereço real, e só o agente de execu
 com credenciais, recebe o endereço. Toda resposta à linha de decisão passa ainda por um filtro
 que troca por um marcador qualquer endereço que tenha sobrado em texto livre. O veredito da
 triagem, texto livre escrito pelo modelo local, precisa passar pelo mesmo filtro antes de chegar
-ao agente de decisão `[a implementar no orquestrador]`. O orquestrador aceitará três
+ao agente de decisão `[a implementar]`. O orquestrador aceitará três
 configurações, tudo local, tudo na nuvem e híbrida, e a comparação entre elas em qualidade, custo
 e tempo é resultado do artigo. Isso responde ao ponto da banca sobre riscos de IA em nuvem e à
 alternativa on-premises.
 
 A busca na internet dos agentes fica desligada por padrão, e por isso nenhum dado da rede sai da
-máquina por ela; a comparação com a busca ligada fica como experimento. O custo em tokens é
-medido por chamada: cada chamada ao modelo grava no log o agente, o modelo e os tokens de entrada
-e de saída, e o contador da interface mostra quantas chamadas um incidente gerou. O risco de
+máquina por ela; a comparação com a busca ligada fica como experimento. O custo em tokens será
+medido por chamada: cada chamada ao modelo vai gravar no log o agente, o modelo e os tokens de
+entrada e de saída `[a implementar]`, e o contador da interface mostra quantas chamadas um
+incidente gerou. O risco de
 Denial of Wallet é tratado pela política de acionamento (primeira versão no reprodutor de tráfego,
 `codigo/reprodutor/`; decisão de 2026-10-19), que reúne as janelas do mesmo ataque num incidente
 só: um flood de 264 mil janelas vira 4 incidentes, um por sessão de captura, e as rajadas de uma
 varredura contra alvos diferentes reabrem o mesmo incidente. O que ainda passa é o ataque de pouco
 volume em rajadas espaçadas: o `DNS_Spoofing.pcap` dá 51 incidentes em 28 horas
-(`experimentos/resultados/reproducao_dos_pcaps.md`). Hoje o teto é de 20 incidentes por pcap; um
-teto por tempo, e o que fazer com os incidentes acima dele, ainda está em aberto.
+(`experimentos/resultados/reproducao_dos_pcaps.md`). Nos experimentos, que reproduzem um pcap por
+vez, o teto é de 20 incidentes por pcap. Num sistema ligado o tempo todo não há pcap para contar, e
+o teto passa a ser por tempo (decisão de 2026-10-25) `[a implementar]`. Até 10 incidentes por hora,
+somando todos os ataques, vão ao modelo de fronteira. Acima disso, o incidente abre normalmente e
+segue pela configuração tudo local, sem custo de tokens, e a pessoa que opera a rede é avisada de
+que ele será tratado só pelo modelo local, de menor capacidade. A rota local aceita até 5
+incidentes esperando a vez; acima disso, a pessoa é avisada e fica só a saída do classificador,
+sem os agentes, até abrir vaga. Os dois valores são parâmetros: no pior caso medido, cerca de 2
+incidentes por hora, o primeiro comporta uns 5 ataques lentos ao mesmo tempo. A política de risco,
+a troca de endereços por rótulos e a aprovação humana valem nas duas rotas, porque estão no
+servidor.
 
 A pessoa que opera a rede será avisada no instante em que o incidente abrir, antes dos agentes
 `[a implementar no modo ao vivo da interface]`, e pode marcar o incidente como já resolvido. A
@@ -296,19 +349,36 @@ estava aplicado pode ser desfeito, e o agente de decisão, que vê a marca no re
 incidente. O log grava o instante de cada etapa, da janela à verificação (Figura 2), o que permite
 medir o tempo entre detecção e remediação, com e sem intervenção humana. Do lado da detecção, a
 janela de 100 quadros fecha, na mediana, em 5 ms em DDoS e DoS e entre 1,3 s e 2,5 s em Recon,
-BruteForce e Web, e a classificação de uma janela leva 1,6 ms no modelo de 10/10
-(`experimentos/resultados/rodadas_de_teste.md`); o modelo do sistema ocupa 365,6 MB em disco, o dobro
-do de 10/10, e a latência dele ainda não foi medida.
+BruteForce e Web. No modelo do sistema, que ocupa 365,6 MB em disco, o dobro do de 10/10, a
+classificação de uma janela isolada leva 1,68 ms na mediana e 1,79 ms no p95, num núcleo, da linha
+do extrator à probabilidade, e um lote de 1.000 janelas, 8,6 ms. O processo com o modelo carregado
+ocupa cerca de 900 MB de memória. O extrator lê cerca de 151 mil quadros por segundo, e o reprodutor
+inteiro, com a classificação e a política de acionamento, 143 mil, também num núcleo, num MacBook
+Pro M5 com 16 GB (`experimentos/resultados/custo_do_modelo_do_sistema.md`). No modelo de 10/10, a
+janela levava 1,6 ms (`experimentos/resultados/rodadas_de_teste.md`).
 
 ### 3.6 Avaliação da PoC e dos agentes
 
 `[PENDENTE]` Cenários: DDoS, varredura de portas e força bruta, reproduzidos a partir dos pcaps
 do CICIoT2023. Comparações: a saída isolada do classificador contra a saída integrada, com os
 agentes, no mesmo incidente, como previa o TCC I; e as três configurações dos agentes (tudo
-local, tudo na nuvem e híbrida). Medidas: qualidade da recomendação `[métrica a definir]`; tokens
-e custo por incidente; tempo entre a abertura do incidente e a remediação, com e sem a marca de já
-resolvido; e propostas aprovadas, rejeitadas e desfeitas. Segurança do MCP: o teste de tool
-poisoning `[a escrever]`.
+local, tudo na nuvem e híbrida). Medidas: qualidade da recomendação; tokens e custo por
+incidente; tempo entre a abertura do incidente e a remediação, com e sem a marca de já resolvido;
+e propostas aprovadas, rejeitadas e desfeitas. A qualidade da recomendação é a porcentagem de
+incidentes com uma ação aceitável no alvo certo, conferida contra um gabarito por categoria fixado
+no repositório antes da primeira rodada (decisão de 2026-10-25). O gabarito diz que ações do
+catálogo são aceitáveis em cada categoria e em que alvo, e o alvo é conferido com os atacantes do
+dataset, identificados pelo MAC. O acerto da triagem vem ao lado, e uma rubrica de 1 a 5
+(adequação, alvo, proporcionalidade e justificativa) avalia uma amostra de 9 casos, um por cenário
+e configuração, para cobrir a justificativa, que a conferência automática não vê. Nos
+experimentos, as propostas de risco alto passam por um aprovador automático com regra fixa
+(decisão de 2026-10-25) `[a implementar]`: ele aprova a proposta que o gabarito aceita e rejeita as
+demais, inclusive a ação nova, contada à parte. Isso inclui todo bloqueio de atacante, porque os
+atacantes do dataset estão numa rede que a política trata como local. O tempo até a remediação é
+relatado em duas partes, a detecção (da primeira janela do ataque à abertura do incidente) e os
+agentes (da abertura à execução), sem o tempo de uma pessoa aprovar. A aprovação por uma pessoa
+aparece só na demonstração. Segurança do MCP: o teste de tool poisoning `[a escrever]`, se couber
+antes da submissão (seção 5).
 
 ## 4. Resultados
 
@@ -408,6 +478,24 @@ Rascunho a partir do que já foi medido:
   em 24,9%, o de Spoofing em 63,0%, o de Mirai em 55,3% e o de Web em 29,4% (Tabela 1). Cada pcap
   de Recon e de Web é uma técnica diferente, e tirar o pcap tira também a técnica do treino.
   BruteForce tem um pcap só.
+- **Uma rede diferente da do dataset**: o classificador foi treinado e testado só com o tráfego
+  do laboratório do CICIoT2023, com os mesmos dispositivos, os mesmos sete atacantes e o mesmo
+  tráfego normal; mesmo as medidas com o pcap inteiro fora do treino vêm dessa rede. O desempenho
+  numa rede real, com outros dispositivos e outro tráfego normal, não foi medido, e o recall e o
+  alarme falso podem ser outros. O TTL e o tamanho dos quadros, que pesam nas decisões do modelo,
+  dependem dos dispositivos e de como o tráfego é capturado (itens abaixo).
+- **Tráfego que não é de IoT**: o tráfego benigno do treino é só de dispositivos IoT. No teste de
+  captura de 25/10 (seção 3.1), o tráfego normal de um notebook deu 8 das 23 janelas como
+  Spoofing e abriu um incidente de Spoofing, com confiança de 0,54. Computadores e celulares têm
+  outro tráfego normal, e o sistema foi pensado para vigiar a rede dos aparelhos IoT.
+- **IPv6**: o extrator só mede quadros IPv4 e ARP, como o código dos autores, e ignora o IPv6. No
+  mesmo teste, 2.674 dos 5.000 quadros (53%) eram IPv6. Um ataque feito só por IPv6 não é visto.
+- **Tráfego que não cruza o gateway**: o sistema só vê o que passa pelo ponto de captura. Numa
+  rede em que o gateway não é o ponto de acesso, nem separa a rede IoT das outras, o ataque de um
+  aparelho contra outro da mesma rede não chega a ele. Sensores em Zigbee ou Bluetooth, fora da
+  rede IP, também ficam de fora.
+- **DDoS vindo da internet**: um flood volumétrico de fora lota o link da operadora antes de
+  chegar ao gateway. Bloquear as origens no gateway não libera o link; isso pede ação do provedor.
 - **Alarme falso conforme o pcap benigno**: com cada pcap benigno fora do treino, a fração
   classificada como ataque vai de 0,8% a 6,0% no ponto de operação (Tabela 2). A regra foi
   escolhida com no máximo 1% de alarme falso na validação, que vem dos outros dois pcaps
@@ -447,14 +535,54 @@ Rascunho a partir do que já foi medido:
   Uma implantação que capture como o fio precisaria retreinar o modelo com os quadros normalizados.
 - **O atacante também gera tráfego comum**: 27,1% das janelas de 100 dos pcaps benignos têm ao
   menos um quadro de um MAC atacante, e entram no treino como benignas.
+- **Ambiente simulado e efeito fixo**: o servidor MCP da PoC atende incidentes de pcaps
+  reproduzidos, e não de uma captura ao vivo, e aplicar uma ação é só gravar o evento no log, sem
+  rede em que ela aja (decisão de 2026-10-25). A verificação do efeito responde sempre que o ataque
+  cessou. Os experimentos medem se os agentes escolhem uma ação aceitável no alvo certo e em quanto
+  tempo ela é executada, e não se ela faria o ataque parar; o caso em que o agente de decisão propõe
+  outra ação porque a primeira não resolveu não é exercitado. `[Se houver tempo: o efeito de
+  bloquear_ip medido no próprio pcap, tirando os pacotes da origem bloqueada a partir do bloqueio.]`
+- **Aprovação nos experimentos**: as ações de risco alto são aprovadas por uma regra fixa
+  (seção 3.6), e o tempo até a remediação não inclui o de uma pessoa decidir, que numa operação
+  real pode passar de minutos.
+- **Teto por hora e rota de menor capacidade**: a regra por tempo dos incidentes (seção 3.5) não
+  foi implementada nem medida, e tem uma brecha. Um atacante pode gastar a cota da nuvem com
+  ruído, rajadas que bastam para abrir incidentes, para que o ataque real caia na rota local ou,
+  passado o segundo teto, só na saída do classificador. O estrago é limitado porque a política de
+  risco, a troca de endereços por rótulos e a aprovação humana estão no servidor e valem nas duas
+  rotas: um modelo mais fraco pode recomendar pior, mas não executa ação de risco alto sem
+  aprovação. A comparação entre as configurações (seção 4.2) mede quanto se perde na rota local.
+- **O que pode ficar fora do calendário** `[CONFERIR na revisão final]`: se não couberem antes da
+  submissão, o teste de tool poisoning (seção 3.6) e a ligação dos agentes à interface ficam de
+  fora, e a aprovação na PoC é feita pelo comando de terminal.
 - **Modelo local**: os agentes de triagem e execução rodam num Qwen de 27 bilhões de parâmetros,
   mais fraco que o de fronteira; a comparação entre as configurações mede esse custo. Mesmo com
   temperatura 0 e semente fixa, o texto das respostas varia entre repetições, e cada caso dos
-  experimentos é repetido.
+  experimentos é repetido. Um modelo desse tamanho pede placa de vídeo ou bastante memória, além
+  do que o gateway precisa para a captura, o classificador e o servidor MCP (seção 3.5). Para o
+  público-alvo, uma casa ou um pequeno negócio, esse hardware é caro. A saída é a configuração
+  híbrida com um modelo local menor, de qualidade não medida neste trabalho, ou um serviço
+  contratado que rode o modelo para vários clientes; nesse caso o dado sai da rede atendida, mas
+  vai para quem foi contratado, e não para um provedor de IA.
 
 ## 6. Conclusão
 
 `[PENDENTE]` — escrever por último.
+
+Trabalho futuro a incluir: a implantação numa empresa (decisão de 2026-10-25). Ali a caixa no
+caminho do tráfego não serve, porque uma falha dela pararia a rede. O tráfego das redes IoT chega a
+sensores passivos por espelhamento de porta no switch ou por um TAP, fora do caminho, um por prédio
+ou andar, com a captura, o extrator e o classificador; só os incidentes seguem para uma central com
+o servidor MCP, os agentes, a interface e o modelo local num servidor com GPU, compartilhado entre
+os sensores. A resposta deixa de ser aplicada pelo gateway e passa a ser feita por integração: o
+agente de execução chama o firewall da empresa, o controle de acesso à rede, para a quarentena, e o
+diretório de contas, onde `revogar_credencial` tem uma implementação natural. A política de risco e
+o contrato das ações não mudam, só a parte que executa, hoje simulada. Ficam dois desafios. O
+primeiro é o volume: o centro de uma rede corporativa passa de 1 Gbps, e o extrator em Python lê
+cerca de 151 mil quadros por segundo num núcleo (seção 3.5), o que pede um extrator por rede IoT ou
+uma reescrita numa linguagem compilada. O segundo é a janela de 100 quadros consecutivos, que numa
+rede movimentada cobre poucos milissegundos e mistura muitos aparelhos, longe das condições do
+laboratório do dataset.
 
 ## Referências
 
