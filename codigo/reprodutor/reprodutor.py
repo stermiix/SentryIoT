@@ -41,19 +41,27 @@ aos modelos:
   dela deixam de ser guardadas até uma benigna.
 Os números são parâmetros, porque o experimento ponta a ponta vai comparar valores.
 
-Papéis. O alvo do incidente é quem recebe mais quadros de abertura de conexão (SYN sem ACK) além do
-fundo, quando há pelo menos `MINIMO_DE_ABERTURAS` deles; senão, numa varredura, o atacante é quem fala com mais destinos, fora os
-endereços protegidos e críticos da política (o gateway fala com todos); nos outros casos, o alvo é
-o endereço que mais recebe quadros. Multicast e broadcast nunca são o alvo: um anúncio de SSDP
-recebe de todos os dispositivos da rede. As escolhas usam o excesso de cada par de endereços sobre
-o fundo das janelas benignas do mesmo pcap: num ataque de pouco volume, o tráfego normal da rede
-domina as contagens, e o par do atacante é o que aparece quase só nas janelas de ataque. As origens são quem manda quadros ao alvo, e os
-destinos, para onde essas origens mandam: as respostas da vítima não põem o atacante entre os
-destinos. O incidente é distribuído quando a maior origem responde por menos de
-`PARCELA_DA_MAIOR_ORIGEM` dos quadros enviados ao alvo; é a regra que separa DDoS de DoS, que o
-modelo não separa. Com origem forjada a cada quadro, nenhuma domina, e o incidente sai distribuído.
-No ARP spoofing não há destino IP: as origens são os endereços anunciados, e a lista de destinos
-fica vazia.
+Papéis. O atacante vem primeiro, pela presença dos endereços contra o fundo. O fundo são as
+janelas benignas do mesmo pcap que não caem num incidente aberto, e o destaque de um endereço é a
+fração das janelas do incidente em que ele aparece como origem menos a fração das janelas do fundo
+em que aparece. Num ataque de pouco volume, o tráfego normal da rede domina as contagens, e o
+atacante é o que aparece em quase todas as janelas do incidente e quase nunca nas benignas; o
+gateway e os dispositivos comuns aparecem nas duas. São candidatos os endereços que mandam quadros
+e têm destaque positivo, fora os protegidos e críticos da política (o gateway fala com todos), e
+os fortes são os que chegam a `DESTAQUE_RELATIVO` do maior destaque. Entre os fortes, o atacante é
+o que mais abre conexões (SYN sem ACK, descontadas as que recebe), quando abre pelo menos
+`MINIMO_DE_ABERTURAS`; senão, é o que mais manda quadros além dos que recebe. O alvo vem depois: é,
+entre os destinos do atacante, o que mais se destaca como destino contra o fundo. Numa varredura
+(Recon, na categoria do modelo), o atacante é a única origem, e os destinos são todos os endereços
+a que ele mandou quadros. Nos outros casos, as origens são os fortes que mandam quadros ao alvo, e
+os destinos, para onde essas origens mandam: as respostas da vítima não põem o atacante entre os
+destinos. Sem candidato, ou sem destino do atacante, os papéis saem do volume: o alvo é o endereço
+que mais recebe quadros, e as origens são todas as que mandam a ele. Multicast e broadcast nunca
+são candidatos nem alvo: um anúncio de SSDP recebe de todos os dispositivos da rede. O incidente é
+distribuído quando a maior origem responde por menos de `PARCELA_DA_MAIOR_ORIGEM` dos quadros
+enviados ao alvo; é a regra que separa DDoS de DoS, que o modelo não separa. Com origem forjada a
+cada quadro, nenhuma domina, e o incidente sai distribuído. No ARP spoofing não há destino IP: as
+origens são os endereços anunciados, e a lista de destinos fica vazia.
 
 Contagens. As contagens de endereço de um incidente são podadas para os `CONTADOS_DEPOIS_DA_PODA`
 mais frequentes quando passam de `LIMITE_DE_CONTADOS`: com origem forjada, a memória fica limitada,
