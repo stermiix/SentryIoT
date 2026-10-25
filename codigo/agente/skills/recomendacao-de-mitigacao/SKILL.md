@@ -34,14 +34,14 @@ inclusive a de uma proposta já aprovada (`incidente_ja_resolvido`).
   ação não resolve e o agente precisa propor outra.
 - Em incidente marcado **duvidoso** pela triagem, a preferência é por ação de risco baixo ou por
   nenhuma ação. Se a única saída for de risco alto (isolar dispositivo, revogar credencial,
-  qualquer ação nova), ela pode ser proposta, porque quem decide é a pessoa, mas a justificativa
+  fechar porta, qualquer ação nova), ela pode ser proposta, porque quem decide é a pessoa, mas a justificativa
   precisa começar dizendo que a triagem marcou o caso como duvidoso e por quê.
 
 ## O que a tool MCP devolve
 
 - `obter_resumo(id)`: categorias, confiança, contagens, features com a referência do tráfego
-  benigno, os rótulos das origens e dos destinos (com `protegido`), `ultimo_efeito` e
-  `ja_resolvido`.
+  benigno, os rótulos das origens e dos destinos (com `protegido`), as portas atacadas, com o
+  rótulo do destino, `ultimo_efeito` e `ja_resolvido`.
 - `consultar_mitigacoes(categoria)`: até 10 mitigações recomendadas (cada uma com `origem`,
   `titulo`, `texto`, e `acao` quando corresponde a uma ação do catálogo) e o catálogo de ações
   (`nome`, `descricao`, `alvo` escrito com rótulo, `parametros`, `regra` de risco,
@@ -59,6 +59,11 @@ inclusive a de uma proposta já aprovada (`incidente_ja_resolvido`).
 3. Escolher, entre as mitigações devolvidas, a que mais combina com o padrão observado (ex.:
    `bloquear_ip` quando o padrão é concentrado em poucas origens; não faz sentido para DDoS com
    dezenas de origens distintas). O alvo é um rótulo do resumo, como `origem-1`.
+   `fechar_porta` serve quando o ataque mira um serviço que o dispositivo não precisa expor, como
+   o Telnet que o Mirai usa para entrar: o alvo é a porta, o protocolo e o rótulo do destino, como
+   `23/tcp@destino-1`, tirados de `portas` no resumo. Porta que não aparece ali não é proposta,
+   e numa varredura, em que cada porta recebe poucos quadros, a porta escolhida precisa ser
+   justificada pelo serviço, e não pela contagem.
 4. Se nenhuma mitigação do catálogo servir para o padrão, chamar `pesquisar_solucoes` com uma
    descrição curta do padrão (até 2.000 caracteres) e avaliar os trechos devolvidos.
 5. Montar a `justificativa` da proposta citando o dado concreto que motivou a escolha (ex.:
@@ -68,7 +73,8 @@ inclusive a de uma proposta já aprovada (`incidente_ja_resolvido`).
    uma ação nova é o rótulo (`destino-1`) ou um texto sem endereço ("o dispositivo atacado").
 7. Ler a resposta: `risco` e `exige_aprovacao` já vêm calculados pelo servidor; a skill não
    recalcula risco, só decide o que propor. Bloquear um destino, um endereço protegido ou uma
-   origem da rede local é de risco alto, e os motivos dizem por quê.
+   origem da rede local é de risco alto, e os motivos dizem por quê. Fechar uma porta é sempre de
+   risco alto: corta um serviço do dispositivo.
 8. Depois que o agente de execução aplica a ação e verifica o efeito, o resultado aparece em
    `ultimo_efeito` no próximo `obter_resumo`. O agente de decisão não chama `verificar_efeito`,
    que muda o incidente. Se `persiste`, repetir a partir do passo 3 com os dados do que já foi

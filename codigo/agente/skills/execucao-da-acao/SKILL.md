@@ -39,7 +39,7 @@ executar.
   `observacao`.
 - `desfazer_acao(id_execucao)`: a execução, agora com `estado` `desfeita`.
 - `consultar_estado()`: as medidas ativas, em `bloqueios`, `limites`, `isolamentos`,
-  `credenciais_revogadas` e `outras_medidas`.
+  `credenciais_revogadas`, `portas_fechadas` e `outras_medidas`.
 
 A linha de execução não tem `obter_resumo`, então não lê `ja_resolvido` antes de agir. Quem
 barra a execução de um incidente marcado como já resolvido é o servidor, com o motivo

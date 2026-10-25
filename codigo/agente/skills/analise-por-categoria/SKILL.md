@@ -36,6 +36,8 @@ mesmo jeito, para o fluxo ser o mesmo nas três configurações comparadas no ar
     é protegido pela política (o gateway, a máquina de captura, os serviços críticos).
   - `features_principais`: cada uma com `nome` (uma das 39 colunas do extrator), `valor` e
     `referencia_benigno`, o valor típico no tráfego benigno.
+  - `portas`: até 5 portas de destino do TCP e do UDP que mais receberam quadros, cada uma com o
+    `destino` (o rótulo), a `porta`, o `protocolo` e os `quadros`. Vem vazia sem TCP nem UDP.
   - `estado`, `ja_resolvido` e `ultimo_efeito`: o que já foi tentado e se a pessoa já resolveu.
 
 Quando o resumo não basta para confirmar o padrão, o caminho é pedir uma reavaliação à triagem,
@@ -47,8 +49,11 @@ risco é o servidor, em `propor_acao`.
 As 39 features descrevem uma janela de 100 quadros (decisão de 2026-10-10): não há porta nem
 endereço entre elas. O que existe de camada de aplicação são os indicadores de protocolo
 (`HTTP`, `HTTPS`, `DNS`, `Telnet`, `SSH`, `TCP`, `UDP`, `ICMP`, `ARP` e os demais), que dizem a
-fração da janela em cada protocolo. Quando a análise precisar de "em quais portas", a resposta
-não está nos dados: dizer isso em vez de inventar.
+fração da janela em cada protocolo. As portas atacadas vêm à parte, em `portas`, contadas pelo
+servidor nos cabeçalhos de transporte: é ali que a análise responde "em quais portas". Uma
+porta que concentra os quadros (23 ou 2323 do Telnet, 22 do SSH, 80 do HTTP) diz qual serviço o
+ataque mira; muitas portas com poucos quadros cada são o retrato de uma varredura. Fora dessas
+cinco, a resposta não está nos dados: dizer isso em vez de inventar.
 
 - **DDoS e DoS**: `Rate` muito acima da referência do tráfego benigno, `syn_count` ou `ack_count`
   altos, e `origens_distintas` (DDoS tem muitas, DoS poucas; a separação já vem pronta em
@@ -81,6 +86,7 @@ Incidente: <id>  |  Categoria: <categoria>
 Padrão observado: <1–2 frases, o que no tráfego caracteriza esse ataque específico>
 Features que sustentam a leitura: <nome: valor (referência benigno: x), até 3>
 Alvos envolvidos: <rótulos que importam, como origem-1 ou destino-1, e se algum é protegido>
+Portas atacadas: <as que importam, como 23/tcp em destino-1, ou "nenhuma no resumo">
 Urgência percebida: baixa | média | alta
 ```
 
