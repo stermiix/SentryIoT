@@ -140,6 +140,15 @@ def test_arp():
 def test_fragmento_ip_nao_conta_como_tcp():
     m = medir_quadro(0.0, eth(0x0800, ipv4(6, b"\x00" * 24, fragmento=0x00B9)))
     assert (m["Protocol Type"], m["TCP"], m["Header_Length"]) == (6, 0, 0)
+    assert m["porta_destino"] is None
+
+
+def test_porta_de_destino_do_tcp_e_do_udp_fica_fora_das_colunas():
+    assert medir_quadro(0.0, quadro_tcp(origem=40000, destino=23))["porta_destino"] == 23
+    assert medir_quadro(0.0, quadro_udp(origem=40000, destino=1900))["porta_destino"] == 1900
+    assert medir_quadro(0.0, eth(0x0800, ipv4(1, b"\x08\x00\x00\x00\x00\x01\x00\x01")))["porta_destino"] is None
+    assert medir_quadro(0.0, eth(0x0806, b"\x00" * 28))["porta_destino"] is None
+    assert "porta_destino" not in agregar([medir_quadro(0.0, quadro_tcp(destino=23))])
 
 
 @pytest.mark.parametrize("quadro", [

@@ -158,8 +158,11 @@ def medir_quadro(ts, quadro, ts_anterior=None, preencher=False, limitar=False):
     Devolve um dicionário com as colunas de MEDIAS, mais "Protocol Type", "ts" e os endereços
     do quadro: "mac_origem" e "mac_destino" em texto; "ip_origem" e "ip_destino" em bytes, ou
     None fora do IPv4; "ip_arp", o IP de origem anunciado num ARP de IPv4 sobre Ethernet, em
-    bytes, ou None. Devolve None se o quadro não entra na conta: não é IPv4 nem ARP, ou não pôde
-    ser decodificado. `preencher` e `limitar` são as opções de `tamanho_no_fio`.
+    bytes, ou None; e "porta_destino", a porta de destino do TCP ou do UDP, ou None fora deles e
+    no fragmento IP sem o cabeçalho de transporte. A porta não entra nas 39 colunas: serve ao
+    reprodutor, que lista as portas atacadas no incidente. Devolve None se o quadro não entra na
+    conta: não é IPv4 nem ARP, ou não pôde ser decodificado. `preencher` e `limitar` são as opções
+    de `tamanho_no_fio`.
     """
     # Quadro que o dpkt não decodifica como Ethernet é descartado, qualquer que seja o erro:
     # um quadro malformado não pode derrubar a extração. O código dos autores também o descarta.
@@ -169,7 +172,7 @@ def medir_quadro(ts, quadro, ts_anterior=None, preencher=False, limitar=False):
         return None
     medida = dict.fromkeys(MEDIAS, 0)
     medida["Protocol Type"] = 0
-    medida["ip_origem"] = medida["ip_destino"] = medida["ip_arp"] = None
+    medida["ip_origem"] = medida["ip_destino"] = medida["ip_arp"] = medida["porta_destino"] = None
     if eth.type == dpkt.ethernet.ETH_TYPE_IP:
         ip = eth.data
         # IPv4 com cabeçalho ilegível: o dpkt devolve os bytes crus. Aqui o quadro é ignorado;
@@ -186,12 +189,14 @@ def medir_quadro(ts, quadro, ts_anterior=None, preencher=False, limitar=False):
         carga = ip.data
         if type(carga) is dpkt.udp.UDP:
             portas = (carga.sport, carga.dport)
+            medida["porta_destino"] = carga.dport
             medida["UDP"] = 1
             medida["Header_Length"] = 8
             medida["DNS"] = int(53 in portas)
             medida["DHCP"] = int(portas in ((67, 68), (68, 67)))
         elif type(carga) is dpkt.tcp.TCP:
             portas = (carga.sport, carga.dport)
+            medida["porta_destino"] = carga.dport
             medida["TCP"] = 1
             medida["Header_Length"] = 20 + len(carga.opts)
             for nome, bit in FLAGS:
