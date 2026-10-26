@@ -298,11 +298,20 @@ descarta o veredito da triagem, propõe a ação e propõe outra quando o efeito
 a anterior não resolveu. O encadeamento dos agentes (chamar a triagem, esperar a aprovação no log
 e chamar a execução) fica em código, num orquestrador que não é um quarto agente
 `[a implementar]`. Os agentes de triagem e de execução, com a verificação do efeito, rodam no
-modelo local, um Qwen de 27 bilhões de parâmetros (`qwen3.8-27c`), chamado por uma API compatível
-com a da OpenAI. Na PoC, quem serve o modelo é um llama.cpp num gateway interno de outra
+modelo local, uma variante sem censura do Qwen3.8 de 27 bilhões de parâmetros (`qwen3.8-27c`),
+chamada por uma API compatível com a da OpenAI. Ela foi escolhida numa comparação com o Qwen normal
+(`qwen3.8-27b`) na triagem e na decisão: o normal entrou em laço em metade das triagens, e a
+variante sempre chegou a um veredito, com cerca de um terço dos tokens
+(`experimentos/resultados/escolha_do_modelo_local.md`; decisão de 2026-10-25). A variante sem
+censura não recusa a análise de um ataque, mas obedece com mais facilidade a uma instrução
+escondida no tráfego, e por isso as garantias do sistema ficam no servidor, e não no modelo. A
+triagem marca como duvidoso todo incidente com confiança do classificador abaixo de 0,6: nos 235
+incidentes da avaliação dos 38 pcaps, esse limiar pega 24 dos 57 incidentes falsos e marca 4 dos
+178 verdadeiros (`experimentos/resultados/limiar_da_triagem.md`). Na PoC, quem serve o modelo é
+um servidor de inferência compatível com a API da OpenAI, num gateway interno de outra
 organização, numa rede que não é da equipe, com hardware e quantização desconhecidos
-`[CONFERIR: quantização, que a API não expõe]`, e os dados que passam por ele são os do
-CICIoT2023, públicos. Numa implantação, o modelo local fica num servidor dentro da rede atendida,
+`[CONFERIR com quem mantém o gateway: a variante exata e a quantização]`, e os dados que passam
+por ele são os do CICIoT2023, públicos. Numa implantação, o modelo local fica num servidor dentro da rede atendida,
 no próprio gateway, se ele comportar, ou numa máquina ao lado, e o código não muda: só o endereço
 do servidor (`LLM_BASE_URL`).
 A garantia de que nenhum endereço da rede chega à fronteira está no servidor, e não no prompt: o agente de decisão não tem as tools que devolvem endereços
@@ -552,13 +561,23 @@ Rascunho a partir do que já foi medido:
   risco, a troca de endereços por rótulos e a aprovação humana estão no servidor e valem nas duas
   rotas: um modelo mais fraco pode recomendar pior, mas não executa ação de risco alto sem
   aprovação. A comparação entre as configurações (seção 4.2) mede quanto se perde na rota local.
+- **Incidentes falsos de confiança alta**: o limiar de 0,6 da triagem não pega os incidentes
+  falsos em que o classificador está seguro do erro. 25 dos 57 falsos da avaliação dos 38 pcaps
+  têm confiança de 0,8 ou mais, quase todos de um pcap de ataque com a categoria errada e com
+  milhares de janelas, e nenhum limiar de confiança os separa dos verdadeiros sem marcar boa parte
+  dos ataques (`experimentos/resultados/limiar_da_triagem.md`). Neles, a resposta proposta parte
+  da categoria errada, e só a aprovação humana segura o erro, apenas nas ações de risco alto.
 - **O que pode ficar fora do calendário** `[CONFERIR na revisão final]`: se não couberem antes da
   submissão, o teste de tool poisoning (seção 3.6) e a ligação dos agentes à interface ficam de
   fora, e a aprovação na PoC é feita pelo comando de terminal.
 - **Modelo local**: os agentes de triagem e execução rodam num Qwen de 27 bilhões de parâmetros,
-  mais fraco que o de fronteira; a comparação entre as configurações mede esse custo. Mesmo com
-  temperatura 0 e semente fixa, o texto das respostas varia entre repetições, e cada caso dos
-  experimentos é repetido. Um modelo desse tamanho pede placa de vídeo ou bastante memória, além
+  mais fraco que o de fronteira; a comparação entre as configurações mede esse custo. É uma
+  variante sem censura cujo nome exato a equipe não conhece, servida por um servidor de inferência
+  compatível com a API da OpenAI, com hardware e quantização desconhecidos. Isso pesa na
+  reprodutibilidade: quem repetir o trabalho com o Qwen normal, o publicado para o Ollama, deve
+  esperar o comportamento que ele teve na comparação, em que entrou em laço em metade das triagens.
+  Mesmo com temperatura 0 e semente fixa, o texto das respostas varia entre repetições, e cada caso
+  dos experimentos é repetido. Um modelo desse tamanho pede placa de vídeo ou bastante memória, além
   do que o gateway precisa para a captura, o classificador e o servidor MCP (seção 3.5). Para o
   público-alvo, uma casa ou um pequeno negócio, esse hardware é caro. A saída é a configuração
   híbrida com um modelo local menor, de qualidade não medida neste trabalho, ou um serviço
