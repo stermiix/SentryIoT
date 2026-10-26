@@ -42,28 +42,157 @@ pequeno (seção 3.5). A implantação numa empresa fica para os trabalhos futur
 
 ## 2. Trabalhos correlatos
 
-`[PENDENTE: texto]`. Fontes conferidas em 11/10/2026 (referências completas no fim):
+### 2.1 O CICIoT2023 e o que a literatura já apontou
+
+Neto et al. (2023) publicaram o CICIoT2023: tráfego de uma rede de laboratório com 105 dispositivos
+IoT, em que dispositivos IoT maliciosos atacam os outros, com 33 ataques em sete categorias além do
+tráfego benigno. O dataset distribui os pcaps, os CSVs e o código de extração, e agrupa as features
+em janelas de 10 ou de 100 pacotes, calculando a média de cada janela. O artigo descreve 47
+features; os arquivos públicos que este trabalho usa trazem 39 (seção 3). Os autores também
+publicam um benchmark com vários modelos, entre eles o Random Forest, que serve de baseline aqui
+(seção 4).
+
+Doménech et al. (2025) usaram o CICIoT2023 e o CICIoMT2024, ambos da Universidade de New
+Brunswick, e confirmam que os dois datasets usam janela de 100 pacotes para DDoS, DoS e Mirai e de
+10 para o resto. Para o CICIoMT2024, que repete esse esquema, recomendam uma janela única para
+todos os tipos de tráfego, porque o tamanho da janela muda a distribuição das features e, numa
+implantação, o modelo recebe sempre o mesmo tamanho. Também mostram que um modelo treinado no
+CICIoT2023 e testado no CICIoMT2024 perde muito: o F1 do Random Forest em cinco classes cai 66,87%.
+Por fim, criticam o uso de métricas ponderadas em datasets desbalanceados e recomendam a média sem
+peso, o que combina com o uso, neste trabalho, de métricas por classe. O efeito de trocar a janela
+de um modelo já treinado não é medido por eles.
+
+Problemas parecidos já foram documentados em outros datasets de intrusão. Engelen, Rimmer e Joosen
+(2021) revisitaram o CICIDS2017 e encontraram problemas na geração do tráfego, na construção dos
+fluxos, na extração das features e nos rótulos; ao corrigi-los, mais de 20% do tráfego original
+foi reconstruído ou rerrotulado, e os testes de aprendizado de máquina melhoraram de forma
+significativa. Liu et al. (2022) fizeram uma revisão crítica do CIC-IDS-2017 e do CSE-CIC-IDS-2018
+e relatam erros antes não documentados na orquestração dos ataques, na geração das features, na
+documentação e nos rótulos, que abalam resultados de vários trabalhos; recriaram o dataset com a
+lógica de rotulagem corrigida e recomendam que todo dataset publique a sua. A lição que importa
+aqui é que um dataset de referência pode ter erros que só aparecem quando se confere o tráfego
+bruto contra os rótulos e as features.
+
+### 2.2 O que este trabalho acrescenta sobre o CICIoT2023
+
+Duas medidas deste trabalho tratam de problemas do CICIoT2023 que a literatura citada acima
+aponta em outros datasets. A primeira é o teste direto da janela trocada: o modelo treinado no
+`MERGED_CSV` não reconhece flood em janela de 10, nem varredura e força bruta em janela de 100, e
+retirar as seis colunas que dependem da janela custa menos de 0,3 ponto de acurácia sem resolver o
+problema, porque o modelo continua dependendo do tamanho da janela
+(`experimentos/resultados/teste_da_janela.md`). A segunda é a medida, por pcap e por tamanho de
+janela, das janelas rotuladas como ataque que não têm nenhum quadro do host que ataca: o rótulo do
+CSV oficial é do arquivo inteiro, e nos pcaps de varredura, força bruta, Web e spoofing entre 33% e
+87% das janelas de 10 são só tráfego de fundo, acima de 57% em todos, menos no
+`Recon-HostDiscovery` (`experimentos/resultados/janelas_sem_atacante.md`). A regeração dos dados
+com o nosso extrator, em janela única e com o rótulo decidido pelo atacante, é a resposta a essas
+duas medidas (seção 3). A filtragem pelo endereço do atacante é uma escolha de método deste
+trabalho, e não é apresentada como ideia inédita.
+
+### 2.3 Detecção e resposta com IA no mercado, e o risco de custo
+
+A banca do TCC I pediu que o artigo situasse o trabalho frente a soluções comerciais. A Darktrace
+(2024), num blog, divulga ter sido reconhecida pela KuppingerCole como líder em detecção e
+resposta de rede (NDR) e diz responder de forma autônoma; a Netskope (2023), num comunicado, lançou
+o SkopeAI, que usa aprendizado de máquina para proteção de dados e defesa contra ameaças; e a
+Vectra AI (2022), também num comunicado, apresentou o Attack Signal Intelligence, que automatiza a
+detecção, a triagem e a priorização de ameaças. As três fontes são material de divulgação dos
+próprios fornecedores, e não avaliações independentes, e os produtos são comerciais; por isso o
+SentryIoT não é comparado a eles em desempenho. O que o trabalho oferece é um sistema aberto,
+reproduzível e medido contra um dataset público, voltado a casas e pequenos negócios.
+
+O mesmo ponto da banca trata do *Denial of Wallet*, que Kelly, Glavin e Barrett (2021) definem
+como ataque que explora a cobrança por uso de computação *serverless* para gerar custo ao alvo.
+Num sistema em que cada incidente pode chamar um modelo pago, o risco análogo é o gasto de tokens
+provocado por tráfego malicioso. Zhang et al. (2026), em *preprint*, mostram o risco em agentes
+LLM que chamam ferramentas: o conteúdo devolvido por uma ferramenta maliciosa é reenviado ao
+modelo nas chamadas seguintes e cobrado de novo. O SentryIoT responde ao risco de custo com a
+política de acionamento, que agrupa as janelas em incidentes, e com o teto por hora de incidentes
+que vão ao modelo de fronteira (seção 3.5).
+
+### 2.4 Agentes LLM e a segurança do MCP
+
+Os agentes do SentryIoT seguem o laço ReAct (YAO et al., 2023), em que o modelo alterna raciocínio
+e chamadas de ferramenta. Esse desenho expõe o sistema a duas famílias de ataque já descritas na
+literatura. A primeira é a injeção indireta de prompt (GRESHAKE et al., 2023): o modelo lê dados
+que não vêm de quem o usa, e instruções escondidas neles podem mudar o seu comportamento, como se
+o dado fosse código. Os autores veem difícil uma defesa infalível. No SentryIoT, os dados que o
+modelo lê descrevem tráfego de rede, que o atacante controla em parte.
+
+A segunda é a ameaça ao próprio MCP. Hou et al. (2026) descrevem o ciclo de vida de um servidor
+MCP e organizam as ameaças em 16 cenários, entre eles a injeção indireta por dados devolvidos
+pelas ferramentas, e apontam a casa inteligente e a IoT industrial como ambientes de risco
+específico. Radosevich e Halloran (2025) mostram que o Claude 3.7 e o Llama-3.3-70B podem ser
+levados a usar ferramentas do MCP para executar código malicioso, abrir acesso remoto e roubar
+credenciais no sistema de um desenvolvedor de IA, que o Claude também cai em ataque por dados
+corrompidos que recupera, e que as recusas dos modelos não são confiáveis; por isso propõem
+proteger também o servidor, com um auditor de servidores. Beurer-Kellner e Fischer (2025), da
+Invariant Labs, descrevem o *tool poisoning*, em que instruções maliciosas vão na descrição da
+ferramenta, visíveis ao modelo e não à pessoa, e o *rug pull*, em que o servidor muda a descrição
+depois de aprovada. Hou et al. saíram em periódico
+revisado por pares e Yao et al. e Greshake et al., em anais de conferência e de workshop;
+Radosevich e Halloran são *preprints*, e a Invariant é um relato técnico de fornecedor, e não
+artigo revisado por pares.
+
+O SentryIoT difere no ponto de confiança: o servidor MCP é do próprio sistema, e não de terceiros,
+o que reduz parte desse risco, mas não o da injeção por dados de tráfego. Por isso o trabalho
+parte da premissa de que o modelo pode ser enganado e põe as garantias no servidor: a troca dos
+endereços por rótulos antes de qualquer dado ir à nuvem, a política de risco calculada sobre o
+endereço real e a aprovação humana das ações de risco alto (seção 3.5). O teste de
+*tool poisoning* contra o servidor só entra se couber no calendário (seção 3.6).
+
+**Notas de conferência (não entram no artigo).** Fontes conferidas em 11/10/2026 (referências
+completas no fim):
 - Neto et al. (2023): artigo original do CICIoT2023, revisado por pares (*Sensors*), que agrupa
   as features em janelas de 10 e de 100 pacotes e calcula a média. Os pcaps e o código de extração
   dos autores vêm da página oficial do dataset (CANADIAN INSTITUTE FOR CYBERSECURITY, 2023).
-- Doménech et al. (2025): revisado por pares (*Internet of Things*, Elsevier). Confirmado: o
-  artigo documenta a janela de 100 para DDoS, DoS e Mirai e de 10 para o resto, e mede queda de
-  até 66,87% de F1 ao treinar num dataset e testar no outro. **Não confirmado** que recomende
-  janela uniforme (ScienceDirect bloqueou a leitura): abrir o PDF pelo acesso da Mackenzie; se
-  não houver recomendação explícita, escrever "documenta a diferença de janelas".
+  Conferido em 26/10/2026 no resumo (via Crossref; o site da MDPI bloqueou a leitura): 33
+  ataques, 105 dispositivos IoT, sete categorias (DDoS, DoS, Recon, Web-based, brute force,
+  spoofing e Mirai), todos os ataques executados por dispositivos IoT maliciosos contra outros
+  dispositivos IoT. As janelas de 10 e de 100 e as 47 features não foram vistas no texto do Neto,
+  só no Doménech.
+- Doménech et al. (2025): revisado por pares (*Internet of Things*, Elsevier). Conferido no PDF
+  em 26/10/2026: (a) a seção 3 documenta a janela de 100 pacotes para DDoS, DoS e Mirai e de 10
+  para o resto, nos dois datasets (CICIoT2023 e CICIoMT2024); (b) a seção 5.1.1 recomenda
+  explicitamente janela uniforme para todos os tipos de tráfego, mas como crítica ao
+  CICIoMT2024, que repete o esquema do CICIoT2023, e pede que os autores de datasets adotem
+  janela uniforme; ao citar, dizer isso, e não que a recomendação é sobre o CICIoT2023; (c) a
+  queda de até 66,87% de F1 (Random Forest, 5 classes, experimento 2) vale **só** treinando no
+  CICIoT2023 e testando no CICIoMT2024, e não nos dois sentidos, como o resumo do artigo sugere;
+  (d) critica métricas ponderadas em dataset desbalanceado e recomenda a média sem peso, o que
+  apoia o nosso uso de macro-F1 e métricas por classe (seções 2.2 e 4.1.3 do artigo deles).
 - Engelen, Rimmer e Joosen (2021) e Liu et al. (2022): revisados por pares (IEEE SPW e IEEE
-  CNS), sobre erros de geração de tráfego, de features e de rótulo no CICIDS2017/CSE-CIC-IDS2018.
+  CNS). Resumos conferidos em 26/10/2026 (via Semantic Scholar; o texto completo não foi lido):
+  Engelen et al. apontam problemas de geração de tráfego, construção de fluxos, extração de
+  features e rotulagem no CICIDS2017, com mais de 20% do tráfego reconstruído ou rerrotulado; Liu
+  et al. reportam erros na orquestração dos ataques, nas features, na documentação e nos rótulos
+  do CIC-IDS-2017 e do CSE-CIC-IDS-2018.
+- Greshake et al. (2023): lido por inteiro no arXiv. A publicação em anais (16th ACM Workshop on
+  Artificial Intelligence and Security, AISec, junto do CCS '23, Copenhague, p. 79-90, DOI
+  10.1145/3605764.3623985) vem do Crossref; o PDF dos anais não foi aberto, e o texto lido é o do
+  arXiv.
+  ReAct (Yao et al., 2023): o arXiv diz que a versão 3 é a final do ICLR 2023 (11ª edição,
+  Kigali, 1 a 5 de maio, confirmado em iclr.cc); a página do OpenReview não abriu, e por isso a
+  referência aponta para o arXiv.
+  Radosevich e Halloran (2025) e Hou et al. (2026): introdução e seções principais lidas.
 - Darktrace, Netskope, Vectra AI e *Denial of Wallet* (Kelly, Glavin e Barrett, 2021): pedidos
-  pela banca do TCC I, prioridade baixa, menção curta sem análise detalhada. Opcional: Zhang et
-  al. (2026), *preprint* sobre *Denial of Wallet* em agentes LLM que chamam ferramentas.
+  pela banca do TCC I, prioridade baixa, menção curta sem análise detalhada. Páginas abertas em
+  26/10/2026: a da Darktrace é um blog de 18/11/2024; a da Netskope, um comunicado de 25/07/2023;
+  a da Vectra, um comunicado de 12/10/2022 republicado no Dark Reading. Zhang et al. (2026) é
+  *preprint* de 23/09/2026, e só o resumo foi lido; a lista de autores é longa, e por isso a
+  referência usa "et al.".
 
 Deixar explícito o que é contribuição nossa: a camada MCP, com o contrato das tools, a política
 de risco graduada com aprovação humana e a arquitetura híbrida dos agentes, e a comparação entre
 as configurações local, nuvem e híbrida; no classificador, o teste direto da janela trocada
 (`experimentos/resultados/teste_da_janela.md`) e a medida, por pcap e por tamanho de janela, das
 janelas sem quadro do atacante (`experimentos/resultados/janelas_sem_atacante.md`). A filtragem
-por MAC do atacante já aparece em Ramkumar et al. (2024) e deve ser citada como tal
-`[CONFERIR: Ramkumar et al. saiu da lista no #23; aguardando a equipe]`.
+pelo endereço do atacante é a escolha que fizemos para regerar os dados, e não é apresentada
+como ideia inédita. Ramkumar et al. ficou de fora da lista: o texto completo é pago e não foi
+possível confirmar que ele filtra por MAC. O candidato achado, sem confirmação de que é o mesmo
+trabalho da lista original ("2024"), é RAMKUMAR, K. et al. *Diagnosing unknown attacks in smart
+homes using abductive reasoning*, IEEE Trans. Software Engineering, 2025, DOI
+10.1109/TSE.2025.3610540; o resumo só diz que usa o CICIoT2023 e o IoT-23 como referência.
 
 ## 3. Metodologia
 
@@ -608,23 +737,37 @@ laboratório do dataset.
 Formato ABNT (NBR 6023). Itens marcados com `[CONFERIR]` ainda precisam de dado que não foi
 possível confirmar por aqui.
 
+BEURER-KELLNER, L.; FISCHER, M. **MCP security notification**: tool poisoning attacks. Zurique:
+Invariant Labs, 1 abr. 2025. Disponível em:
+https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks. Acesso em: 26 out.
+2026. Blog de fornecedor.
+
 CANADIAN INSTITUTE FOR CYBERSECURITY. **CIC IoT Dataset 2023**. Fredericton: University of New
 Brunswick, 2023. Disponível em: https://cicresearch.ca/IOTDataset/CIC_IOT_Dataset2023/. Acesso
 em: 11 out. 2026.
 
 DARKTRACE. **Darktrace leading the future of network detection and response with recognition
-from KuppingerCole**. 2024. Disponível em:
+from KuppingerCole**. Blog, 18 nov. 2024. Disponível em:
 https://www.darktrace.com/blog/darktrace-leading-the-future-of-network-detection-and-response-with-recognition-from-kuppingercole.
-Acesso em: 11 out. 2026. `[CONFERIR ano na página]`
+Acesso em: 26 out. 2026.
 
-DOMÉNECH, J. et al. Evaluating and enhancing intrusion detection systems in IoMT: the importance
-of domain-specific datasets. **Internet of Things**, 2025. Disponível em:
-https://www.sciencedirect.com/science/article/pii/S2542660525001453. Acesso em: 11 out. 2026.
-`[CONFERIR iniciais e lista de autores, volume e número do artigo]`
+DOMÉNECH, J.; LEÓN, O.; PEGUEROLES, J.; SIDDIQUI, M. S. Evaluating and enhancing intrusion
+detection systems in IoMT: the importance of domain-specific datasets. **Internet of Things**,
+v. 32, 101631, 2025. DOI: 10.1016/j.iot.2025.101631. Disponível em:
+https://www.sciencedirect.com/science/article/pii/S2542660525001453. Acesso em: 26 out. 2026.
 
 ENGELEN, G.; RIMMER, V.; JOOSEN, W. Troubleshooting an intrusion detection dataset: the
 CICIDS2017 case study. In: IEEE SECURITY AND PRIVACY WORKSHOPS (SPW), 2021, San Francisco.
 **Proceedings** [...]. [S. l.]: IEEE, 2021. p. 7-12. DOI: 10.1109/SPW53761.2021.00009.
+
+GRESHAKE, K.; ABDELNABI, S.; MISHRA, S.; ENDRES, C.; HOLZ, T.; FRITZ, M. Not what you've signed up
+for: compromising real-world LLM-integrated applications with indirect prompt injection. In: ACM
+WORKSHOP ON ARTIFICIAL INTELLIGENCE AND SECURITY (AISEC), 16., 2023, Copenhague. **Proceedings**
+[...]. Nova York: ACM, 2023. p. 79-90. DOI: 10.1145/3605764.3623985.
+
+HOU, X.; ZHAO, Y.; WANG, S.; WANG, H. Model Context Protocol (MCP): landscape, security threats,
+and future research directions. **ACM Transactions on Software Engineering and Methodology**,
+v. 35, n. 10, p. 1-37, 2026. DOI: 10.1145/3796519. Acesso em: 26 out. 2026.
 
 KELLY, D.; GLAVIN, F. G.; BARRETT, E. **Denial of Wallet**: defining a looming threat to
 serverless computing. arXiv, 2021. Disponível em: https://arxiv.org/abs/2104.08031. Acesso em:
@@ -648,11 +791,20 @@ OLIVEIRA, B. S.; GREGORIN, M. Q.; ROLING, J. V.; GUIMARÃES, P. H. C. **SentryIo
 NIDR. [S. l.]: GitHub, 2026. Repositório de código. Disponível em:
 https://github.com/stermiix/SentryIoT. Acesso em: 11 out. 2026.
 
-VECTRA AI. **Vectra advances security AI to deliver Attack Signal Intelligence**. Dark Reading,
-12 out. 2022. Disponível em:
-https://www.darkreading.com/operations/vectra-advances-security-ai-to-deliver-attack-signal-intelligence-empowering-security-teams-to-investigate-and-respond-to-attacks-in-real-time.
-Acesso em: 11 out. 2026.
+RADOSEVICH, B.; HALLORAN, J. **MCP safety audit**: LLMs with the Model Context Protocol allow
+major security exploits. arXiv, 2025. Disponível em: https://arxiv.org/abs/2504.03767. Acesso
+em: 26 out. 2026.
 
-Opcional: ZHANG, J. et al. **Persistent billable state**: denial-of-wallet attacks and defenses
-in tool-calling LLM agents. arXiv, 2026. Disponível em: https://arxiv.org/abs/2609.28585. Acesso
-em: 11 out. 2026. `[CONFERIR autores]`
+VECTRA AI. **Vectra advances security AI to deliver Attack Signal Intelligence**. Comunicado de
+imprensa, 12 out. 2022. Republicado em: Dark Reading. Disponível em:
+https://www.darkreading.com/operations/vectra-advances-security-ai-to-deliver-attack-signal-intelligence-empowering-security-teams-to-investigate-and-respond-to-attacks-in-real-time.
+Acesso em: 26 out. 2026.
+
+YAO, S.; ZHAO, J.; YU, D.; DU, N.; SHAFRAN, I.; NARASIMHAN, K.; CAO, Y. ReAct: synergizing
+reasoning and acting in language models. In: INTERNATIONAL CONFERENCE ON LEARNING
+REPRESENTATIONS (ICLR), 11., 2023, Kigali. **Proceedings** [...]. [S. l.]: [s. n.], 2023.
+Disponível em: https://arxiv.org/abs/2210.03629 (versão 3, a do ICLR). Acesso em: 26 out. 2026.
+
+ZHANG, J. et al. **Persistent billable state**: denial-of-wallet attacks and defenses in
+tool-calling LLM agents. arXiv, 2026. Disponível em: https://arxiv.org/abs/2609.28585. Acesso
+em: 26 out. 2026. Primeira versão em 23 set. 2026.

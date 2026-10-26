@@ -17,8 +17,11 @@ Material de origem, na pasta-mãe `RoadMap_TCC/` (fora deste repositório):
 A lista completa, em ABNT, está no fim de `artigo/esqueleto.md`, com a situação de cada fonte
 (revisada por pares, *preprint* ou pendente de conferência). Fontes conferidas em 11/10/2026.
 
-Ainda a conferir antes de citar: o PDF de Doménech et al. (2025), sobre a recomendação de janela
-uniforme; e Ramkumar et al. (2024), se a equipe decidir citá-lo.
+Conferido em 26/10/2026: Doménech et al. (2025) no PDF; os resumos de Neto, Engelen, Liu, Greshake,
+Radosevich e Halloran, Hou, Kelly e Zhang; a publicação em anais de Greshake et al. (AISec 2023) e
+de Yao et al. (ICLR 2023); e as páginas da Darktrace, da Netskope e da Vectra. Nada marcado com
+`[CONFERIR]` na lista de referências. Ramkumar et al. ficou de fora: o texto completo é pago e não
+foi possível confirmar que ele filtra por MAC.
 
 ## Pedido da banca do TCC I
 
