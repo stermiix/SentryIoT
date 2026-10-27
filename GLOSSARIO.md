@@ -56,6 +56,27 @@ Provar que o nosso extrator está certo: rodamos ele no mesmo PCAP que os autore
 conferimos se produz os mesmos números do CSV oficial deles. É como aferir uma balança com um
 peso conhecido — se marca certo no peso conhecido, dá para confiar nela em qualquer coisa.
 
+**tcpdump**
+O programa que grava o tráfego da rede num arquivo PCAP. Foi o que os autores do CICIoT2023
+usaram, e é o que o SentryIoT usa no gateway: grava o quadro inteiro (`-s 0`) e abre um arquivo
+novo a cada intervalo (`-G`). O Wireshark serve para olhar uma captura, não para gravar a do
+sistema; o pcapng que ele grava por padrão se converte com `editcap -F pcap`.
+
+**dpkt**
+A biblioteca Python que lê o PCAP quadro a quadro. É a mesma do código dos autores do dataset, e
+por isso o nosso extrator reproduz as 39 features deles. O Scapy, previsto no TCC I, ficou de fora.
+
+**Regeração dos dados**
+Refazer as linhas de treino a partir dos PCAPs, com o nosso extrator, em vez de usar o CSV
+oficial. Corrige dois problemas do CSV: a janela muda com a classe (10 ou 100 quadros) e o rótulo é
+do arquivo inteiro. Na regeração, toda janela tem 100 quadros, e a janela de um PCAP de ataque só
+leva o rótulo do ataque se tiver um quadro de um dos sete atacantes.
+
+**Tráfego de fundo**
+As janelas de um PCAP de ataque sem nenhum quadro do atacante: o tráfego normal da rede, que
+continuou durante a gravação. No CSV oficial elas levam o rótulo do ataque; no SentryIoT, as da
+parte de treino entram como benignas (40.966 janelas).
+
 ---
 
 ## 2. Aprendizado de máquina
@@ -97,6 +118,26 @@ Quando umas classes têm muito mais exemplos que outras. No nosso caso é extrem
 `MERGED_CSV` é DDoS e DoS, enquanto `DictionaryBruteForce` tem 0,028% (12.522 de 45 milhões de
 linhas). Isso distorce as métricas (ver abaixo).
 
+**Divisão por tempo e por arquivo**
+Como separamos treino e teste sem deixar janelas vizinhas dos dois lados: o começo de cada PCAP
+(70% das janelas) vai para o treino e o fim, para o teste. Quando o rótulo tem mais de um PCAP, o
+último fica inteiro no teste.
+
+**PCAP fora do treino**
+O controle mais duro do classificador: um PCAP sai inteiro do treino, e o modelo é medido nele,
+como se fosse uma captura nova. O recall cai em todas as categorias com mais de um PCAP; em Recon,
+fica em 24,9%, contra 55,0% no corte por tempo (Tabela 1 do artigo).
+
+**Ponto de operação**
+A regra que transforma as probabilidades do modelo numa decisão sobre a janela. Duas concorreram
+numa parte de validação, separada do teste: o argmax e um limiar sobre a probabilidade de ataque.
+Venceu o argmax, que deixava no máximo 1% do tráfego benigno como ataque com o maior recall de
+ataque. O incidente só abre com 3 janelas de ataque seguidas.
+
+**Argmax**
+"Fique com a categoria mais provável." Se o modelo diz 70% DDoS+DoS, 20% Recon e 10% Benign, o
+argmax é DDoS+DoS.
+
 ---
 
 ## 3. Como medir se funcionou
@@ -124,6 +165,11 @@ crítico de viabilidade: um sistema que grita o tempo todo é desligado pelo ope
 
 ➡ **Regra do projeto:** relatar **recall por classe**, nunca só acurácia. E dizer com franqueza
 em quais classes fomos mal, com o número de amostras ao lado.
+
+**Macro-F1**
+A média simples do F1 das categorias, com o mesmo peso para todas: uma categoria com 273 janelas
+de teste conta tanto quanto uma com 214.373. Mostra que existem categorias fracas, mas não onde o
+modelo erra; por isso, no artigo, o número principal é a tabela por categoria.
 
 ---
 
@@ -227,3 +273,42 @@ segurança — pode virar contribuição original do nosso trabalho.
 Rodar a IA em servidor próprio ou contratada de terceiro. Num sistema de segurança importa: usar
 LLM em nuvem significa mandar telemetria da rede para fora. A banca do TCC I cobrou essa
 discussão.
+
+**Modelo local e modelo de fronteira**
+O modelo local roda dentro da rede atendida, e o dado não sai dela; no SentryIoT, é o
+`qwen3.8-27c`. O de fronteira é um dos modelos mais capazes, pago por token e servido pela nuvem,
+pelo OpenRouter.
+
+**Arquitetura híbrida**
+A divisão do SentryIoT: triagem e execução no modelo local, e só o agente de decisão no modelo de
+fronteira, lendo o resumo do incidente com rótulos neutros no lugar dos endereços. As outras duas
+configurações, tudo local e tudo na nuvem, servem de comparação no artigo.
+
+**Orquestrador**
+O código que encadeia os agentes: chama a triagem, filtra os endereços do veredito, espera a
+aprovação no log e chama a execução. Não é um quarto agente; quem coordena o incidente é o agente
+de decisão.
+
+**Stub do servidor MCP**
+O servidor MCP do repositório (`codigo/mcp/stub.py`). Nasceu como servidor de mentira, com
+incidentes de exemplo, para os agentes serem escritos antes do classificador. Com `--cenarios`, em
+modo de reprodução, atende os incidentes reais do reprodutor e é o servidor da PoC.
+
+**Reprodutor de tráfego**
+O comando que lê um PCAP (`python -m codigo.reprodutor`), extrai as janelas, classifica cada uma e
+abre os incidentes no log do servidor MCP. Na PoC, faz o papel da captura ao vivo.
+
+**Política de acionamento**
+A regra que decide quando as janelas de ataque viram incidente e chamam os agentes: 3 janelas
+seguidas abrem o incidente, e as janelas do mesmo ataque se juntam num incidente só. Um flood de
+264 mil janelas vira 4 incidentes. É a defesa contra o Denial of Wallet.
+
+**Gabarito da recomendação**
+A lista, fixada antes dos experimentos, das ações do catálogo aceitáveis em cada categoria de
+ataque e do alvo de cada uma. A qualidade da recomendação é a porcentagem de incidentes com uma
+ação aceitável no alvo certo.
+
+**Aprovador automático**
+Nos experimentos, faz o papel da pessoa que aprova as ações de risco alto: aprova o que o gabarito
+aceita, rejeita o resto e grava a decisão no log. Assim o tempo até a remediação não depende de
+alguém estar olhando.
