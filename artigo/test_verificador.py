@@ -115,6 +115,12 @@ def test_sigla_fora_da_lista_e_erro_e_nome_da_lista_nao():
     assert not erros(relatorio, "BenignTraffic") and not erros(relatorio, "CICIoT2023")
 
 
+def test_sigla_no_titulo_nao_conta_como_primeiro_uso():
+    paragrafos = artigo(["O MCP liga os agentes ao Model Context Protocol."] + CORPO_OK)
+    paragrafos[0] = "SentryIoT: agentes via MCP"
+    assert not erros(verificar(paragrafos, SIGLAS, NOMES, paginas=12), "Primeiro uso de MCP")
+
+
 def test_sigla_dentro_de_pendencia_nao_e_cobrada():
     corpo = CORPO_OK + ["[PENDENTE: explicar o NIDS e o HTTP.]"]
     assert not erros(verificar(artigo(corpo), SIGLAS, NOMES, paginas=12), "Sigla fora")

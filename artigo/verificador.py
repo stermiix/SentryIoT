@@ -211,7 +211,8 @@ def _conferir_citacoes(paragrafos, relatorio):
 
 def _conferir_siglas(paragrafos, siglas, nomes, relatorio):
     _, _, abstract, keywords, referencias = _secoes(paragrafos)
-    trechos = paragrafos[:abstract] + paragrafos[(keywords or 0) + 1 : referencias]
+    # O título (primeiro parágrafo) não define sigla: o primeiro uso conta a partir dos autores.
+    trechos = paragrafos[1:abstract] + paragrafos[(keywords or 0) + 1 : referencias]
     texto = PENDENCIA.sub(" ", "\n".join(trechos))
     texto = ENTRE_PARENTESES.sub(lambda m: " " if re.search(r"[A-Z]{2}", m.group(1)) else m.group(0), texto)
     for nome in sorted(nomes, key=len, reverse=True):
