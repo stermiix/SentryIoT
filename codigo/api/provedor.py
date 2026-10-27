@@ -5,6 +5,7 @@ da interface, só monta a chamada a `chat/completions`, lê a resposta e traduz 
 """
 
 import json
+import math
 import ssl
 import urllib.error
 import urllib.request
@@ -20,6 +21,28 @@ class RespostaDoProvedor:
     modelo: str
     tokens_entrada: int | None
     tokens_saida: int | None
+
+
+@dataclass(frozen=True)
+class PedidoDeTool:
+    """Uma chamada de tool que o modelo pediu. `argumentos` é o texto JSON, como o modelo o escreveu."""
+
+    id: str
+    nome: str
+    argumentos: str
+
+
+@dataclass(frozen=True)
+class RespostaDaConversa:
+    """Uma rodada com tools. `mensagem` é a do assistente, no formato da API, pronta para voltar ao histórico."""
+
+    mensagem: dict
+    conteudo: str
+    pedidos: tuple[PedidoDeTool, ...]
+    modelo: str
+    tokens_entrada: int | None
+    tokens_saida: int | None
+    motivo_termino: str | None = None
 
 
 class ErroDoProvedor(Exception):
@@ -47,16 +70,46 @@ class Provedor:
         conversa += [{"role": PAPEIS[m["papel"]], "content": m["conteudo"]} for m in mensagens]
         corpo = {"model": modelo, "messages": conversa, "stream": False, **self.config.parametros()}
         resposta = self._pedir("/chat/completions", corpo)
-        try:
-            mensagem = resposta["choices"][0]["message"]
-        except (KeyError, IndexError, TypeError) as erro:
-            raise ErroDoProvedor("resposta do provedor sem o campo choices[0].message") from erro
-        uso = resposta.get("usage") or {}
+        mensagem = _primeira_mensagem(resposta)
+        uso = _uso(resposta)
         return RespostaDoProvedor(
             conteudo=mensagem.get("content") or "",
             modelo=resposta.get("model") or modelo,
             tokens_entrada=_inteiro(uso.get("prompt_tokens")),
             tokens_saida=_inteiro(uso.get("completion_tokens")),
+        )
+
+    def conversar(self, modelo, mensagens, tools=None):
+        """Uma rodada de `chat/completions` com as mensagens no formato da API e tools opcionais.
+
+        É o que o laço dos agentes usa. `mensagens` já vem com `role` em inglês e, depois de uma
+        chamada de tool, com as mensagens `tool`; `tools` está no formato de `tools` da API. A resposta
+        traz o que o modelo pediu para chamar, e `mensagem` para pôr no histórico: só `role`,
+        `content` e `tool_calls`, sem o raciocínio que alguns servidores devolvem junto.
+        """
+        corpo = {"model": modelo, "messages": list(mensagens), "stream": False, **self.config.parametros()}
+        if tools:
+            corpo["tools"] = list(tools)
+        resposta = self._pedir("/chat/completions", corpo)
+        mensagem = _primeira_mensagem(resposta)
+        conteudo = mensagem.get("content")
+        conteudo = conteudo if isinstance(conteudo, str) else ""
+        pedidos = _pedidos(mensagem)
+        historico = {"role": "assistant", "content": conteudo}
+        if pedidos:
+            historico["tool_calls"] = [
+                {"id": p.id, "type": "function", "function": {"name": p.nome, "arguments": p.argumentos}}
+                for p in pedidos
+            ]
+        uso = _uso(resposta)
+        return RespostaDaConversa(
+            mensagem=historico,
+            conteudo=conteudo,
+            pedidos=pedidos,
+            modelo=resposta.get("model") or modelo,
+            tokens_entrada=_inteiro(uso.get("prompt_tokens")),
+            tokens_saida=_inteiro(uso.get("completion_tokens")),
+            motivo_termino=resposta["choices"][0].get("finish_reason"),
         )
 
     def _pedir(self, caminho, corpo):
@@ -69,7 +122,7 @@ class Provedor:
         except urllib.error.HTTPError as erro:
             detalhe = erro.read().decode("utf-8", "replace")[:TAMANHO_DA_MENSAGEM_DE_ERRO]
             raise ErroDoProvedor(detalhe or erro.reason, codigo=erro.code) from erro
-        except (urllib.error.URLError, OSError) as erro:
+        except OSError as erro:
             # Na abertura da conexão, o estouro do prazo chega embrulhado num URLError.
             motivo = getattr(erro, "reason", erro)
             if isinstance(erro, TimeoutError) or isinstance(motivo, TimeoutError):
@@ -82,4 +135,62 @@ class Provedor:
 
 
 def _inteiro(valor):
-    return int(valor) if isinstance(valor, int | float) and not isinstance(valor, bool) else None
+    if isinstance(valor, bool) or not isinstance(valor, int | float):
+        return None
+    if isinstance(valor, float) and (not math.isfinite(valor) or not valor.is_integer()):
+        return None
+    return int(valor) if valor >= 0 else None
+
+
+def _uso(resposta):
+    uso = resposta.get("usage")
+    return uso if isinstance(uso, dict) else {}
+
+
+def _primeira_mensagem(resposta):
+    try:
+        mensagem = resposta["choices"][0]["message"]
+    except (KeyError, IndexError, TypeError) as erro:
+        raise ErroDoProvedor("resposta do provedor sem o campo choices[0].message") from erro
+    if not isinstance(mensagem, dict):
+        raise ErroDoProvedor("resposta do provedor com choices[0].message que não é um objeto")
+    return mensagem
+
+
+def _pedidos(mensagem):
+    """As chamadas de tool da mensagem do assistente, com os argumentos ainda em texto."""
+    itens = mensagem.get("tool_calls")
+    if itens is None:
+        return ()
+    if not isinstance(itens, list):
+        raise ErroDoProvedor("resposta do provedor com tool_calls que não é uma lista")
+    pedidos = []
+    identificadores = set()
+    for posicao, item in enumerate(itens, start=1):
+        pedido = _pedido_de_tool(item, posicao)
+        if pedido.id in identificadores:
+            raise ErroDoProvedor(f"resposta do provedor com tool_call {posicao} sem id único")
+        identificadores.add(pedido.id)
+        pedidos.append(pedido)
+    return tuple(pedidos)
+
+
+def _pedido_de_tool(item, posicao):
+    funcao = item.get("function") if isinstance(item, dict) else None
+    nome = funcao.get("name") if isinstance(funcao, dict) else None
+    if not isinstance(nome, str) or not nome.strip():
+        raise ErroDoProvedor(f"resposta do provedor com tool_call {posicao} sem o nome da tool")
+    # Alguns servidores compatíveis omitem o `type`; um tipo diferente de function é recusado.
+    if item.get("type", "function") != "function":
+        raise ErroDoProvedor(f"resposta do provedor com tool_call {posicao} que não é function")
+    argumentos = funcao.get("arguments")
+    if isinstance(argumentos, dict):
+        # Alguns servidores mandam o objeto em vez do texto JSON.
+        argumentos = json.dumps(argumentos, ensure_ascii=False)
+    elif not isinstance(argumentos, str):
+        # Sem argumentos válidos, a tool não é executada: o laço devolve o erro ao modelo, que corrige.
+        argumentos = ""
+    identificador = item.get("id")
+    if not isinstance(identificador, str) or not identificador.strip():
+        raise ErroDoProvedor(f"resposta do provedor com tool_call {posicao} sem id único")
+    return PedidoDeTool(id=identificador, nome=nome, argumentos=argumentos)
