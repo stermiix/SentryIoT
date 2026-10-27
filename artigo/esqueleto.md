@@ -50,7 +50,7 @@ tráfego benigno. O dataset distribui os pcaps, os CSVs e o código de extraçã
 em janelas de 10 ou de 100 pacotes, calculando a média de cada janela. O artigo descreve 47
 features; os arquivos públicos que este trabalho usa trazem 39 (seção 3). Os autores também
 publicam um benchmark com vários modelos, entre eles o Random Forest, que serve de baseline aqui
-(seção 4).
+(seção 3.4).
 
 Doménech et al. (2025) usaram o CICIoT2023 e o CICIoMT2024, ambos da Universidade de New
 Brunswick, e confirmam que os dois datasets usam janela de 100 pacotes para DDoS, DoS e Mirai e de
@@ -394,7 +394,12 @@ referência do tráfego benigno, e é esse o insumo da recomendação de mitiga�
 como as features principais de um incidente são escolhidas; se for adotada atribuição por
 decisão, como o TreeSHAP, citar o método.]` O protocolo dos autores não é reproduzido aqui: o
 notebook publicado não treina o Random Forest, e os nossos dados de treino são regerados dos
-pcaps, então os números não se comparam diretamente com os do artigo do dataset.
+pcaps, então os números não se comparam diretamente com os do artigo do dataset. A diferença
+começa nas colunas: o modelo do artigo usou 46 features, e os arquivos públicos trazem 39, sem oito
+delas, como `Srate`, `Drate` e `Covariance`. Com as 39, 29,49% das linhas do `MERGED_CSV` repetem o
+vetor de uma linha de outra categoria, e o acerto em 8 categorias no conjunto completo não passa de
+92,87%, abaixo dos 99,44% publicados para o Random Forest
+(`experimentos/resultados/baseline_neto.md`).
 
 ### 3.5 Servidor MCP e sistema multiagente
 
