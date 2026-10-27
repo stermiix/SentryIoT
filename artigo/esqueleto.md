@@ -613,7 +613,7 @@ Rascunho a partir do que já foi medido:
   para 56,9%, em relação ao modelo de 10/10 (diferenças que contam), embora o recall de Web na
   categoria certa não mude. Os pcaps dessas classes são curtos, e o grupo não tem captura própria.
 - **Outra captura da mesma categoria**: com o pcap inteiro fora do treino, o recall de Recon fica
-  em 24,9%, o de Spoofing em 63,0%, o de Mirai em 55,3% e o de Web em 29,4% (Tabela 1). Cada pcap
+  em 24,9%, o de Spoofing em 63,0%, o de Mirai em 55,3% e o de Web em 29,4% (Tabela 1; Figura 6). Cada pcap
   de Recon e de Web é uma técnica diferente, e tirar o pcap tira também a técnica do treino.
   BruteForce tem um pcap só.
 - **Uma rede diferente da do dataset**: o classificador foi treinado e testado só com o tráfego
@@ -712,6 +712,12 @@ Rascunho a partir do que já foi medido:
   híbrida com um modelo local menor, de qualidade não medida neste trabalho, ou um serviço
   contratado que rode o modelo para vários clientes; nesse caso o dado sai da rede atendida, mas
   vai para quem foi contratado, e não para um provedor de IA.
+
+**Figura 6.** Recall de cada pcap retirado nas rodadas de teste, no trecho de teste do pcap, com o
+começo dele no treino (a divisão publicada) e com ele inteiro fora do treino, no modelo do sistema,
+com a categoria mais provável e na média das sementes 42, 1 e 2. O título de cada painel traz o
+recall da categoria com o pcap fora, a última coluna da Tabela 1
+(`experimentos/resultados/rodadas_normalizadas.md`, configuração 5).
 
 ## 6. Conclusão
 
