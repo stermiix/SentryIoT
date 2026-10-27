@@ -121,6 +121,13 @@ def test_sigla_no_titulo_nao_conta_como_primeiro_uso():
     assert not erros(verificar(paragrafos, SIGLAS, NOMES, paginas=12), "Primeiro uso de MCP")
 
 
+def test_nome_que_e_o_significado_de_uma_sigla_vale_como_significado():
+    siglas = {**SIGLAS, "JSONL": "JSON Lines"}
+    corpo = CORPO_OK + ["O log é gravado em JSONL (JSON Lines)."]
+    relatorio = verificar(artigo(corpo), siglas, NOMES + ["JSON Lines"], paginas=12)
+    assert not erros(relatorio, "JSONL") and not erros(relatorio, "JSON.")
+
+
 def test_sigla_dentro_de_pendencia_nao_e_cobrada():
     corpo = CORPO_OK + ["[PENDENTE: explicar o NIDS e o HTTP.]"]
     assert not erros(verificar(artigo(corpo), SIGLAS, NOMES, paginas=12), "Sigla fora")

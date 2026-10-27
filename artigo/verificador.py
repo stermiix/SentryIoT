@@ -215,10 +215,13 @@ def _conferir_siglas(paragrafos, siglas, nomes, relatorio):
     trechos = paragrafos[1:abstract] + paragrafos[(keywords or 0) + 1 : referencias]
     texto = PENDENCIA.sub(" ", "\n".join(trechos))
     texto = ENTRE_PARENTESES.sub(lambda m: " " if re.search(r"[A-Z]{2}", m.group(1)) else m.group(0), texto)
+    # Os nomes saem só da busca de siglas, trocados por espaços do mesmo tamanho: as posições continuam as do
+    # texto, onde o significado é procurado ("JSON Lines" é nome, mas é o significado de JSONL).
+    busca = texto
     for nome in sorted(nomes, key=len, reverse=True):
-        texto = texto.replace(nome, " ")
+        busca = busca.replace(nome, " " * len(nome))
     usadas = {}
-    for achado in CANDIDATA.finditer(texto):
+    for achado in CANDIDATA.finditer(busca):
         palavra = achado.group(0)
         sigla = palavra if palavra in siglas else palavra[:-1] if palavra.endswith("s") and palavra[:-1] in siglas else None
         if sigla is None:

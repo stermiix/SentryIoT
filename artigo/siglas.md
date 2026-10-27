@@ -50,6 +50,6 @@ artigo entra aqui, em ordem alfabética.
 Nomes próprios, unidades e rótulos que o verificador não cobra como sigla:
 
 - Datasets: CICIoT2023, CICIoMT2024, CICIDS2017, CIC-IDS-2017, CSE-CIC-IDS-2018, N-BaIoT, MERGED_CSV.
-- Produtos, empresas e métodos: SentryIoT, NetFlow, OpenAI, Vectra AI, MacBook, ReAct, TreeSHAP, SkopeAI.
+- Produtos, empresas, formatos e métodos: SentryIoT, NetFlow, OpenAI, Vectra AI, MacBook, ReAct, TreeSHAP, SkopeAI, AdaBoost, JSON Lines.
 - Rótulos e arquivos do dataset: BenignTraffic, BruteForce, PortScan, PingSweep, SlowLoris, VulnerabilityScan, BrowserHijacking, SqlInjection, CommandInjection, Uploading_Attack, MITM-ArpSpoofing.
 - Versões e unidades: IPv4, IPv6, MB, GB, SP.
