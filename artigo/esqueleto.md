@@ -495,6 +495,12 @@ inteiro, com a classificação e a política de acionamento, 143 mil, também nu
 Pro M5 com 16 GB (`experimentos/resultados/custo_do_modelo_do_sistema.md`). No modelo de 10/10, a
 janela levava 1,6 ms (`experimentos/resultados/rodadas_de_teste.md`).
 
+O laço dos agentes e o cliente MCP são testados contra esse mesmo servidor, o stub do repositório
+(`codigo/mcp/stub.py`), aberto por stdio em outro processo, com um provedor de modelo simulado no
+lugar do LLM. Os testes automatizados conferem que cada agente só enxerga as tools da sua linha,
+que a recusa de uma tool volta ao agente como erro sem derrubar o servidor e que cada chamada fica
+no log com o nome do agente (`codigo/agente/test_cliente_mcp.py`).
+
 ### 3.6 Avaliação da PoC e dos agentes
 
 `[PENDENTE]` Cenários: DDoS, varredura de portas e força bruta, reproduzidos a partir dos pcaps
