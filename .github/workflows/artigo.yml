@@ -1,0 +1,85 @@
+# Artigo em LaTeX: compila artigo/latex/artigo.tex no template da FCI, confere o limite de paginas
+# do template (no maximo 20, contando as referencias), mostra as palavras por secao e guarda o PDF
+# como artefato do job. So roda quando o PR mexe no artigo, nas figuras ou neste arquivo.
+name: Artigo
+
+on:
+  pull_request:
+    paths:
+      - "artigo/latex/**"
+      - "artigo/figuras/**"
+      - ".github/workflows/artigo.yml"
+  push:
+    branches: [main]
+    paths:
+      - "artigo/latex/**"
+      - "artigo/figuras/**"
+      - ".github/workflows/artigo.yml"
+
+# Permissao minima: o job so le o repositorio.
+permissions:
+  contents: read
+
+# Um push novo no mesmo PR cancela a execucao anterior. Na main nada e cancelado.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Regra do template de artigo da FCI (2026).
+  PAGINAS_MAXIMAS: "20"
+
+jobs:
+  pdf:
+    name: Artigo (PDF)
+    # ubuntu-24.04, e nao ubuntu-latest: o TeX Live vem dos pacotes desta versao e nao muda sozinho.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Baixar o repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # abntex2 vem em texlive-publishers; o babel em portugues, em texlive-lang-portuguese; o nomencl,
+      # em texlive-science; o texcount, em texlive-extra-utils; o pdfinfo, em poppler-utils.
+      - name: Instalar o LaTeX
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends latexmk lmodern poppler-utils \
+            texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended \
+            texlive-publishers texlive-lang-portuguese texlive-science texlive-extra-utils
+
+      - name: Compilar o artigo
+        working-directory: artigo/latex
+        run: latexmk -pdf -interaction=nonstopmode -halt-on-error artigo.tex
+
+      - name: Contar as palavras por secao
+        working-directory: artigo/latex
+        run: |
+          {
+            echo "### Palavras por arquivo (texcount)"
+            echo '```'
+            texcount -inc -total -brief artigo.tex
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Conferir o limite de paginas
+        working-directory: artigo/latex
+        run: |
+          paginas=$(pdfinfo artigo.pdf | awk '/^Pages:/ {print $2}')
+          echo "### O artigo tem ${paginas} paginas (limite do template: ${PAGINAS_MAXIMAS})" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${paginas}" -gt "${PAGINAS_MAXIMAS}" ]; then
+            echo "::error::O artigo tem ${paginas} paginas, acima do limite de ${PAGINAS_MAXIMAS} do template."
+            exit 1
+          fi
+
+      # O PDF fica no job mesmo quando o limite de paginas falha, para ver o que cortar.
+      - name: Guardar o PDF
+        if: ${{ !cancelled() && hashFiles('artigo/latex/artigo.pdf') != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: artigo-pdf
+          path: artigo/latex/artigo.pdf
+          retention-days: 30
+          if-no-files-found: error

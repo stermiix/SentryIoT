@@ -114,7 +114,7 @@ agrupa as tarefas concluídas por semana e por responsável.
 
 | Pasta | Conteúdo |
 |---|---|
-| `artigo/` | `Artigo_TCC2_SentryIoT.docx`, o artigo no template do Oriente (10 a 20 páginas); `esqueleto.md`, o rascunho e a fonte das correções; e `figuras/`, com os scripts que geram as figuras |
+| `artigo/` | `Artigo_TCC2_SentryIoT.docx`, o artigo no template do Oriente (10 a 20 páginas); `latex/`, o mesmo artigo no template LaTeX da FCI, para onde o texto vai migrar (ver `artigo/latex/README.md`); `esqueleto.md`, o rascunho e a fonte das correções; e `figuras/`, com os scripts que geram as figuras |
 | `codigo/captura/` | extrator de features: pacotes → 39 números |
 | `codigo/classificador/` | regeração dos dados de treino a partir dos pcaps, preparação, treino e avaliação do Random Forest |
 | `codigo/reprodutor/` | reprodutor de tráfego: um pcap passa pelo extrator, pelo classificador e pela política de acionamento, e os incidentes vão para o log de eventos (`python -m codigo.reprodutor captura.pcap`) |
