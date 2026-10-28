@@ -211,6 +211,25 @@ def test_pausa_na_captura_encerra_o_incidente_e_nao_entra_no_atraso(tmp_path):
     assert r.janelas == 8
 
 
+def test_janela_lenta_nao_e_julgada(tmp_path):
+    # 100 quadros a 1 s um do outro: cada janela leva 99 s para fechar.
+    caminho = escrever_pcap(tmp_path / "a.pcap", [ataque(4)], passo=1.0)
+
+    r = reproduzir(caminho, classificador())
+
+    assert r.incidentes == []
+    assert (r.janelas, sum(r.por_categoria.values()), dict(r.nao_julgadas)) == (4, 0, {"DDoS+DoS": 4})
+
+
+def test_duracao_maxima_decide_que_janela_e_lenta(tmp_path):
+    caminho = escrever_pcap(tmp_path / "a.pcap", [ataque(4)], passo=1.0)
+
+    r = reproduzir(caminho, classificador(), duracao_maxima_s=200.0)
+
+    assert len(r.incidentes) == 1
+    assert (dict(r.por_categoria), sum(r.nao_julgadas.values())) == ({"DDoS+DoS": 4}, 0)
+
+
 def test_teto_de_incidentes_conta_uma_vez_por_sequencia(tmp_path):
     caminho = escrever_pcap(tmp_path / "a.pcap", [
         ataque(4), benigno(10), ataque(40, destino="10.0.0.200", origens=("10.0.0.9",)), benigno(10),
@@ -464,6 +483,18 @@ def test_resumo_traz_o_atraso_o_relogio_e_a_politica(tmp_path):
     assert saida["ponto_de_operacao"] == {"regra": "argmax", "limiar": None, "seguidas": 3}
     assert saida["relogio"]["deslocamento_s"] == pytest.approx(deslocamento)
     assert saida["trecho"] == {"a_partir_da_janela": 0, "so_teste": False}
+    assert (saida["janelas_nao_julgadas"], saida["acionamento"]["duracao_maxima_s"]) == (0, 60.0)
+
+
+def test_resumo_separa_as_janelas_nao_julgadas(tmp_path):
+    c = classificador()
+    reproducao = reproduzir(escrever_pcap(tmp_path / "a.pcap", [benigno(2), ataque(2, pausa=1.0)], passo=1.0), c)
+    cenarios, deslocamento = gravar(reproducao, c, tmp_path / "eventos.jsonl", relogio=lambda: AGORA)
+
+    saida = resumo(reproducao, cenarios, c, deslocamento)
+
+    assert (saida["janelas"], saida["por_categoria"], saida["janelas_nao_julgadas"]) == (4, {}, 4)
+    assert saida["nao_julgadas_por_categoria"] == {"Benign": 2, "DDoS+DoS": 2}
 
 
 def test_cliente_mcp_le_o_incidente_real_do_servidor_subido_com_os_cenarios(tmp_path):

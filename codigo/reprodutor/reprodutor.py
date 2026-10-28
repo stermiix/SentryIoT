@@ -29,10 +29,15 @@ aos modelos:
 - um incidente aberto se encerra depois de `fecha_apos` janelas seguidas que não são dele;
 - a categoria do incidente é a mais frequente entre as suas janelas de ataque, e a confiança é a
   média da probabilidade dessa categoria nessas janelas;
-- uma pausa de mais de `silencio_s` segundos zera a sequência e encerra os incidentes abertos,
-  seja entre duas janelas, seja dentro de uma janela que dura mais que isso: os pcaps do dataset
-  juntam sessões de captura separadas por horas. A janela que contém a pausa junta duas sessões: é
-  classificada e contada, mas não entra em sequência nem em incidente;
+- uma pausa de mais de `silencio_s` segundos entre duas janelas zera a sequência e encerra os
+  incidentes abertos: os pcaps do dataset juntam sessões de captura separadas por horas;
+- uma janela que leva mais de `duracao_maxima_s` segundos para fechar não é julgada: zera a
+  sequência, encerra os incidentes abertos e vai para `nao_julgadas`, e não para `por_categoria`.
+  É a janela que junta duas sessões de captura, ou a de um tráfego mais lento que qualquer um do
+  treino: no CICIoT2023, 99% das janelas de 100 quadros de cada categoria fecham em menos de 5 s,
+  menos as de Web, com 99% abaixo de 65 s (`rodadas_de_teste.md`, rodada i). Um aparelho sozinho
+  e de pouco tráfego, como a lâmpada Philips Hue do IoT-23 (cerca de 6 minutos por janela), fica
+  fora do que o modelo conhece, e a classificação dele não vale nem como alarme nem como medida;
 - uma sequência nova com a mesma categoria de um incidente encerrado há no máximo `reagrupa_s`
   segundos, e com algum endereço em comum entre os `ENDERECOS_DA_CHAVE` mais frequentes de cada um,
   reabre esse incidente em vez de abrir outro: uma varredura em rajadas contra alvos diferentes é
@@ -111,6 +116,8 @@ REFERENCIA = Path(__file__).with_name("referencia_benigno.json")
 LOTE = 512
 FECHA_APOS = 10
 SILENCIO_S = 60.0
+# A janela mais lenta que o reprodutor julga (ver a política de acionamento acima).
+DURACAO_MAXIMA_S = 60.0
 REAGRUPA_S = 300.0
 ENDERECOS_DA_CHAVE = 3
 TETO_DE_INCIDENTES = 20
@@ -296,6 +303,8 @@ class Reproducao:
     puladas: int = 0
     incompletas: int = 0
     por_categoria: Counter = field(default_factory=Counter)
+    # As janelas lentas demais para julgar, pela categoria que o modelo daria a elas.
+    nao_julgadas: Counter = field(default_factory=Counter)
     inicio: float | None = None
     fim: float | None = None
     incidentes: list = field(default_factory=list)
@@ -334,7 +343,7 @@ def _quadros(origem):
 
 def reproduzir(
     origem, classificador, *, fecha_apos=FECHA_APOS, silencio_s=SILENCIO_S, reagrupa_s=REAGRUPA_S,
-    teto=TETO_DE_INCIDENTES, a_partir_da_janela=0, nome=None,
+    teto=TETO_DE_INCIDENTES, a_partir_da_janela=0, nome=None, duracao_maxima_s=DURACAO_MAXIMA_S,
 ):
     """Lê o pcap, classifica as janelas e reúne as de ataque em incidentes pela política de acionamento."""
     inicio_do_processamento = time.perf_counter()
@@ -445,15 +454,15 @@ def reproduzir(
         probabilidades = classificador.probabilidades([p[1] for p in pendentes])
         for (indice, linha, contagens, inicio, fim), linha_de_p in zip(pendentes, probabilidades, strict=True):
             entre_janelas = inicio - estado["ultimo_fim"] if estado["ultimo_fim"] is not None else 0.0
-            com_pausa = fim - inicio > silencio_s
-            if entre_janelas > silencio_s or com_pausa:
+            lenta = fim - inicio > duracao_maxima_s
+            if entre_janelas > silencio_s or lenta:
                 sequencia.clear()
                 estado["descartando"] = False
                 encerrar_todos()
             estado["ultimo_fim"] = fim
             categoria = ponto.categoria(linha_de_p, classes)
-            if com_pausa:
-                reproducao.por_categoria[categoria] += 1
+            if lenta:
+                reproducao.nao_julgadas[categoria] += 1
                 continue
             janela = None
             if categoria != benigno:
@@ -771,7 +780,7 @@ def gravar(reproducao, classificador, caminho_do_log, *, referencia=None, relogi
 
 def resumo(
     reproducao, cenarios, classificador, deslocamento=0.0, fecha_apos=FECHA_APOS, silencio_s=SILENCIO_S,
-    reagrupa_s=REAGRUPA_S, teto=TETO_DE_INCIDENTES, a_partir_da_janela=0,
+    reagrupa_s=REAGRUPA_S, teto=TETO_DE_INCIDENTES, a_partir_da_janela=0, duracao_maxima_s=DURACAO_MAXIMA_S,
 ):
     """O que a reprodução produziu, para a linha de comando e para a interface."""
     duracao = (reproducao.fim - reproducao.inicio) if reproducao.inicio is not None else 0.0
@@ -796,6 +805,8 @@ def resumo(
         "janelas_puladas": reproducao.puladas,
         "janelas_incompletas": reproducao.incompletas,
         "por_categoria": dict(reproducao.por_categoria.most_common()),
+        "janelas_nao_julgadas": sum(reproducao.nao_julgadas.values()),
+        "nao_julgadas_por_categoria": dict(reproducao.nao_julgadas.most_common()),
         "duracao_do_pcap_s": round(duracao, 3),
         "processamento_s": round(reproducao.segundos, 3),
         "relogio": {
@@ -809,8 +820,8 @@ def resumo(
             "regra": classificador.ponto.regra, "limiar": classificador.ponto.limiar, "seguidas": classificador.ponto.seguidas,
         },
         "acionamento": {
-            "fecha_apos": fecha_apos, "silencio_s": silencio_s, "reagrupa_s": reagrupa_s, "teto": teto,
-            "parcela_da_maior_origem": PARCELA_DA_MAIOR_ORIGEM,
+            "fecha_apos": fecha_apos, "silencio_s": silencio_s, "duracao_maxima_s": duracao_maxima_s,
+            "reagrupa_s": reagrupa_s, "teto": teto, "parcela_da_maior_origem": PARCELA_DA_MAIOR_ORIGEM,
         },
         "incidentes": incidentes,
         "incidentes_alem_do_teto": reproducao.alem_do_teto,

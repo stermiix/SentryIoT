@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from codigo.reprodutor.reprodutor import (
+    DURACAO_MAXIMA_S,
     FECHA_APOS,
     MODELO_PADRAO,
     REAGRUPA_S,
@@ -37,6 +38,10 @@ def main(argv=None):
     analisador.add_argument("--fecha-apos", type=int, default=FECHA_APOS, help="janelas seguidas sem o incidente que o encerram")
     analisador.add_argument("--silencio", type=float, default=SILENCIO_S, help="segundos sem janela que encerram os incidentes")
     analisador.add_argument(
+        "--duracao-maxima", type=float, default=DURACAO_MAXIMA_S,
+        help="segundos que uma janela pode levar para fechar e ainda ser julgada",
+    )
+    analisador.add_argument(
         "--reagrupa", type=float, default=REAGRUPA_S, help="segundos em que a mesma categoria e um endereço em comum reabrem o incidente",
     )
     analisador.add_argument("--teto", type=int, default=TETO_DE_INCIDENTES, help="incidentes por pcap")
@@ -59,6 +64,7 @@ def main(argv=None):
         reproducao = reproduzir(
             argumentos.pcap, classificador, fecha_apos=argumentos.fecha_apos, silencio_s=argumentos.silencio,
             reagrupa_s=argumentos.reagrupa, teto=argumentos.teto, a_partir_da_janela=a_partir,
+            duracao_maxima_s=argumentos.duracao_maxima,
         )
     except PcapInvalido as erro:
         print(f"erro: {erro}", file=sys.stderr)
@@ -68,7 +74,7 @@ def main(argv=None):
     cenarios, deslocamento = gravar(reproducao, classificador, log)
     saida = resumo(
         reproducao, cenarios, classificador, deslocamento, argumentos.fecha_apos, argumentos.silencio, argumentos.reagrupa,
-        argumentos.teto, a_partir,
+        argumentos.teto, a_partir, argumentos.duracao_maxima,
     )
     json.dump(saida, sys.stdout, indent=1, ensure_ascii=False)
     print(f"\nlog de eventos: {log}", file=sys.stderr)
