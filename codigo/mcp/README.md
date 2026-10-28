@@ -1,10 +1,13 @@
-# Contrato MCP, stub do servidor e log de eventos
+# Contrato MCP, servidor e log de eventos
 
-Esta pasta define a interface entre o lado do classificador e o lado dos agentes e entrega um
-servidor MCP de mentira (stub) que já responde nesse formato. Com o stub no ar, dá para chamar
-as dez tools, percorrer um incidente do começo ao fim (ler, propor, aprovar, executar,
-desfazer) e obter o log de eventos que a interface web vai ler, sem classificador treinado e
-sem rede.
+Esta pasta define a interface entre o lado do classificador e o lado dos agentes e entrega o
+servidor MCP que responde nesse formato (`stub.py`). Com ele no ar, dá para chamar as dez
+tools, percorrer um incidente do começo ao fim (ler, propor, aprovar, executar, desfazer) e
+obter o log de eventos que a interface web lê. Ele atende os quatro incidentes de exemplo de
+`cenarios.py`, que servem aos testes, ou, com `--cenarios`, os incidentes reais que o
+reprodutor de tráfego monta a partir de um pcap. É esse o servidor da PoC, em modo de
+reprodução (decisão de 2026-10-25): nada nele toca a rede, e o efeito das ações é simulado
+(ver "O que é de mentira").
 
 Todos os comandos são dados a partir da raiz do repositório, com o ambiente do
 `requirements.txt` ativo.
@@ -17,11 +20,10 @@ Todos os comandos são dados a partir da raiz do repositório, com o ambiente do
 | `contrato.json` | O mesmo contrato em JSON Schema, gerado de `tipos.py` |
 | `acoes.py` | Catálogo de ações, política de risco, rótulos neutros, resumo do incidente, conferência do log e ambiente simulado, com desfazer |
 | `politica.toml` | Os números da política de risco, os alvos em que cada ação é de risco baixo, os endereços protegidos e críticos e as redes locais, para ajustar sem mexer no código |
-| `base.py` | Leitura da base local de documentos e a busca de `pesquisar_solucoes` |
-| `base_provisoria/` | Os documentos da base. **Conteúdo provisório do stub** (ver o `README.md` da pasta) |
+| `base.py` | Leitura da base de mitigações e a busca de `pesquisar_solucoes`. A base é o levantamento da equipe em `codigo/agente/recomendacoes/`, com a ação do catálogo e a fonte de cada medida |
 | `eventos.py` | Gravação e leitura do log de eventos, e o gravador restrito que os agentes usam |
 | `cenarios.py` | Os quatro incidentes de exemplo, com números ilustrativos |
-| `stub.py` | O servidor MCP de mentira |
+| `stub.py` | O servidor MCP, em modo de reprodução |
 | `aprovar.py` | O comando de terminal com que a pessoa vê a proposta inteira e aprova, rejeita ou promove, e marca um incidente como já resolvido |
 | `roteiro.py` | Gera o log de exemplo em `exemplos/incidente_flood.jsonl` |
 
@@ -243,8 +245,10 @@ ordem do log:
 ```
 ```json
 {"categoria": "DDoS",
- "mitigacoes": [{"origem": "flood.md", "titulo": "Bloquear a origem do tráfego",
-                 "texto": "Quando o tráfego vem de uma origem só, ...", "acao": "bloquear_ip"}, ...],
+ "mitigacoes": [{"origem": "ddos.md",
+                 "titulo": "Aplicar filtros de tráfego por protocolo, porta e origens confirmadas, considerando o risco de bloquear tráfego legítimo.",
+                 "texto": "Fonte: MITRE ATT&CK — T1498 (https://attack.mitre.org/techniques/T1498/)",
+                 "acao": "bloquear_ip"}, ...],
  "acoes": [{"nome": "bloquear_ip", "descricao": "Bloqueia o tráfego vindo de um endereço de origem.",
             "alvo": "Rótulo de uma origem do incidente, como origem-1",
             "parametros": [{"nome": "duracao", "descricao": "Prazo da medida, em minutos (número inteiro, de 1 a 525.600)", "obrigatorio": false}],
@@ -255,7 +259,8 @@ ordem do log:
 
 Na linha de decisão, o `alvo` de cada ação de base é descrito com os rótulos. Para o processo
 `--agente todos`, com o endereço (`"Endereço IP de origem, como 203.0.113.7"`). A resposta traz
-até 10 mitigações, na ordem da base.
+até 10 mitigações, na ordem da base: as medidas do levantamento da categoria que têm uma ação do
+catálogo, cada uma com a fonte no `texto`.
 
 **`pesquisar_solucoes`** (decisão)
 
@@ -264,8 +269,10 @@ até 10 mitigações, na ordem da base.
 ```
 ```json
 {"consulta": "flood de SYN com muitas origens", "fonte": "base_local",
- "trechos": [{"origem": "flood.md", "titulo": "Ativar SYN cookies no dispositivo ou no gateway",
-              "texto": "Em flood de pacotes SYN, a fila de conexões pendentes ...", "acao": null}, ...]}
+ "trechos": [{"origem": "ddos.md",
+              "titulo": "Habilitar SYN cookies quando houver evidência de SYN flood contra serviços TCP.",
+              "texto": "Fonte: MITRE ATT&CK — T1499 (https://attack.mitre.org/techniques/T1499/)",
+              "acao": null}, ...]}
 ```
 
 Trecho com `acao` nula descreve uma medida que o catálogo não cobre. É candidata a ação nova.
@@ -886,10 +893,12 @@ O que mais fica de fora deste trabalho:
 
 ## O que é de mentira
 
-- Os incidentes, as janelas e os efeitos das ações vêm de `cenarios.py`. Os números são
-  ilustrativos e não podem ser citados como resultado.
-- Os documentos de `base_provisoria/` são provisórios e serão substituídos pelo levantamento de
-  mitigações da equipe.
+- Sem `--cenarios`, os incidentes, as janelas e os efeitos das ações vêm de `cenarios.py`. Os
+  números são ilustrativos e não podem ser citados como resultado.
+- Com `--cenarios`, os incidentes e as janelas são os do pcap reproduzido, classificados pelo
+  modelo do sistema. O efeito das ações continua simulado: toda verificação dá `cessou` na
+  primeira ação aplicada (`EFEITOS_DO_REPLAY`, em `codigo/reprodutor/reprodutor.py`), porque a
+  ação não age sobre o tráfego já gravado.
 - Nenhuma ação toca a rede. O ambiente é simulado, e aplicar ou desfazer é gravar um evento.
 - A busca de `pesquisar_solucoes` é por palavras, só na base local. A busca na internet fica
   desligada por padrão, como decidido na especificação: neste trabalho não há código que a

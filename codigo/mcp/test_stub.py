@@ -169,7 +169,7 @@ def test_cada_tool_devolve_dados_validos_pelo_contrato(stub, cenario):
 def test_mitigacoes_recomendadas_vem_da_base_local_com_a_acao_do_catalogo(stub):
     recomendadas = chamar(stub, "consultar_mitigacoes", categoria="BruteForce")
     assert [(trecho.origem, trecho.acao) for trecho in recomendadas.mitigacoes] == [
-        ("forca_bruta.md", "bloquear_ip"), ("forca_bruta.md", "revogar_credencial"),
+        ("bruteforce.md", "limitar_taxa"), ("bruteforce.md", "revogar_credencial"), ("bruteforce.md", "bloquear_ip"),
     ]
     assert chamar(stub, "consultar_mitigacoes", categoria="Benign").mitigacoes == []
 
@@ -178,7 +178,7 @@ def test_pesquisa_devolve_trechos_da_base_local_com_a_origem_de_cada_um(stub):
     solucoes = chamar(stub, "pesquisar_solucoes", consulta="syn flood")
     assert solucoes.consulta == "syn flood"
     primeiro = solucoes.trechos[0]
-    assert (primeiro.origem, primeiro.acao) == ("flood.md", None)
+    assert (primeiro.origem, primeiro.acao) == ("ddos.md", None)
     assert "SYN cookies" in primeiro.titulo
     assert all(trecho.origem.endswith(".md") and trecho.texto for trecho in solucoes.trechos)
     assert chamar(stub, "pesquisar_solucoes", consulta="criptografia quântica").trechos == []
@@ -581,8 +581,11 @@ def test_resumo_de_cada_tool_no_log(stub):
     chamar(stub, "desfazer_acao", id_execucao=execucao.id)
     resumos = {e.dados.nome: e.dados.resultado for e in stub.registro.ler() if e.tipo == "tool_chamada"}
     assert resumos == {
-        "consultar_mitigacoes": {"mitigacoes": 3, "acoes": 4},
-        "pesquisar_solucoes": {"trechos": ["flood.md: Ativar SYN cookies no dispositivo ou no gateway"]},
+        "consultar_mitigacoes": {"mitigacoes": 2, "acoes": 4},
+        "pesquisar_solucoes": {"trechos": [
+            "ddos.md: Habilitar SYN cookies quando houver evidência de SYN flood contra serviços TCP.",
+            "dos.md: Habilitar SYN cookies em serviços TCP quando o vetor identificado for SYN flood.",
+        ]},
         "propor_acao": {
             "proposta": "prop-0001", "risco": "baixo", "motivos_de_risco_alto": [], "exige_aprovacao": False,
         },

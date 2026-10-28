@@ -1,20 +1,33 @@
 """Base local de conhecimento e a busca usada por `pesquisar_solucoes`.
 
-A base é uma pasta de documentos em markdown, um por tipo de ataque, mais material de
-referência. Cada seção de um documento descreve uma medida. Dela saem duas respostas:
+A base é o levantamento de mitigações da equipe, em `codigo/agente/recomendacoes/`: um documento
+em markdown por categoria de ataque, com as medidas numa tabela e a fonte de cada uma. Cada
+medida vira um trecho. Dela saem duas respostas:
 
-- `consultar_mitigacoes` devolve as seções da categoria que têm uma ação do catálogo, até 10.
-- `pesquisar_solucoes` procura em todas as seções, inclusive nas que o catálogo não cobre. É
+- `consultar_mitigacoes` devolve as medidas da categoria que têm uma ação do catálogo, até 10.
+- `pesquisar_solucoes` procura em todas as medidas, inclusive nas que o catálogo não cobre. É
   por aí que o agente de decisão encontra uma saída quando a base de ações não resolve.
 
 A busca é por palavras, sem modelo de linguagem e sem rede: neste trabalho nenhum dado sai da
 máquina, e a busca na internet fica desligada.
 
-Formato de um documento:
+Formato de um documento do levantamento:
 
     # Título do documento
 
-    Categorias: DDoS, DoS
+    Categorias: DDoS
+
+    ## Mitigações recomendadas
+
+    | Mitigação | Ação do catálogo | Fonte |
+    | --- | --- | --- |
+    | Texto da medida. | `bloquear_ip` | [Nome da fonte](https://...) |
+
+Cada linha da tabela é uma medida: o texto vira o título do trecho, e a fonte, o texto dele. A
+ação do catálogo é `nenhuma` quando nenhuma das quatro ações aplica a medida, e a fonte é
+obrigatória. As colunas são achadas pelo nome, na linha de cabeçalho.
+
+A base também aceita a medida escrita em texto corrido, numa seção própria:
 
     ## Título da medida
 
@@ -22,8 +35,9 @@ Formato de um documento:
 
     Texto da medida, em um ou mais parágrafos.
 
-As linhas `Categorias:` e `Ação do catálogo:` são opcionais. Documento sem categoria é material
-de referência e só aparece na pesquisa. O `README.md` da pasta não faz parte da base.
+As linhas `Categorias:` e `Ação do catálogo:` são opcionais, e uma seção traz texto ou tabela,
+não os dois. Documento sem categoria é material de referência e só aparece na pesquisa. O
+`README.md` da pasta não faz parte da base.
 """
 import re
 import unicodedata
@@ -43,9 +57,14 @@ from codigo.mcp.tipos import (
     Trecho,
 )
 
-PASTA_PADRAO = Path(__file__).with_name("base_provisoria")
+PASTA_PADRAO = Path(__file__).parents[1] / "agente" / "recomendacoes"
 _CATEGORIAS = "Categorias:"
 _ACAO = "Ação do catálogo:"
+# Nomes das colunas da tabela, já em minúsculas. A primeira coluna é sempre a da medida.
+_COLUNA_DA_ACAO = "ação do catálogo"
+_COLUNA_DA_FONTE = "fonte"
+_SEM_ACAO = "nenhuma"
+_LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)")
 # Palavras que não ajudam a distinguir um trecho do outro, já sem acento.
 _VAZIAS = frozenset((
     "a", "ao", "aos", "as", "com", "como", "da", "das", "de", "do", "dos", "e", "em", "na", "nas", "no", "nos",
@@ -93,16 +112,22 @@ def _ler_documento(arquivo):
     def invalido(detalhe):
         return ValueError(f"documento da base fora do formato ({arquivo.name}): {detalhe}")
 
+    def acao_do_catalogo(nome):
+        if nome not in BASE:
+            raise invalido(f"a ação {nome} não está no catálogo de base")
+        return nome
+
     documento = None
     categorias = ()
-    # Cada seção em montagem: título, ação e os parágrafos, cada um como lista de linhas.
+    # Cada seção em montagem: título, ação, os parágrafos, cada um como lista de linhas, e a
+    # tabela, com as colunas do cabeçalho e as linhas de medida.
     secoes = []
     for linha in arquivo.read_text(encoding="utf-8").splitlines():
         linha = linha.strip()
         if linha.startswith("## "):
             if documento is None:
                 raise invalido("a seção veio antes do título do documento")
-            secoes.append({"titulo": linha[3:].strip(), "acao": None, "paragrafos": [[]]})
+            secoes.append({"titulo": linha[3:].strip(), "acao": None, "paragrafos": [[]], "colunas": None, "linhas": []})
         elif linha.startswith("# "):
             documento = linha[2:].strip()
         elif linha.startswith(_CATEGORIAS) and not secoes:
@@ -111,10 +136,19 @@ def _ler_documento(arquivo):
             if desconhecidas:
                 raise invalido(f"categoria desconhecida: {', '.join(desconhecidas)}")
         elif linha.startswith(_ACAO) and secoes:
-            acao = linha[len(_ACAO):].strip()
-            if acao not in BASE:
-                raise invalido(f"a ação {acao} não está no catálogo de base")
-            secoes[-1]["acao"] = acao
+            secoes[-1]["acao"] = acao_do_catalogo(linha[len(_ACAO):].strip())
+        elif linha.startswith("|") and secoes:
+            celulas = [celula.strip() for celula in linha.strip("|").split("|")]
+            secao = secoes[-1]
+            if secao["colunas"] is None:
+                secao["colunas"] = [celula.casefold() for celula in celulas]
+                if _COLUNA_DA_ACAO not in secao["colunas"] or _COLUNA_DA_FONTE not in secao["colunas"]:
+                    raise invalido(f"a tabela da seção {secao['titulo']!r} precisa das colunas 'Ação do catálogo' e 'Fonte'")
+            elif len(celulas) != len(secao["colunas"]):
+                raise invalido(f"a linha {celulas[0][:60]!r} não tem as {len(secao['colunas'])} colunas do cabeçalho")
+            elif not all(celula and set(celula) <= set("-: ") for celula in celulas):
+                # A linha de traços que separa o cabeçalho das medidas não é medida.
+                secao["linhas"].append(celulas)
         elif secoes:
             # Linha em branco fecha o parágrafo. O que vem antes da primeira seção é introdução.
             if linha:
@@ -125,27 +159,44 @@ def _ler_documento(arquivo):
         raise invalido("falta o título do documento, em uma linha que começa com '# '")
     if not secoes:
         raise invalido("nenhuma seção encontrada; cada medida começa com '## '")
-    resultado = []
-    for secao in secoes:
-        texto = "\n\n".join(" ".join(linhas) for linhas in secao["paragrafos"] if linhas)
-        if not secao["titulo"] or not texto:
-            raise invalido(f"a seção {secao['titulo']!r} está sem título ou sem texto")
+
+    def montar(titulo, texto, acao):
         lida = Secao(
-            arquivo.name, documento, secao["titulo"], texto, categorias, secao["acao"],
-            palavras_do_titulo=frozenset(_raizes(secao["titulo"])), palavras_do_texto=Counter(_raizes(texto)),
+            arquivo.name, documento, titulo, texto, categorias, acao,
+            palavras_do_titulo=frozenset(_raizes(titulo)), palavras_do_texto=Counter(_raizes(texto)),
             palavras_do_documento=frozenset(_raizes(documento)),
         )
-        # Cada seção vira um trecho do contrato. Conferir aqui faz o erro aparecer na partida, e
+        # Cada medida vira um trecho do contrato. Conferir aqui faz o erro aparecer na partida, e
         # não na primeira consulta de um agente.
         try:
             lida.trecho()
         except ValidationError:
             raise invalido(
-                f"a seção {secao['titulo'][:60]!r} não cabe no contrato: o título tem até {TEXTO_CURTO} "
+                f"a medida {titulo[:60]!r} não cabe no contrato: o título tem até {TEXTO_CURTO} "
                 f"caracteres, o texto tem até {TEXTO_LONGO}, e nenhum dos dois aceita caractere de controle nem "
                 "caractere que não aparece na tela"
             ) from None
-        resultado.append(lida)
+        return lida
+
+    resultado = []
+    for secao in secoes:
+        texto = "\n\n".join(" ".join(linhas) for linhas in secao["paragrafos"] if linhas)
+        if secao["colunas"] is not None:
+            if texto or secao["acao"] is not None:
+                raise invalido(f"a seção {secao['titulo']!r} traz tabela e texto; cada seção traz um ou outro")
+            coluna_da_acao = secao["colunas"].index(_COLUNA_DA_ACAO)
+            coluna_da_fonte = secao["colunas"].index(_COLUNA_DA_FONTE)
+            for celulas in secao["linhas"]:
+                medida, fonte = celulas[0], _LINK.sub(r"\1 (\2)", celulas[coluna_da_fonte])
+                if not medida or not fonte:
+                    raise invalido(f"a linha {medida[:60]!r} está sem a medida ou sem a fonte")
+                nome = celulas[coluna_da_acao].strip("`").strip()
+                acao = None if nome.casefold() == _SEM_ACAO else acao_do_catalogo(nome)
+                resultado.append(montar(medida, f"Fonte: {fonte}", acao))
+            continue
+        if not secao["titulo"] or not texto:
+            raise invalido(f"a seção {secao['titulo']!r} está sem título ou sem texto")
+        resultado.append(montar(secao["titulo"], texto, secao["acao"]))
     return resultado
 
 
