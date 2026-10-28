@@ -66,7 +66,7 @@ A pessoa que opera a rede será avisada no instante em que o incidente abrir, an
 
 O laço dos agentes e o cliente MCP são testados contra esse mesmo servidor, o stub do repositório, aberto por stdio em outro processo, com um provedor de modelo simulado no lugar do LLM. Os testes automatizados conferem que cada agente só enxerga as tools da sua linha, que a recusa de uma tool volta ao agente como erro sem derrubar o servidor e que cada chamada fica no log com o nome do agente \cite{oliveira2026}.
 
-\begin{figure}[htb]
+\begin{figure}[htbp]
 	\centering
 	\caption{Diagrama da arquitetura (captura, extrator, classificador, servidor MCP, agentes e interface).}
 	\label{fig:arquitetura}
@@ -74,7 +74,7 @@ O laço dos agentes e o cliente MCP são testados contra esse mesmo servidor, o 
 	\legend{Fonte: os autores.}
 \end{figure}
 
-\begin{figure}[htb]
+\begin{figure}[htbp]
 	\centering
 	\caption{Fluxo de um incidente com os instantes medidos.}
 	\label{fig:fluxo}

@@ -9,7 +9,7 @@
 
 A Tabela~\ref{tab:classificador} é o resultado principal: o modelo do sistema no ponto de operação, que na validação foi o argmax, com N = 3, no corte por tempo, com o recall com o pcap inteiro fora do treino ao lado. A Tabela~\ref{tab:alarme} traz o alarme falso com cada pcap benigno fora do treino.
 
-\begin{table}[htb]
+\begin{table}[htbp]
 	\centering
 	\caption{Modelo do sistema por categoria. Precisão, recall e F1 no corte por tempo, no ponto de operação, na média das sementes 42, 1 e 2; janelas de teste da semente 42. Recall com o pcap fora: cada pcap sai inteiro do treino, um por vez, e é medido nas suas janelas de teste, somando os pcaps da categoria, com a categoria mais provável; em DDoS+DoS, quatro pcaps foram retirados.}
 	\label{tab:classificador}
@@ -30,13 +30,13 @@ A Tabela~\ref{tab:classificador} é o resultado principal: o modelo do sistema n
 	\legend{Fonte: os autores.}
 \end{table}
 
-\begin{table}[htb]
+\begin{table}[htbp]
 	\centering
 	\caption{Benigno classificado como ataque com cada pcap benigno fora do treino, um por vez, no ponto de operação escolhido na validação de cada rotação, na média das sementes 42, 1 e 2, e os alarmes com 3 janelas seguidas. A hora é a soma da duração das janelas do pcap.}
 	\label{tab:alarme}
 	\small
 	\setlength{\tabcolsep}{4pt}
-	\begin{tabular}{lrp{2.3cm}rrrr}
+	\begin{tabular}{lrp{2.0cm}rrrr}
 		\hline
 		\begin{tabular}[b]{@{}l@{}}\textbf{Pcap fora}\\\textbf{do treino}\end{tabular} & \textbf{Janelas} & \begin{tabular}[b]{@{}l@{}}\textbf{Regra}\\\textbf{escolhida}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Como}\\\textbf{ataque}\end{tabular} & \textbf{Alarmes} & \begin{tabular}[b]{@{}r@{}}\textbf{Alarmes}\\\textbf{por hora}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Como ataque,}\\\textbf{modelo}\\\textbf{de 10/10}\end{tabular} \\
 		\hline
@@ -52,7 +52,7 @@ No corte por tempo, DDoS+DoS e Mirai passam de 98\% de recall e de precisão. Re
 
 Em relação ao modelo de 10/10, cada um no seu ponto de operação, o modelo do sistema troca recall por alarme falso: o recall de Recon vai de 82,1\% para 55,0\% e o de Spoofing, de 99,4\% para 79,9\%, enquanto o alarme falso no BenignTraffic.pcap fora do treino vai de 36,1\% para 6,0\% e o fundo classificado como ataque, de 65,9\% para 13,3\%.
 
-\begin{figure}[htb]
+\begin{figure}[htbp]
 	\centering
 	\caption{Matriz de confusão do modelo do sistema no ponto de operação, que na validação foi o argmax, na parte de teste do corte por tempo, semente 42. Cada linha soma 100\% das janelas de teste da categoria real. A linha Benign vem de um único pcap fora do treino, o BenignTraffic2.pcap; com os outros dois fora do treino, o alarme falso vai a 0,8\% e a 6,0\% (Tabela~\ref{tab:alarme}). Com o pcap inteiro fora do treino, o recall é menor que o da diagonal em todas as categorias com mais de um pcap, e bem menor em Recon, Spoofing e Mirai (Tabela~\ref{tab:classificador}); o Spoofing depende ainda de um artefato da captura (seção~\ref{sec:limitacoes}).}
 	\label{fig:matriz}
@@ -100,7 +100,7 @@ Em relação ao modelo de 10/10, cada um no seu ponto de operação, o modelo do
 	\item \textbf{Modelo local:} os agentes de triagem e execução rodam num Qwen de 27 bilhões de parâmetros, mais fraco que o de fronteira; a comparação entre as configurações mede esse custo. É uma variante sem censura cujo nome exato a equipe não conhece, servida por um servidor de inferência compatível com a API da OpenAI, com hardware e quantização desconhecidos. Isso pesa na reprodutibilidade: quem repetir o trabalho com o Qwen normal, o publicado para o Ollama, deve esperar o comportamento que ele teve na comparação, em que entrou em laço em metade das triagens. Mesmo com temperatura 0 e semente fixa, o texto das respostas varia entre repetições, e cada caso dos experimentos é repetido. Um modelo desse tamanho pede placa de vídeo ou bastante memória, além do que o gateway precisa para a captura, o classificador e o servidor MCP (seção~\ref{sec:mcp}). Para o público-alvo, uma casa ou um pequeno negócio, esse hardware é caro. A saída é a configuração híbrida com um modelo local menor, de qualidade não medida neste trabalho, ou um serviço contratado que rode o modelo para vários clientes; nesse caso o dado sai da rede atendida, mas vai para quem foi contratado, e não para um provedor de IA.
 \end{itemize}
 
-\begin{figure}[htb]
+\begin{figure}[htbp]
 	\centering
 	\caption{Teste da janela.}
 	\label{fig:janela}
@@ -108,7 +108,7 @@ Em relação ao modelo de 10/10, cada um no seu ponto de operação, o modelo do
 	\legend{Fonte: os autores.}
 \end{figure}
 
-\begin{figure}[htb]
+\begin{figure}[htbp]
 	\centering
 	\caption{Janelas sem atacante.}
 	\label{fig:sem-atacante}
