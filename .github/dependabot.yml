@@ -1,6 +1,9 @@
 # Atualizacoes automaticas de dependencias: um lote por semana, poucos PRs abertos.
 # O prefixo deixa o titulo do PR e do commit no padrao do repositorio; o resto
 # da mensagem ("bump X from A to B") e gerado pelo Dependabot e nao se traduz.
+# Ate a submissao do artigo (09/11/2026), so atualizacoes de versao menor e de
+# correcao: as de versao principal ficam ignoradas. Tirar os blocos "ignore"
+# depois da entrega.
 version: 2
 updates:
   # Bibliotecas Python do requirements.txt.
@@ -11,6 +14,9 @@ updates:
     open-pull-requests-limit: 3
     commit-message:
       prefix: "Atualiza dependencia"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # Pacotes do frontend (package.json e package-lock.json).
   - package-ecosystem: npm
@@ -20,6 +26,9 @@ updates:
     open-pull-requests-limit: 3
     commit-message:
       prefix: "Atualiza dependencia"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # Actions usadas nos workflows (fixadas por SHA; o Dependabot atualiza o SHA
   # e o comentario com a versao).
@@ -28,5 +37,13 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 2
+    # O init e o analyze do CodeQL precisam estar na mesma versao: um PR so.
+    groups:
+      codeql:
+        patterns:
+          - "github/codeql-action/*"
     commit-message:
       prefix: "Atualiza action"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
