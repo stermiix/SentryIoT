@@ -25,22 +25,102 @@ ambiente) como parte da contribuição.
 
 ## 1. Introdução
 
-`[PENDENTE]` Enquadrar como NIDR (detecção **e** resposta), não NIDS, conforme o
-reposicionamento pedido pela banca do TCC I (ver `README.md`, seção "Correções da banca do TCC
-I"). O título também precisa mudar: o do TCC I era "Detecção de Ataques em IoT com IA Preditiva
-via MCP", e o do TCC II deve dizer detecção e resposta.
+Título adotado `[CONFERIR com o grupo]`: "SentryIoT: detecção e resposta a ataques em redes IoT com
+Random Forest e agentes de LLM via MCP", a sugestão da revisão do PR 23. O do TCC I era "Detecção de
+Ataques em IoT com IA Preditiva via MCP"; o novo diz detecção e resposta, como pede o
+reposicionamento da banca (`README.md`, "Correções da banca do TCC I", item 1).
 
-Apresentar o público-alvo (decisão de 2026-10-25): as redes de casas e de pequenos negócios, como
-um restaurante, com televisores, câmeras, sensores e assistentes de voz na mesma rede e sem equipe
-de segurança. O motivo principal é o tamanho da rede do dataset: o CICIoT2023 é uma rede de
-laboratório única, com 105 dispositivos IoT, em que os próprios dispositivos IoT maliciosos atacam
-os outros (NETO et al., 2023), o que corresponde a uma casa ou a um
-pequeno comércio, e não à rede de uma empresa. Nesse tamanho, uma caixa só captura o tráfego e
-aplica as respostas (seção 3.1); quem não tem equipe de segurança é quem mais precisa de um agente
-que explique o incidente e proponha a resposta; e o custo de tokens pesa mais num orçamento
-pequeno (seção 3.5). A implantação numa empresa fica para os trabalhos futuros (seção 6).
+Redes de casas e de pequenos negócios, como um restaurante, reúnem na mesma rede televisores,
+câmeras, sensores e assistentes de voz, dispositivos da Internet das Coisas (IoT), e em geral não
+têm equipe de segurança. Nelas, um aparelho comprometido pode atacar os outros sem sair da rede. É o
+cenário do CICIoT2023, conjunto de dados em que 33 ataques, agrupados em sete categorias, são
+executados por dispositivos IoT maliciosos contra outros dispositivos IoT, numa rede de laboratório
+com 105 equipamentos (NETO et al., 2023).
+
+Os sistemas de detecção de intrusão na rede, ou NIDS (Network Intrusion Detection System), baseados
+em aprendizado de máquina apontam que o tráfego é ataque e de que categoria, mas param no alerta:
+entender o que aconteceu, escolher a resposta e aplicá-la continua manual e pede um especialista,
+justamente o que essas redes não têm. As plataformas comerciais de detecção e resposta de rede, ou
+NDR (Network Detection and Response), juntam a resposta ao alerta (DARKTRACE, 2024), mas são
+produtos fechados, voltados a empresas. Este trabalho trata dessa lacuna com um sistema aberto de
+detecção e resposta a intrusões na rede, um NIDR (Network Intrusion Detection and Response).
+
+Para a resposta, o trabalho usa agentes baseados em modelos de linguagem de grande escala, os LLM
+(Large Language Model), que alternam raciocínio e chamadas de ferramenta (YAO et al., 2023). Eles
+leem o incidente, explicam o que o classificador viu e propõem uma ação. O Model Context Protocol
+(MCP) padroniza a ligação entre o modelo e as ferramentas (HOU et al., 2026), e é por ele que os
+agentes chegam ao classificador e ao catálogo de ações. Levar dados de rede a um modelo tem riscos
+próprios: uma instrução escondida no tráfego pode mudar o comportamento do modelo (GRESHAKE et al.,
+2023), e um modelo pago na nuvem cobra por chamada e recebe dados da rede.
+
+O objetivo geral é desenvolver e avaliar o SentryIoT, um sistema que detecta ataques em redes IoT
+com um classificador Random Forest e responde a eles com três agentes de LLM, ligados ao
+classificador por um servidor MCP e sujeitos a aprovação humana nas ações de risco alto.
+
+Os objetivos específicos são: (i) extrair do tráfego bruto, em arquivo pcap, as 39 features do
+CICIoT2023, com um extrator calibrado contra o dos autores do dataset; (ii) treinar e avaliar o
+classificador em dados regerados dos pcaps, em janela única de 100 quadros, com controles em que o
+pcap inteiro fica fora do treino; (iii) construir um servidor MCP que aplica a política de risco e
+protege os endereços da rede sem depender do modelo; (iv) construir os agentes de triagem, decisão e
+execução numa arquitetura híbrida, em que só o agente de decisão roda na nuvem e nenhum endereço da
+rede sai do ambiente; e (v) comparar as configurações tudo local, tudo na nuvem e híbrida em
+qualidade da recomendação, custo em tokens e tempo até a remediação.
+
+O público-alvo são as redes de casas e de pequenos negócios. O motivo principal é o tamanho da rede
+do dataset: o CICIoT2023 é uma rede de laboratório única, com 105 dispositivos e os atacantes do
+lado de dentro, o que corresponde a uma casa ou a um pequeno comércio, e não à rede de uma empresa.
+Nesse tamanho, uma caixa só captura o tráfego e aplica as respostas (seção 3.1); quem não tem equipe
+de segurança é quem mais precisa de um agente que explique o incidente e proponha a resposta; e o
+custo de tokens pesa mais num orçamento pequeno (seção 3.5). A implantação numa empresa fica para os
+trabalhos futuros.
+
+As contribuições do trabalho são: (1) o classificador treinado em dados regerados dos pcaps do
+CICIoT2023, em janela única e com o rótulo decidido pela presença do atacante na janela; (2) a
+medida de dois problemas do dataset, a dependência do modelo em relação ao tamanho da janela e as
+janelas rotuladas como ataque sem nenhum quadro do atacante; (3) o sistema de três agentes ligados
+por MCP, com as garantias de segurança no servidor e aprovação humana das ações de risco alto; e (4)
+a comparação entre as configurações local, nuvem e híbrida em qualidade, custo e tempo.
+
+O artigo está organizado assim: a seção 2 apresenta o referencial teórico e os trabalhos correlatos;
+a seção 3, a metodologia, da captura do tráfego à avaliação dos agentes; a seção 4, os resultados e
+as limitações; e a seção 5, as conclusões e os trabalhos futuros.
 
 ## 2. Trabalhos correlatos
+
+Correspondência com o `.docx`: a seção 2 do artigo é o Referencial teórico. A 2.1 do artigo é o
+texto logo abaixo; a 2.2 é a 2.4 deste esqueleto, aberta pelo parágrafo que vem logo depois do
+título dela; e a 2.3, Trabalhos correlatos, reúne as 2.1 a 2.3 deste esqueleto.
+
+### Detecção de intrusão em redes IoT (2.1 do artigo)
+
+Um sistema de detecção de intrusão, ou IDS (Intrusion Detection System), examina o que acontece num
+computador ou numa rede em busca de sinais de ataque; quando examina o tráfego da rede, é um NIDS. A
+detecção pode ser por assinatura, que compara o tráfego com padrões de ataques já conhecidos, ou por
+aprendizado de máquina, em que um modelo aprende com exemplos rotulados o que separa o tráfego
+benigno do malicioso. É o segundo caso que o CICIoT2023 permite estudar: os autores publicam o
+tráfego rotulado e avaliam modelos de aprendizado de máquina e de aprendizado profundo na tarefa de
+classificá-lo (NETO et al., 2023).
+
+Os ataques do CICIoT2023 se dividem em sete categorias (NETO et al., 2023). Na negação de serviço
+distribuída, ou DDoS (Distributed Denial of Service), e na negação de serviço, ou DoS (Denial of
+Service), a vítima é esgotada por um volume de tráfego que vem de muitas origens ou de uma só. Mirai
+é a família de ataques de botnet que transforma dispositivos IoT em origem de floods. Recon reúne o
+reconhecimento da rede, por varredura de máquinas, de portas e de sistemas. No Spoofing, o atacante
+se passa por outro equipamento, como no envenenamento do Address Resolution Protocol (ARP) e do
+Domain Name System (DNS). Os ataques Web exploram aplicações, por injeção de comandos e de consultas
+ao banco de dados, por exemplo, e BruteForce é a tentativa de senhas por dicionário.
+
+O Random Forest combina muitas árvores de decisão, cada uma treinada numa amostra sorteada das
+linhas e com um sorteio das features em cada divisão, e decide pela votação delas. No benchmark dos
+autores do CICIoT2023, ele tem o maior F1 entre os cinco modelos avaliados, em 2, em 8 e em 34
+classes, à frente da regressão logística, do perceptron, do AdaBoost e de uma rede neural profunda
+(NETO et al., 2023), e Doménech et al. (2025) também o usam ao comparar o CICIoT2023 com o
+CICIoMT2024. Além do desempenho, o Random Forest mede a importância de cada feature no próprio
+treino, o que este trabalho usa para dar aos agentes as features que pesam no incidente (seção 3.4).
+
+Detectar e responder são etapas diferentes: um NIDS termina no alerta, e um NIDR inclui a resposta.
+Neste trabalho, o classificador faz a detecção, e a resposta fica com agentes de LLM, que explicam o
+incidente e propõem a ação, aplicada sem aprovação humana só quando o risco é baixo (seção 3.5).
 
 ### 2.1 O CICIoT2023 e o que a literatura já apontou
 
@@ -111,6 +191,13 @@ política de acionamento, que agrupa as janelas em incidentes, e com o teto por 
 que vão ao modelo de fronteira (seção 3.5).
 
 ### 2.4 Agentes LLM e a segurança do MCP
+
+Um agente de LLM é um modelo de linguagem que, além de responder, escolhe ferramentas, chama cada
+uma, lê o resultado e decide o passo seguinte, até chegar a uma resposta. O MCP padroniza a ligação
+entre o modelo e essas ferramentas: um servidor expõe as ferramentas, chamadas de tools, cada uma
+com nome, descrição e esquema de entrada, e o cliente, do lado do modelo, as oferece ao agente e
+repassa as chamadas (HOU et al., 2026). No SentryIoT, o servidor MCP é do próprio sistema, e cada
+agente enxerga só as tools do seu papel (seção 3.5).
 
 Os agentes do SentryIoT seguem o laço ReAct (YAO et al., 2023), em que o modelo alterna raciocínio
 e chamadas de ferramenta. Esse desenho expõe o sistema a duas famílias de ataque já descritas na
