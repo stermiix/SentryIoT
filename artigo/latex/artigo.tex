@@ -60,8 +60,8 @@
 \usepackage[alf]{abntex2cite}	% Citações padrão ABNT
 
 % --- Informações de dados para CAPA e FOLHA DE ROSTO ---
-% Título, autores e e-mails como no artigo do TCC I.
-\titulo{Detecção de Ataques em IoT com IA Preditiva via MCP}
+% Título do .docx do PR 60; autores e e-mails como no artigo do TCC I.
+\titulo{SentryIoT: detecção e resposta a ataques em redes IoT com Random Forest e agentes de LLM via MCP}
 \def \theforeigntitle{}
 
 \autor{Bernardo Souza Oliveira \textsuperscript{1}
@@ -139,13 +139,10 @@
 % ----------------------------------------------------------
 \postextual
 
-% Enquanto as seções não citam nada, este \nocite lista todas as entradas, para conferir o
-% formato das referências no PDF. Tirar quando o texto estiver aqui: só o que é citado entra.
-% \nocite{*} não serve: com o abntex2cite, ele puxa também as entradas de opções do
-% abntex2-options.bib e o BibTeX falha.
-\nocite{neto2023,domenech2025,engelen2021,liu2022,greshake2023,yao2023,hou2026,kelly2021,
-dadkhah2024,ikbarieh2025,li2024idsagent,radosevich2025,zhang2026,beurerkellner2025,cic2023,
-garcia2020iot23,obliteratus2026,oliveira2026,darktrace2024,netskope2023,vectra2022}
+% Só entra na lista o que o texto cita. Não usar \nocite{*}: com o abntex2cite, ele puxa também as
+% entradas de opções do abntex2-options.bib e o BibTeX falha.
+\pendente{acrescentar as referências do TCC I que continuarem citadas (por exemplo, FERRAG et al., 2024).}
+
 \bibliography{referencias}
 
 \end{document}
