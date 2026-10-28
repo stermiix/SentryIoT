@@ -64,6 +64,7 @@ INCIDENTE_DA_ESPECIFICACAO = {
         {"nome": "Rate", "valor": 35778.4, "referencia_benigno": 96.2},
         {"nome": "syn_flag_number", "valor": 1.0, "referencia_benigno": 0.06},
     ],
+    "portas": [{"destino": "192.168.137.20", "porta": 80, "protocolo": "tcp", "quadros": 41200}],
 }
 INSTANTE = "2026-10-20T14:03:41.250Z"
 
@@ -274,12 +275,17 @@ def test_resumo_traz_rotulos_e_nao_enderecos():
         "origens": [{"rotulo": "origem-1", "quadros": 9120, "protegido": False}],
         "destinos": [{"rotulo": "destino-1", "quadros": 41200, "protegido": False}],
         "features_principais": INCIDENTE_DA_ESPECIFICACAO["features_principais"],
+        "portas": [{"destino": "destino-1", "porta": 80, "protocolo": "tcp", "quadros": 41200}],
         "ultimo_efeito": None,
     }
     assert ResumoDoIncidente.model_validate(resumo).model_dump(mode="json") == resumo
     for rotulo in ("203.0.113.7", "origem", "origem-0", "origem-01", "vitima-1", "destino-1 e mais", "Origem-1"):
         recusado_pelo_contrato(
             ResumoDoIncidente, resumo | {"origens": [{"rotulo": rotulo, "quadros": 1, "protegido": False}]}
+        )
+        recusado_pelo_contrato(
+            ResumoDoIncidente,
+            resumo | {"portas": [{"destino": rotulo, "porta": 80, "protocolo": "tcp", "quadros": 1}]},
         )
     assert contrato()["$defs"]["EnderecoRotulado"]["properties"]["rotulo"]["pattern"]
 
@@ -361,10 +367,24 @@ def test_incidente_da_especificacao_e_valido():
     {"inicio": "2026-10-20T14:03:11"},  # sem fuso horário
     {"origens": [{"endereco": "203.0.113.7"}]},
     {"campo_a_mais": 1},
+    {"portas": [{"destino": "192.168.137.20", "porta": 0, "protocolo": "tcp", "quadros": 1}]},
+    {"portas": [{"destino": "192.168.137.20", "porta": 65536, "protocolo": "tcp", "quadros": 1}]},
+    {"portas": [{"destino": "192.168.137.20", "porta": 80, "protocolo": "sctp", "quadros": 1}]},
+    {"portas": [{"destino": "192.168.137.20", "porta": 80, "protocolo": "TCP", "quadros": 1}]},
+    {"portas": [{"destino": "192.168.137.20", "porta": 80, "protocolo": "tcp"}]},
+    # A porta é de um destino que o incidente lista: sem isso, o resumo não teria o rótulo dela.
+    {"portas": [{"destino": "192.168.137.99", "porta": 80, "protocolo": "tcp", "quadros": 1}]},
+    {"portas": [{"destino": "destino-1", "porta": 80, "protocolo": "tcp", "quadros": 1}]},
 ])
 def test_incidente_fora_do_contrato_e_recusado(trocas):
     with pytest.raises(ValidationError):
         Incidente.model_validate(INCIDENTE_DA_ESPECIFICACAO | trocas)
+
+
+def test_incidente_de_log_gravado_antes_das_portas_vale_com_a_lista_vazia():
+    antigo = {chave: valor for chave, valor in INCIDENTE_DA_ESPECIFICACAO.items() if chave != "portas"}
+    assert Incidente.model_validate(antigo).portas == []
+    assert "portas" not in contrato()["$defs"]["Incidente"]["required"]
 
 
 def test_categoria_do_incidente_sao_as_8_com_ddos_e_dos_separados():
@@ -510,7 +530,7 @@ def test_acao_nova_exige_descricao_passos_efeito_e_como_desfazer():
 def test_ambiente_separa_as_medidas_ativas_por_tipo():
     ambiente = Ambiente.model_validate({
         "bloqueios": [EXECUCAO], "limites": [], "isolamentos": [], "credenciais_revogadas": [],
-        "outras_medidas": [],
+        "portas_fechadas": [], "outras_medidas": [],
     })
     assert ambiente.bloqueios[0].alvo == "203.0.113.7"
 

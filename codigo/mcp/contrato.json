@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "titulo": "Contrato MCP do SentryIoT",
-  "versao": "0.3.0",
+  "versao": "0.4.0",
   "limite_de_janelas": 20,
   "motivos_de_risco_alto": {
     "acao_sempre_de_risco_alto": "A ação é sempre de risco alto, qualquer que seja o alvo ou o prazo.",
@@ -269,6 +269,12 @@
           },
           "type": "array"
         },
+        "portas_fechadas": {
+          "items": {
+            "$ref": "#/$defs/Execucao"
+          },
+          "type": "array"
+        },
         "outras_medidas": {
           "description": "Ações novas ou promovidas ao catálogo",
           "items": {
@@ -282,6 +288,7 @@
         "limites",
         "isolamentos",
         "credenciais_revogadas",
+        "portas_fechadas",
         "outras_medidas"
       ],
       "title": "Ambiente",
@@ -650,7 +657,7 @@
           "type": "string"
         },
         "alvo": {
-          "description": "Sobre o que a ação age, em até 200 caracteres. O formato depende da ação. Um endereço do incidente é escrito com o rótulo neutro do resumo, como origem-1, destino-1 ou admin@destino-1; o agente de decisão não escreve endereço",
+          "description": "Sobre o que a ação age, em até 200 caracteres. O formato depende da ação. Um endereço do incidente é escrito com o rótulo neutro do resumo, como origem-1, destino-1, admin@destino-1 ou 23/tcp@destino-1; o agente de decisão não escreve endereço",
           "type": "string"
         },
         "parametros": {
@@ -2012,6 +2019,13 @@
             "$ref": "#/$defs/FeaturePrincipal"
           },
           "type": "array"
+        },
+        "portas": {
+          "description": "Portas de destino que mais receberam quadros nos destinos listados, da maior para a menor. Vem vazia sem TCP nem UDP, como num ARP spoofing ou num flood ICMP",
+          "items": {
+            "$ref": "#/$defs/PortaContada"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -2345,6 +2359,85 @@
       "title": "ParametrosDeAcaoNova",
       "type": "object"
     },
+    "PortaContada": {
+      "additionalProperties": false,
+      "properties": {
+        "destino": {
+          "anyOf": [
+            {
+              "format": "ipv4"
+            },
+            {
+              "format": "ipv6"
+            }
+          ],
+          "description": "Destino do incidente que recebe os quadros nessa porta",
+          "type": "string"
+        },
+        "porta": {
+          "description": "Porta de destino do TCP ou do UDP",
+          "maximum": 65535,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "protocolo": {
+          "enum": [
+            "tcp",
+            "udp"
+          ],
+          "type": "string"
+        },
+        "quadros": {
+          "description": "Quadros enviados a essa porta do destino no incidente",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "destino",
+        "porta",
+        "protocolo",
+        "quadros"
+      ],
+      "title": "PortaContada",
+      "type": "object"
+    },
+    "PortaRotulada": {
+      "additionalProperties": false,
+      "properties": {
+        "destino": {
+          "description": "Rótulo neutro do destino que recebe os quadros nessa porta, como destino-1",
+          "pattern": "^(?:origem|destino)-[1-9][0-9]{0,5}$",
+          "type": "string"
+        },
+        "porta": {
+          "description": "Porta de destino do TCP ou do UDP",
+          "maximum": 65535,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "protocolo": {
+          "enum": [
+            "tcp",
+            "udp"
+          ],
+          "type": "string"
+        },
+        "quadros": {
+          "description": "Quadros enviados a essa porta do destino no incidente",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "destino",
+        "porta",
+        "protocolo",
+        "quadros"
+      ],
+      "title": "PortaRotulada",
+      "type": "object"
+    },
     "Promocao": {
       "additionalProperties": false,
       "properties": {
@@ -2661,6 +2754,13 @@
           },
           "type": "array"
         },
+        "portas": {
+          "description": "Portas de destino que mais receberam quadros, com o rótulo do destino, da maior para a menor. Porta não é endereço: vem como está. É daqui que sai o alvo de fechar_porta, como 23/tcp@destino-1",
+          "items": {
+            "$ref": "#/$defs/PortaRotulada"
+          },
+          "type": "array"
+        },
         "ultimo_efeito": {
           "anyOf": [
             {
@@ -2687,6 +2787,7 @@
         "origens",
         "destinos",
         "features_principais",
+        "portas",
         "ultimo_efeito"
       ],
       "title": "ResumoDoIncidente",

@@ -12,6 +12,7 @@ import {
   MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO,
   MOTIVOS_DE_RECUSA,
   ORIGENS_DE_ACAO,
+  PROTOCOLOS_DE_TRANSPORTE,
   RESULTADOS_DO_EFEITO,
   RISCOS,
   TEXTO_CURTO,
@@ -101,6 +102,9 @@ function numero(minimo = Number.NEGATIVE_INFINITY, maximo = Number.POSITIVE_INFI
 }
 
 const contagem = inteiro(0);
+// Porta de 1 a 65535, como `Porta` em `tipos.py`.
+const porta: Regra = (valor, caminho) =>
+  Number.isSafeInteger(valor) && (valor as number) >= 1 && (valor as number) <= 65_535 ? null : caminho;
 const booleano: Regra = (valor, caminho) => (typeof valor === "boolean" ? null : caminho);
 const instante: Regra = (valor, caminho) =>
   typeof valor === "string" && Number.isFinite(instanteEmMs(valor)) ? null : caminho;
@@ -173,6 +177,12 @@ function mapa(chave: Regra, regraDoValor: Regra): Regra {
 }
 
 const EnderecoContado = objeto({ endereco: enderecoIP, quadros: contagem });
+const PortaContada = objeto({
+  destino: enderecoIP,
+  porta,
+  protocolo: umDe(PROTOCOLOS_DE_TRANSPORTE),
+  quadros: contagem,
+});
 const FeaturePrincipal = objeto({ nome: umDe(COLUNAS), valor: numero(), referencia_benigno: numero() });
 const Incidente = objeto({
   id: texto(),
@@ -188,6 +198,9 @@ const Incidente = objeto({
   origens: lista(EnderecoContado),
   destinos: lista(EnderecoContado),
   features_principais: lista(FeaturePrincipal),
+}, {
+  // Opcional: o log gravado antes da versão 0.4.0 do contrato não tem as portas.
+  portas: lista(PortaContada),
 });
 const MotivoDeRiscoAlto = objeto({ codigo: umDe(CODIGOS_DE_RISCO_ALTO), descricao: textoLongo });
 const Execucao = objeto({
@@ -218,6 +231,7 @@ const AcaoDoCatalogo = objeto({
 /** As regras de cada definição do contrato que aparece num evento, pelo nome dela em `$defs`. */
 export const DEFINICOES: Record<string, RegraDeObjeto> = {
   EnderecoContado,
+  PortaContada,
   FeaturePrincipal,
   Incidente,
   MotivoDeRiscoAlto,

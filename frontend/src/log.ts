@@ -148,8 +148,10 @@ export interface Agregado {
 
 const BASE = new Set<string>(ACOES_DE_BASE);
 const SEMPRE_ALTO = new Set<string>(SEMPRE_DE_RISCO_ALTO);
-// O alvo com rótulo neutro: `origem-1`, `destino-2` ou `conta@destino-1` (`_ALVO_COM_ROTULO`, em acoes.py).
-export const ALVO_COM_ROTULO = /^(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,63}@)?(?:origem|destino)-[1-9][0-9]{0,5}$/;
+// O alvo com rótulo neutro: `origem-1`, `destino-2`, `conta@destino-1` ou `23/tcp@destino-1`
+// (`_ALVO_COM_ROTULO`, em acoes.py).
+export const ALVO_COM_ROTULO =
+  /^(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,63}@|[1-9][0-9]{0,4}\/(?:tcp|udp)@)?(?:origem|destino)-[1-9][0-9]{0,5}$/;
 const PAPEIS = [
   ["origem", "origens"],
   ["destino", "destinos"],

@@ -52,7 +52,7 @@ SO_EM_TCP = (*FLAGS, "HTTP", "HTTPS", "Telnet", "SMTP", "SSH", "IRC")
 SO_NA_JANELA = ("Rate", *CONTAGENS, "Tot sum", "Min", "Max", "AVG", "Std", "Number", "Variance")
 CHAVES_DA_MEDIDA = {
     *(c for c in COLUNAS if c not in SO_NA_JANELA),
-    "ts", "mac_origem", "mac_destino", "ip_origem", "ip_destino", "ip_arp",
+    "ts", "mac_origem", "mac_destino", "ip_origem", "ip_destino", "ip_arp", "porta_destino",
 }
 
 PCAP_NANO_BE = b"\xa1\xb2\x3c\x4d"
@@ -157,6 +157,7 @@ def conferir_medida(ts, quadro, ts_anterior=None):
     assert medida["ts"] == ts
     assert medida["IAT"] == (0.0 if ts_anterior is None else ts - ts_anterior)
     assert 0 <= medida["Protocol Type"] <= 255, quadro.hex()
+    assert medida["porta_destino"] is None or 0 <= medida["porta_destino"] <= 65535, quadro.hex()
     assert 0 <= medida["Time_To_Live"] <= 255, quadro.hex()
     assert medida["IPv"] + medida["ARP"] == 1, quadro.hex()
     assert medida["LLC"] == medida["IPv"], quadro.hex()

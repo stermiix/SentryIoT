@@ -143,7 +143,7 @@ def test_cada_tool_devolve_dados_validos_pelo_contrato(stub, cenario):
     recomendadas = chamar(stub, "consultar_mitigacoes", categoria=incidente.categoria)
     assert recomendadas.categoria == incidente.categoria
     assert [acao.nome for acao in recomendadas.acoes] == [
-        "limitar_taxa", "bloquear_ip", "isolar_dispositivo", "revogar_credencial",
+        "limitar_taxa", "bloquear_ip", "isolar_dispositivo", "revogar_credencial", "fechar_porta",
     ]
 
     solucoes = chamar(stub, "pesquisar_solucoes", consulta="limitar taxa de pacotes")
@@ -200,7 +200,9 @@ def test_obter_janelas_de_incidente_pequeno_devolve_todas(stub):
 
 def test_ciclo_propor_aprovar_executar_e_desfazer_altera_e_restaura_o_ambiente(stub):
     vazio = chamar(stub, "consultar_estado")
-    assert vazio == Ambiente(bloqueios=[], limites=[], isolamentos=[], credenciais_revogadas=[], outras_medidas=[])
+    assert vazio == Ambiente(
+        bloqueios=[], limites=[], isolamentos=[], credenciais_revogadas=[], portas_fechadas=[], outras_medidas=[],
+    )
 
     proposta = chamar(stub, "propor_acao", id="inc-0001", alvo="192.168.137.20", **ISOLAMENTO)
     assert (proposta.id, proposta.risco, proposta.estado) == ("prop-0001", "alto", "aguardando_aprovacao")
@@ -581,7 +583,7 @@ def test_resumo_de_cada_tool_no_log(stub):
     chamar(stub, "desfazer_acao", id_execucao=execucao.id)
     resumos = {e.dados.nome: e.dados.resultado for e in stub.registro.ler() if e.tipo == "tool_chamada"}
     assert resumos == {
-        "consultar_mitigacoes": {"mitigacoes": 2, "acoes": 4},
+        "consultar_mitigacoes": {"mitigacoes": 2, "acoes": 5},
         "pesquisar_solucoes": {"trechos": [
             "ddos.md: Habilitar SYN cookies quando houver evidência de SYN flood contra serviços TCP.",
             "dos.md: Habilitar SYN cookies em serviços TCP quando o vetor identificado for SYN flood.",
@@ -592,7 +594,8 @@ def test_resumo_de_cada_tool_no_log(stub):
         "executar_acao": {"execucao": "exec-0001", "estado": "aplicada"},
         "verificar_efeito": {"resultado": "persiste"},
         "consultar_estado": {
-            "bloqueios": 1, "limites": 0, "isolamentos": 0, "credenciais_revogadas": 0, "outras_medidas": 0,
+            "bloqueios": 1, "limites": 0, "isolamentos": 0, "credenciais_revogadas": 0, "portas_fechadas": 0,
+            "outras_medidas": 0,
         },
         "desfazer_acao": {"execucao": "exec-0001", "estado": "desfeita"},
     }

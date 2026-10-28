@@ -9,11 +9,12 @@ import type {
   ESTADOS_DO_INCIDENTE,
   MOTIVOS_DE_RECUSA,
   ORIGENS_DE_ACAO,
+  PROTOCOLOS_DE_TRANSPORTE,
   RESULTADOS_DO_EFEITO,
   RISCOS,
 } from "./listas";
 
-// Tipos do log de eventos, escritos a partir de `codigo/mcp/contrato.json` (contrato 0.3.0, que
+// Tipos do log de eventos, escritos a partir de `codigo/mcp/contrato.json` (contrato 0.4.0, que
 // sai de `codigo/mcp/tipos.py`). Cada linha do log é um `Evento`, e o campo `tipo` diz o formato de
 // `dados`: a união abaixo é discriminada por ele. Os valores fixos vêm de `listas.ts`, que um teste
 // confere contra o `contrato.json`, e a conferência em tempo de execução fica em `contrato.ts`.
@@ -45,6 +46,13 @@ export interface EnderecoContado {
   quadros: number;
 }
 
+export interface PortaContada {
+  destino: string;
+  porta: number;
+  protocolo: (typeof PROTOCOLOS_DE_TRANSPORTE)[number];
+  quadros: number;
+}
+
 export interface FeaturePrincipal {
   nome: string;
   valor: number;
@@ -65,6 +73,8 @@ export interface Incidente {
   origens: EnderecoContado[];
   destinos: EnderecoContado[];
   features_principais: FeaturePrincipal[];
+  /** Ausente nos logs gravados antes da versão 0.4.0 do contrato. */
+  portas?: PortaContada[];
 }
 
 /** A pessoa que opera a rede marcou o incidente como já resolvido. */

@@ -30,10 +30,15 @@ limitar_taxa = ["origem", "destino"]
 # Os atacantes fazem o papel dos dispositivos já comprometidos pela botnet.
 isolar_dispositivo = ["origem"]
 revogar_credencial = ["origem"]
+# O Telnet e as outras portas de administração por onde a botnet entra ficam nos dispositivos
+# comprometidos.
+fechar_porta = ["origem"]
 
 [Recon]
 bloquear_ip = ["origem"]
 limitar_taxa = ["origem"]
+# Fechar a porta sem necessidade é no dispositivo varrido.
+fechar_porta = ["destino"]
 
 [Spoofing]
 isolar_dispositivo = ["origem"]

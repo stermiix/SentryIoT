@@ -13,6 +13,7 @@ export const ESTADOS_DA_PROPOSTA = ["aguardando_aprovacao", "liberada", "rejeita
 export const ESTADOS_DA_EXECUCAO = ["aplicada", "desfeita"] as const;
 export const RESULTADOS_DO_EFEITO = ["cessou", "diminuiu", "persiste"] as const;
 export const ORIGENS_DE_ACAO = ["base", "promovida"] as const;
+export const PROTOCOLOS_DE_TRANSPORTE = ["tcp", "udp"] as const;
 
 // Código de cada motivo de risco alto e a frase que a pessoa lê antes de aprovar. A tela mostra
 // esta frase, que é do sistema, e não a que veio no log.
@@ -84,5 +85,11 @@ export const MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO = 20;
 // O catálogo de base e as ações que são sempre de risco alto não estão no contrato: vêm de
 // `BASE` e `_SEMPRE_DE_RISCO_ALTO`, em `codigo/mcp/acoes.py`, e `contrato.test.ts` também as confere
 // lá. A reconstrução precisa delas para as mesmas regras do `reconstruir`.
-export const ACOES_DE_BASE = ["limitar_taxa", "bloquear_ip", "isolar_dispositivo", "revogar_credencial"] as const;
-export const SEMPRE_DE_RISCO_ALTO = ["isolar_dispositivo", "revogar_credencial"] as const;
+export const ACOES_DE_BASE = [
+  "limitar_taxa",
+  "bloquear_ip",
+  "isolar_dispositivo",
+  "revogar_credencial",
+  "fechar_porta",
+] as const;
+export const SEMPRE_DE_RISCO_ALTO = ["isolar_dispositivo", "revogar_credencial", "fechar_porta"] as const;

@@ -301,7 +301,7 @@ def test_levantamento_nao_recomenda_acao_para_trafego_benigno():
 @pytest.mark.parametrize("consulta,origem,palavra_do_titulo", [
     ("syn flood", "ddos.md", "SYN cookies"),
     ("autenticação multifator", "bruteforce.md", "MFA"),
-    ("fechar portas sem uso", "recon.md", "portas"),
+    ("segmentar redes iot", "recon.md", "Segmentar"),
     ("dnssec", "spoofing.md", "DNSSEC"),
     ("sql injection", "web.md", "SQL Injection"),
 ])
@@ -310,6 +310,12 @@ def test_pesquisa_no_levantamento_acha_medidas_fora_do_catalogo(consulta, origem
     assert primeiro.origem == origem
     assert palavra_do_titulo in primeiro.titulo
     assert primeiro.acao is None
+
+
+def test_medida_de_fechar_portas_do_levantamento_e_a_acao_fechar_porta():
+    primeiro = pesquisar(carregar(), "fechar portas sem uso")[0]
+    assert (primeiro.origem, primeiro.acao) == ("recon.md", "fechar_porta")
+    assert "fechar_porta" in {trecho.acao for trecho in mitigacoes(carregar(), "Mirai")}
 
 
 def test_toda_categoria_de_ataque_tem_medida_ligada_ao_catalogo():
