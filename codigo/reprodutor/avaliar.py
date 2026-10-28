@@ -94,7 +94,8 @@ def avaliar_pcap(caminho, classificador, manifesto=MANIFESTO):
     return {
         "arquivo": caminho.name, "rotulo": registro["rotulo"], "categoria": registro["categoria"],
         "benigno": registro["benigno"], "corte": corte, "quadros": reproducao.quadros, "janelas": reproducao.janelas,
-        "por_categoria": dict(reproducao.por_categoria), "janelas_com_atacante": sum(1 for v in verdade if v[0] > 0),
+        "por_categoria": dict(reproducao.por_categoria), "nao_julgadas": dict(reproducao.nao_julgadas),
+        "janelas_com_atacante": sum(1 for v in verdade if v[0] > 0),
         "duracao_s": round((reproducao.fim - reproducao.inicio) if reproducao.inicio is not None else 0.0, 1),
         "incidentes": incidentes, "alem_do_teto": reproducao.alem_do_teto,
         "processamento_s": round(time.perf_counter() - inicio, 1),
