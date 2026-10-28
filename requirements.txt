@@ -1,6 +1,6 @@
 dpkt==1.9.8
 numpy==2.4.6
-pandas==3.0.6
+pandas==3.1.0
 scikit-learn==1.9.1
 joblib==1.6.0
 pytest==9.1.1
