@@ -48,3 +48,20 @@ frontend/dist/
 
 # Dataset oficial CICIoT2023 (MERGED_CSV com 8,7 GB e pcaps com cerca de 46 GB), baixado do cicresearch.ca: nao versionar
 CICIoT2023
+
+# Artigo em LaTeX: arquivos da compilacao. O PDF sai do CI (workflow Artigo), nao vai para o git
+artigo/latex/*.aux
+artigo/latex/*.bbl
+artigo/latex/*.blg
+artigo/latex/*.brf
+artigo/latex/*.fdb_latexmk
+artigo/latex/*.fls
+artigo/latex/*.idx
+artigo/latex/*.ilg
+artigo/latex/*.ind
+artigo/latex/*.log
+artigo/latex/*.out
+artigo/latex/*.synctex.gz
+artigo/latex/*.toc
+artigo/latex/artigo.pdf
+artigo/latex/secoes/*.aux

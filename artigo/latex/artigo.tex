@@ -1,0 +1,144 @@
+%% Artigo do TCC II do SentryIoT, no template de artigo da FCI (2026), baseado no modelo de artigo
+%% do abnTeX2 (ABNT NBR 6022:2018), alterado pelo Prof. Dr. Gustavo Scalabrini Sampaio para os
+%% trabalhos de conclusão de curso da FCI. O preâmbulo é o do template; as mudanças estão
+%% comentadas. Como compilar: ver README.md nesta pasta.
+%%
+%% Regras do template: no máximo 20 páginas, contando as referências; resumo e abstract de 150 a
+%% 250 palavras cada.
+
+\documentclass[
+	% -- opções da classe memoir --
+	article,			% indica que é um artigo acadêmico
+	11pt,				% tamanho da fonte
+	oneside,			% para impressão apenas no recto. Oposto a twoside
+	a4paper,			% tamanho do papel.
+	% -- opções do pacote babel --
+	english,			% idioma adicional para hifenização
+	brazil,				% o último idioma é o principal do documento
+	sumario=tradicional
+	]{abntex2}
+
+% ---
+% Pacotes fundamentais (os do template)
+% ---
+\usepackage{lmodern}			% Usa a fonte Latin Modern
+\usepackage[T1]{fontenc}		% Selecao de codigos de fonte.
+\usepackage[utf8]{inputenc}		% Codificacao do documento (conversão automática dos acentos)
+\usepackage{indentfirst}		% Indenta o primeiro parágrafo de cada seção.
+\usepackage{nomencl} 			% Lista de simbolos
+\usepackage{color}				% Controle das cores
+\usepackage{graphicx}			% Inclusão de gráficos
+\usepackage{microtype} 			% Para melhorias de justificação
+\usepackage{hyperref}           % Habilita links e referências
+% ---
+
+% Mudança do SentryIoT: as figuras são as de ../figuras, geradas pelos scripts de lá.
+\graphicspath{{../figuras/}}
+
+% Mudança do SentryIoT: marca em vermelho o que ainda falta escrever. Nenhuma pode sobrar na
+% versão submetida.
+\DeclareRobustCommand{\pendente}[1]{\textcolor{red}{[PENDENTE: #1]}}
+
+% --- Header e Footer (do template) ---
+\setlength{\headheight}{36pt}
+\setlength{\headsep}{10pt}
+
+\makepagestyle{meuestilo}
+\makeevenhead{meuestilo}{\includegraphics[height=1.1cm]{FCI.png}}{}{\thepage}
+\makeoddhead {meuestilo}{\includegraphics[height=1.1cm]{FCI.png}}{}{\thepage}
+
+\makeheadrule{meuestilo}{\textwidth}{0.4pt}
+
+\pagestyle{meuestilo}
+\aliaspagestyle{chapter}{meuestilo}
+\aliaspagestyle{plain}{meuestilo}
+
+% Pacotes de citações
+\usepackage[alf]{abntex2cite}	% Citações padrão ABNT
+
+% --- Informações de dados para CAPA e FOLHA DE ROSTO ---
+% Título, autores e e-mails como no artigo do TCC I.
+\titulo{Detecção de Ataques em IoT com IA Preditiva via MCP}
+\def \theforeigntitle{}
+
+\autor{Bernardo Souza Oliveira \textsuperscript{1}
+\and Matheus Queiroz Gregorin \textsuperscript{1}
+\and José Victor Roling \textsuperscript{1}
+\and Pedro Henrique Cagnoni Guimarães \textsuperscript{1}
+\and Rodrigo Cardoso Silva \textsuperscript{1} \\
+\\
+\textsuperscript{1}Faculdade de Computação e Informática (FCI) \\ Universidade Presbiteriana Mackenzie -- São Paulo, SP -- Brasil \\
+\\
+\url{10312871, 10418225, 10418143, 10417477@mackenzista.com.br}
+\\
+\url{rodrigoc.silva@mackenzie.br}}
+
+\data{2026}
+
+% ---
+% Configurações de aparência do PDF final (do template)
+\definecolor{blue}{RGB}{41,5,195}
+
+\makeatletter
+\let\@fnsymbol\@arabic
+\hypersetup{
+		colorlinks=true,
+		linkcolor=blue,
+		citecolor=blue,
+		urlcolor=blue,
+}
+\makeatother
+
+\makeindex
+
+% Margens, parágrafo e espaçamento do template
+\setlrmarginsandblock{3cm}{3cm}{*}
+\setulmarginsandblock{3cm}{3cm}{*}
+\checkandfixthelayout
+\setlength{\parindent}{1.3cm}
+\setlength{\parskip}{0.2cm}
+\SingleSpacing
+
+\begin{document}
+
+\selectlanguage{brazil}
+\frenchspacing
+
+% ----------------------------------------------------------
+% ELEMENTOS PRÉ-TEXTUAIS
+% ----------------------------------------------------------
+\maketitle
+
+\begin{resumoumacoluna}
+\input{secoes/resumo}
+\end{resumoumacoluna}
+
+\renewcommand{\resumoname}{Abstract}
+\begin{resumoumacoluna}
+ \begin{otherlanguage*}{english}
+ \input{secoes/abstract}
+ \end{otherlanguage*}
+\end{resumoumacoluna}
+
+% ----------------------------------------------------------
+% ELEMENTOS TEXTUAIS
+% ----------------------------------------------------------
+\textual
+
+\input{secoes/1-introducao}
+\input{secoes/2-referencial}
+\input{secoes/3-metodologia}
+\input{secoes/4-resultados}
+\input{secoes/5-conclusao}
+
+% ----------------------------------------------------------
+% ELEMENTOS PÓS-TEXTUAIS
+% ----------------------------------------------------------
+\postextual
+
+% Enquanto as seções não citam nada, \nocite{*} lista todas as entradas, para conferir o
+% formato das referências no PDF. Tirar quando o texto estiver aqui: só o que é citado entra.
+\nocite{*}
+\bibliography{referencias}
+
+\end{document}
