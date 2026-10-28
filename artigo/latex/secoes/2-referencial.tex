@@ -1,17 +1,40 @@
 % Teto: 1.100 palavras no total (2.1: 300; 2.2: 350; 2.3: 450).
-% Fonte: seção 2 do .docx e seção 2 do esqueleto (PR 52). Correções da revisão de 27/10 no
+% Texto: seção 2 do .docx do PR 60, migrado sem correção. Correções da revisão de 27/10 no
 % ticket .scratch/migracao-latex/issues/01 (fora do repositório).
 \section{Referencial Teórico}
+\label{sec:referencial}
 
 \subsection{Detecção de intrusão em redes IoT}
+\label{sec:ids}
 
-\pendente{2.1 do .docx}
+Um sistema de detecção de intrusão, ou IDS (Intrusion Detection System), examina o que acontece num computador ou numa rede em busca de sinais de ataque; quando examina o tráfego da rede, é um NIDS. A detecção pode ser por assinatura, que compara o tráfego com padrões de ataques já conhecidos, ou por aprendizado de máquina, em que um modelo aprende com exemplos rotulados o que separa o tráfego benigno do malicioso. É o segundo caso que o CICIoT2023 permite estudar: os autores publicam o tráfego rotulado e avaliam modelos de aprendizado de máquina e de aprendizado profundo na tarefa de classificá-lo \cite{neto2023}.
+
+Os ataques do CICIoT2023 se dividem em sete categorias \cite{neto2023}. Na negação de serviço distribuída, ou DDoS (Distributed Denial of Service), e na negação de serviço, ou DoS (Denial of Service), a vítima é esgotada por um volume de tráfego que vem de muitas origens ou de uma só. Mirai é a família de ataques de botnet que transforma dispositivos IoT em origem de floods. Recon reúne o reconhecimento da rede, por varredura de máquinas, de portas e de sistemas. No Spoofing, o atacante se passa por outro equipamento, como no envenenamento do Address Resolution Protocol (ARP) e do Domain Name System (DNS). Os ataques Web exploram aplicações, por injeção de comandos e de consultas ao banco de dados, por exemplo, e BruteForce é a tentativa de senhas por dicionário.
+
+O Random Forest combina muitas árvores de decisão, cada uma treinada numa amostra sorteada das linhas e com um sorteio das features em cada divisão, e decide pela votação delas. No benchmark dos autores do CICIoT2023, ele tem o maior F1 entre os cinco modelos avaliados, em 2, em 8 e em 34 classes, à frente da regressão logística, do perceptron, do AdaBoost e de uma rede neural profunda \cite{neto2023}, e \citeonline{domenech2025} também o usam ao comparar o CICIoT2023 com o CICIoMT2024. Além do desempenho, o Random Forest mede a importância de cada feature no próprio treino, o que este trabalho usa para dar aos agentes as features que pesam no incidente (seção~\ref{sec:justificativa}).
+
+Detectar e responder são etapas diferentes: um NIDS termina no alerta, e um NIDR inclui a resposta. Neste trabalho, o classificador faz a detecção, e a resposta fica com agentes de LLM, que explicam o incidente e propõem a ação, aplicada sem aprovação humana só quando o risco é baixo (seção~\ref{sec:mcp}).
 
 \subsection{Agentes de LLM e o Model Context Protocol}
+\label{sec:agentes-mcp}
 
-\pendente{2.2 do .docx}
+Um agente de LLM é um modelo de linguagem que, além de responder, escolhe ferramentas, chama cada uma, lê o resultado e decide o passo seguinte, até chegar a uma resposta. O MCP padroniza a ligação entre o modelo e essas ferramentas: um servidor expõe as ferramentas, chamadas de tools, cada uma com nome, descrição e esquema de entrada, e o cliente, do lado do modelo, as oferece ao agente e repassa as chamadas \cite{hou2026}. No SentryIoT, o servidor MCP é do próprio sistema, e cada agente enxerga só as tools do seu papel (seção~\ref{sec:mcp}).
+
+Os agentes do SentryIoT seguem o laço ReAct \cite{yao2023}, em que o modelo alterna raciocínio e chamadas de ferramenta. Esse desenho expõe o sistema a duas famílias de ataque já descritas na literatura. A primeira é a injeção indireta de prompt \cite{greshake2023}: o modelo lê dados que não vêm de quem o usa, e instruções escondidas neles podem mudar o seu comportamento, como se o dado fosse código. Os autores veem difícil uma defesa infalível. No SentryIoT, os dados que o modelo lê descrevem tráfego de rede, que o atacante controla em parte.
+
+A segunda é a ameaça ao próprio MCP. \citeonline{hou2026} descrevem o ciclo de vida de um servidor MCP e organizam as ameaças em 16 cenários, entre eles a injeção indireta por dados devolvidos pelas ferramentas, e apontam a casa inteligente e a IoT industrial como ambientes de risco específico. \citeonline{radosevich2025} mostram que o Claude 3.7 e o Llama-3.3-70B podem ser levados a usar ferramentas do MCP para executar código malicioso, abrir acesso remoto e roubar credenciais no sistema de um desenvolvedor de inteligência artificial (IA), que o Claude também cai em ataque por dados corrompidos que recupera, e que as recusas dos modelos não são confiáveis; por isso propõem proteger também o servidor, com um auditor de servidores. \citeonline{beurerkellner2025}, da Invariant Labs, descrevem o \textit{tool poisoning}, em que instruções maliciosas vão na descrição da ferramenta, visíveis ao modelo e não à pessoa, e o \textit{rug pull}, em que o servidor muda a descrição depois de aprovada. Esses dois últimos trabalhos são, respectivamente, um preprint e um relato técnico de fornecedor, e não artigos revisados por pares.
+
+O SentryIoT difere no ponto de confiança: o servidor MCP é do próprio sistema, e não de terceiros, o que reduz parte desse risco, mas não o da injeção por dados de tráfego. Por isso o trabalho parte da premissa de que o modelo pode ser enganado e põe as garantias no servidor: a troca dos endereços por rótulos antes de qualquer dado ir à nuvem, a política de risco calculada sobre o endereço real e a aprovação humana das ações de risco alto (seção~\ref{sec:mcp}). O teste de \textit{tool poisoning} contra o servidor só entra se couber no calendário (seção~\ref{sec:avaliacao}).
 
 \subsection{Trabalhos correlatos}
+\label{sec:correlatos}
 
-\pendente{2.3 do esqueleto (a do .docx é anterior ao PR 52), com os dois trabalhos que unem
-detector de ML e agente LLM}
+O CICIoT2023 reúne 33 ataques, agrupados em sete categorias, executados por dispositivos IoT maliciosos contra outros dispositivos numa topologia de 105 equipamentos \cite{neto2023}. Os autores publicam os arquivos de captura (pcap), os CSVs (Comma-Separated Values) processados e o código de extração das features \cite{cic2023}. As features são calculadas sobre janelas de pacotes e agregadas pela média, com janelas de 100 pacotes nas classes de grande volume (DDoS, DoS e Mirai) e de 10 nas demais \cite{neto2023}. \citeonline{domenech2025} também registram essa diferença ao comparar o CICIoT2023 com o CICIoMT2024, que repete o esquema, e recomendam, para o CICIoMT2024, uma janela única para todos os tipos de tráfego, porque o tamanho da janela muda a distribuição das features. Eles relatam ainda queda de até 66,87\% no F1 do Random Forest em cinco classes quando o modelo é treinado no CICIoT2023 e testado no CICIoMT2024.
+
+Problemas na construção de conjuntos de dados já foram documentados em outros datasets do mesmo instituto. \citeonline{engelen2021} revisitaram o CICIDS2017 e encontraram falhas na geração do tráfego, na construção dos fluxos, na extração das features e na rotulagem, e regeneraram o conjunto com uma metodologia corrigida. \citeonline{liu2022} estenderam a análise ao CSE-CIC-IDS-2018 e relataram erros até então não documentados em todo o ciclo de criação, da orquestração dos ataques aos rótulos.
+
+Este trabalho segue essa linha com duas contribuições próprias: um teste direto do efeito do tamanho da janela, extraindo os mesmos pcaps com janelas de 10 e de 100 pacotes, e a medida de quantas janelas rotuladas como ataque não contêm nenhum pacote dos dispositivos atacantes. Aqui, o rótulo de ataque depende da presença do atacante na janela.
+
+No mercado, a detecção de intrusão com aprendizado de máquina aparece em plataformas comerciais. A Darktrace aprende o comportamento normal de cada entidade da rede e examina os desvios, em vez de aplicar regras fixas \cite{darktrace2024}. A Vectra AI automatiza a detecção, a triagem e a priorização de ameaças em redes, nuvem e identidades \cite{vectra2022}. A Netskope aplica técnicas semelhantes à proteção de dados e à defesa contra ameaças no contexto de acesso seguro à nuvem \cite{netskope2023}. Este trabalho difere dessas soluções por avaliar o pipeline completo num dataset público, com código aberto \cite{oliveira2026}, e por manter o dado da rede no ambiente local na configuração híbrida.
+
+O uso de modelos de linguagem pagos por chamada traz um risco adicional. \citeonline{kelly2021} definem o \textit{Denial of Wallet} como um ataque que força o esgotamento financeiro da vítima em plataformas cobradas por uso. Num sistema que aciona agentes de LLM a cada incidente, o atacante pode provocar o mesmo efeito gerando incidentes em volume. O sistema responde a esse risco com a política de acionamento, que agrupa as janelas em incidentes, e com o teto por hora de incidentes que vão ao modelo de fronteira (seção~\ref{sec:mcp}).

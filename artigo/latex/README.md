@@ -1,9 +1,10 @@
 # Artigo em LaTeX
 
 O artigo do TCC II no template de artigo da FCI (2026), a versão LaTeX do template do Oriente,
-baseada no modelo de artigo do abnTeX2 (ABNT NBR 6022). O texto vem do
-`../Artigo_TCC2_SentryIoT.docx` quando a conversão do esqueleto para o Word terminar; até lá, cada
-seção tem só os títulos e marcas `\pendente{...}`, que saem em vermelho no PDF.
+baseada no modelo de artigo do abnTeX2 (ABNT NBR 6022). O texto veio do `.docx` do PR 60 (branch
+`artigo-introducao-referencial`, commit `de7b90c`), sem correção de conteúdo, e daqui em diante é
+escrito e corrigido aqui. O que ainda falta escrever ou conferir fica em `\pendente{...}`, que sai
+em vermelho no PDF; nenhuma marca pode sobrar na versão submetida.
 
 ## Regras do template
 
@@ -35,9 +36,10 @@ artigo/latex/
 As figuras vêm de `../figuras/` (`\graphicspath`), em PDF, geradas pelos scripts de lá. Uma
 figura nova se gera lá e se inclui pelo nome, sem copiar para esta pasta.
 
-Enquanto as seções não citam nada, o `\nocite` do fim do `artigo.tex` lista todas as
-referências, para conferir o formato. Ele sai quando o texto chegar: daí em diante, só entra na
-lista o que for citado.
+Só entra na lista de referências o que o texto cita, com `\cite` ou `\citeonline`. Uma entrada do
+`referencias.bib` sem citação, como a de Ferrag et al. (2024), fica guardada e não aparece no PDF.
+As referências cruzadas usam `\label` e `\ref` (`seção~\ref{sec:mcp}`, `Tabela~\ref{tab:alarme}`),
+para a numeração acompanhar quando uma seção, figura ou tabela mudar de lugar.
 
 ## Como compilar
 

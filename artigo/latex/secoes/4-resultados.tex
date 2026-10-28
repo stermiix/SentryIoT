@@ -1,29 +1,117 @@
 % Teto: 2.500 palavras no total (4.1: 650; 4.2: 400 e uma tabela; 4.3: 650 e uma tabela;
-% 4.4: 600). Fonte: 4.1 e Limitações do .docx (PR 56), tarefas 93 e 95, resultados dos agentes.
+% 4.4: 600). Texto: 4.1 e Limitações do .docx do PR 60, migrado sem correção; a 4.2 e a 4.3
+% esperam os testes fora do CICIoT2023 (tarefas 93 e 95) e os resultados dos agentes.
 \section{Resultados e discussão}
+\label{sec:resultados}
 
 \subsection{Classificador}
+\label{sec:classificador}
 
-\pendente{4.1 do .docx, com as Tabelas 1 e 2 e a figura do recall com o pcap fora do treino
-(PR 57)}
+A Tabela~\ref{tab:classificador} é o resultado principal: o modelo do sistema no ponto de operação, que na validação foi o argmax, com N = 3, no corte por tempo, com o recall com o pcap inteiro fora do treino ao lado. A Tabela~\ref{tab:alarme} traz o alarme falso com cada pcap benigno fora do treino.
 
-\begin{figure}[htb]
+\begin{table}[htbp]
 	\centering
-	\caption{\pendente{legenda da matriz de confusão}}
+	\caption{Modelo do sistema por categoria. Precisão, recall e F1 no corte por tempo, no ponto de operação, na média das sementes 42, 1 e 2; janelas de teste da semente 42. Recall com o pcap fora: cada pcap sai inteiro do treino, um por vez, e é medido nas suas janelas de teste, somando os pcaps da categoria, com a categoria mais provável; em DDoS+DoS, quatro pcaps foram retirados.}
+	\label{tab:classificador}
+	\small
+	\begin{tabular}{lrrrrp{4.4cm}}
+		\hline
+		\textbf{Categoria} & \begin{tabular}[b]{@{}r@{}}\textbf{Janelas}\\\textbf{de teste}\end{tabular} & \textbf{Precisão} & \textbf{Recall} & \textbf{F1} & \textbf{Recall com o pcap fora do treino} \\
+		\hline
+		DDoS+DoS & 214.373 & 99,8\% & 98,4\% & 99,1\% & 74,2\% \\
+		Mirai & 24.458 & 100,0\% & 99,2\% & 99,6\% & 55,3\% \\
+		Recon & 10.982 & 85,7\% & 55,0\% & 67,0\% & 24,9\% \\
+		Spoofing & 7.007 & 99,9\% & 79,9\% & 88,8\% & 63,0\% \\
+		Web & 465 & 67,4\% & 35,1\% & 46,2\% & 29,4\% (51,8\% vistas como algum ataque) \\
+		BruteForce & 273 & 98,6\% & 34,4\% & 51,0\% & 0,0\% (um pcap só; 56,9\% vistas como algum ataque) \\
+		Benign & 16.008 & 63,3\% & 99,1\% & 77,3\% & Tabela~\ref{tab:alarme} \\
+		\hline
+	\end{tabular}
+	\legend{Fonte: os autores.}
+\end{table}
+
+\begin{table}[htbp]
+	\centering
+	\caption{Benigno classificado como ataque com cada pcap benigno fora do treino, um por vez, no ponto de operação escolhido na validação de cada rotação, na média das sementes 42, 1 e 2, e os alarmes com 3 janelas seguidas. A hora é a soma da duração das janelas do pcap.}
+	\label{tab:alarme}
+	\small
+	\setlength{\tabcolsep}{4pt}
+	\begin{tabular}{lrp{2.0cm}rrrr}
+		\hline
+		\begin{tabular}[b]{@{}l@{}}\textbf{Pcap fora}\\\textbf{do treino}\end{tabular} & \textbf{Janelas} & \begin{tabular}[b]{@{}l@{}}\textbf{Regra}\\\textbf{escolhida}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Como}\\\textbf{ataque}\end{tabular} & \textbf{Alarmes} & \begin{tabular}[b]{@{}r@{}}\textbf{Alarmes}\\\textbf{por hora}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Como ataque,}\\\textbf{modelo}\\\textbf{de 10/10}\end{tabular} \\
+		\hline
+		BenignTraffic2.pcap & 31.032 & argmax & 0,9\% & 4,3 & 0,5 & 1,1\% \\
+		BenignTraffic.pcap & 36.228 & limiar, t de 0,52 a 0,53 & 6,0\% & 124,0 & 13,5 & 36,1\% \\
+		BenignTraffic1.pcap & 29.549 & argmax & 0,8\% & 6,0 & 0,8 & 1,0\% \\
+		\hline
+	\end{tabular}
+	\legend{Fonte: os autores.}
+\end{table}
+
+No corte por tempo, DDoS+DoS e Mirai passam de 98\% de recall e de precisão. Recon (55,0\%), Web (35,1\%) e BruteForce (34,4\%) ficam bem abaixo. O que Recon e Web perdem vai sobretudo para Benign (Figura~\ref{fig:matriz}), e BruteForce perde 72 janelas para Recon e 62 para Benign, o que explica a precisão de 63,3\% da categoria benigna. O macro-F1 é de 75,6\% (de 75,4\% a 75,7\% entre as sementes), e 0,85\% das janelas benignas de teste viram ataque. Com o melhor limiar (t = 0,61), que perdeu na validação, o teste teria 1,0\% do benigno como ataque, e o recall de Recon e o de Spoofing cairiam 4,6 e 6,6 pontos (o intervalo de 95\% da diferença não inclui zero). Com o pcap inteiro fora do treino, o recall cai em todas as categorias com mais de um pcap: Recon fica em 24,9\% (0,5\% no VulnerabilityScan.pcap), Spoofing em 63,0\% (40,3\% no DNS\_Spoofing.pcap), Web em 29,4\%, Mirai em 55,3\% (0\% no Mirai-udpplain.pcap) e DDoS+DoS em 74,2\% (39,8\% no DDoS-SlowLoris.pcap). BruteForce tem um pcap só: sem ele, a categoria some do treino. O alarme falso depende do pcap benigno que fica de fora, de 0,8\% a 6,0\% das janelas, e com 3 janelas seguidas o pior pcap dá 13,5 alarmes por hora; nessa rotação, a validação escolheu o limiar, e com o argmax seriam 5,4\% das janelas. O fundo da parte de teste classificado como ataque é de 13,3\%. Dos 33 pcaps de ataque com trecho de teste, 32 alarmam com a regra das 3 janelas: o Recon-PingSweep.pcap, com 18 janelas de atacante no trecho, não alarma, e o BrowserHijacking.pcap não alarma em uma das três sementes.
+
+Em relação ao modelo de 10/10, cada um no seu ponto de operação, o modelo do sistema troca recall por alarme falso: o recall de Recon vai de 82,1\% para 55,0\% e o de Spoofing, de 99,4\% para 79,9\%, enquanto o alarme falso no BenignTraffic.pcap fora do treino vai de 36,1\% para 6,0\% e o fundo classificado como ataque, de 65,9\% para 13,3\%.
+
+\begin{figure}[htbp]
+	\centering
+	\caption{Matriz de confusão do modelo do sistema no ponto de operação, que na validação foi o argmax, na parte de teste do corte por tempo, semente 42. Cada linha soma 100\% das janelas de teste da categoria real. A linha Benign vem de um único pcap fora do treino, o BenignTraffic2.pcap; com os outros dois fora do treino, o alarme falso vai a 0,8\% e a 6,0\% (Tabela~\ref{tab:alarme}). Com o pcap inteiro fora do treino, o recall é menor que o da diagonal em todas as categorias com mais de um pcap, e bem menor em Recon, Spoofing e Mirai (Tabela~\ref{tab:classificador}); o Spoofing depende ainda de um artefato da captura (seção~\ref{sec:limitacoes}).}
 	\label{fig:matriz}
 	\includegraphics[width=0.8\textwidth]{matriz_confusao.pdf}
 	\legend{Fonte: os autores.}
 \end{figure}
 
 \subsection{Tráfego fora do CICIoT2023}
+\label{sec:fora}
 
 \pendente{a casa, o IoT-23 e o CICIoMT2024 numa tabela só (tarefas 93 e 95)}
 
 \subsection{Agentes}
+\label{sec:agentes}
 
-\pendente{as três configurações (local, nuvem e híbrida): veredito, recomendação contra o
-gabarito, custo e latência}
+\pendente{métricas dos agentes (qualidade da recomendação, custo em tokens, tempo entre detecção e remediação) nos cenários DDoS, port scan e brute force, e comparação entre as configurações local, nuvem e híbrida.}
 
 \subsection{Limitações}
+\label{sec:limitacoes}
 
-\pendente{de 24 itens para 8 a 10}
+\begin{itemize}
+	\item \textbf{Atalho da janela no dataset oficial:} o modelo treinado no MERGED\_CSV aprende o tamanho da janela, e não o comportamento do tráfego (seção~\ref{sec:treino}; Figura~\ref{fig:janela}). A regeração em janela única resolve isso ao custo de treinar só com os pcaps disponíveis, e os resultados valem para a janela de 100.
+	\item \textbf{Tráfego de fundo no treino:} entre 3,3\% e 66,9\% das janelas de 100 dos pcaps de varredura, força bruta, Web e spoofing não contêm nenhum quadro do atacante (na janela de 10, entre 33\% e 87\%; Figura~\ref{fig:sem-atacante}). O treino do sistema põe as da parte de treino como benignas, e parte delas pode conter efeito do ataque: o modelo aprende a chamar de benigno o que se parece com elas, e o recall de Recon e o de Spoofing caem (seção~\ref{sec:classificador}). O fundo da parte de teste não tem rótulo e fica fora do teste; o modelo classifica 13,3\% dele como ataque, no ponto de operação, uma estimativa do alarme durante um ataque, e não um erro medido.
+	\item \textbf{A regra que adotou o fundo no treino:} a condição sobre o Recon-PortScan.pcap foi atendida pela média, com queda de 3,53 pontos no trecho de teste do pcap, mas o intervalo de 95\% da queda vai de 1,77 a 5,29 pontos e não exclui uma queda acima do limite de 5. No pcap inteiro, a queda é de 6,26 pontos, e por ele a condição falharia.
+	\item \textbf{Web e BruteForce:} recall de 35,1\% e de 34,4\% no corte por tempo, no ponto de operação, confundidos com Recon e com tráfego benigno. Os intervalos são largos: no modelo de 10/10, por blocos, de 19,2\% a 52,0\% em BruteForce, que tem um tamanho efetivo de 15 janelas de teste. Com o fundo no treino, essas categorias são menos reconhecidas como ataque numa captura nova: com o pcap fora do treino, Web visto como algum ataque cai de 77,1\% para 51,8\% e BruteForce, de 76,4\% para 56,9\%, em relação ao modelo de 10/10 (o intervalo de 95\% da diferença não inclui zero), embora o recall de Web na categoria certa não mude. Os pcaps dessas classes são curtos, e o grupo não tem captura própria.
+	\item \textbf{Outra captura da mesma categoria:} com o pcap inteiro fora do treino, o recall de Recon fica em 24,9\%, o de Spoofing em 63,0\%, o de Mirai em 55,3\% e o de Web em 29,4\% (Tabela~\ref{tab:classificador}). Cada pcap de Recon e de Web é uma técnica diferente, e tirar o pcap tira também a técnica do treino. BruteForce tem um pcap só.
+	\item \textbf{Uma rede diferente da do dataset:} o classificador foi treinado e testado só com o tráfego do laboratório do CICIoT2023, com os mesmos dispositivos, os mesmos sete atacantes e o mesmo tráfego normal; mesmo as medidas com o pcap inteiro fora do treino vêm dessa rede. O desempenho numa rede real, com outros dispositivos e outro tráfego normal, não foi medido, e o recall e o alarme falso podem ser outros. O TTL (Time To Live) e o tamanho dos quadros, que pesam nas decisões do modelo, dependem dos dispositivos e de como o tráfego é capturado (itens abaixo).
+	\item \textbf{Tráfego que não é de IoT:} o tráfego benigno do treino é só de dispositivos IoT. No teste de captura de 25/10 (seção~\ref{sec:captura}), o tráfego normal de um notebook deu 8 das 23 janelas como Spoofing e abriu um incidente de Spoofing, com confiança de 0,54. Computadores e celulares têm outro tráfego normal, e o sistema foi pensado para vigiar a rede dos aparelhos IoT.
+	\item \textbf{IPv6:} o extrator só mede quadros IPv4 e ARP, como o código dos autores, e ignora o IPv6. No mesmo teste, 2.674 dos 5.000 quadros (53\%) eram IPv6. Um ataque feito só por IPv6 não é visto.
+	\item \textbf{Tráfego que não cruza o gateway:} o sistema só vê o que passa pelo ponto de captura. Numa rede em que o gateway não é o ponto de acesso, nem separa a rede IoT das outras, o ataque de um aparelho contra outro da mesma rede não chega a ele. Sensores em Zigbee ou Bluetooth, fora da rede IP (Internet Protocol), também ficam de fora.
+	\item \textbf{DDoS vindo da internet:} um flood volumétrico de fora lota o link da operadora antes de chegar ao gateway. Bloquear as origens no gateway não libera o link; isso pede ação do provedor.
+	\item \textbf{Alarme falso conforme o pcap benigno:} com cada pcap benigno fora do treino, a fração classificada como ataque vai de 0,8\% a 6,0\% no ponto de operação (Tabela~\ref{tab:alarme}). A regra foi escolhida com no máximo 1\% de alarme falso na validação, que vem dos outros dois pcaps benignos, e o pcap de fora pode passar disso, como passa o BenignTraffic.pcap.
+	\item \textbf{Artefato de captura:} os pcaps não foram gravados todos do mesmo jeito. 84\% das janelas de Spoofing têm quadro menor que 60 bytes, sem o preenchimento do Ethernet, e 88\% das janelas benignas têm quadro maior que 1.514 bytes, que só existe com segmentação feita pela placa da máquina que capturou; numa rede real, os tamanhos seriam outros. O TTL também pesa: é a feature que mais derruba o recall do tráfego benigno quando permutada, e as janelas benignas com TTL médio até 64 viram ataque em 9,3\% dos casos, contra 1,4\% acima de 90. Medir o quadro como no fio foi testado e não adotado, porque piora as medidas com o pcap fora do treino sem melhorar o alarme falso (seção~\ref{sec:treino}), e o artefato fica declarado como limitação. Os números do TTL são do modelo de 10/10.
+	\item \textbf{Cenários da PoC:} DDoS, port scan e brute force. O cenário de exfiltração foi retirado com o orientador: o CICIoT2023 não tem essa classe, e os datasets de referência também não a cobrem com dados rotulados suficientes. O dataset secundário foi dispensado pelo mesmo motivo; o trabalho usa só o CICIoT2023.
+	\item \textbf{Teste por arquivo inteiro:} só BenignTraffic, DDoS-SYN\_Flood e DoS-SYN\_Flood têm mais de um arquivo, e o último fica inteiro no teste. Os sete arquivos desses rótulos estão entre os 20 pcaps com cerca de 2.048.000.000 bytes, o tamanho em que o tcpdump -C 2048 corta o arquivo: são partes da mesma gravação, e não capturas independentes. Nas demais classes a divisão é por tempo dentro do mesmo pcap, o que tende a superestimar o resultado.
+	\item \textbf{Separação entre DDoS e DoS:} por janela, as faixas de IPs de origem das duas categorias se cruzam, e a contagem inclui os IPs da vítima e do tráfego de fundo. No nível do incidente, a regra pela parcela da maior origem acerta 19 de 20 incidentes dos pcaps de DoS e 34 de 63 dos de DDoS: ela tende a dizer DoS.
+	\item \textbf{Quem atacou:} o atacante do incidente é escolhido pela presença dos endereços nas janelas do incidente contra o tráfego benigno; nos pcaps de ataque, a primeira origem listada é um atacante em 119 de 231 incidentes, e nunca no spoofing, em que o quadro ARP só traz o IP anunciado, e não o do atacante. Uma origem errada é contida pela política de risco: bloquear uma origem da rede local é de risco alto e só acontece com a aprovação de uma pessoa.
+	\item \textbf{O artefato de captura na implantação:} com os quadros como passam no fio, completados até 60 bytes e limitados a 1.514, o modelo do sistema dá 26 alarmes nas 8 horas do BenignTraffic2.pcap, contra 4 com os quadros como o dataset gravou. Uma implantação que capture como o fio precisaria retreinar o modelo com os quadros normalizados.
+	\item \textbf{O atacante também gera tráfego comum:} 27,1\% das janelas de 100 dos pcaps benignos têm ao menos um quadro de um MAC atacante, e entram no treino como benignas.
+	\item \textbf{Ambiente simulado e efeito fixo:} o servidor MCP da PoC atende incidentes de pcaps reproduzidos, e não de uma captura ao vivo, e aplicar uma ação é só gravar o evento no log, sem rede em que ela aja. A verificação do efeito responde sempre que o ataque cessou. Os experimentos medem se os agentes escolhem uma ação aceitável no alvo certo e em quanto tempo ela é executada, e não se ela faria o ataque parar; o caso em que o agente de decisão propõe outra ação porque a primeira não resolveu não é exercitado. \pendente{Se houver tempo: o efeito de bloquear\_ip medido no próprio pcap, tirando os pacotes da origem bloqueada a partir do bloqueio.}
+	\item \textbf{Aprovação nos experimentos:} as ações de risco alto são aprovadas por uma regra fixa (seção~\ref{sec:avaliacao}), e o tempo até a remediação não inclui o de uma pessoa decidir, que numa operação real pode passar de minutos.
+	\item \textbf{Teto por hora e rota de menor capacidade:} a regra por tempo dos incidentes (seção~\ref{sec:mcp}) não foi implementada nem medida, e tem uma brecha. Um atacante pode gastar a cota da nuvem com ruído, rajadas que bastam para abrir incidentes, para que o ataque real caia na rota local ou, passado o segundo teto, só na saída do classificador. O estrago é limitado porque a política de risco, a troca de endereços por rótulos e a aprovação humana estão no servidor e valem nas duas rotas: um modelo mais fraco pode recomendar pior, mas não executa ação de risco alto sem aprovação. A comparação entre as configurações (seção~\ref{sec:agentes}) mede quanto se perde na rota local.
+	\item \textbf{Incidentes falsos de confiança alta:} o limiar de 0,6 da triagem não pega os incidentes falsos em que o classificador está seguro do erro. 25 dos 57 falsos da avaliação dos 38 pcaps têm confiança de 0,8 ou mais, quase todos de um pcap de ataque com a categoria errada e com milhares de janelas, e nenhum limiar de confiança os separa dos verdadeiros sem marcar boa parte dos ataques. Neles, a resposta proposta parte da categoria errada, e só a aprovação humana segura o erro, apenas nas ações de risco alto.
+	\item \textbf{O que pode ficar fora do calendário} \pendente{CONFERIR na revisão final}: se não couberem antes da submissão, o teste de tool poisoning (seção~\ref{sec:avaliacao}) e a ligação dos agentes à interface ficam de fora, e a aprovação na PoC é feita pelo comando de terminal.
+	\item \textbf{Modelo local:} os agentes de triagem e execução rodam num Qwen de 27 bilhões de parâmetros, mais fraco que o de fronteira; a comparação entre as configurações mede esse custo. É uma variante sem censura cujo nome exato a equipe não conhece, servida por um servidor de inferência compatível com a API da OpenAI, com hardware e quantização desconhecidos. Isso pesa na reprodutibilidade: quem repetir o trabalho com o Qwen normal, o publicado para o Ollama, deve esperar o comportamento que ele teve na comparação, em que entrou em laço em metade das triagens. Mesmo com temperatura 0 e semente fixa, o texto das respostas varia entre repetições, e cada caso dos experimentos é repetido. Um modelo desse tamanho pede placa de vídeo ou bastante memória, além do que o gateway precisa para a captura, o classificador e o servidor MCP (seção~\ref{sec:mcp}). Para o público-alvo, uma casa ou um pequeno negócio, esse hardware é caro. A saída é a configuração híbrida com um modelo local menor, de qualidade não medida neste trabalho, ou um serviço contratado que rode o modelo para vários clientes; nesse caso o dado sai da rede atendida, mas vai para quem foi contratado, e não para um provedor de IA.
+\end{itemize}
+
+\begin{figure}[htbp]
+	\centering
+	\caption{Teste da janela.}
+	\label{fig:janela}
+	\includegraphics[width=\textwidth]{teste_da_janela.pdf}
+	\legend{Fonte: os autores.}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\caption{Janelas sem atacante.}
+	\label{fig:sem-atacante}
+	\includegraphics[width=\textwidth]{janelas_sem_atacante.pdf}
+	\legend{Fonte: os autores.}
+\end{figure}
