@@ -35,7 +35,7 @@ artigo/latex/
 As figuras vêm de `../figuras/` (`\graphicspath`), em PDF, geradas pelos scripts de lá. Uma
 figura nova se gera lá e se inclui pelo nome, sem copiar para esta pasta.
 
-Enquanto as seções não citam nada, o `\nocite{*}` do fim do `artigo.tex` lista todas as
+Enquanto as seções não citam nada, o `\nocite` do fim do `artigo.tex` lista todas as
 referências, para conferir o formato. Ele sai quando o texto chegar: daí em diante, só entra na
 lista o que for citado.
 

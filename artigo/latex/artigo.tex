@@ -136,9 +136,13 @@
 % ----------------------------------------------------------
 \postextual
 
-% Enquanto as seções não citam nada, \nocite{*} lista todas as entradas, para conferir o
+% Enquanto as seções não citam nada, este \nocite lista todas as entradas, para conferir o
 % formato das referências no PDF. Tirar quando o texto estiver aqui: só o que é citado entra.
-\nocite{*}
+% \nocite{*} não serve: com o abntex2cite, ele puxa também as entradas de opções do
+% abntex2-options.bib e o BibTeX falha.
+\nocite{neto2023,domenech2025,engelen2021,liu2022,greshake2023,yao2023,hou2026,kelly2021,
+dadkhah2024,ikbarieh2025,li2024idsagent,radosevich2025,zhang2026,beurerkellner2025,cic2023,
+garcia2020iot23,obliteratus2026,oliveira2026,darktrace2024,netskope2023,vectra2022}
 \bibliography{referencias}
 
 \end{document}
