@@ -1,6 +1,6 @@
 # Rodadas de teste do modelo de janela de 100
 
-Gerado por `python -m codigo.classificador.rodadas` em 11/10/2026, com Python 3.11.2, scikit-learn 1.9.1, pandas 3.0.6 e numpy 2.4.6.
+Gerado por `python -m codigo.classificador.rodadas` em 29/10/2026, com Python 3.11.2, scikit-learn 1.9.1, pandas 3.0.6 e numpy 2.4.6.
 
 As rodadas medem o modelo de 10/10: o Random Forest de 7 categorias treinado nos dados regerados com
 janela de 100 quadros, sem o tráfego de fundo dos pcaps de ataque. Ele foi o modelo do sistema até
@@ -26,16 +26,16 @@ As diferenças entre duas condições (uma configuração e a de referência, o 
 - f. Janelas com quadro menor que 60 bytes: DDoS+DoS 0,0%, Mirai 1,4%, Recon 0,0%, Spoofing 84,2%, Web 0,0%, BruteForce 0,0%, Benign 0,0%; com quadro maior que 1.514 bytes: DDoS+DoS 1,4%, Mirai 0,6%, Recon 27,9%, Spoofing 0,0%, Web 38,7%, BruteForce 32,9%, Benign 87,8%.
 - g. Pontos candidatos do limiar, escolhidos no próprio teste (a escolha final precisa de uma parte de validação): t = 0,60 com 2,00% de benigno como ataque e 98,94% de recall de ataque; t = 0,75 com 0,75% de benigno como ataque e 98,19% de recall de ataque; t = 0,80 com 0,46% de benigno como ataque e 97,64% de recall de ataque.
 - h. Recall com o intervalo por blocos: Web 37,0% (31,1% a 43,1%); BruteForce 35,2% (19,2% a 52,0%); Recon 87,7% (86,6% a 88,7%); Spoofing 99,4% (99,0% a 99,7%).
-- i. Uma janela leva 1,59 ms para ser classificada sozinha e 0,013 ms num lote de 1.000; o modelo tem 184,5 MB.
+- i. Uma janela leva 1,61 ms para ser classificada sozinha e 0,013 ms num lote de 1.000; o modelo tem 184,5 MB.
 
 ## a. Reprodução do modelo publicado
 
-**O que foi feito.** O modelo salvo `rf_regerado_janela_100.joblib` (SHA-256 `b67e9013e67acbc6…`, semente 42, 100 árvores) classificou a parte de teste refeita com a leitura, o teto e a divisão do repositório, e as medidas foram comparadas com as de `manifesto_treino_regerado.json`. O modelo foi treinado de novo com a semente 42 e as predições dos dois foram comparadas janela a janela.
+**O que foi feito.** O modelo salvo `rf_regerado_janela_100_sem_fundo.joblib` (SHA-256 `44b0b970599a0062…`, semente 42, 100 árvores) classificou a parte de teste refeita com a leitura, o teto e a divisão do repositório, e as medidas foram comparadas com as de `manifesto_treino_regerado_sem_fundo.json`. O modelo foi treinado de novo com a semente 42 e as predições dos dois foram comparadas janela a janela.
 
 | Conferência | Resultado |
 |---|---|
 | Linhas de treino e de teste | 567.732 e 273.566 (iguais às publicadas) |
-| SHA-256 das posições de treino e de teste | iguais aos de `manifesto_treino_regerado.json` |
+| SHA-256 das posições de treino e de teste | iguais aos de `manifesto_treino_regerado_sem_fundo.json` |
 | `treino_sha256` gravado no modelo | igual |
 | Medidas do modelo salvo no teste refeito | 39 conferidas, 0 diferentes das publicadas |
 | Matriz de confusão por rótulo | idêntica à publicada |
@@ -328,13 +328,13 @@ Recall de Web por pcap, com o intervalo de Wilson: `Backdoor_Malware.pcap` 55,3%
 | Medida | Valor |
 |---|---|
 | Arquivo do modelo | 184,5 MB, 1.537.434 nós, profundidade média 44,9 e máxima 53 |
-| Importar o scikit-learn e o joblib, num processo novo | 0,62 s |
-| Ler o modelo | 0,07 s, com o arquivo no cache do sistema |
-| Memória do processo | 160 MB antes de ler o modelo e 533 MB depois |
-| Uma janela, `predict`, um núcleo | mediana 1,59 ms, p95 1,66 ms, p99 1,69 ms |
-| Uma janela, `predict_proba` | mediana 1,59 ms, p95 1,66 ms, p99 1,68 ms |
-| Lote de 1.000 janelas | 12,6 ms |
-| Extrator de janela de 100 em `Recon-PortScan.pcap` | 831.856 pacotes em 5,1 s: 162.190 pacotes/s e 1.604 janelas/s |
+| Importar o scikit-learn e o joblib, num processo novo | 0,66 s |
+| Ler o modelo | 0,10 s, com o arquivo no cache do sistema |
+| Memória do processo | 159 MB antes de ler o modelo e 532 MB depois |
+| Uma janela, `predict`, um núcleo | mediana 1,61 ms, p95 1,99 ms, p99 2,20 ms |
+| Uma janela, `predict_proba` | mediana 1,59 ms, p95 1,69 ms, p99 1,75 ms |
+| Lote de 1.000 janelas | 13,4 ms |
+| Extrator de janela de 100 em `Recon-PortScan.pcap` | 831.856 pacotes em 5,5 s: 151.295 pacotes/s e 1.496 janelas/s |
 
 Quanto tempo uma janela de 100 quadros leva para fechar (`Number` / `Rate`), em segundos, na amostra da semente principal:
 
@@ -352,19 +352,19 @@ O Random Forest de 50 árvores, na mesma divisão e na mesma semente:
 
 | Variante | Arquivo | Nós | Latência (mediana) | Lote de 1.000 | Macro-F1 | Benigno como ataque | Recall Recon | Recall Web | Recall BruteForce | Pcap benigno de fora nas rotações: como ataque |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 100 árvores (o do sistema) | 184,5 MB | 1.537.434 | 1,59 ms | 12,6 ms | 82,27% | 1,86% | 87,65% | 36,99% | 35,16% | 38,21%; 1,56% |
+| 100 árvores (o do sistema) | 184,5 MB | 1.537.434 | 1,61 ms | 13,4 ms | 82,27% | 1,86% | 87,65% | 36,99% | 35,16% | 38,21%; 1,56% |
 | 50 árvores | 92,4 MB | 769.780 | 0,83 ms | 6,1 ms | 82,35% | 1,92% | 87,30% | 37,42% | 35,53% | 37,73%; 1,52% |
 
 ## Como os números foram obtidos
 
 - Comando: `python -m codigo.classificador.rodadas --nucleos 4`, a partir da raiz do repositório, depois de `python -m codigo.classificador.regerar`.
 - Dados: `dados/processed/regerado/janela_100/`, 72 arquivos (os CSVs de rótulo e as partes de `descartadas/`), com o SHA-256 de cada um em `manifesto_rodadas.json`. Manifesto da regeração `experimentos/resultados/manifesto_regeracao.json`, SHA-256 `2d8ed9c489f21f2e8ed0b8f1e312e974c820013ae020eaaf6b7ff4996dfbf7c3`; extrator com SHA-256 `8bd38fb392d5bec5a318699b2cef4a67a7c0c43461ecd01ce20be5b7db0b4a65` e opções nenhuma.
-- Modelo salvo: `rf_regerado_janela_100.joblib`, SHA-256 `b67e9013e67acbc680c2d9312550b5e792f81665b4c755052ae84ecf23aa3986`. O nome é o da data da medida, quando este era o modelo do sistema; hoje o modelo de 10/10 é refeito por `treinar_regerado --sem-fundo` em `rf_regerado_janela_100_sem_fundo.joblib`.
+- Modelo salvo: `rf_regerado_janela_100_sem_fundo.joblib`, SHA-256 `44b0b970599a00623097f7c899f8f330ce48f7c2b990a1e652759ede4fdb3052`.
 - Treinos: `RandomForestClassifier` do scikit-learn com 100 árvores e os demais parâmetros padrão, 4 núcleos (o modelo não depende disso), teto de 50.000 linhas por rótulo e corte de 70% das janelas de cada pcap, as mesmas funções de `treinar_regerado`. Predição com um núcleo, em ordem fixa.
 - Os números das tabelas são arredondados; os valores completos, com as contagens, estão no manifesto, e as
   tabelas em CSV começam com `rodadas_`.
-- Tempo desta execução, na máquina em que rodou: 1.017,7 s. Os treinos já guardados em `dados/processed/rodadas/` são reaproveitados e não entram nessa conta; somados, os treinos de que os números saem levaram 825,0 s.
-- Código: o SHA-256 de cada módulo de que os números saem (`rodadas.py`, `preparar.py`, `treinar.py`, `avaliar.py`, `treinar_regerado.py`, `regerar.py`, `mapeamento.py` e `extrator.py`) está no manifesto e entra na chave dos treinos guardados; commit `67f694a33e01`.
-- Memória: pico de 3,9 GB no processo, o necessário para reproduzir com a mesma quantidade de núcleos.
+- Tempo desta execução, na máquina em que rodou: 93,9 s. Os treinos já guardados em `dados/processed/rodadas/` são reaproveitados e não entram nessa conta; somados, os treinos de que os números saem levaram 820,5 s.
+- Código: o SHA-256 de cada módulo de que os números saem (`rodadas.py`, `preparar.py`, `treinar.py`, `avaliar.py`, `treinar_regerado.py`, `regerar.py`, `mapeamento.py` e `extrator.py`) está no manifesto e entra na chave dos treinos guardados; commit `e0fe37c72e0b`.
+- Memória: pico de 2,2 GB no processo, o necessário para reproduzir com a mesma quantidade de núcleos.
 - Com as mesmas entradas, o mesmo código e as mesmas sementes, os números saem iguais. Só mudam a data e os
   tempos.

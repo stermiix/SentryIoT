@@ -2,7 +2,7 @@
  "descricao": "Rodadas de teste do modelo de janela de 100 do sistema",
  "gerado_por": "python -m codigo.classificador.rodadas",
  "comando": "python -m codigo.classificador.rodadas --nucleos 4",
- "gerado_em": "2026-10-11",
+ "gerado_em": "2026-10-29",
  "versoes": {
   "python": "3.11.2",
   "numpy": "2.4.6",
@@ -209,27 +209,27 @@
    "janela_100/descartadas/XSS.csv.gz": "6f55c00675a63ae5a06b881d1355c5ca3d41c2a847221b797e280cf4a471646e"
   },
   "modelo": {
-   "arquivo": "rf_regerado_janela_100.joblib",
-   "sha256": "b67e9013e67acbc680c2d9312550b5e792f81665b4c755052ae84ecf23aa3986",
-   "bytes": 184538417
+   "arquivo": "rf_regerado_janela_100_sem_fundo.joblib",
+   "sha256": "44b0b970599a00623097f7c899f8f330ce48f7c2b990a1e652759ede4fdb3052",
+   "bytes": 184538459
   },
   "treino_publicado": {
-   "manifesto": "experimentos/resultados/manifesto_treino_regerado.json",
-   "sha256": "67adc5f8a84dd05b9effcac333f04752db0ff755b329e8378f79c709cf0f0be6"
+   "manifesto": "experimentos/resultados/manifesto_treino_regerado_sem_fundo.json",
+   "sha256": "0d078de505e665d5c94a5d18094035c577e1ddaddf03a19526c8dd5f88a5e22b"
   }
  },
  "codigo": {
   "arquivos": {
-   "codigo/classificador/rodadas.py": "f5f1749a63fdf42660ae57666024c33bc387a8903d24cdfcfae78bed3e286520",
+   "codigo/classificador/rodadas.py": "a44ed22885418493e352073d65e1d0d132bb60a7f4a4633a06eaff7f69d9f556",
    "codigo/classificador/preparar.py": "230f12a936a60129987e5a0d8033a25c4e95177bb1815e549d2bd72c97e1bcb5",
    "codigo/classificador/treinar.py": "fc8f35e6b8e6388aa719c01fff699794b16445547e3c83812c3a4cd0e63a07e5",
    "codigo/classificador/avaliar.py": "093986840b739d5467e6c46e80c2eb0a6384708f56218678ca127dfc93a86d8a",
-   "codigo/classificador/treinar_regerado.py": "b58ef922bd01cc7f778fa1b0ef0eb54ea0ab366db509a2854ce0e0a1cc0a5693",
+   "codigo/classificador/treinar_regerado.py": "a0c91e575cc2c5c27e8f8537e045c37038bebb463fae6ee13a32b71a07c15adc",
    "codigo/classificador/regerar.py": "1bf502e7259db6d4aed884883ed6b073a7aab51b8ad4972cccdd7360313c48de",
    "codigo/classificador/mapeamento.py": "405813fcb527e1958d5c2ea6cd4c00e68e5405939a2e76c39ecbe1d674905008",
-   "codigo/captura/extrator.py": "8bd38fb392d5bec5a318699b2cef4a67a7c0c43461ecd01ce20be5b7db0b4a65"
+   "codigo/captura/extrator.py": "3afb779121c71c952676a87b511392aae5c53ce666581a817f3bc3a2c90cd8f7"
   },
-  "commit": "67f694a33e018f8ec1d24f1a50d2bf44a304f874",
+  "commit": "e0fe37c72e0b1230cff42e44bcd260952078e8cd",
   "com_alteracoes_fora_do_commit": false
  },
  "resultados": {
@@ -420,7 +420,7 @@
      "treino_sha256": "dc996d950d86294c413a89a4de6c7872770fe8e31a0fab986d847b8b57bad346",
      "teste_sha256": "73cc74fd4f94dade7a5c8c4ebcb2ba3a7676dc5c61fb0bd2f4f3aa0dec51e635"
     },
-    "treino_segundos": 10.509799917002965,
+    "treino_segundos": 11.356069624976953,
     "medidas": {
      "linhas": 273566,
      "acuracia": 0.982629420322701,
@@ -2002,14 +2002,14 @@
     },
     "detalhe": {
      "entradas": {
-      "modelo_sha256": "b67e9013e67acbc680c2d9312550b5e792f81665b4c755052ae84ecf23aa3986",
-      "publicado_sha256": "67adc5f8a84dd05b9effcac333f04752db0ff755b329e8378f79c709cf0f0be6"
+      "modelo_sha256": "44b0b970599a00623097f7c899f8f330ce48f7c2b990a1e652759ede4fdb3052",
+      "publicado_sha256": "0d078de505e665d5c94a5d18094035c577e1ddaddf03a19526c8dd5f88a5e22b"
      },
      "reproducao": {
       "modelo": {
-       "arquivo": "rf_regerado_janela_100.joblib",
-       "sha256": "b67e9013e67acbc680c2d9312550b5e792f81665b4c755052ae84ecf23aa3986",
-       "bytes": 184538417,
+       "arquivo": "rf_regerado_janela_100_sem_fundo.joblib",
+       "sha256": "44b0b970599a00623097f7c899f8f330ce48f7c2b990a1e652759ede4fdb3052",
+       "bytes": 184538459,
        "semente": 42,
        "arvores": 100,
        "janela": 100,
@@ -4392,7 +4392,7 @@
       }
      }
     },
-    "memoria_pico_bytes": 3010756608
+    "memoria_pico_bytes": 2086092800
    },
    "1": {
     "semente": 1,
@@ -4569,7 +4569,7 @@
      "treino_sha256": "ce3189b1ac0cbb8c6a766ff980036da09373e48a9c1f7799a7b736440c7a9eff",
      "teste_sha256": "9abbbd6e884eb9b9c434008bd6fa15911ee1f8e5ef6eb8b1beb07ad51651fa28"
     },
-    "treino_segundos": 10.539444749996619,
+    "treino_segundos": 10.795370584004559,
     "medidas": {
      "linhas": 273557,
      "acuracia": 0.9825593934719272,
@@ -6149,7 +6149,7 @@
       "5": 5
      }
     },
-    "memoria_pico_bytes": 3010756608
+    "memoria_pico_bytes": 2167504896
    },
    "2": {
     "semente": 2,
@@ -6326,7 +6326,7 @@
      "treino_sha256": "a7841c37f0a0b00794322dd731d9764bee307e4c4f56496ca51093b99aa1cc7d",
      "teste_sha256": "c5ad6bdddc393eb01891e5b7f649f4ba18b2af3d12426e9742b0c9e1dca0a084"
     },
-    "treino_segundos": 10.848725582996849,
+    "treino_segundos": 10.69436495800619,
     "medidas": {
      "linhas": 273206,
      "acuracia": 0.982683396411499,
@@ -7906,7 +7906,7 @@
       "5": 3
      }
     },
-    "memoria_pico_bytes": 3010756608
+    "memoria_pico_bytes": 2167504896
    },
    "3": {
     "semente": 3,
@@ -8083,7 +8083,7 @@
      "treino_sha256": "4555dc2c04d29d9ec26c9218c4f57b12efa1ca26729d8afb2db3c0f8b6ada13b",
      "teste_sha256": "7fb563a8268d131d2d5ba66655533dc1133f18b2acca72c7b71b19cc4da022ee"
     },
-    "treino_segundos": 11.085223542002495,
+    "treino_segundos": 10.800502124999184,
     "medidas": {
      "linhas": 273603,
      "acuracia": 0.9827267975862838,
@@ -9663,7 +9663,7 @@
       "5": 8
      }
     },
-    "memoria_pico_bytes": 3115450368
+    "memoria_pico_bytes": 2203926528
    },
    "4": {
     "semente": 4,
@@ -9840,7 +9840,7 @@
      "treino_sha256": "c6fdb4194c44148ab34e09152bfe4aa254813f6e532f05a66b891e5dd7a6943d",
      "teste_sha256": "875f86cad123e281fe6119804c15e4b19c0d730b267ec90ba0fe5036ee4da58a"
     },
-    "treino_segundos": 11.4448927500016,
+    "treino_segundos": 10.832355624996126,
     "medidas": {
      "linhas": 273861,
      "acuracia": 0.9825057237065519,
@@ -11420,7 +11420,7 @@
       "5": 5
      }
     },
-    "memoria_pico_bytes": 3115450368
+    "memoria_pico_bytes": 2203926528
    }
   },
   "rotacao": {
@@ -11475,7 +11475,7 @@
        "categoria": "DDoS+DoS"
       }
      ],
-     "treino_segundos": 10.831629707998218,
+     "treino_segundos": 10.290248709003208,
      "medidas": {
       "linhas": 275573,
       "acuracia": 0.9605004844451379,
@@ -11570,7 +11570,7 @@
        "5": 369
       }
      },
-     "memoria_pico_bytes": 3115450368
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
@@ -11622,7 +11622,7 @@
        "categoria": "DDoS+DoS"
       }
      ],
-     "treino_segundos": 10.898844667000958,
+     "treino_segundos": 10.309103458013851,
      "medidas": {
       "linhas": 276176,
       "acuracia": 0.9599675569202247,
@@ -11717,7 +11717,7 @@
        "5": 372
       }
      },
-     "memoria_pico_bytes": 3115450368
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
@@ -11769,7 +11769,7 @@
        "categoria": "DDoS+DoS"
       }
      ],
-     "treino_segundos": 11.10920241599888,
+     "treino_segundos": 10.49222791698412,
      "medidas": {
       "linhas": 275878,
       "acuracia": 0.9599388135335184,
@@ -11864,7 +11864,7 @@
        "5": 373
       }
      },
-     "memoria_pico_bytes": 3115450368
+     "memoria_pico_bytes": 2167504896
     }
    },
    "2": {
@@ -11918,7 +11918,7 @@
        "categoria": "DDoS+DoS"
       }
      ],
-     "treino_segundos": 11.323166375001165,
+     "treino_segundos": 10.902750457986258,
      "medidas": {
       "linhas": 272901,
       "acuracia": 0.982836266631489,
@@ -12013,7 +12013,7 @@
        "5": 3
       }
      },
-     "memoria_pico_bytes": 3115450368
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
@@ -12065,7 +12065,7 @@
        "categoria": "DDoS+DoS"
       }
      ],
-     "treino_segundos": 11.429239583001618,
+     "treino_segundos": 10.810511957999552,
      "medidas": {
       "linhas": 272614,
       "acuracia": 0.9823926870960406,
@@ -12160,7 +12160,7 @@
        "5": 3
       }
      },
-     "memoria_pico_bytes": 3207577600
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
@@ -12212,7 +12212,7 @@
        "categoria": "DDoS+DoS"
       }
      ],
-     "treino_segundos": 11.164884417001304,
+     "treino_segundos": 10.608175499975914,
      "medidas": {
       "linhas": 272446,
       "acuracia": 0.9823598070810362,
@@ -12307,7 +12307,7 @@
        "5": 3
       }
      },
-     "memoria_pico_bytes": 3207626752
+     "memoria_pico_bytes": 2167504896
     }
    }
   },
@@ -12318,7 +12318,7 @@
      "arquivo": "Recon-HostDiscovery.pcap",
      "rotulo": "Recon-HostDiscovery",
      "categoria": "Recon",
-     "treino_segundos": 10.766343125000276,
+     "treino_segundos": 10.731384625018109,
      "teste": {
       "janelas": 3842,
       "previstas": {
@@ -12344,14 +12344,14 @@
        "Benign": 1922
       }
      },
-     "memoria_pico_bytes": 3207626752
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "Recon-HostDiscovery.pcap",
      "rotulo": "Recon-HostDiscovery",
      "categoria": "Recon",
-     "treino_segundos": 10.758947332997195,
+     "treino_segundos": 10.220136375020957,
      "teste": {
       "janelas": 3842,
       "previstas": {
@@ -12377,14 +12377,14 @@
        "Benign": 2108
       }
      },
-     "memoria_pico_bytes": 3207626752
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "Recon-HostDiscovery.pcap",
      "rotulo": "Recon-HostDiscovery",
      "categoria": "Recon",
-     "treino_segundos": 10.656686292000813,
+     "treino_segundos": 10.156209790991852,
      "teste": {
       "janelas": 3842,
       "previstas": {
@@ -12410,7 +12410,7 @@
        "Benign": 2028
       }
      },
-     "memoria_pico_bytes": 3207626752
+     "memoria_pico_bytes": 2167504896
     }
    },
    "Recon-OSScan.pcap": {
@@ -12419,7 +12419,7 @@
      "arquivo": "Recon-OSScan.pcap",
      "rotulo": "Recon-OSScan",
      "categoria": "Recon",
-     "treino_segundos": 10.999540291002631,
+     "treino_segundos": 11.196543708996614,
      "teste": {
       "janelas": 1397,
       "previstas": {
@@ -12445,14 +12445,14 @@
        "Benign": 435
       }
      },
-     "memoria_pico_bytes": 3207626752
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "Recon-OSScan.pcap",
      "rotulo": "Recon-OSScan",
      "categoria": "Recon",
-     "treino_segundos": 11.177701083001011,
+     "treino_segundos": 10.710425124998437,
      "teste": {
       "janelas": 1397,
       "previstas": {
@@ -12478,14 +12478,14 @@
        "Benign": 450
       }
      },
-     "memoria_pico_bytes": 3212181504
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "Recon-OSScan.pcap",
      "rotulo": "Recon-OSScan",
      "categoria": "Recon",
-     "treino_segundos": 10.984043958997063,
+     "treino_segundos": 10.66019008299918,
      "teste": {
       "janelas": 1397,
       "previstas": {
@@ -12511,7 +12511,7 @@
        "Benign": 438
       }
      },
-     "memoria_pico_bytes": 3212181504
+     "memoria_pico_bytes": 2167504896
     }
    },
    "Recon-PingSweep.pcap": {
@@ -12520,7 +12520,7 @@
      "arquivo": "Recon-PingSweep.pcap",
      "rotulo": "Recon-PingSweep",
      "categoria": "Recon",
-     "treino_segundos": 10.88694341700102,
+     "treino_segundos": 11.169751334004104,
      "teste": {
       "janelas": 18,
       "previstas": {
@@ -12546,14 +12546,14 @@
        "Benign": 32
       }
      },
-     "memoria_pico_bytes": 3212230656
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "Recon-PingSweep.pcap",
      "rotulo": "Recon-PingSweep",
      "categoria": "Recon",
-     "treino_segundos": 10.890913334002107,
+     "treino_segundos": 10.608196624991251,
      "teste": {
       "janelas": 18,
       "previstas": {
@@ -12579,14 +12579,14 @@
        "Benign": 34
       }
      },
-     "memoria_pico_bytes": 3216883712
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "Recon-PingSweep.pcap",
      "rotulo": "Recon-PingSweep",
      "categoria": "Recon",
-     "treino_segundos": 11.035914207997848,
+     "treino_segundos": 10.715595041983761,
      "teste": {
       "janelas": 18,
       "previstas": {
@@ -12612,7 +12612,7 @@
        "Benign": 36
       }
      },
-     "memoria_pico_bytes": 3216900096
+     "memoria_pico_bytes": 2167504896
     }
    },
    "Recon-PortScan.pcap": {
@@ -12621,7 +12621,7 @@
      "arquivo": "Recon-PortScan.pcap",
      "rotulo": "Recon-PortScan",
      "categoria": "Recon",
-     "treino_segundos": 10.867566916000214,
+     "treino_segundos": 11.222103542007972,
      "teste": {
       "janelas": 850,
       "previstas": {
@@ -12647,14 +12647,14 @@
        "Benign": 170
       }
      },
-     "memoria_pico_bytes": 3216900096
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "Recon-PortScan.pcap",
      "rotulo": "Recon-PortScan",
      "categoria": "Recon",
-     "treino_segundos": 11.057363667001482,
+     "treino_segundos": 10.839974916016217,
      "teste": {
       "janelas": 850,
       "previstas": {
@@ -12680,14 +12680,14 @@
        "Benign": 169
       }
      },
-     "memoria_pico_bytes": 3216900096
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "Recon-PortScan.pcap",
      "rotulo": "Recon-PortScan",
      "categoria": "Recon",
-     "treino_segundos": 10.819231624998793,
+     "treino_segundos": 10.68223241600208,
      "teste": {
       "janelas": 850,
       "previstas": {
@@ -12713,7 +12713,7 @@
        "Benign": 169
       }
      },
-     "memoria_pico_bytes": 3216900096
+     "memoria_pico_bytes": 2167504896
     }
    },
    "VulnerabilityScan.pcap": {
@@ -12722,7 +12722,7 @@
      "arquivo": "VulnerabilityScan.pcap",
      "rotulo": "VulnerabilityScan",
      "categoria": "Recon",
-     "treino_segundos": 10.149201707998145,
+     "treino_segundos": 10.478100082982564,
      "teste": {
       "janelas": 4875,
       "previstas": {
@@ -12748,14 +12748,14 @@
        "Benign": 14589
       }
      },
-     "memoria_pico_bytes": 3216900096
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "VulnerabilityScan.pcap",
      "rotulo": "VulnerabilityScan",
      "categoria": "Recon",
-     "treino_segundos": 10.263622292000946,
+     "treino_segundos": 10.098357417009538,
      "teste": {
       "janelas": 4875,
       "previstas": {
@@ -12781,14 +12781,14 @@
        "Benign": 14438
       }
      },
-     "memoria_pico_bytes": 3216900096
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "VulnerabilityScan.pcap",
      "rotulo": "VulnerabilityScan",
      "categoria": "Recon",
-     "treino_segundos": 10.383880875000614,
+     "treino_segundos": 10.270415833976585,
      "teste": {
       "janelas": 4875,
       "previstas": {
@@ -12814,7 +12814,7 @@
        "Benign": 14436
       }
      },
-     "memoria_pico_bytes": 3216900096
+     "memoria_pico_bytes": 2167504896
     }
    },
    "Backdoor_Malware.pcap": {
@@ -12823,7 +12823,7 @@
      "arquivo": "Backdoor_Malware.pcap",
      "rotulo": "Backdoor_Malware",
      "categoria": "Web",
-     "treino_segundos": 10.83455800000229,
+     "treino_segundos": 11.088207541004522,
      "teste": {
       "janelas": 76,
       "previstas": {
@@ -12849,14 +12849,14 @@
        "Benign": 36
       }
      },
-     "memoria_pico_bytes": 3216900096
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "Backdoor_Malware.pcap",
      "rotulo": "Backdoor_Malware",
      "categoria": "Web",
-     "treino_segundos": 10.7031594580003,
+     "treino_segundos": 10.519868416973623,
      "teste": {
       "janelas": 76,
       "previstas": {
@@ -12882,14 +12882,14 @@
        "Benign": 33
       }
      },
-     "memoria_pico_bytes": 3216900096
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "Backdoor_Malware.pcap",
      "rotulo": "Backdoor_Malware",
      "categoria": "Web",
-     "treino_segundos": 10.811939208000695,
+     "treino_segundos": 10.743105417001061,
      "teste": {
       "janelas": 76,
       "previstas": {
@@ -12915,7 +12915,7 @@
        "Benign": 38
       }
      },
-     "memoria_pico_bytes": 3216900096
+     "memoria_pico_bytes": 2167504896
     }
    },
    "BrowserHijacking.pcap": {
@@ -12924,7 +12924,7 @@
      "arquivo": "BrowserHijacking.pcap",
      "rotulo": "BrowserHijacking",
      "categoria": "Web",
-     "treino_segundos": 10.833984541000973,
+     "treino_segundos": 11.01148108401685,
      "teste": {
       "janelas": 81,
       "previstas": {
@@ -12950,14 +12950,14 @@
        "Benign": 225
       }
      },
-     "memoria_pico_bytes": 3216900096
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "BrowserHijacking.pcap",
      "rotulo": "BrowserHijacking",
      "categoria": "Web",
-     "treino_segundos": 10.925256459002412,
+     "treino_segundos": 10.758978957979707,
      "teste": {
       "janelas": 81,
       "previstas": {
@@ -12983,14 +12983,14 @@
        "Benign": 215
       }
      },
-     "memoria_pico_bytes": 3216916480
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "BrowserHijacking.pcap",
      "rotulo": "BrowserHijacking",
      "categoria": "Web",
-     "treino_segundos": 10.69543079199866,
+     "treino_segundos": 10.568122041004244,
      "teste": {
       "janelas": 81,
       "previstas": {
@@ -13016,7 +13016,7 @@
        "Benign": 224
       }
      },
-     "memoria_pico_bytes": 3216916480
+     "memoria_pico_bytes": 2167504896
     }
    },
    "CommandInjection.pcap": {
@@ -13025,7 +13025,7 @@
      "arquivo": "CommandInjection.pcap",
      "rotulo": "CommandInjection",
      "categoria": "Web",
-     "treino_segundos": 10.828032541998255,
+     "treino_segundos": 11.009193917008815,
      "teste": {
       "janelas": 77,
       "previstas": {
@@ -13051,14 +13051,14 @@
        "Benign": 78
       }
      },
-     "memoria_pico_bytes": 3216916480
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "CommandInjection.pcap",
      "rotulo": "CommandInjection",
      "categoria": "Web",
-     "treino_segundos": 10.785468499998387,
+     "treino_segundos": 10.651179209002294,
      "teste": {
       "janelas": 77,
       "previstas": {
@@ -13084,14 +13084,14 @@
        "Benign": 78
       }
      },
-     "memoria_pico_bytes": 3216916480
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "CommandInjection.pcap",
      "rotulo": "CommandInjection",
      "categoria": "Web",
-     "treino_segundos": 10.704322790999868,
+     "treino_segundos": 10.555925541993929,
      "teste": {
       "janelas": 77,
       "previstas": {
@@ -13117,7 +13117,7 @@
        "Benign": 74
       }
      },
-     "memoria_pico_bytes": 3216916480
+     "memoria_pico_bytes": 2167504896
     }
    },
    "SqlInjection.pcap": {
@@ -13126,7 +13126,7 @@
      "arquivo": "SqlInjection.pcap",
      "rotulo": "SqlInjection",
      "categoria": "Web",
-     "treino_segundos": 10.744897249998758,
+     "treino_segundos": 10.905313166993437,
      "teste": {
       "janelas": 102,
       "previstas": {
@@ -13152,14 +13152,14 @@
        "Benign": 24
       }
      },
-     "memoria_pico_bytes": 3216916480
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "SqlInjection.pcap",
      "rotulo": "SqlInjection",
      "categoria": "Web",
-     "treino_segundos": 10.846564041999954,
+     "treino_segundos": 10.671022584021557,
      "teste": {
       "janelas": 102,
       "previstas": {
@@ -13185,14 +13185,14 @@
        "Benign": 27
       }
      },
-     "memoria_pico_bytes": 3216916480
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "SqlInjection.pcap",
      "rotulo": "SqlInjection",
      "categoria": "Web",
-     "treino_segundos": 10.850626625000587,
+     "treino_segundos": 10.734656334010651,
      "teste": {
       "janelas": 102,
       "previstas": {
@@ -13218,7 +13218,7 @@
        "Benign": 25
       }
      },
-     "memoria_pico_bytes": 3216916480
+     "memoria_pico_bytes": 2167504896
     }
    },
    "Uploading_Attack.pcap": {
@@ -13227,7 +13227,7 @@
      "arquivo": "Uploading_Attack.pcap",
      "rotulo": "Uploading_Attack",
      "categoria": "Web",
-     "treino_segundos": 10.88395541600039,
+     "treino_segundos": 11.399096124980133,
      "teste": {
       "janelas": 31,
       "previstas": {
@@ -13253,14 +13253,14 @@
        "Benign": 14
       }
      },
-     "memoria_pico_bytes": 3216916480
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "Uploading_Attack.pcap",
      "rotulo": "Uploading_Attack",
      "categoria": "Web",
-     "treino_segundos": 10.773721957997623,
+     "treino_segundos": 10.594147665979108,
      "teste": {
       "janelas": 31,
       "previstas": {
@@ -13286,14 +13286,14 @@
        "Benign": 14
       }
      },
-     "memoria_pico_bytes": 3216916480
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "Uploading_Attack.pcap",
      "rotulo": "Uploading_Attack",
      "categoria": "Web",
-     "treino_segundos": 10.829189416999725,
+     "treino_segundos": 10.707559749978827,
      "teste": {
       "janelas": 31,
       "previstas": {
@@ -13319,7 +13319,7 @@
        "Benign": 13
       }
      },
-     "memoria_pico_bytes": 3216916480
+     "memoria_pico_bytes": 2167504896
     }
    },
    "XSS.pcap": {
@@ -13328,7 +13328,7 @@
      "arquivo": "XSS.pcap",
      "rotulo": "XSS",
      "categoria": "Web",
-     "treino_segundos": 10.850152667000657,
+     "treino_segundos": 11.3274527079775,
      "teste": {
       "janelas": 98,
       "previstas": {
@@ -13354,14 +13354,14 @@
        "Benign": 74
       }
      },
-     "memoria_pico_bytes": 3216916480
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "XSS.pcap",
      "rotulo": "XSS",
      "categoria": "Web",
-     "treino_segundos": 10.809938875001535,
+     "treino_segundos": 11.103121042018756,
      "teste": {
       "janelas": 98,
       "previstas": {
@@ -13387,14 +13387,14 @@
        "Benign": 76
       }
      },
-     "memoria_pico_bytes": 3216949248
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "XSS.pcap",
      "rotulo": "XSS",
      "categoria": "Web",
-     "treino_segundos": 10.78096616699986,
+     "treino_segundos": 10.629479832976358,
      "teste": {
       "janelas": 98,
       "previstas": {
@@ -13420,7 +13420,7 @@
        "Benign": 77
       }
      },
-     "memoria_pico_bytes": 3216949248
+     "memoria_pico_bytes": 2167504896
     }
    },
    "DNS_Spoofing.pcap": {
@@ -13429,7 +13429,7 @@
      "arquivo": "DNS_Spoofing.pcap",
      "rotulo": "DNS_Spoofing",
      "categoria": "Spoofing",
-     "treino_segundos": 10.304606082998362,
+     "treino_segundos": 10.503442333021667,
      "teste": {
       "janelas": 3143,
       "previstas": {
@@ -13455,14 +13455,14 @@
        "Benign": 62
       }
      },
-     "memoria_pico_bytes": 3216949248
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "DNS_Spoofing.pcap",
      "rotulo": "DNS_Spoofing",
      "categoria": "Spoofing",
-     "treino_segundos": 10.481882916999893,
+     "treino_segundos": 10.34631300001638,
      "teste": {
       "janelas": 3143,
       "previstas": {
@@ -13488,14 +13488,14 @@
        "Benign": 70
       }
      },
-     "memoria_pico_bytes": 3216949248
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "DNS_Spoofing.pcap",
      "rotulo": "DNS_Spoofing",
      "categoria": "Spoofing",
-     "treino_segundos": 10.337950334000197,
+     "treino_segundos": 10.266231249988778,
      "teste": {
       "janelas": 3143,
       "previstas": {
@@ -13521,7 +13521,7 @@
        "Benign": 58
       }
      },
-     "memoria_pico_bytes": 3216965632
+     "memoria_pico_bytes": 2167504896
     }
    },
    "MITM-ArpSpoofing.pcap": {
@@ -13530,7 +13530,7 @@
      "arquivo": "MITM-ArpSpoofing.pcap",
      "rotulo": "MITM-ArpSpoofing",
      "categoria": "Spoofing",
-     "treino_segundos": 10.780527124999935,
+     "treino_segundos": 10.621671208995394,
      "teste": {
       "janelas": 3864,
       "previstas": {
@@ -13556,14 +13556,14 @@
        "Benign": 85
       }
      },
-     "memoria_pico_bytes": 3254386688
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "MITM-ArpSpoofing.pcap",
      "rotulo": "MITM-ArpSpoofing",
      "categoria": "Spoofing",
-     "treino_segundos": 10.60708883299958,
+     "treino_segundos": 10.4625590419746,
      "teste": {
       "janelas": 3864,
       "previstas": {
@@ -13589,14 +13589,14 @@
        "Benign": 83
       }
      },
-     "memoria_pico_bytes": 3346923520
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "MITM-ArpSpoofing.pcap",
      "rotulo": "MITM-ArpSpoofing",
      "categoria": "Spoofing",
-     "treino_segundos": 10.75270583299789,
+     "treino_segundos": 10.60622712498298,
      "teste": {
       "janelas": 3864,
       "previstas": {
@@ -13622,7 +13622,7 @@
        "Benign": 81
       }
      },
-     "memoria_pico_bytes": 3346923520
+     "memoria_pico_bytes": 2167504896
     }
    },
    "Mirai-greeth_flood.pcap": {
@@ -13631,7 +13631,7 @@
      "arquivo": "Mirai-greeth_flood.pcap",
      "rotulo": "Mirai-greeth_flood",
      "categoria": "Mirai",
-     "treino_segundos": 10.48372954200022,
+     "treino_segundos": 10.422303875006037,
      "teste": {
       "janelas": 9957,
       "previstas": {
@@ -13657,14 +13657,14 @@
        "Benign": 60
       }
      },
-     "memoria_pico_bytes": 3346923520
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "Mirai-greeth_flood.pcap",
      "rotulo": "Mirai-greeth_flood",
      "categoria": "Mirai",
-     "treino_segundos": 10.5533335839973,
+     "treino_segundos": 10.464193708001403,
      "teste": {
       "janelas": 9957,
       "previstas": {
@@ -13690,14 +13690,14 @@
        "Benign": 61
       }
      },
-     "memoria_pico_bytes": 3346923520
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "Mirai-greeth_flood.pcap",
      "rotulo": "Mirai-greeth_flood",
      "categoria": "Mirai",
-     "treino_segundos": 10.560547958000825,
+     "treino_segundos": 10.525850334001007,
      "teste": {
       "janelas": 9957,
       "previstas": {
@@ -13723,7 +13723,7 @@
        "Benign": 61
       }
      },
-     "memoria_pico_bytes": 3360587776
+     "memoria_pico_bytes": 2167504896
     }
    },
    "Mirai-greip_flood21.pcap": {
@@ -13732,7 +13732,7 @@
      "arquivo": "Mirai-greip_flood21.pcap",
      "rotulo": "Mirai-greip_flood",
      "categoria": "Mirai",
-     "treino_segundos": 10.766222665999521,
+     "treino_segundos": 10.616406499990262,
      "teste": {
       "janelas": 3586,
       "previstas": {
@@ -13758,14 +13758,14 @@
        "Benign": 0
       }
      },
-     "memoria_pico_bytes": 3361374208
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "Mirai-greip_flood21.pcap",
      "rotulo": "Mirai-greip_flood",
      "categoria": "Mirai",
-     "treino_segundos": 10.932162375000189,
+     "treino_segundos": 10.688149249996059,
      "teste": {
       "janelas": 3586,
       "previstas": {
@@ -13791,14 +13791,14 @@
        "Benign": 0
       }
      },
-     "memoria_pico_bytes": 3361390592
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "Mirai-greip_flood21.pcap",
      "rotulo": "Mirai-greip_flood",
      "categoria": "Mirai",
-     "treino_segundos": 10.955474041998968,
+     "treino_segundos": 10.639425957982894,
      "teste": {
       "janelas": 3586,
       "previstas": {
@@ -13824,7 +13824,7 @@
        "Benign": 0
       }
      },
-     "memoria_pico_bytes": 3362504704
+     "memoria_pico_bytes": 2167504896
     }
    },
    "Mirai-udpplain.pcap": {
@@ -13833,7 +13833,7 @@
      "arquivo": "Mirai-udpplain.pcap",
      "rotulo": "Mirai-udpplain",
      "categoria": "Mirai",
-     "treino_segundos": 10.729332458999124,
+     "treino_segundos": 10.736937000008766,
      "teste": {
       "janelas": 10915,
       "previstas": {
@@ -13859,14 +13859,14 @@
        "Benign": 74
       }
      },
-     "memoria_pico_bytes": 3362504704
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "Mirai-udpplain.pcap",
      "rotulo": "Mirai-udpplain",
      "categoria": "Mirai",
-     "treino_segundos": 10.57528658299998,
+     "treino_segundos": 10.458923500002129,
      "teste": {
       "janelas": 10915,
       "previstas": {
@@ -13892,14 +13892,14 @@
        "Benign": 76
       }
      },
-     "memoria_pico_bytes": 3362504704
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "Mirai-udpplain.pcap",
      "rotulo": "Mirai-udpplain",
      "categoria": "Mirai",
-     "treino_segundos": 10.814027042000816,
+     "treino_segundos": 10.744936083006905,
      "teste": {
       "janelas": 10915,
       "previstas": {
@@ -13925,7 +13925,7 @@
        "Benign": 67
       }
      },
-     "memoria_pico_bytes": 3362504704
+     "memoria_pico_bytes": 2167504896
     }
    },
    "DictionaryBruteForce.pcap": {
@@ -13934,7 +13934,7 @@
      "arquivo": "DictionaryBruteForce.pcap",
      "rotulo": "DictionaryBruteForce",
      "categoria": "BruteForce",
-     "treino_segundos": 10.684260458998324,
+     "treino_segundos": 10.827292458998272,
      "teste": {
       "janelas": 273,
       "previstas": {
@@ -13960,14 +13960,14 @@
        "Benign": 432
       }
      },
-     "memoria_pico_bytes": 3362897920
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "DictionaryBruteForce.pcap",
      "rotulo": "DictionaryBruteForce",
      "categoria": "BruteForce",
-     "treino_segundos": 10.553577083002892,
+     "treino_segundos": 10.406044542003656,
      "teste": {
       "janelas": 273,
       "previstas": {
@@ -13993,14 +13993,14 @@
        "Benign": 403
       }
      },
-     "memoria_pico_bytes": 3362914304
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "DictionaryBruteForce.pcap",
      "rotulo": "DictionaryBruteForce",
      "categoria": "BruteForce",
-     "treino_segundos": 10.561367375001282,
+     "treino_segundos": 10.63049174999469,
      "teste": {
       "janelas": 273,
       "previstas": {
@@ -14026,7 +14026,7 @@
        "Benign": 416
       }
      },
-     "memoria_pico_bytes": 3362914304
+     "memoria_pico_bytes": 2167504896
     }
    },
    "DDoS-ICMP_Flood.pcap": {
@@ -14035,7 +14035,7 @@
      "arquivo": "DDoS-ICMP_Flood.pcap",
      "rotulo": "DDoS-ICMP_Flood",
      "categoria": "DDoS+DoS",
-     "treino_segundos": 10.683821041002375,
+     "treino_segundos": 10.80142220799462,
      "teste": {
       "janelas": 14916,
       "previstas": {
@@ -14061,14 +14061,14 @@
        "Benign": 48
       }
      },
-     "memoria_pico_bytes": 3363602432
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "DDoS-ICMP_Flood.pcap",
      "rotulo": "DDoS-ICMP_Flood",
      "categoria": "DDoS+DoS",
-     "treino_segundos": 10.516533125002752,
+     "treino_segundos": 10.464158832997782,
      "teste": {
       "janelas": 15045,
       "previstas": {
@@ -14094,14 +14094,14 @@
        "Benign": 50
       }
      },
-     "memoria_pico_bytes": 3363995648
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "DDoS-ICMP_Flood.pcap",
      "rotulo": "DDoS-ICMP_Flood",
      "categoria": "DDoS+DoS",
-     "treino_segundos": 10.707190249999258,
+     "treino_segundos": 10.684588333999272,
      "teste": {
       "janelas": 14912,
       "previstas": {
@@ -14127,7 +14127,7 @@
        "Benign": 56
       }
      },
-     "memoria_pico_bytes": 3364028416
+     "memoria_pico_bytes": 2167504896
     }
    },
    "DDoS-SlowLoris.pcap": {
@@ -14136,7 +14136,7 @@
      "arquivo": "DDoS-SlowLoris.pcap",
      "rotulo": "DDoS-SlowLoris",
      "categoria": "DDoS+DoS",
-     "treino_segundos": 9.78497495800184,
+     "treino_segundos": 9.918785042013042,
      "teste": {
       "janelas": 6515,
       "previstas": {
@@ -14162,14 +14162,14 @@
        "Benign": 4456
       }
      },
-     "memoria_pico_bytes": 3364028416
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "DDoS-SlowLoris.pcap",
      "rotulo": "DDoS-SlowLoris",
      "categoria": "DDoS+DoS",
-     "treino_segundos": 9.830533125001239,
+     "treino_segundos": 9.638905959000112,
      "teste": {
       "janelas": 6515,
       "previstas": {
@@ -14195,14 +14195,14 @@
        "Benign": 4427
       }
      },
-     "memoria_pico_bytes": 3364028416
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "DDoS-SlowLoris.pcap",
      "rotulo": "DDoS-SlowLoris",
      "categoria": "DDoS+DoS",
-     "treino_segundos": 9.920167874999606,
+     "treino_segundos": 9.825770750001539,
      "teste": {
       "janelas": 6515,
       "previstas": {
@@ -14228,7 +14228,7 @@
        "Benign": 4406
       }
      },
-     "memoria_pico_bytes": 3364028416
+     "memoria_pico_bytes": 2167504896
     }
    },
    "DoS-HTTP_Flood1.pcap": {
@@ -14237,7 +14237,7 @@
      "arquivo": "DoS-HTTP_Flood1.pcap",
      "rotulo": "DoS-HTTP_Flood",
      "categoria": "DDoS+DoS",
-     "treino_segundos": 9.765088832999027,
+     "treino_segundos": 9.858933249983238,
      "teste": {
       "janelas": 9137,
       "previstas": {
@@ -14263,14 +14263,14 @@
        "Benign": 413
       }
      },
-     "memoria_pico_bytes": 3364028416
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "DoS-HTTP_Flood1.pcap",
      "rotulo": "DoS-HTTP_Flood",
      "categoria": "DDoS+DoS",
-     "treino_segundos": 9.640854542001762,
+     "treino_segundos": 9.573904999997467,
      "teste": {
       "janelas": 9137,
       "previstas": {
@@ -14296,14 +14296,14 @@
        "Benign": 554
       }
      },
-     "memoria_pico_bytes": 3364552704
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "DoS-HTTP_Flood1.pcap",
      "rotulo": "DoS-HTTP_Flood",
      "categoria": "DDoS+DoS",
-     "treino_segundos": 9.59809391700037,
+     "treino_segundos": 9.565671875025146,
      "teste": {
       "janelas": 9137,
       "previstas": {
@@ -14329,7 +14329,7 @@
        "Benign": 468
       }
      },
-     "memoria_pico_bytes": 3364552704
+     "memoria_pico_bytes": 2167504896
     }
    },
    "DoS-UDP_Flood.pcap": {
@@ -14338,7 +14338,7 @@
      "arquivo": "DoS-UDP_Flood.pcap",
      "rotulo": "DoS-UDP_Flood",
      "categoria": "DDoS+DoS",
-     "treino_segundos": 10.064643459001672,
+     "treino_segundos": 10.12491387501359,
      "teste": {
       "janelas": 14988,
       "previstas": {
@@ -14364,14 +14364,14 @@
        "Benign": 71
       }
      },
-     "memoria_pico_bytes": 3364552704
+     "memoria_pico_bytes": 2167504896
     },
     "1": {
      "semente": 1,
      "arquivo": "DoS-UDP_Flood.pcap",
      "rotulo": "DoS-UDP_Flood",
      "categoria": "DDoS+DoS",
-     "treino_segundos": 10.198516833999747,
+     "treino_segundos": 10.095897375023924,
      "teste": {
       "janelas": 14965,
       "previstas": {
@@ -14397,14 +14397,14 @@
        "Benign": 45
       }
      },
-     "memoria_pico_bytes": 3364552704
+     "memoria_pico_bytes": 2167504896
     },
     "2": {
      "semente": 2,
      "arquivo": "DoS-UDP_Flood.pcap",
      "rotulo": "DoS-UDP_Flood",
      "categoria": "DDoS+DoS",
-     "treino_segundos": 10.123571042000549,
+     "treino_segundos": 10.06762862499454,
      "teste": {
       "janelas": 14891,
       "previstas": {
@@ -14430,7 +14430,7 @@
        "Benign": 97
       }
      },
-     "memoria_pico_bytes": 3364552704
+     "memoria_pico_bytes": 2167504896
     }
    }
   },
@@ -14610,7 +14610,7 @@
      "treino_sha256": "dc996d950d86294c413a89a4de6c7872770fe8e31a0fab986d847b8b57bad346",
      "teste_sha256": "73cc74fd4f94dade7a5c8c4ebcb2ba3a7676dc5c61fb0bd2f4f3aa0dec51e635"
     },
-    "treino_segundos": 10.07745129199975,
+    "treino_segundos": 10.194070541998371,
     "medidas": {
      "linhas": 273566,
      "acuracia": 0.9813207781668775,
@@ -16149,7 +16149,7 @@
       "5": 6
      }
     },
-    "memoria_pico_bytes": 3385901056
+    "memoria_pico_bytes": 2203926528
    },
    "1": {
     "semente": 1,
@@ -16326,7 +16326,7 @@
      "treino_sha256": "ce3189b1ac0cbb8c6a766ff980036da09373e48a9c1f7799a7b736440c7a9eff",
      "teste_sha256": "9abbbd6e884eb9b9c434008bd6fa15911ee1f8e5ef6eb8b1beb07ad51651fa28"
     },
-    "treino_segundos": 9.955922875000397,
+    "treino_segundos": 10.16543841699604,
     "medidas": {
      "linhas": 273557,
      "acuracia": 0.9806182989285597,
@@ -17865,7 +17865,7 @@
       "5": 5
      }
     },
-    "memoria_pico_bytes": 3385901056
+    "memoria_pico_bytes": 2203926528
    },
    "2": {
     "semente": 2,
@@ -18042,7 +18042,7 @@
      "treino_sha256": "a7841c37f0a0b00794322dd731d9764bee307e4c4f56496ca51093b99aa1cc7d",
      "teste_sha256": "c5ad6bdddc393eb01891e5b7f649f4ba18b2af3d12426e9742b0c9e1dca0a084"
     },
-    "treino_segundos": 9.887939290998474,
+    "treino_segundos": 11.258001999987755,
     "medidas": {
      "linhas": 273206,
      "acuracia": 0.9803518224343536,
@@ -19581,7 +19581,7 @@
       "5": 5
      }
     },
-    "memoria_pico_bytes": 3385901056
+    "memoria_pico_bytes": 2203926528
    }
   },
   "comparacoes": {
@@ -20526,34 +20526,34 @@
   },
   "custo": {
    "modelo": {
-    "arquivo": "rf_regerado_janela_100.joblib",
-    "bytes": 184538417,
+    "arquivo": "rf_regerado_janela_100_sem_fundo.joblib",
+    "bytes": 184538459,
     "nos": 1537434,
     "profundidade_media": 44.93,
     "profundidade_maxima": 53,
     "carga": {
-     "importar_s": 0.619200124998315,
-     "carga_s": 0.07419179199860082,
-     "memoria_antes": 159711232.0,
-     "memoria_depois": 533463040.0
+     "importar_s": 0.6644359579950105,
+     "carga_s": 0.0991596250096336,
+     "memoria_antes": 158597120.0,
+     "memoria_depois": 532430848.0
     },
     "latencia_predict": {
-     "mediana_ms": 1.585020499987877,
-     "p95_ms": 1.6649312488880241,
-     "p99_ms": 1.6883298285392812
+     "mediana_ms": 1.609000493772328,
+     "p95_ms": 1.9945542197092432,
+     "p99_ms": 2.196640943584498
     },
     "latencia_predict_proba": {
-     "mediana_ms": 1.5856250010983786,
-     "p95_ms": 1.6616374996374361,
-     "p99_ms": 1.6832168395558256
+     "mediana_ms": 1.587520499015227,
+     "p95_ms": 1.6876041365321726,
+     "p99_ms": 1.7539878509705884
     },
-    "lote_de_1000_ms": 12.590874997840729
+    "lote_de_1000_ms": 13.416542002232745
    },
    "vazao": {
     "arquivo": "Recon-PortScan.pcap",
     "pacotes": 831856,
     "janelas": 8228,
-    "segundos": 5.128908416998456
+    "segundos": 5.498236791987438
    },
    "duracao_da_janela": {
     "DDoS+DoS": {
@@ -20594,17 +20594,17 @@
    },
    "menor": {
     "arvores": 50,
-    "treino_segundos": 5.399731541001529,
+    "treino_segundos": 5.645847790990956,
     "bytes": 92397298,
     "nos": 769780,
     "profundidade_media": 44.14,
     "profundidade_maxima": 52,
     "latencia_predict": {
-     "mediana_ms": 0.8273125004052417,
-     "p95_ms": 0.8712247015864705,
-     "p99_ms": 0.8866124086489434
+     "mediana_ms": 0.8260419999714941,
+     "p95_ms": 0.873787488671951,
+     "p99_ms": 0.8988858450902626
     },
-    "lote_de_1000_ms": 6.1272910024854355,
+    "lote_de_1000_ms": 6.124750012531877,
     "medidas": {
      "linhas": 273566,
      "acuracia": 0.9823479525964484,
@@ -20754,9 +20754,9 @@
      ]
     }
    },
-   "memoria_pico_bytes": 3908747264
+   "memoria_pico_bytes": 2203926528
   }
  },
- "duracao_segundos": 1017.6954831249968,
- "memoria_pico_bytes": 3908747264
+ "duracao_segundos": 93.86916362500051,
+ "memoria_pico_bytes": 2086092800
 }

@@ -1,6 +1,6 @@
 # Treino sobre os dados regerados: referência sem o fundo
 
-Gerado por `python -m codigo.classificador.treinar_regerado` em 13/10/2026, com Python 3.11.2, scikit-learn 1.9.1, pandas 3.0.6 e numpy 2.4.6.
+Gerado por `python -m codigo.classificador.treinar_regerado` em 29/10/2026, com Python 3.11.2, scikit-learn 1.9.1, pandas 3.0.6 e numpy 2.4.6.
 
 O modelo treinado no `MERGED_CSV` oficial aprende o tamanho da janela, de 100 quadros nas classes de
 DDoS, DoS e Mirai e de 10 nas demais, em vez do comportamento do tráfego (`teste_da_janela.md`), e o
@@ -117,14 +117,14 @@ sem `StandardScaler`, com as 39 features e 7 categorias (DDoS e DoS juntos).
 | Janela | Linhas regeradas | Após o teto | Treino | Janelas de fundo no treino, como Benign | Teste | Arquivos inteiros no teste | Treino (s) |
 |---|---|---|---|---|---|---|---|
 | 10 | 34.403.562 | 1.252.773 | 865.851 | nenhuma | 386.922 | `BenignTraffic2.pcap`, `DDoS-SYN_Flood1.pcap` e `DoS-SYN_Flood1.pcap` | 16,3 |
-| 100 | 3.476.234 | 841.298 | 567.732 | nenhuma | 273.566 | `BenignTraffic2.pcap`, `DDoS-SYN_Flood1.pcap` e `DoS-SYN_Flood1.pcap` | 12,7 |
+| 100 | 3.476.234 | 841.298 | 567.732 | nenhuma | 273.566 | `BenignTraffic2.pcap`, `DDoS-SYN_Flood1.pcap` e `DoS-SYN_Flood1.pcap` | 12,8 |
 
 O ponto de operação sai de uma parte de validação, nunca do teste. As últimas 15% da parte de treino de cada pcap, por tempo, são a validação, e um modelo treinado no resto (o treino reduzido, com a mesma semente) classifica todas as janelas da validação, e não só as do teto: as dos pcaps benignos e as com o atacante dos pcaps de ataque. Os candidatos são a categoria mais provável (argmax) e os limiares t sobre 1 − P(Benign), de 0,01 em 0,01. Entre os que deixam no máximo 1% das janelas benignas como ataque, vence o de maior recall de ataque na validação. O melhor limiar é o que venceria entre os limiares; ele fica nas tabelas para comparação. O modelo salvo é o do treino inteiro, com a regra gravada ao lado.
 
 | Janela | Treino reduzido | Janelas benignas na validação | Janelas de ataque na validação | Argmax: benigno como ataque e recall de ataque | Melhor limiar: benigno como ataque e recall de ataque | Regra escolhida | N |
 |---|---|---|---|---|---|---|---|
-| 10 | 737.883 | 98.665 | 3.185.477 | 11,40% e 99,94% | 0,93: 0,86% e 99,68% | limiar, t = 0,93 | 3 |
-| 100 | 483.897 | 9.866 | 321.428 | 1,34% e 99,83% | 0,68: 0,99% e 99,79% | limiar, t = 0,68 | 3 |
+| 10 | 737.883 | 98.665 | 3.185.477 | 11,40% e 99,94% | 0,93: 0,86% e 99,68% | limiar, t = 0,93 | 4 |
+| 100 | 483.897 | 9.866 | 321.428 | 1,34% e 99,83% | 0,68: 0,99% e 99,79% | limiar, t = 0,68 | 4 |
 
 Como cada rótulo foi dividido. O rótulo com mais de um pcap tem um arquivo inteiro no teste, e o modelo
 não vê nenhuma janela dele; nos demais, o teste é o fim do próprio pcap.
@@ -288,7 +288,7 @@ Matriz de confusão, com a categoria real nas linhas e a prevista nas colunas:
 
 ### Argmax e limiar, janela de 10
 
-A mesma parte de teste com as duas regras que concorreram na validação: o argmax e o melhor limiar, a janela ataque se 1 − P(Benign) ≥ 0,93, na categoria de ataque mais provável. O limiar só decide entre Benign e ataque: a janela que é ataque pelas duas regras fica na mesma categoria. Na validação, venceu o limiar, t = 0,93, e ele é o ponto de operação do modelo; o teste não entra na escolha. A regra das 3 janelas seguidas vale para o alarme, e não para a janela; os alarmes estão em `ponto_de_operacao.md`.
+A mesma parte de teste com as duas regras que concorreram na validação: o argmax e o melhor limiar, a janela ataque se 1 − P(Benign) ≥ 0,93, na categoria de ataque mais provável. O limiar só decide entre Benign e ataque: a janela que é ataque pelas duas regras fica na mesma categoria. Na validação, venceu o limiar, t = 0,93, e ele é o ponto de operação do modelo; o teste não entra na escolha. A regra das 4 janelas seguidas vale para o alarme, e não para a janela; os alarmes estão em `ponto_de_operacao.md`.
 
 | Medida | Argmax | Limiar, t = 0,93 (ponto de operação) |
 |---|---|---|
@@ -418,7 +418,7 @@ Matriz de confusão, com a categoria real nas linhas e a prevista nas colunas:
 
 ### Argmax e limiar, janela de 100
 
-A mesma parte de teste com as duas regras que concorreram na validação: o argmax e o melhor limiar, a janela ataque se 1 − P(Benign) ≥ 0,68, na categoria de ataque mais provável. O limiar só decide entre Benign e ataque: a janela que é ataque pelas duas regras fica na mesma categoria. Na validação, venceu o limiar, t = 0,68, e ele é o ponto de operação do modelo; o teste não entra na escolha. A regra das 3 janelas seguidas vale para o alarme, e não para a janela; os alarmes estão em `ponto_de_operacao.md`.
+A mesma parte de teste com as duas regras que concorreram na validação: o argmax e o melhor limiar, a janela ataque se 1 − P(Benign) ≥ 0,68, na categoria de ataque mais provável. O limiar só decide entre Benign e ataque: a janela que é ataque pelas duas regras fica na mesma categoria. Na validação, venceu o limiar, t = 0,68, e ele é o ponto de operação do modelo; o teste não entra na escolha. A regra das 4 janelas seguidas vale para o alarme, e não para a janela; os alarmes estão em `ponto_de_operacao.md`.
 
 | Medida | Argmax | Limiar, t = 0,68 (ponto de operação) |
 |---|---|---|
@@ -635,5 +635,5 @@ O que mudou da última rodada para esta:
 - Modelos: um por janela, em `modelos/`, fora do git, com o ponto de operação num JSON ao lado: `rf_regerado_janela_10_sem_fundo.joblib` (596,9 MB) e `rf_regerado_janela_10_sem_fundo.ponto_de_operacao.json` e `rf_regerado_janela_100_sem_fundo.joblib` (184,5 MB) e `rf_regerado_janela_100_sem_fundo.ponto_de_operacao.json`. Treinados com 4 núcleos; a quantidade de núcleos muda o tempo, e não o modelo. Predição com um núcleo, em ordem fixa.
 - Divisões: o SHA-256 das posições de treino e de teste de cada janela está em `manifesto_treino_regerado_sem_fundo.json`.
 - `regeracao_sem_fundo_metricas.csv` tem uma linha por janela, regra e categoria; `regeracao_sem_fundo_por_arquivo.csv`, uma por janela e pcap; `matrizes_confusao/regerado_janela_<W>_sem_fundo.csv` é a matriz de confusão com o argmax, `_limiar.csv` a com o melhor limiar, `_ponto.csv` a da regra escolhida na validação, e `_por_rotulo.csv` abre a classe real nos 34 rótulos.
-- Tempo total, na máquina em que rodou: 316,6 s. Pico de memória do processo: 2,7 GB, que é o necessário para reproduzir.
+- Tempo total, na máquina em que rodou: 327,7 s. Pico de memória do processo: 2,1 GB, que é o necessário para reproduzir.
 - Com os mesmos CSVs regerados e a mesma semente, os números saem iguais. Só mudam a data e os tempos.

@@ -1,7 +1,7 @@
 {
   "descricao": "Random Forest de 7 categorias treinado nos dados regerados dos pcaps do CICIoT2023, com janela de 10 e 100 quadros, divisão por tempo e teto de linhas por rótulo, sem o fundo dos pcaps de ataque (referência)",
   "gerado_por": "python -m codigo.classificador.treinar_regerado",
-  "gerado_em": "2026-10-13",
+  "gerado_em": "2026-10-29",
   "fundo_como_benigno": false,
   "configuracao": "0",
   "semente": 42,
@@ -1926,7 +1926,7 @@
         "treino_sha256": "d06acc78c3b93354613036e33fc6b3d20c45ac2c97589b8d2aefb6920f8940f3",
         "teste_sha256": "26ada8b1d406548b8133be11144ca311e80365e15a31178ce93d543822134d06"
       },
-      "treino_segundos": 16.254713749993243,
+      "treino_segundos": 16.25593200000003,
       "ponto_de_operacao": {
         "regra": "limiar",
         "limiar": 0.93,
@@ -1937,7 +1937,7 @@
           "benigno_como_ataque": 11246,
           "ataque_reconhecido": 3183547
         },
-        "seguidas": 3,
+        "seguidas": 4,
         "validacao": {
           "Backdoor_Malware.pcap": [
             1915,
@@ -2081,7 +2081,7 @@
           ]
         },
         "linhas_do_treino_reduzido": 737883,
-        "treino_reduzido_segundos": 13.492217499995604,
+        "treino_reduzido_segundos": 13.82614779099822,
         "curva": {
           "0.01": {
             "benigno_como_ataque": 80542,
@@ -5091,7 +5091,7 @@
         "treino_sha256": "dc996d950d86294c413a89a4de6c7872770fe8e31a0fab986d847b8b57bad346",
         "teste_sha256": "73cc74fd4f94dade7a5c8c4ebcb2ba3a7676dc5c61fb0bd2f4f3aa0dec51e635"
       },
-      "treino_segundos": 12.71488045899605,
+      "treino_segundos": 12.8400754169852,
       "ponto_de_operacao": {
         "regra": "limiar",
         "limiar": 0.68,
@@ -5102,7 +5102,7 @@
           "benigno_como_ataque": 132,
           "ataque_reconhecido": 320895
         },
-        "seguidas": 3,
+        "seguidas": 4,
         "validacao": {
           "Backdoor_Malware.pcap": [
             191,
@@ -5246,7 +5246,7 @@
           ]
         },
         "linhas_do_treino_reduzido": 483897,
-        "treino_reduzido_segundos": 10.460531875010929,
+        "treino_reduzido_segundos": 10.594155875005526,
         "curva": {
           "0.01": {
             "benigno_como_ataque": 9006,
@@ -7825,8 +7825,8 @@
       }
     }
   ],
-  "duracao_segundos": 316.5602452500025,
-  "memoria_pico_bytes": 2655027200,
+  "duracao_segundos": 327.66725983298966,
+  "memoria_pico_bytes": 2093268992,
   "rodadas_anteriores": [
     {
       "gerado_em": "2026-10-10",
