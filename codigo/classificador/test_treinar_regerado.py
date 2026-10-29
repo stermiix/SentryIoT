@@ -9,7 +9,12 @@ import pytest
 
 from codigo.captura.extrator import COLUNAS
 from codigo.classificador.mapeamento import CATEGORIA_DO_ROTULO, ROTULOS
-from codigo.classificador.operacao import PontoDeOperacao, ao_lado_do_modelo, ler
+from codigo.classificador.operacao import (
+    SEGUIDAS,
+    PontoDeOperacao,
+    ao_lado_do_modelo,
+    ler,
+)
 from codigo.classificador.preparar import ALVOS
 from codigo.classificador.regerar import CABECALHO, DESCARTADAS, nome_da_pasta
 from codigo.classificador.regerar import MANIFESTO as MANIFESTO_DA_REGERACAO
@@ -543,7 +548,7 @@ def test_o_ponto_de_operacao_sai_da_validacao_e_fica_ao_lado_do_modelo(treino):
         assert "BenignTraffic1.pcap" not in po["validacao"]
         assert po["validacao"]["Recon-PortScan.pcap"] == [26, 30]
         # As janelas de ataque da validação: as mantidas de cada pcap de ataque, do início da validação ao corte.
-        assert po["janelas_de_ataque"] == 7 * 4 and po["seguidas"] == 3
+        assert po["janelas_de_ataque"] == 7 * 4 and po["seguidas"] == SEGUIDAS
         # A regra vencedora cumpre a meta e reconhece pelo menos tanto ataque quanto o outro candidato.
         meta = 0.01 * po["janelas_benignas"]
         candidatos = {"argmax": po["argmax"]}
@@ -554,7 +559,7 @@ def test_o_ponto_de_operacao_sai_da_validacao_e_fica_ao_lado_do_modelo(treino):
         assert dentro[po["regra"]]["ataque_reconhecido"] == max(c["ataque_reconhecido"] for c in dentro.values())
         assert po["limiar"] == (None if po["regra"] == "argmax" else po["melhor_limiar"])
         modelo = treino / "modelos" / f"rf_regerado_janela_{j['janela']}.joblib"
-        assert ler(modelo) == PontoDeOperacao(po["limiar"], 3)
+        assert ler(modelo) == PontoDeOperacao(po["limiar"], SEGUIDAS)
         assert ao_lado_do_modelo(modelo).name == po["arquivo"]
         # As regras avaliam as mesmas janelas de teste.
         argmax, limiar = j["avaliacao"]["amostra"]["por_classe"], j["avaliacao_limiar"]["amostra"]["por_classe"]

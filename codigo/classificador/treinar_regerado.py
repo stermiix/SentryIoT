@@ -18,7 +18,8 @@ O que ele faz, por padrão, para o modelo do sistema (janela de 100, decisões d
    15% da parte de treino de cada pcap. Um modelo treinado no resto classifica as janelas da
    validação, e os candidatos são a categoria mais provável (argmax) e os limiares t sobre
    1 − P(Benign); vence, entre os que deixam no máximo 1% do benigno da validação como ataque, o de
-   maior recall de ataque na validação. O incidente abre com 3 janelas de ataque seguidas.
+   maior recall de ataque na validação. O incidente abre com `operacao.SEGUIDAS` janelas de ataque
+   seguidas.
 5. Treina o Random Forest de 7 categorias, com DDoS e DoS juntos, nas 39 features, com os
    parâmetros padrão do scikit-learn, e salva o modelo em `modelos/`, fora do git, com a regra
    escolhida e o N num JSON ao lado do `.joblib`.
@@ -793,7 +794,8 @@ def _cabecalho(m):
                 "de ataque como Benign (a configuração 5 de `" + CAPTURAS + "`) e com o ponto de operação escolhido "
                 "numa parte de validação: entre a categoria mais provável (argmax) e os limiares t sobre "
                 "1 − P(Benign), a regra de maior recall de ataque na validação com no máximo 1% do benigno dela "
-                f"como ataque; o incidente abre com {SEGUIDAS} janelas de ataque seguidas (decisões de 13/10/2026). "
+                f"como ataque (decisões de 13/10/2026); o incidente abre com {SEGUIDAS} janelas de ataque seguidas "
+                "(decisão de 28/10/2026). "
                 "As medidas são as da parte de teste, com o argmax e com o melhor limiar, lado a lado."
             ),
             "",

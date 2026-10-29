@@ -39,11 +39,14 @@ BENIGNO = "Benign"
 SUFIXO = ".ponto_de_operacao.json"
 # A escolha do ponto de operação, decidida pela equipe em 13/10/2026: a validação são as últimas 15%
 # da parte de treino de cada pcap, por tempo; a regra é a de maior recall de ataque na validação
-# entre as que deixam no máximo 1% das janelas benignas dela como ataque; o incidente abre com 3
-# janelas de ataque seguidas.
+# entre as que deixam no máximo 1% das janelas benignas dela como ataque. O incidente abre com 4
+# janelas de ataque seguidas desde 28/10/2026 (eram 3): na comparação de 12 regras sem retreino, nas
+# capturas fora do CICIoT2023 e no teste dele, 4 seguidas cortou os incidentes falsos de 14 para 6 em
+# 150 h de tráfego benigno, sem perder captura de ataque e sem mudar a classificação de cada janela
+# (ROADMAP de 28/10; experimentos/resultados/testes_fora_do_ciciot2023.md).
 FRACAO_DE_VALIDACAO = 0.15
 ALARME_FALSO_MAXIMO = 0.01
-SEGUIDAS = 3
+SEGUIDAS = 4
 LIMIARES = tuple(round(i / 100, 2) for i in range(1, 101))
 # O limiar é inclusivo mesmo com o arredondamento do ponto flutuante: 1 − 0,4 dá 0,6000000000000001.
 TOLERANCIA = 1e-12
