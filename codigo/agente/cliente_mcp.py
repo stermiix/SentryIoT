@@ -21,7 +21,9 @@ import sys
 import threading
 from pathlib import Path
 
-from mcp import Client, StdioServerParameters
+import anyio
+from mcp import Client, MCPError, StdioServerParameters
+from mcp.types import CONNECTION_CLOSED
 
 from codigo.agente.laco import ResultadoDeTool
 from codigo.mcp.tipos import AGENTES, tools_do_agente
@@ -110,7 +112,8 @@ class ClienteMCP:
     def chamar(self, nome, argumentos):
         """Chama uma tool e devolve o que o modelo vai ler. A recusa da tool vem como `erro=True`.
 
-        Só falha com `ErroDoServidor`, quando o servidor não está mais lá ou passa do prazo.
+        Só falha com `ErroDoServidor`: quando o servidor não está mais lá, passa do prazo ou a chamada
+        falha no SDK. Nesse último caso, se a conexão segue de pé, a sessão continua servindo.
         """
         # Uma chamada por vez: a espera de um segundo chamador não consome o prazo da primeira.
         with self._chamadas:
@@ -123,6 +126,9 @@ class ClienteMCP:
                 raise ErroDoServidor(f"o servidor MCP do agente de {self.agente} não está no ar")
             if nome not in {tool.name for tool in self._tools}:
                 return ResultadoDeTool("ferramenta não disponibilizada a este agente", erro=True)
+            if not _cabe_no_envio(argumentos):
+                # O SDK falha ao serializar a mensagem e derruba a sessão inteira: nem chega ao servidor.
+                return ResultadoDeTool("os argumentos precisam ser um objeto JSON válido em UTF-8", erro=True)
             self._pendentes.add(futuro)
         try:
             try:
@@ -179,7 +185,7 @@ class ClienteMCP:
                 pendentes = list(self._pendentes)
                 self._pendentes.clear()
             for futuro in pendentes:
-                self._concluir(futuro, erro=ErroDoServidor(f"o servidor MCP do agente de {self.agente} encerrou"))
+                self._concluir(futuro, erro=_com_causa(f"o servidor MCP do agente de {self.agente} encerrou", self._erro))
             self._pronto.set()
 
     async def _servir(self):
@@ -204,6 +210,13 @@ class ClienteMCP:
                 except TimeoutError:
                     self._concluir(futuro, erro=TimeoutError())
                     return
+                except Exception as erro:
+                    # A falha de uma chamada não encerra a sessão, a não ser que a conexão tenha caído.
+                    if _conexao_caiu(erro):
+                        # O servidor morreu ou o canal fechou: não há sessão para continuar servindo.
+                        self._concluir(futuro, erro=_com_causa(f"a conexão com o servidor MCP caiu na tool {nome}", erro))
+                        raise
+                    self._concluir(futuro, erro=_com_causa(f"falha na tool {nome}", erro))
                 else:
                     self._concluir(futuro, resultado=resposta)
 
@@ -216,6 +229,34 @@ class ClienteMCP:
                 futuro.set_result(resultado)
         except concurrent.futures.InvalidStateError:
             pass  # O chamador já cancelou o futuro depois de um timeout.
+
+
+def _cabe_no_envio(argumentos):
+    try:
+        json.dumps(argumentos, allow_nan=False, ensure_ascii=False).encode("utf-8")
+    except (TypeError, ValueError, RecursionError):
+        return False
+    return isinstance(argumentos, dict)
+
+
+def _conexao_caiu(erro):
+    # Quando o processo do servidor morre, o SDK acorda a chamada com MCPError(CONNECTION_CLOSED).
+    if isinstance(erro, anyio.ClosedResourceError | anyio.BrokenResourceError):
+        return True
+    return isinstance(erro, MCPError) and erro.code == CONNECTION_CLOSED
+
+
+def _com_causa(mensagem, causa):
+    """Um `ErroDoServidor` que diz por que falhou, com os erros de dentro de um grupo do AnyIO."""
+    erro = ErroDoServidor(f"{mensagem}: {_descrever(causa)}" if causa is not None else mensagem)
+    erro.__cause__ = causa
+    return erro
+
+
+def _descrever(erro):
+    if isinstance(erro, BaseExceptionGroup):
+        return "; ".join(_descrever(dentro) for dentro in erro.exceptions)
+    return f"{type(erro).__name__}: {erro}"
 
 
 def resultado_da_tool(resposta):

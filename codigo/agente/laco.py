@@ -154,6 +154,10 @@ def rodar(
             return terminar(RESPOSTA_FINAL, resposta.conteudo)
         if motivo is not None:
             return interromper(motivo, resposta.pedidos)
+        if volta == maximo_de_voltas:
+            # O modelo não teria outra volta para ler o resultado: uma ação aplicada aqui ficaria
+            # sem a verificação do efeito.
+            return interromper(LIMITE_DE_VOLTAS, resposta.pedidos)
         argumentos = [_argumentos(pedido.argumentos) for pedido in resposta.pedidos]
         # Confere o lote inteiro antes de executar: a repetição no fim não dispara as ações do começo.
         if _repetiu(resposta.pedidos, argumentos, repeticoes, maximo_de_repeticoes):
@@ -197,7 +201,7 @@ def _executar_pedidos(historico, pedidos, argumentos, permitidas, executar, maxi
         if pedido.nome not in permitidas:
             texto = "Erro da tool: ferramenta não disponibilizada a este agente."
         elif dados is None:
-            texto = "Erro da tool: os argumentos precisam ser um objeto JSON válido, sem chaves repetidas."
+            texto = "Erro da tool: os argumentos precisam ser um objeto JSON válido em UTF-8, sem chaves repetidas."
         else:
             resultado = executar(pedido.nome, dados)
             if len(resultado.texto) > maximo:
@@ -237,8 +241,9 @@ def _constante_invalida(_):
 def _argumentos(texto):
     try:
         argumentos = json.loads(texto, object_pairs_hook=_sem_chaves_repetidas, parse_constant=_constante_invalida)
-        # Também recusa um expoente que o parser converte em infinito (por exemplo 1e999).
-        json.dumps(argumentos, allow_nan=False)
+        # Também recusa um expoente que o parser converte em infinito (por exemplo 1e999) e um
+        # surrogate solto ("\ud800"), que não vira UTF-8 e derrubaria a sessão MCP no envio.
+        json.dumps(argumentos, allow_nan=False, ensure_ascii=False).encode("utf-8")
     except (ValueError, RecursionError):
         return None
     return argumentos if isinstance(argumentos, dict) else None

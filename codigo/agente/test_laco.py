@@ -195,6 +195,34 @@ def test_limite_de_voltas_para_o_laco_sem_resposta():
     assert len(resultado.chamadas_ao_modelo) == 3
 
 
+def test_tools_pedidas_na_ultima_volta_nao_sao_executadas():
+    # O modelo não leria o resultado: um executar_acao aqui ficaria sem o verificar_efeito.
+    voltas = 4
+    provedor = ProvedorFalso(
+        *[resposta(pedidos=[pedido(argumentos=f'{{"id": "inc-000{i}"}}', identificador=f"c{i}")]) for i in range(voltas)]
+    )
+    executor = Executor()
+
+    resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, executor, maximo_de_voltas=voltas)
+
+    assert resultado.motivo == LIMITE_DE_VOLTAS
+    assert len(executor.chamadas) == voltas - 1
+    assert resultado.mensagens[-1]["tool_call_id"] == f"c{voltas - 1}"
+    assert "não executada" in resultado.mensagens[-1]["content"]
+
+
+def test_argumento_com_surrogate_solto_nao_chega_a_tool():
+    # "\ud800" é JSON válido, mas não vira UTF-8 e derrubava a sessão MCP no envio.
+    provedor = ProvedorFalso(resposta(pedidos=[pedido(argumentos='{"id": "\\ud800"}')]), resposta("Corrigi."))
+    executor = Executor()
+
+    resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, executor)
+
+    assert executor.chamadas == []
+    assert "UTF-8" in provedor.rodadas[1]["mensagens"][3]["content"]
+    assert resultado.terminou_bem
+
+
 def test_mesma_chamada_pela_terceira_vez_para_sem_executar():
     provedor = ProvedorFalso(*[resposta(pedidos=[pedido()]) for _ in range(5)])
     executor = Executor()
