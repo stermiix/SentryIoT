@@ -30,8 +30,8 @@ flowchart TB
     mcp <--> triagem
     mcp <-- "só dados anonimizados" --> decisao
     mcp <--> execucao
-    orquestrador -.-> local
-    orquestrador -.-> nuvem
+    orquestrador --> local
+    orquestrador --> nuvem
     mcp -- "aviso ao abrir o incidente" --> pessoa
     mcp -- "log de eventos" --> interface
     interface --> pessoa
