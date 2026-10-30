@@ -8,7 +8,8 @@ em vermelho no PDF; nenhuma marca pode sobrar na versão submetida.
 
 ## Regras do template
 
-- No máximo **20 páginas, contando as referências**. O CI reprova o PR que passar disso.
+- No máximo **20 páginas, contando as referências**. Por enquanto, o CI só avisa quando o artigo
+  passa disso, sem reprovar o PR; a versão submetida precisa voltar ao limite.
 - Resumo e abstract com **150 a 250 palavras** cada.
 - Citações e referências na ABNT (NBR 6023), pelo `abntex2cite`: `\cite{neto2023}` dá
   "(NETO et al., 2023)" e `\citeonline{neto2023}` dá "Neto et al. (2023)".
