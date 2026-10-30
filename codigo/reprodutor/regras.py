@@ -41,10 +41,9 @@ from pathlib import Path
 
 import numpy as np
 
-from codigo.classificador.operacao import SEGUIDAS, PontoDeOperacao
+from codigo.classificador.operacao import BENIGNO, SEGUIDAS, TOLERANCIA, PontoDeOperacao
 from codigo.reprodutor import reprodutor as R
 
-BENIGNO = "Benign"
 RELATORIO = Path("experimentos") / "resultados" / "testes_fora_do_ciciot2023.md"
 MANIFESTO = Path("experimentos") / "resultados" / "manifesto_testes_fora_do_ciciot2023.json"
 TRABALHO = Path("dados") / "processed" / "regras"
@@ -72,7 +71,7 @@ class PontoPorCategoria:
         limites = dict(self.limiares)
         if escolhida == self.benigno or escolhida not in limites:
             return escolhida
-        return escolhida if 1.0 - p[classes.index(self.benigno)] >= limites[escolhida] - 1e-12 else self.benigno
+        return escolhida if 1.0 - p[classes.index(self.benigno)] >= limites[escolhida] - TOLERANCIA else self.benigno
 
     def categorias(self, probabilidades, classes):
         return np.array([self.categoria(linha, classes) for linha in np.atleast_2d(probabilidades)], dtype=object)

@@ -1,3 +1,5 @@
+import dataclasses
+
 import numpy as np
 import pytest
 
@@ -33,6 +35,26 @@ def test_reproduzir_com_janelas_guardadas_da_o_mesmo_que_ler_o_pcap(tmp_path, se
     assert [(i.primeira_janela_de_ataque, i.aberto_em, i.categoria_principal()) for i in guardado.incidentes] == [
         (i.primeira_janela_de_ataque, i.aberto_em, i.categoria_principal()) for i in lido.incidentes]
 
+
+
+def test_avaliar_capturas_no_trecho_de_teste_da_o_mesmo_que_ler_o_pcap(tmp_path, monkeypatch):
+    # O começo do pcap fica no treino (3 janelas), e o trecho de teste tem uma janela lenta: a pausa de
+    # 100 s cai no meio da janela 5. As janelas puladas viram marcadores, e nada pode mudar por isso.
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "CICIoT2023").mkdir()
+    caminho = escrever_pcap(tmp_path / "CICIoT2023" / "a.pcap", [
+        ataque(3), benigno(2.5), ataque(5.5, pausa=100.0), benigno(12), ataque(4), benigno(3), ataque(6), benigno(2)])
+    monkeypatch.setattr(regras.R, "inicio_do_teste", lambda _caminho: 3)
+    captura = Captura("CICIoT2023 ataque (teste)", "CICIoT2023/a.pcap", False, "DDoS+DoS")
+    cl = classificador(regras.SEGUIDAS)
+
+    linhas, presentes = regras.avaliar_capturas(cl, capturas=(captura,))
+
+    lidas = [medir(captura, reproduzir(caminho, dataclasses.replace(cl, ponto=ponto), a_partir_da_janela=3), nome)
+             for nome, ponto in regras.regras()]
+    assert presentes == [captura]
+    assert linhas == lidas
+    assert (linhas[0]["janelas"], linhas[0]["nao_julgadas"], linhas[0]["julgadas"]) == (35, 1, 34)
 
 def test_mais_janelas_seguidas_nao_abrem_incidente_com_uma_sequencia_curta(tmp_path):
     caminho = escrever_pcap(tmp_path / "a.pcap", [benigno(5), ataque(3), benigno(12)])

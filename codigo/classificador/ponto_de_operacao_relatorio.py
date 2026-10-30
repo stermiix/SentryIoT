@@ -18,7 +18,6 @@ from codigo.classificador.experimento import (
     _pp,
     _tabela,
 )
-from codigo.classificador.operacao import SEGUIDAS
 from codigo.classificador.ponto_de_operacao import (
     MANIFESTO,
     PREFIXO,
@@ -210,7 +209,7 @@ def _resumo(m):
             f"benigno como ataque {_faixa([u['medidas']['ponto']['benigno_como_ataque'] for u in unidades], 2)} por "
             f"janela; no `{benigno[0]['arquivo']}` inteiro, "
             f"{_faixa([_fracao(b['ponto']['como_ataque'], b['ponto']['janelas']) for b in benigno], 2)} das janelas "
-            f"como ataque, e alarmes com {SEGUIDAS} janelas seguidas, {_faixa([b['ponto']['alarmes'] for b in benigno], 1, False)} "
+            f"como ataque, e alarmes com {principal['seguidas']} janelas seguidas, {_faixa([b['ponto']['alarmes'] for b in benigno], 1, False)} "
             f"({_faixa([_por_hora(b['ponto']['alarmes'], b['ponto']['segundos']) for b in benigno], 1, False)} por "
             "hora); pior pcap benigno de "
             f"fora (`{piores['arquivo']}`), {_faixa(piores['valores'])}; fundo virando ataque, "
@@ -282,7 +281,8 @@ def _validacao(m):
                   "Argmax: recall de ataque", "Melhor limiar (por semente)", "Limiar: benigno como ataque",
                   "Limiar: recall de ataque", "Regra escolhida"], linhas),
         "",
-        f"Na validação da rotação 0, a regra escolhida e as {SEGUIDAS} janelas seguidas no resto da validação:",
+        (f"Na validação da rotação 0, a regra escolhida e as {m['parametros']['seguidas']} janelas seguidas no resto "
+         "da validação:"),
         "",
         *detalhe,
     ]
