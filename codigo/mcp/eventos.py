@@ -10,8 +10,8 @@ processo: é reconstruído a partir do log (ver `acoes.py`). Por isso o servidor
 aprovação e, mais adiante, a interface web podem trabalhar sobre o mesmo arquivo.
 
 Quem grava o quê: o servidor e o comando de aprovação usam `Registro`, que aceita qualquer evento
-do contrato. O código dos agentes recebe `GravadorDoAgente`, que só aceita `llm_chamada` e
-`recomendacao_emitida`.
+do contrato. O código dos agentes recebe `GravadorDoAgente`, que só aceita `llm_chamada`,
+`agente_concluido` e `recomendacao_emitida`.
 """
 import errno
 import json
@@ -24,6 +24,7 @@ from pydantic import ValidationError
 from codigo.mcp.tipos import (
     AGENTES,
     ChamadaDeLLM,
+    ConclusaoDoAgente,
     Recomendacao,
     validar_evento,
     visivel,
@@ -38,7 +39,9 @@ RAIZ = Path(__file__).resolve().parents[2]
 # Fica em dados/, fora do git: o log de uma execução é dado de trabalho, não resultado.
 CAMINHO_PADRAO = RAIZ / "dados" / "eventos" / "eventos.jsonl"
 # O que o código de um agente pode gravar, e o formato dos dados de cada tipo.
-_DADOS_DO_AGENTE = {"llm_chamada": ChamadaDeLLM, "recomendacao_emitida": Recomendacao}
+_DADOS_DO_AGENTE = {
+    "llm_chamada": ChamadaDeLLM, "agente_concluido": ConclusaoDoAgente, "recomendacao_emitida": Recomendacao,
+}
 TIPOS_DO_AGENTE = tuple(_DADOS_DO_AGENTE)
 # Caracteres que o JSON deixa passar crus dentro de um texto e que alguns leitores tratam como fim
 # de linha (`str.splitlines`, por exemplo). No arquivo eles vão escapados: um evento, uma linha.
@@ -273,10 +276,10 @@ def _linha(evento):
 class GravadorDoAgente:
     """O que o código de um agente recebe para gravar no log: só o que é dele.
 
-    Aceita `llm_chamada` e `recomendacao_emitida`, sempre em nome do próprio agente, num incidente
-    que existe no log (ou sem incidente), e a recomendação só cita proposta que existe e é do mesmo
-    incidente. Proposta, aprovação, execução e os demais eventos são gravados pelo servidor e pelo
-    comando de aprovação, nunca pelo agente.
+    Aceita `llm_chamada`, `agente_concluido` e `recomendacao_emitida`, sempre em nome do próprio agente,
+    num incidente que existe no log (ou sem incidente), e a recomendação só cita proposta que existe e
+    é do mesmo incidente. Proposta, aprovação, execução e os demais eventos são gravados pelo servidor
+    e pelo comando de aprovação, nunca pelo agente.
 
     É uma restrição de interface, e não do sistema operacional: um processo que consegue escrever
     no arquivo consegue escrever qualquer linha. Esse limite do stub está declarado no README.
@@ -313,8 +316,9 @@ class GravadorDoAgente:
     def _conferir(self, rascunho, incidentes, propostas):
         tipo = rascunho.get("tipo") if isinstance(rascunho, dict) else None
         if tipo not in _DADOS_DO_AGENTE:
+            aceitos = f"{', '.join(TIPOS_DO_AGENTE[:-1])} e {TIPOS_DO_AGENTE[-1]}"
             raise ValueError(
-                f"o gravador do agente só aceita {' e '.join(TIPOS_DO_AGENTE)}, e veio {visivel(repr(tipo))[:80]}"
+                f"o gravador do agente só aceita {aceitos}, e veio {visivel(repr(tipo))[:80]}"
             )
         try:
             dados = _DADOS_DO_AGENTE[tipo].model_validate(rascunho.get("dados"))

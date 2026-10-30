@@ -28,7 +28,7 @@ const final = agregar(eventos);
 const fim = estadoNoPasso(eventos, linhas, eventos.length);
 
 describe("vocabulário do design system contra o contrato", () => {
-  it("tem rótulo e ícone para cada um dos 16 tipos de evento do log", () => {
+  it("tem rótulo e ícone para cada um dos 17 tipos de evento do log", () => {
     expect(new Set(EVENT_TYPES)).toEqual(new Set(TIPOS_DE_EVENTO));
   });
 
@@ -62,6 +62,22 @@ describe("linhas da linha do tempo", () => {
     expect(linha.tokens).toBe(evento.dados.tokens_entrada + evento.dados.tokens_saida);
     expect(linha.seconds).toBe(evento.dados.duracao_ms / 1000);
     expect(linha.model).toBe(evento.dados.modelo);
+  });
+
+  it("quando o log diz onde a chamada rodou, a linha usa o que o log diz", () => {
+    const evento = eventos.find((item) => item.tipo === "llm_chamada")!;
+    if (evento.tipo !== "llm_chamada") throw new Error("tipo");
+    expect(linhaDoEvento({ ...evento, dados: { ...evento.dados, onde: "nuvem" } }, 1).location).toBe("nuvem");
+    expect(linhaDoEvento({ ...evento, dados: { ...evento.dados, onde: null } }, 1).location).toBeUndefined();
+  });
+
+  it("a conclusão do agente diz o motivo da parada, as chamadas e, na triagem, o veredito", () => {
+    const conclusoes = linhas.filter((linha) => linha.type === "agente_concluido");
+    expect(conclusoes).toHaveLength(8);
+    expect(conclusoes[0]).toMatchObject({ agent: "triagem", text: "Agente concluiu · resposta final", detail: "2 chamadas à IA · veredito coerente" });
+    expect(conclusoes[1]).toMatchObject({ agent: "decisao", detail: "2 chamadas à IA" });
+    // A conclusão não soma tokens na linha: eles já estão nas chamadas à IA.
+    expect(conclusoes.every((linha) => linha.tokens === undefined)).toBe(true);
   });
 
   it("a recusa diz a tool e o motivo em palavras do sistema, e a mensagem vai entre aspas", () => {
@@ -158,12 +174,12 @@ describe("estado num passo do replay", () => {
     expect(fim.incidentes[0]).toMatchObject({ category: "DDoS", modelCategory: "DDoS+DoS", confidence: 0.97, windows: 21_468, sources: 37, destinations: 1 });
   });
 
-  it("o passo com mais pendências é o 28, com as duas propostas de risco alto aguardando", () => {
+  it("o passo com mais pendências é o 31, com as duas propostas de risco alto aguardando", () => {
     const passo = passoComMaisPendencias(eventos, linhas);
-    expect(passo).toBe(28);
+    expect(passo).toBe(31);
     const estado = estadoNoPasso(eventos, linhas, passo);
     expect(estado.aguardando).toBe(2);
-    expect(estado.atual?.id).toBe(eventos[27].id);
+    expect(estado.atual?.id).toBe(eventos[30].id);
   });
 
   it("antes do primeiro incidente, a fila está vazia", () => {
@@ -176,20 +192,20 @@ describe("estado num passo do replay", () => {
     const marcas = marcasDoReplay(eventos).map((marca) => [marca.n, marca.tone]);
     expect(marcas).toEqual([
       [2, "info"],
-      [26, "attention"],
-      [28, "attention"],
-      [32, "danger"],
-      [33, "success"],
+      [29, "attention"],
+      [31, "attention"],
+      [37, "danger"],
       [38, "success"],
-      [46, "info"],
-      [47, "neutral"],
+      [43, "success"],
+      [52, "info"],
+      [53, "neutral"],
     ]);
   });
 });
 
 describe("detalhe do incidente", () => {
-  it("no passo 28, as propostas que aguardam vêm primeiro, com os motivos do contrato", () => {
-    const estado = estadoNoPasso(eventos, linhas, 28);
+  it("no passo 31, as propostas que aguardam vêm primeiro, com os motivos do contrato", () => {
+    const estado = estadoNoPasso(eventos, linhas, 31);
     const detalhe = detalheDoIncidente(estado, final, linhas, "inc-0001")!;
     expect(detalhe.propostas.map((proposta) => [proposta.id, proposta.state])).toEqual([
       ["prop-0002", "aguardando_aprovacao"],
@@ -227,11 +243,11 @@ describe("detalhe do incidente", () => {
   });
 
   it("o rastro vai até o cursor, e o histórico mostra poucos eventos depois dele", () => {
-    const estado = estadoNoPasso(eventos, linhas, 28);
+    const estado = estadoNoPasso(eventos, linhas, 31);
     const detalhe = detalheDoIncidente(estado, final, linhas, "inc-0001")!;
-    expect(detalhe.rastro.every((linha) => linha.n <= 28 && (linha.type === "llm_chamada" || linha.type === "tool_chamada"))).toBe(true);
-    expect(detalhe.historico.some((linha) => linha.n > 28)).toBe(true);
-    expect(detalhe.historico.every((linha) => linha.n <= 28 + HISTORICO_A_FRENTE)).toBe(true);
+    expect(detalhe.rastro.every((linha) => linha.n <= 31 && (linha.type === "llm_chamada" || linha.type === "tool_chamada"))).toBe(true);
+    expect(detalhe.historico.some((linha) => linha.n > 31)).toBe(true);
+    expect(detalhe.historico.every((linha) => linha.n <= 31 + HISTORICO_A_FRENTE)).toBe(true);
     expect(detalhe.historico.every((linha) => linha.incident === "inc-0001")).toBe(true);
   });
 

@@ -26,7 +26,7 @@ INICIO = datetime(2026, 10, 20, 14, 3, 41, tzinfo=UTC)
 LOTE = {"janelas": 450, "por_categoria": {"DDoS+DoS": 412, "Benign": 38}}
 CHAMADA = {
     "agente": "triagem", "modelo": "modelo-de-exemplo", "tokens_entrada": 812, "tokens_saida": 164,
-    "duracao_ms": 2300.0,
+    "duracao_ms": 2300.0, "motivo_termino": "stop", "onde": "local",
 }
 
 
@@ -406,7 +406,7 @@ def gravador(registro):
 
 
 def test_gravador_do_agente_grava_chamada_ao_modelo_e_recomendacao(gravador, registro):
-    assert TIPOS_DO_AGENTE == ("llm_chamada", "recomendacao_emitida")
+    assert TIPOS_DO_AGENTE == ("llm_chamada", "agente_concluido", "recomendacao_emitida")
     assert (gravador.agente, gravador.caminho) == ("decisao", registro.caminho)
     registro.gravar(novo("incidente_aberto", INCIDENTE, "inc-0001"))
     chamada = CHAMADA | {"agente": "decisao"}
@@ -424,10 +424,10 @@ def test_gravador_do_agente_grava_chamada_ao_modelo_e_recomendacao(gravador, reg
     assert gravador.gravar(novo("llm_chamada", chamada))[0].incidente is None
 
 
-@pytest.mark.parametrize("tipo", [tipo for tipo in TIPOS_DE_EVENTO if tipo not in ("llm_chamada", "recomendacao_emitida")])
+@pytest.mark.parametrize("tipo", [tipo for tipo in TIPOS_DE_EVENTO if tipo not in TIPOS_DO_AGENTE])
 def test_gravador_do_agente_recusa_todos_os_outros_eventos(gravador, registro, tipo):
     # Aprovação, proposta, execução, incidente: nada disso é o agente quem grava.
-    with pytest.raises(ValueError, match=f"llm_chamada e recomendacao_emitida.*{tipo}"):
+    with pytest.raises(ValueError, match=f"llm_chamada, agente_concluido e recomendacao_emitida.*{tipo}"):
         gravador.gravar(novo(tipo, DADOS_POR_TIPO[tipo], "inc-0001"))
     # Um evento permitido no mesmo lote também não entra.
     with pytest.raises(ValueError, match=tipo):

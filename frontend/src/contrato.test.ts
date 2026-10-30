@@ -14,8 +14,10 @@ import {
   ESTADOS_DA_EXECUCAO,
   ESTADOS_DA_PROPOSTA,
   ESTADOS_DO_INCIDENTE,
+  LUGARES_DO_MODELO,
   MAXIMO_DE_PASSOS,
   MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO,
+  MOTIVOS_DE_PARADA,
   MOTIVOS_DE_RECUSA,
   MOTIVOS_DE_RISCO_ALTO,
   ORIGENS_DE_ACAO,
@@ -26,6 +28,7 @@ import {
   TEXTO_CURTO,
   TEXTO_LONGO,
   TIPOS_DE_EVENTO,
+  VEREDITOS_DA_TRIAGEM,
 } from "./listas";
 
 // As listas da interface contra o contrato do MCP. Quando o contrato muda (um motivo de recusa
@@ -63,6 +66,9 @@ describe("listas de valores", () => {
     ["CODIGOS_DE_RISCO_ALTO", CODIGOS_DE_RISCO_ALTO, "MotivoDeRiscoAlto", "codigo"],
     ["MOTIVOS_DE_RECUSA", MOTIVOS_DE_RECUSA, "Recusa", "motivo"],
     ["COLUNAS", COLUNAS, "FeaturePrincipal", "nome"],
+    ["LUGARES_DO_MODELO", LUGARES_DO_MODELO, "ChamadaDeLLM", "onde"],
+    ["MOTIVOS_DE_PARADA", MOTIVOS_DE_PARADA, "ConclusaoDoAgente", "motivo"],
+    ["VEREDITOS_DA_TRIAGEM", VEREDITOS_DA_TRIAGEM, "ConclusaoDoAgente", "veredito"],
   ] as const)("%s é a lista de %s.%s", (_nome, lista, definicao, campo) => {
     expect(ordenado(lista)).toEqual(ordenado(propriedade(definicao, campo).enum ?? []));
   });

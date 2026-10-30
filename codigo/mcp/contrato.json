@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "titulo": "Contrato MCP do SentryIoT",
-  "versao": "0.4.0",
+  "versao": "0.5.0",
   "limite_de_janelas": 20,
   "motivos_de_risco_alto": {
     "acao_sempre_de_risco_alto": "A ação é sempre de risco alto, qualquer que seja o alvo ou o prazo.",
@@ -322,6 +322,37 @@
         "duracao_ms": {
           "minimum": 0,
           "type": "number"
+        },
+        "motivo_termino": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "O finish_reason que o provedor devolveu, como stop, tool_calls, length ou content_filter"
+        },
+        "onde": {
+          "anyOf": [
+            {
+              "enum": [
+                "local",
+                "nuvem"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Onde o modelo rodou: local, no gateway, ou nuvem"
         }
       },
       "required": [
@@ -382,6 +413,76 @@
         "duracao_ms"
       ],
       "title": "ChamadaDeTool",
+      "type": "object"
+    },
+    "ConclusaoDoAgente": {
+      "additionalProperties": false,
+      "description": "Como terminou o laço de um agente num incidente: a base das tabelas de custo e de desfecho.",
+      "properties": {
+        "agente": {
+          "enum": [
+            "triagem",
+            "decisao",
+            "execucao"
+          ],
+          "type": "string"
+        },
+        "motivo": {
+          "description": "Por que o laço parou; só resposta_final traz a resposta do modelo",
+          "enum": [
+            "resposta_final",
+            "limite_de_voltas",
+            "chamada_repetida",
+            "limite_de_tools",
+            "limite_do_historico",
+            "resposta_incompleta",
+            "resposta_vazia",
+            "recusa_do_provedor",
+            "limite_de_saida"
+          ],
+          "type": "string"
+        },
+        "voltas": {
+          "description": "Chamadas ao modelo que o laço fez",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tokens_entrada": {
+          "description": "Soma dos tokens de entrada das chamadas",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tokens_saida": {
+          "description": "Soma dos tokens de saída das chamadas",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "veredito": {
+          "anyOf": [
+            {
+              "enum": [
+                "coerente",
+                "duvidoso",
+                "ruido"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Rótulo da triagem, lido da resposta dela; nulo nos outros agentes e quando a resposta não o traz"
+        }
+      },
+      "required": [
+        "agente",
+        "motivo",
+        "voltas",
+        "tokens_entrada",
+        "tokens_saida",
+        "veredito"
+      ],
+      "title": "ConclusaoDoAgente",
       "type": "object"
     },
     "Decisao": {
@@ -702,6 +803,7 @@
           "acao_executada": "#/$defs/EventoDeExecucao",
           "acao_proposta": "#/$defs/EventoDeProposta",
           "acao_rejeitada": "#/$defs/EventoDeDecisao",
+          "agente_concluido": "#/$defs/EventoDeConclusao",
           "catalogo_ampliado": "#/$defs/EventoDeCatalogo",
           "efeito_verificado": "#/$defs/EventoDeEfeito",
           "incidente_aberto": "#/$defs/EventoDeIncidente",
@@ -731,6 +833,9 @@
         },
         {
           "$ref": "#/$defs/EventoDeTool"
+        },
+        {
+          "$ref": "#/$defs/EventoDeConclusao"
         },
         {
           "$ref": "#/$defs/EventoDeRecomendacao"
@@ -800,6 +905,52 @@
         "dados"
       ],
       "title": "EventoDeCatalogo",
+      "type": "object"
+    },
+    "EventoDeConclusao": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "agente_concluido",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/ConclusaoDoAgente"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeConclusao",
       "type": "object"
     },
     "EventoDeDecisao": {

@@ -6,9 +6,11 @@ import pytest
 
 from codigo.agente.laco import (
     CHAMADA_REPETIDA,
+    LIMITE_DE_SAIDA,
     LIMITE_DE_TOOLS,
     LIMITE_DE_VOLTAS,
     LIMITE_DO_HISTORICO,
+    RECUSA_DO_PROVEDOR,
     RESPOSTA_FINAL,
     RESPOSTA_INCOMPLETA,
     RESPOSTA_VAZIA,
@@ -305,16 +307,30 @@ def test_resposta_vazia_nao_e_sucesso(texto):
     assert not resultado.terminou_bem
 
 
-@pytest.mark.parametrize("motivo", ["length", "content_filter"])
-def test_resposta_interrompida_pelo_provedor_nao_dispara_tools(motivo):
+@pytest.mark.parametrize(
+    "motivo,esperado",
+    # O artigo conta à parte quantas vezes o provedor recusou e quantas a resposta foi cortada.
+    [("content_filter", RECUSA_DO_PROVEDOR), ("length", LIMITE_DE_SAIDA), ("error", RESPOSTA_INCOMPLETA), (["x"], RESPOSTA_INCOMPLETA)],
+)
+def test_resposta_interrompida_pelo_provedor_nao_dispara_tools(motivo, esperado):
     executor = Executor()
     incompleta = dataclasses.replace(resposta("Parcial", pedidos=[pedido()]), motivo_termino=motivo)
 
     resultado = rodar(ProvedorFalso(incompleta), "m-1", ABERTURA, TOOLS, executor)
 
-    assert resultado.motivo == RESPOSTA_INCOMPLETA
+    assert resultado.motivo == esperado
     assert executor.chamadas == []
     assert len(resultado.chamadas_ao_modelo) == 1
+    assert resultado.chamadas_ao_modelo[0].motivo_termino == motivo
+
+
+def test_cada_chamada_guarda_o_finish_reason_do_provedor():
+    provedor = ProvedorFalso(
+        dataclasses.replace(resposta(pedidos=[pedido()]), motivo_termino="tool_calls"),
+        dataclasses.replace(resposta("Pronto."), motivo_termino="stop"),
+    )
+    resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, Executor())
+    assert [chamada.motivo_termino for chamada in resultado.chamadas_ao_modelo] == ["tool_calls", "stop"]
 
 
 def test_tool_nao_anunciada_nunca_chega_ao_executor():

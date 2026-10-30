@@ -41,6 +41,11 @@ LIMITE_DE_TOOLS = "limite_de_tools"
 LIMITE_DO_HISTORICO = "limite_do_historico"
 RESPOSTA_INCOMPLETA = "resposta_incompleta"
 RESPOSTA_VAZIA = "resposta_vazia"
+# O provedor recusou responder (finish_reason content_filter): contado à parte no artigo.
+RECUSA_DO_PROVEDOR = "recusa_do_provedor"
+# A resposta foi cortada no máximo de tokens de saída (finish_reason length).
+LIMITE_DE_SAIDA = "limite_de_saida"
+_TERMINO_INTERROMPIDO = {"content_filter": RECUSA_DO_PROVEDOR, "length": LIMITE_DE_SAIDA}
 
 
 @dataclass(frozen=True)
@@ -59,6 +64,8 @@ class ChamadaAoModelo:
     tokens_saida: int | None
     duracao_ms: float
     tools_pedidas: tuple[str, ...]
+    # O finish_reason como o provedor o devolveu (stop, tool_calls, length, content_filter...).
+    motivo_termino: str | None = None
 
 
 @dataclass(frozen=True)
@@ -144,6 +151,7 @@ def rodar(
             tokens_saida=resposta.tokens_saida,
             duracao_ms=(relogio() - inicio) * 1000,
             tools_pedidas=tuple(pedido.nome for pedido in resposta.pedidos),
+            motivo_termino=resposta.motivo_termino,
         )
         chamadas.append(chamada)
         if ao_chamar is not None:
@@ -173,8 +181,10 @@ def _validar_limites(**limites):
 
 
 def _termino_da_resposta(resposta, cabe_no_historico, maximo_de_tools):
-    if resposta.motivo_termino not in (None, "stop", "tool_calls"):
-        return RESPOSTA_INCOMPLETA
+    termino = resposta.motivo_termino
+    if termino not in (None, "stop", "tool_calls"):
+        # O finish_reason vem do JSON do provedor e pode nem ser texto.
+        return _TERMINO_INTERROMPIDO.get(termino, RESPOSTA_INCOMPLETA) if isinstance(termino, str) else RESPOSTA_INCOMPLETA
     if resposta.pedidos:
         if not cabe_no_historico:
             return LIMITE_DO_HISTORICO

@@ -38,6 +38,10 @@ o roteiro mudarem, o teste falha até o arquivo ser gerado de novo.
     bloqueia a origem no roteador e marca o incidente como já resolvido pelo terminal. O agente de
     decisão vê a marca no resumo e só explica o incidente: nada é proposto nem aplicado.
 
-O arquivo tem 52 linhas e passa pelos 16 tipos de evento do contrato. O formato de cada linha
+No fim de cada passo de um agente, o log traz o `agente_concluido` dele, com as voltas e os tokens
+daquela execução e, na triagem, o veredito. O exemplo não diz onde cada modelo roda nem o
+finish_reason das chamadas: esses campos de `llm_chamada` ficam nulos.
+
+O arquivo tem 60 linhas e passa pelos 17 tipos de evento do contrato. O formato de cada linha
 está em `codigo/mcp/contrato.json`, na definição `Evento`. Os testes da interface leem este
 arquivo direto daqui, sem cópia.

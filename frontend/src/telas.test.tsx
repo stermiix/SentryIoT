@@ -53,15 +53,15 @@ describe("visão geral", () => {
     expect(html).toContain("Por incidente: inc-0001, 11 chamadas · inc-0002, 2 chamadas (marcado como já resolvido).");
     expect(html).toContain("inc-0001");
     expect(html).toContain("Marcado como já resolvido");
-    expect(html).toContain("evento 52 de 52");
+    expect(html).toContain("evento 60 de 60");
   });
 
   it("antes do primeiro incidente, a fila diz por que está vazia", () => {
     expect(texto(pagina("visao-geral", 1))).toContain("Nenhum incidente até aqui");
   });
 
-  it("no passo 28, o cartão e a barra lateral pedem uma pessoa", () => {
-    const html = pagina("visao-geral", 28);
+  it("no passo 31, o cartão e a barra lateral pedem uma pessoa", () => {
+    const html = pagina("visao-geral", 31);
     expect(html).toContain("sx-metric--attention");
     expect(html).toContain("sx-nav__count is-attention");
     expect(texto(html)).toContain("Propostas de risco alto esperam uma pessoa.");
@@ -69,8 +69,8 @@ describe("visão geral", () => {
 });
 
 describe("detalhe do incidente", () => {
-  it("no passo 28, as duas propostas aguardam com os motivos do contrato, sem botões: é um ponto passado", () => {
-    const html = texto(pagina("incidente", 28, "inc-0001"));
+  it("no passo 31, as duas propostas aguardam com os motivos do contrato, sem botões: é um ponto passado", () => {
+    const html = texto(pagina("incidente", 31, "inc-0001"));
     expect(html).toContain("2 propostas de risco alto aguardam aprovação");
     expect(html).toContain("Este é um ponto passado do replay");
     expect(html).toContain(MOTIVOS_DE_RISCO_ALTO.acao_sempre_de_risco_alto);
@@ -133,7 +133,7 @@ describe("detalhe do incidente", () => {
   it("um incidente que ainda não abriu oferece ir até a abertura", () => {
     const html = texto(pagina("incidente", 10, "inc-0002"));
     expect(html).toContain("inc-0002 ainda não foi aberto");
-    expect(html).toContain("Ir para o evento 46");
+    expect(html).toContain("Ir para o evento 52");
   });
 });
 
@@ -326,7 +326,7 @@ describe("outras telas", () => {
   it("toda tela da moldura desenha no primeiro, num do meio e no último passo sem lançar erro", () => {
     const telas: Tela[] = ["visao-geral", "incidente", "ao-vivo", "isolado-integrado", "custo-latencia", "qualidade", "seguranca-mcp", "relatorio", "componentes"];
     for (const tela of telas) {
-      for (const passo of [1, 28, lido.eventos.length]) {
+      for (const passo of [1, 31, lido.eventos.length]) {
         expect(() => pagina(tela, passo), `${tela} no passo ${passo}`).not.toThrow();
       }
     }
