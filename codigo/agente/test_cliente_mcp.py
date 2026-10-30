@@ -6,7 +6,10 @@ import json
 import threading
 from types import SimpleNamespace
 
+import anyio
 import pytest
+from mcp import MCPError
+from mcp.types import CONNECTION_CLOSED
 
 from codigo.agente import cliente_mcp
 from codigo.agente.cliente_mcp import ClienteMCP, ErroDoServidor
@@ -94,6 +97,16 @@ def test_a_fatia_de_20_janelas_que_a_skill_pede_chega_inteira_ao_modelo(triagem)
     assert len(fatia["janelas"]) == 20
 
 
+def test_argumento_com_surrogate_solto_vira_erro_e_a_sessao_continua(triagem):
+    # Regressão: o SDK falhava ao serializar "\ud800" e derrubava a sessão com o stub de verdade.
+    recusada = triagem.chamar("obter_incidente", {"id": "\ud800"})
+    depois = triagem.chamar("obter_incidente", {"id": "inc-0001"})
+
+    assert recusada.erro
+    assert "UTF-8" in recusada.texto
+    assert json.loads(depois.texto)["id"] == "inc-0001"
+
+
 def test_a_chamada_fica_no_log_com_o_nome_do_agente(tmp_path):
     log = tmp_path / "eventos.jsonl"
     with ClienteMCP("decisao", log) as cliente:
@@ -128,10 +141,14 @@ def test_servidor_que_nao_abre_vira_erro_do_servidor(tmp_path):
 class ServidorControlado:
     """Conexão falsa bloqueável: permite testar cancelamento sem esperar os 60 s padrão."""
 
-    def __init__(self, *, bloquear_abertura=False, bloquear_lista=False, bloquear_chamada=False):
+    def __init__(self, *, bloquear_abertura=False, bloquear_lista=False, bloquear_chamada=False, falhas=(), erro_ao_sair=None):
         self.bloquear_abertura = bloquear_abertura
         self.bloquear_lista = bloquear_lista
         self.bloquear_chamada = bloquear_chamada
+        # Exceções levantadas pelas primeiras chamadas, uma por chamada.
+        self.falhas = list(falhas)
+        # Como o SDK, que ao sair por cancelamento levanta o erro que derrubou o transporte.
+        self.erro_ao_sair = erro_ao_sair
         self.abertura_iniciada = threading.Event()
         self.chamada_iniciada = threading.Event()
         self.encerrado = threading.Event()
@@ -145,8 +162,10 @@ class ServidorControlado:
                 self.encerrado.set()
         return self
 
-    async def __aexit__(self, *_):
+    async def __aexit__(self, tipo, *_):
         self.encerrado.set()
+        if self.erro_ao_sair is not None and tipo is asyncio.CancelledError:
+            raise self.erro_ao_sair
 
     async def list_tools(self):
         if self.bloquear_lista:
@@ -156,6 +175,8 @@ class ServidorControlado:
 
     async def call_tool(self, nome, argumentos):
         self.chamada_iniciada.set()
+        if self.falhas:
+            raise self.falhas.pop(0)
         if self.bloquear_chamada:
             await asyncio.Event().wait()
         return SimpleNamespace(content=[], structured_content={"id": argumentos["id"]}, is_error=False)
@@ -200,6 +221,45 @@ def test_fechar_interrompe_uma_chamada_em_andamento(monkeypatch, tmp_path):
             chamada.result(timeout=5)
     assert servidor.encerrado.is_set()
     assert not cliente._fio.is_alive()
+
+
+def test_falha_de_uma_tool_traz_a_causa_e_a_sessao_continua(monkeypatch, tmp_path):
+    servidor = ServidorControlado(falhas=[RuntimeError("resposta inválida do servidor")])
+    monkeypatch.setattr(cliente_mcp, "Client", lambda *_: servidor)
+    with ClienteMCP("triagem", tmp_path / "log.jsonl") as cliente:
+        with pytest.raises(ErroDoServidor, match="falha na tool obter_incidente: RuntimeError: resposta inválida"):
+            cliente.chamar("obter_incidente", {"id": "inc-0001"})
+        assert json.loads(cliente.chamar("obter_incidente", {"id": "inc-0002"}).texto)["id"] == "inc-0002"
+
+
+@pytest.mark.parametrize(
+    "queda",
+    # A segunda é o que o SDK levanta quando o processo do servidor morre no meio da chamada.
+    [anyio.BrokenResourceError(), MCPError(code=CONNECTION_CLOSED, message="Connection closed")],
+    ids=["canal", "processo"],
+)
+def test_conexao_que_cai_encerra_a_sessao(monkeypatch, tmp_path, queda):
+    servidor = ServidorControlado(falhas=[queda])
+    monkeypatch.setattr(cliente_mcp, "Client", lambda *_: servidor)
+    with ClienteMCP("triagem", tmp_path / "log.jsonl") as cliente:
+        with pytest.raises(ErroDoServidor, match="conexão com o servidor MCP caiu"):
+            cliente.chamar("obter_incidente", {"id": "inc-0001"})
+        cliente._fio.join(5)
+        with pytest.raises(ErroDoServidor, match="não está no ar"):
+            cliente.chamar("obter_incidente", {"id": "inc-0001"})
+    assert not cliente._fio.is_alive()
+
+
+def test_chamada_pendente_recebe_a_causa_quando_o_transporte_cai(monkeypatch, tmp_path):
+    servidor = ServidorControlado(
+        falhas=[asyncio.CancelledError()],
+        erro_ao_sair=ExceptionGroup("erros", [UnicodeEncodeError("utf-8", "\ud800", 0, 1, "surrogates not allowed")]),
+    )
+    monkeypatch.setattr(cliente_mcp, "Client", lambda *_: servidor)
+    with ClienteMCP("triagem", tmp_path / "log.jsonl") as cliente, pytest.raises(
+        ErroDoServidor, match="encerrou: UnicodeEncodeError"
+    ):
+        cliente.chamar("obter_incidente", {"id": "inc-0001"})
 
 
 def test_mesma_instancia_nao_abre_duas_sessoes(monkeypatch, tmp_path):
