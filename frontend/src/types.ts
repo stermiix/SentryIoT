@@ -7,14 +7,17 @@ import type {
   ESTADOS_DA_EXECUCAO,
   ESTADOS_DA_PROPOSTA,
   ESTADOS_DO_INCIDENTE,
+  LUGARES_DO_MODELO,
+  MOTIVOS_DE_PARADA,
   MOTIVOS_DE_RECUSA,
   ORIGENS_DE_ACAO,
   PROTOCOLOS_DE_TRANSPORTE,
   RESULTADOS_DO_EFEITO,
   RISCOS,
+  VEREDITOS_DA_TRIAGEM,
 } from "./listas";
 
-// Tipos do log de eventos, escritos a partir de `codigo/mcp/contrato.json` (contrato 0.4.0, que
+// Tipos do log de eventos, escritos a partir de `codigo/mcp/contrato.json` (contrato 0.5.0, que
 // sai de `codigo/mcp/tipos.py`). Cada linha do log é um `Evento`, e o campo `tipo` diz o formato de
 // `dados`: a união abaixo é discriminada por ele. Os valores fixos vêm de `listas.ts`, que um teste
 // confere contra o `contrato.json`, e a conferência em tempo de execução fica em `contrato.ts`.
@@ -30,6 +33,9 @@ export type EstadoDaExecucao = (typeof ESTADOS_DA_EXECUCAO)[number];
 export type ResultadoDoEfeito = (typeof RESULTADOS_DO_EFEITO)[number];
 export type CodigoDeRiscoAlto = (typeof CODIGOS_DE_RISCO_ALTO)[number];
 export type MotivoDeRecusa = (typeof MOTIVOS_DE_RECUSA)[number];
+export type LugarDoModelo = (typeof LUGARES_DO_MODELO)[number];
+export type MotivoDeParada = (typeof MOTIVOS_DE_PARADA)[number];
+export type VereditoDaTriagem = (typeof VEREDITOS_DA_TRIAGEM)[number];
 
 /** Objeto livre do contrato (`argumentos`, `resultado`, `parametros`). */
 export type Livre = Record<string, unknown>;
@@ -91,6 +97,21 @@ export interface ChamadaDeLLM {
   tokens_entrada: number;
   tokens_saida: number;
   duracao_ms: number;
+  /** O finish_reason do provedor. Ausente nos logs gravados antes da versão 0.5.0 do contrato. */
+  motivo_termino?: string | null;
+  /** Onde o modelo rodou. Ausente nos logs gravados antes da versão 0.5.0 do contrato. */
+  onde?: LugarDoModelo | null;
+}
+
+/** Como terminou o laço de um agente num incidente. */
+export interface ConclusaoDoAgente {
+  agente: Agente;
+  motivo: MotivoDeParada;
+  voltas: number;
+  tokens_entrada: number;
+  tokens_saida: number;
+  /** Só na triagem, quando a resposta traz o rótulo. */
+  veredito: VereditoDaTriagem | null;
 }
 
 export interface ChamadaDeTool {
@@ -201,6 +222,7 @@ export type EventoDeIncidente = Linha<"incidente_aberto" | "incidente_atualizado
 export type EventoDeMarca = Linha<"incidente_marcado_resolvido", MarcaDeResolvido>;
 export type EventoDeLLM = Linha<"llm_chamada", ChamadaDeLLM>;
 export type EventoDeTool = Linha<"tool_chamada", ChamadaDeTool>;
+export type EventoDeConclusao = Linha<"agente_concluido", ConclusaoDoAgente>;
 export type EventoDeRecomendacao = Linha<"recomendacao_emitida", Recomendacao>;
 export type EventoDeProposta = Linha<"acao_proposta", Proposta>;
 export type EventoDeDecisao = Linha<"acao_aprovada" | "acao_rejeitada", Decisao>;
@@ -215,6 +237,7 @@ export type Evento =
   | EventoDeMarca
   | EventoDeLLM
   | EventoDeTool
+  | EventoDeConclusao
   | EventoDeRecomendacao
   | EventoDeProposta
   | EventoDeDecisao

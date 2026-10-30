@@ -670,8 +670,9 @@ pendente, é recusado na gravação e na leitura.
 | `janelas_classificadas` | classificador (no stub, a partida) | Janelas do lote e contagem por categoria do modelo |
 | `incidente_aberto`, `incidente_atualizado`, `incidente_encerrado` | política de acionamento (no stub, a partida e `verificar_efeito`) | O incidente inteiro |
 | `incidente_marcado_resolvido` | comando `aprovar --resolvido` (mais adiante, a interface) | Incidente, canal, usuário e motivo |
-| `llm_chamada` | agentes, pelo `GravadorDoAgente` | Agente, modelo, tokens de entrada e de saída, duração |
+| `llm_chamada` | agentes, pelo `GravadorDoAgente` | Agente, modelo, tokens de entrada e de saída, duração, finish_reason (`motivo_termino`) e onde o modelo rodou (`local` ou `nuvem`); os dois últimos ficam nulos nos logs anteriores à versão 0.5.0 |
 | `tool_chamada` | servidor | Agente, nome da tool, argumentos, resultado resumido, duração |
+| `agente_concluido` | agentes, pelo `GravadorDoAgente`, no fim do laço | Agente, motivo da parada, voltas, tokens somados e, na triagem, o veredito (`coerente`, `duvidoso` ou `ruido`) |
 | `recomendacao_emitida` | agente de decisão, pelo `GravadorDoAgente` | Agente, texto e propostas ligadas |
 | `acao_proposta` | servidor | A proposta, com o alvo e o alvo com rótulo, e os motivos quando o risco é alto |
 | `acao_aprovada`, `acao_rejeitada` | comando `aprovar` | Proposta, canal, usuário e motivo |
@@ -703,8 +704,8 @@ Duas linhas de um log real, de um stub iniciado com `--agente todos`:
 {"id":"ev-000010","instante":"2026-10-05T00:09:16.277663Z","tipo":"tool_chamada","incidente":"inc-0001","dados":{"agente":null,"nome":"obter_janelas","argumentos":{"id":"inc-0001","limite":2},"resultado":{"janelas":2,"total":10734},"duracao_ms":0.605}}
 ```
 
-O código dos agentes grava `llm_chamada` e `recomendacao_emitida` pelo `GravadorDoAgente`, e
-nada mais:
+O código dos agentes grava `llm_chamada`, `agente_concluido` e `recomendacao_emitida` pelo
+`GravadorDoAgente`, e nada mais. O laço dos agentes faz isso por `codigo/agente/registro.py`:
 
 ```python
 from codigo.mcp.eventos import GravadorDoAgente, ler, novo
@@ -712,7 +713,7 @@ from codigo.mcp.eventos import GravadorDoAgente, ler, novo
 gravador = GravadorDoAgente("triagem")  # ou GravadorDoAgente("triagem", "outro/caminho.jsonl")
 gravador.gravar(novo("llm_chamada", {
     "agente": "triagem", "modelo": "nome-do-modelo", "tokens_entrada": 1240, "tokens_saida": 96,
-    "duracao_ms": 2100.0,
+    "duracao_ms": 2100.0, "motivo_termino": "stop", "onde": "local",
 }, incidente="inc-0001"))
 
 eventos = ler("dados/eventos/eventos.jsonl")  # cada linha conferida contra o contrato
@@ -758,7 +759,7 @@ aprovação: está executada`. Além disso, `executar_acao` não confia no campo
 executa proposta que exige aprovação se o evento de aprovação estiver no log, e calcula de novo
 o risco da proposta de risco baixo.
 
-`exemplos/incidente_flood.jsonl` é um log completo e versionado, com os 16 tipos de evento: o
+`exemplos/incidente_flood.jsonl` é um log completo e versionado, com os 17 tipos de evento: o
 flood do começo ao fim e um incidente de força bruta que a pessoa resolve antes dos agentes. Os
 valores são de roteiro. Os testes da interface web o leem, mas a interface não o carrega.
 
@@ -775,7 +776,15 @@ de exemplo direto daqui: depois de gerá-lo de novo, rode também o `npm test` e
 ## Versão do contrato
 
 A versão fica em `contrato.json`, no campo `versao`, e sai de `VERSAO`, em `tipos.py`. A atual é
-a 0.4.0. O que mudou em relação à 0.3.0, para quem já usava o stub:
+a 0.5.0. O que mudou em relação à 0.4.0, para quem já usava o stub:
+
+- **Medição dos agentes.** `llm_chamada` ganhou `motivo_termino` (o finish_reason do provedor) e
+  `onde` (`local` ou `nuvem`). Os dois têm valor padrão nulo: um log gravado com a 0.4.0 continua
+  legível. Evento novo, `agente_concluido`, gravado pelo `GravadorDoAgente` no fim do laço de cada
+  agente: o motivo da parada (`resposta_final`, `recusa_do_provedor`, `limite_de_saida` e os
+  demais limites do laço), as voltas, os tokens somados e, só na triagem, o veredito.
+
+O que mudou da 0.3.0 para a 0.4.0:
 
 - **Portas no incidente.** `Incidente` ganhou `portas`, com o destino, a porta, o protocolo
   (`tcp` ou `udp`) e os quadros de cada uma, e `obter_resumo` traz as mesmas portas com o rótulo

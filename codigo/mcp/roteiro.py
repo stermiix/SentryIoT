@@ -13,10 +13,11 @@ e escreve o alvo das propostas com os rótulos neutros (`origem-1`, `destino-1`)
 troca pelo endereço. A pessoa e o agente de execução veem o endereço.
 
 Não há agente nem modelo de linguagem aqui. As chamadas de tool são feitas de verdade no stub,
-uma por uma, na ordem do roteiro. As chamadas ao modelo e as recomendações são eventos escritos
-à mão, com tokens e durações ilustrativos, e gravados como o código dos agentes vai gravar: pelo
-`GravadorDoAgente`. O relógio também é de mentira, para que o arquivo saia igual a cada
-execução.
+uma por uma, na ordem do roteiro. As chamadas ao modelo, as conclusões de cada agente e as
+recomendações são eventos escritos à mão, com tokens e durações ilustrativos, e gravados como o
+código dos agentes vai gravar: pelo `GravadorDoAgente`. O exemplo não diz onde cada modelo roda
+nem o finish_reason de cada chamada: esses campos ficam nulos. O relógio também é de mentira, para
+que o arquivo saia igual a cada execução.
 
 Uso, a partir da raiz do repositório:
     python -m codigo.mcp.roteiro --sobrescrever                 gera de novo o exemplo versionado
@@ -39,7 +40,7 @@ from codigo.mcp.acoes import (
 from codigo.mcp.cenarios import CENARIOS
 from codigo.mcp.eventos import GravadorDoAgente, Registro, novo
 from codigo.mcp.stub import Stub
-from codigo.mcp.tipos import AGENTES, ChamadaDeLLM, Recomendacao
+from codigo.mcp.tipos import AGENTES, ChamadaDeLLM, ConclusaoDoAgente, Recomendacao
 
 SAIDA_PADRAO = Path(__file__).with_name("exemplos") / "incidente_flood.jsonl"
 MODELO = "modelo-de-exemplo"
@@ -88,6 +89,8 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
     triagem, decisao, execucao = (Stub(registro, agente=agente, cenarios=cenarios) for agente in AGENTES)
     # O que cada agente grava por conta própria passa pelo gravador restrito dele.
     gravadores = {agente: GravadorDoAgente(agente, saida, relogio) for agente in AGENTES}
+    # As chamadas ao modelo da execução em curso de cada agente, que o agente_concluido resume.
+    em_curso = {agente: [] for agente in AGENTES}
 
     def classificador(cenario):
         # No sistema de verdade, o lote e a abertura vêm do classificador e da política de acionamento.
@@ -99,7 +102,19 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
             agente=agente, modelo=MODELO, tokens_entrada=tokens_entrada, tokens_saida=tokens_saida,
             duracao_ms=segundos * 1000,
         )
+        em_curso[agente].append(chamada)
         gravadores[agente].gravar(novo("llm_chamada", chamada, incidente))
+
+    def concluir(agente, veredito=None, incidente=_INCIDENTE):
+        # O laço do agente terminou com a resposta final: o log guarda o resumo da execução dele.
+        chamadas, em_curso[agente] = em_curso[agente], []
+        conclusao = ConclusaoDoAgente(
+            agente=agente, motivo="resposta_final", voltas=len(chamadas),
+            tokens_entrada=sum(chamada.tokens_entrada for chamada in chamadas),
+            tokens_saida=sum(chamada.tokens_saida for chamada in chamadas),
+            veredito=veredito,
+        )
+        gravadores[agente].gravar(novo("agente_concluido", conclusao, incidente))
 
     def recomendar(texto, *propostas, incidente=_INCIDENTE):
         recomendacao = Recomendacao(agente="decisao", texto=texto, propostas=propostas)
@@ -116,6 +131,7 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
     triagem.chamar("obter_incidente", id=_INCIDENTE)
     triagem.chamar("obter_janelas", id=_INCIDENTE, limite=5)
     modelo("triagem", 3980, 212, 3.4)
+    concluir("triagem", veredito="coerente")
 
     # Decisão: lê o resumo, sem endereço, consulta as mitigações da categoria e propõe a de risco baixo.
     # O alvo vai com o rótulo neutro, e o servidor o troca pelo endereço.
@@ -134,6 +150,7 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
         "de uma origem pode não bastar.",
         bloqueio.id,
     )
+    concluir("decisao")
 
     # Execução: a proposta é de risco baixo, então é aplicada sem aprovação. Não resolve.
     modelo("execucao", 980, 64, 1.6)
@@ -141,6 +158,7 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
     relogio.esperar(30)
     execucao.chamar("verificar_efeito", id_execucao=primeira.id)
     modelo("execucao", 1320, 71, 1.8)
+    concluir("execucao")
 
     # Decisão, de novo: o resumo traz o último efeito verificado. Pesquisa outra saída e propõe duas.
     modelo("decisao", 2140, 102, 2.7)
@@ -176,6 +194,7 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
         "dispositivo, o que interrompe o efeito do ataque e também o serviço.",
         isolamento.id, syn_cookies.id,
     )
+    concluir("decisao")
 
     # O executor tenta aplicar a ação nova antes da aprovação e é recusado.
     modelo("execucao", 1050, 58, 1.5)
@@ -183,6 +202,7 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
         execucao.chamar("executar_acao", id_proposta=syn_cookies.id)
     except PedidoRecusado:
         pass
+    concluir("execucao")
 
     # A pessoa decide pelo canal dela: rejeita o isolamento e aprova a ação nova.
     pessoa(decidir, isolamento.id, False, espera=40, motivo="O dispositivo não pode sair de serviço.", usuario=PESSOA)
@@ -196,6 +216,7 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
     execucao.chamar("consultar_estado")
     execucao.chamar("desfazer_acao", id_execucao=primeira.id)
     modelo("execucao", 1480, 93, 2.0)
+    concluir("execucao")
 
     # Com a ação nova aplicada e o incidente encerrado, a pessoa a promove ao catálogo.
     pessoa(promover, syn_cookies.id, espera=90)
@@ -211,6 +232,7 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
     )
     modelo("triagem", 1180, 88, 2.0, incidente=forca_bruta)
     triagem.chamar("obter_incidente", id=forca_bruta)
+    concluir("triagem", veredito="coerente", incidente=forca_bruta)
     modelo("decisao", 1290, 154, 3.2, incidente=forca_bruta)
     # O resumo traz a marca de já resolvido: o agente de decisão só explica.
     decisao.chamar("obter_resumo", id=forca_bruta)
@@ -221,6 +243,7 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
         "pessoa já fez. Nenhuma ação foi proposta nem aplicada.",
         incidente=forca_bruta,
     )
+    concluir("decisao", incidente=forca_bruta)
     return saida
 
 

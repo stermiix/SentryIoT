@@ -195,7 +195,7 @@ As telas ficam em `src/telas/`, montadas só com estes componentes e com os dado
 
 O repositório mudou estes pontos dos componentes do artefato. Numa nova sincronização, eles continuam valendo:
 
-- `vocab.ts` usa os valores do contrato: `aguardando_aprovacao` em vez de `aguardando`, os 16 tipos de evento com o nome do log (`llm_chamada`, `acao_proposta`…), os nove motivos de risco alto do contrato (o artefato trazia oito, com dois juntos e um cortado) e as palavras de cada motivo de recusa do servidor (`REFUSAL_REASON`).
+- `vocab.ts` usa os valores do contrato: `aguardando_aprovacao` em vez de `aguardando`, os 17 tipos de evento com o nome do log (`llm_chamada`, `acao_proposta`…), os nove motivos de risco alto do contrato (o artefato trazia oito, com dois juntos e um cortado) e as palavras de cada motivo de recusa do servidor (`REFUSAL_REASON`).
 - `modelos.ts` guarda os tipos que eram de `sample.ts`. Os dados de exemplo do artefato não vieram: as telas e o catálogo usam o log carregado e, sem log, ficam vazios. A interface não traz dado simulado.
 - `ProposalCard` mostra a justificativa do agente (voz de agente), o selo "promovida ao catálogo" e a decisão humana sempre com "Aprovada" ou "Rejeitada", mesmo quando há motivo.
 - `TargetLabel` recebe `free`, para o alvo em texto livre de uma ação nova, na voz do agente.

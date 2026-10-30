@@ -38,7 +38,7 @@ from typing_extensions import TypedDict
 from codigo.captura.extrator import COLUNAS
 from codigo.classificador.mapeamento import CATEGORIAS
 
-VERSAO = "0.4.0"
+VERSAO = "0.5.0"
 # Máximo de janelas que o agente recebe por chamada. Um flood tem milhares de janelas, e mandar
 # todas para a LLM custaria tokens demais.
 LIMITE_DE_JANELAS = 20
@@ -107,6 +107,26 @@ MOTIVOS_DE_RISCO_ALTO = {
     ),
 }
 CodigoDeRiscoAlto = Literal[tuple(MOTIVOS_DE_RISCO_ALTO)]
+# Onde o modelo de uma chamada rodou: no gateway local ou num provedor de nuvem.
+LUGARES_DO_MODELO = ("local", "nuvem")
+LugarDoModelo = Literal[LUGARES_DO_MODELO]
+# Por que o laço de um agente parou (`codigo/agente/laco.py`). Só resposta_final traz a resposta do
+# modelo; recusa_do_provedor é o content_filter, e limite_de_saida, o length.
+MOTIVOS_DE_PARADA = (
+    "resposta_final",
+    "limite_de_voltas",
+    "chamada_repetida",
+    "limite_de_tools",
+    "limite_do_historico",
+    "resposta_incompleta",
+    "resposta_vazia",
+    "recusa_do_provedor",
+    "limite_de_saida",
+)
+MotivoDeParada = Literal[MOTIVOS_DE_PARADA]
+# Os rótulos da skill da triagem, sem acento no código (ruído vira ruido), como os nomes dos agentes.
+VEREDITOS_DA_TRIAGEM = ("coerente", "duvidoso", "ruido")
+VereditoDaTriagem = Literal[VEREDITOS_DA_TRIAGEM]
 MotivoDeRecusa = Literal[
     "identificador_desconhecido",
     "argumentos_invalidos",
@@ -783,6 +803,33 @@ class ChamadaDeLLM(Modelo):
     tokens_entrada: Contagem
     tokens_saida: Contagem
     duracao_ms: float = Field(ge=0)
+    # Com valor padrão, para que um log gravado antes da versão 0.5.0 continue legível.
+    motivo_termino: Texto | None = Field(
+        default=None,
+        description="O finish_reason que o provedor devolveu, como stop, tool_calls, length ou content_filter",
+    )
+    onde: LugarDoModelo | None = Field(
+        default=None, description="Onde o modelo rodou: local, no gateway, ou nuvem"
+    )
+
+
+class ConclusaoDoAgente(Modelo):
+    """Como terminou o laço de um agente num incidente: a base das tabelas de custo e de desfecho."""
+
+    agente: Agente
+    motivo: MotivoDeParada = Field(description="Por que o laço parou; só resposta_final traz a resposta do modelo")
+    voltas: Contagem = Field(description="Chamadas ao modelo que o laço fez")
+    tokens_entrada: Contagem = Field(description="Soma dos tokens de entrada das chamadas")
+    tokens_saida: Contagem = Field(description="Soma dos tokens de saída das chamadas")
+    veredito: VereditoDaTriagem | None = Field(
+        description="Rótulo da triagem, lido da resposta dela; nulo nos outros agentes e quando a resposta não o traz"
+    )
+
+    @model_validator(mode="after")
+    def _veredito_so_da_triagem(self):
+        if self.veredito is not None and self.agente != "triagem":
+            raise ValueError(f"só a triagem dá veredito, e veio um do agente de {self.agente}")
+        return self
 
 
 class ChamadaDeTool(Modelo):
@@ -844,6 +891,7 @@ EVENTOS = (
     ("EventoDeMarca", ("incidente_marcado_resolvido",), MarcaDeResolvido),
     ("EventoDeLLM", ("llm_chamada",), ChamadaDeLLM),
     ("EventoDeTool", ("tool_chamada",), ChamadaDeTool),
+    ("EventoDeConclusao", ("agente_concluido",), ConclusaoDoAgente),
     ("EventoDeRecomendacao", ("recomendacao_emitida",), Recomendacao),
     ("EventoDeProposta", ("acao_proposta",), Proposta),
     ("EventoDeDecisao", ("acao_aprovada", "acao_rejeitada"), Decisao),

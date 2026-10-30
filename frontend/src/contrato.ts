@@ -8,8 +8,10 @@ import {
   ESTADOS_DA_EXECUCAO,
   ESTADOS_DA_PROPOSTA,
   ESTADOS_DO_INCIDENTE,
+  LUGARES_DO_MODELO,
   MAXIMO_DE_PASSOS,
   MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO,
+  MOTIVOS_DE_PARADA,
   MOTIVOS_DE_RECUSA,
   ORIGENS_DE_ACAO,
   PROTOCOLOS_DE_TRANSPORTE,
@@ -17,6 +19,7 @@ import {
   RISCOS,
   TEXTO_CURTO,
   TEXTO_LONGO,
+  VEREDITOS_DA_TRIAGEM,
 } from "./listas";
 import type { Evento, TipoDeEvento } from "./types";
 
@@ -246,6 +249,18 @@ export const DEFINICOES: Record<string, RegraDeObjeto> = {
     tokens_entrada: contagem,
     tokens_saida: contagem,
     duracao_ms: numero(0),
+  }, {
+    // Opcionais: o log gravado antes da versão 0.5.0 do contrato não os tem.
+    motivo_termino: ouNulo(texto()),
+    onde: ouNulo(umDe(LUGARES_DO_MODELO)),
+  }),
+  ConclusaoDoAgente: objeto({
+    agente: umDe(AGENTES),
+    motivo: umDe(MOTIVOS_DE_PARADA),
+    voltas: contagem,
+    tokens_entrada: contagem,
+    tokens_saida: contagem,
+    veredito: ouNulo(umDe(VEREDITOS_DA_TRIAGEM)),
   }),
   ChamadaDeTool: objeto({
     agente: ouNulo(umDe(AGENTES)),
@@ -299,6 +314,7 @@ export const DADOS_DO_TIPO = new Map<TipoDeEvento, string>([
   ["incidente_marcado_resolvido", "MarcaDeResolvido"],
   ["llm_chamada", "ChamadaDeLLM"],
   ["tool_chamada", "ChamadaDeTool"],
+  ["agente_concluido", "ConclusaoDoAgente"],
   ["recomendacao_emitida", "Recomendacao"],
   ["acao_proposta", "Proposta"],
   ["acao_aprovada", "Decisao"],
@@ -357,6 +373,10 @@ export function conferirEvento(valor: unknown): Conferido {
   }
   if (tipo === "incidente_marcado_resolvido" && dados.incidente !== valor.incidente) {
     return { problema: `${tipo} com dados.incidente diferente do campo incidente` };
+  }
+  // Como em `ConclusaoDoAgente`, de `tipos.py`: só a triagem dá veredito.
+  if (tipo === "agente_concluido" && dados.veredito !== null && dados.agente !== "triagem") {
+    return { problema: `${tipo} com dados.veredito de um agente que não é a triagem` };
   }
   return { evento: valor as unknown as Evento };
 }

@@ -7,6 +7,9 @@ from codigo.mcp.roteiro import SAIDA_PADRAO, executar, main
 from codigo.mcp.tipos import AGENTES, TIPOS_DE_EVENTO, TOOLS
 
 AGENTES_DA_TOOL = {tool.nome: tool.agentes for tool in TOOLS}
+GRAVADOS_PELO_AGENTE = ("llm_chamada", "agente_concluido", "recomendacao_emitida")
+# O rastro dos agentes, que os testes dos marcos do incidente deixam de lado.
+RASTRO = ("tool_chamada", "llm_chamada", "agente_concluido")
 
 
 def test_log_de_exemplo_versionado_e_igual_ao_que_o_roteiro_gera(tmp_path):
@@ -69,9 +72,9 @@ def test_no_roteiro_o_papel_dos_agentes_grava_pelo_gravador_restrito(tmp_path, m
     monkeypatch.setattr(roteiro, "GravadorDoAgente", Espiao)
     saida = executar(tmp_path / "exemplo.jsonl")
     eventos = ler(saida)
-    dos_agentes = [(e.dados.agente, e.tipo) for e in eventos if e.tipo in ("llm_chamada", "recomendacao_emitida")]
-    # Treze chamadas ao modelo e três recomendações.
-    assert usados == dos_agentes and len(usados) == 16
+    dos_agentes = [(e.dados.agente, e.tipo) for e in eventos if e.tipo in GRAVADOS_PELO_AGENTE]
+    # Treze chamadas ao modelo, oito conclusões de agente e três recomendações.
+    assert usados == dos_agentes and len(usados) == 24
 
 
 def test_toda_linha_do_exemplo_e_valida_e_todos_os_tipos_de_evento_aparecem():
@@ -87,7 +90,7 @@ def test_exemplo_percorre_o_incidente_do_comeco_ao_fim():
     eventos = ler(SAIDA_PADRAO)
     marcos = [
         evento.tipo for evento in eventos
-        if evento.tipo not in ("tool_chamada", "llm_chamada") and evento.incidente in ("inc-0001", None)
+        if evento.tipo not in RASTRO and evento.incidente in ("inc-0001", None)
     ]
     assert marcos[-1] == "janelas_classificadas"
     assert marcos[:-1] == [
@@ -119,7 +122,7 @@ def test_exemplo_percorre_o_incidente_do_comeco_ao_fim():
 def test_no_exemplo_a_pessoa_resolve_o_segundo_incidente_e_o_agente_so_explica():
     eventos = ler(SAIDA_PADRAO)
     do_segundo = [evento for evento in eventos if evento.incidente == "inc-0002"]
-    assert [evento.tipo for evento in do_segundo if evento.tipo not in ("tool_chamada", "llm_chamada")] == [
+    assert [evento.tipo for evento in do_segundo if evento.tipo not in RASTRO] == [
         "incidente_aberto", "incidente_marcado_resolvido", "recomendacao_emitida",
     ]
     marca = next(evento.dados for evento in do_segundo if evento.tipo == "incidente_marcado_resolvido")
@@ -140,6 +143,34 @@ def test_no_exemplo_cada_agente_so_chama_as_tools_da_sua_linha():
         assert chamada.agente in AGENTES_DA_TOOL[chamada.nome]
     assert {evento.dados.agente for evento in eventos if evento.tipo == "llm_chamada"} == set(AGENTES)
     assert {evento.dados.agente for evento in eventos if evento.tipo == "recomendacao_emitida"} == {"decisao"}
+
+
+def test_no_exemplo_cada_conclusao_resume_as_chamadas_do_agente_desde_a_anterior():
+    eventos = ler(SAIDA_PADRAO)
+    em_curso = {agente: [] for agente in AGENTES}
+    conclusoes = []
+    for evento in eventos:
+        if evento.tipo == "llm_chamada":
+            em_curso[evento.dados.agente].append(evento.dados)
+        elif evento.tipo == "agente_concluido":
+            dados, chamadas = evento.dados, em_curso[evento.dados.agente]
+            assert (dados.voltas, dados.tokens_entrada, dados.tokens_saida) == (
+                len(chamadas), sum(c.tokens_entrada for c in chamadas), sum(c.tokens_saida for c in chamadas),
+            )
+            em_curso[dados.agente] = []
+            conclusoes.append((evento.incidente, dados.agente, dados.motivo, dados.veredito))
+    # Nenhuma chamada fica sem conclusão, e só a triagem dá veredito.
+    assert all(chamadas == [] for chamadas in em_curso.values())
+    assert conclusoes == [
+        ("inc-0001", "triagem", "resposta_final", "coerente"),
+        ("inc-0001", "decisao", "resposta_final", None),
+        ("inc-0001", "execucao", "resposta_final", None),
+        ("inc-0001", "decisao", "resposta_final", None),
+        ("inc-0001", "execucao", "resposta_final", None),
+        ("inc-0001", "execucao", "resposta_final", None),
+        ("inc-0002", "triagem", "resposta_final", "coerente"),
+        ("inc-0002", "decisao", "resposta_final", None),
+    ]
 
 
 def test_main_grava_o_exemplo_no_caminho_pedido(tmp_path, capsys):

@@ -6,7 +6,7 @@ import type { IconName } from './icons-data';
 import { CATEGORIAS, CATEGORIAS_DO_MODELO, MOTIVOS_DE_RISCO_ALTO } from '../../listas';
 import type {
   Agente, Canal, Categoria, CategoriaDoModelo, CodigoDeRiscoAlto, EstadoDaExecucao, EstadoDaProposta,
-  MotivoDeRecusa, ResultadoDoEfeito, Risco, TipoDeEvento,
+  MotivoDeParada, MotivoDeRecusa, ResultadoDoEfeito, Risco, TipoDeEvento, VereditoDaTriagem,
 } from '../../types';
 
 export type Tone = 'attention' | 'danger' | 'success' | 'info' | 'neutral';
@@ -85,7 +85,7 @@ export const CHANNEL: Record<Channel, { label: string; icon: IconName }> = {
 
 export type ProviderLocation = 'local' | 'nuvem';
 
-/* ---------- the 16 event types of the log, as the timeline draws them ---------- */
+/* ---------- the 17 event types of the log, as the timeline draws them ---------- */
 export type EventType = TipoDeEvento;
 
 export const EVENT: Record<EventType, StateInfo> = {
@@ -96,6 +96,7 @@ export const EVENT: Record<EventType, StateInfo> = {
   'incidente_marcado_resolvido': { label: 'Marcado como já resolvido', tone: 'neutral', icon: 'user-check' },
   'llm_chamada':                 { label: 'Chamada à IA',              tone: 'neutral', icon: 'brain-circuit' },
   'tool_chamada':                { label: 'Chamada de tool',           tone: 'neutral', icon: 'plug' },
+  'agente_concluido':            { label: 'Agente concluiu',           tone: 'neutral', icon: 'list-checks' },
   'recomendacao_emitida':        { label: 'Recomendação emitida',      tone: 'neutral', icon: 'message-square-quote' },
   'acao_proposta':               { label: 'Proposta criada',           tone: 'neutral', icon: 'clipboard-plus' },
   'acao_aprovada':               { label: 'Aprovada',                  tone: 'success', icon: 'badge-check' },
@@ -129,6 +130,26 @@ export const REFUSAL_REASON: Record<MotivoDeRecusa, string> = {
   proposta_ja_executada: 'proposta já executada',
   acao_nao_aplicada: 'ação não aplicada',
   tool_fora_da_linha: 'tool fora da linha do agente',
+};
+
+/* ---------- why an agent's loop stopped (`agente_concluido.motivo`) ---------- */
+export const STOP_REASON: Record<MotivoDeParada, string> = {
+  resposta_final: 'resposta final',
+  limite_de_voltas: 'limite de voltas',
+  chamada_repetida: 'chamada repetida',
+  limite_de_tools: 'limite de tools por volta',
+  limite_do_historico: 'limite do histórico',
+  resposta_incompleta: 'resposta incompleta',
+  resposta_vazia: 'resposta vazia',
+  recusa_do_provedor: 'recusa do provedor',
+  limite_de_saida: 'limite de saída',
+};
+
+/* ---------- the triage label (`agente_concluido.veredito`) ---------- */
+export const VERDICT: Record<VereditoDaTriagem, string> = {
+  coerente: 'coerente',
+  duvidoso: 'duvidoso',
+  ruido: 'ruído',
 };
 
 export const TONE_VARS: Record<Tone, { fg: string; tint: string }> = {

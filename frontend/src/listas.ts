@@ -14,6 +14,22 @@ export const ESTADOS_DA_EXECUCAO = ["aplicada", "desfeita"] as const;
 export const RESULTADOS_DO_EFEITO = ["cessou", "diminuiu", "persiste"] as const;
 export const ORIGENS_DE_ACAO = ["base", "promovida"] as const;
 export const PROTOCOLOS_DE_TRANSPORTE = ["tcp", "udp"] as const;
+// Onde o modelo de uma chamada rodou (`llm_chamada.onde`).
+export const LUGARES_DO_MODELO = ["local", "nuvem"] as const;
+// Por que o laço de um agente parou (`agente_concluido.motivo`), na ordem de `tipos.py`.
+export const MOTIVOS_DE_PARADA = [
+  "resposta_final",
+  "limite_de_voltas",
+  "chamada_repetida",
+  "limite_de_tools",
+  "limite_do_historico",
+  "resposta_incompleta",
+  "resposta_vazia",
+  "recusa_do_provedor",
+  "limite_de_saida",
+] as const;
+// O rótulo da triagem (`agente_concluido.veredito`): ruído vem sem acento, como no contrato.
+export const VEREDITOS_DA_TRIAGEM = ["coerente", "duvidoso", "ruido"] as const;
 
 // Código de cada motivo de risco alto e a frase que a pessoa lê antes de aprovar. A tela mostra
 // esta frase, que é do sistema, e não a que veio no log.
@@ -65,6 +81,7 @@ export const TIPOS_DE_EVENTO = [
   "incidente_marcado_resolvido",
   "llm_chamada",
   "tool_chamada",
+  "agente_concluido",
   "recomendacao_emitida",
   "acao_proposta",
   "acao_aprovada",

@@ -7,6 +7,8 @@ import {
   PROPOSAL_STATE,
   REFUSAL_REASON,
   RISK,
+  STOP_REASON,
+  VERDICT,
   type AgentName,
   type Channel,
   type IncidentState,
@@ -29,8 +31,9 @@ const MODELOS_LOCAIS = lista(import.meta.env.VITE_MODELOS_LOCAIS);
 const MODELOS_NA_NUVEM = lista(import.meta.env.VITE_MODELOS_NA_NUVEM);
 
 /**
- * Onde o modelo roda, pelas listas `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM`. O log não diz,
- * e um modelo fora das duas listas volta sem lugar: a tela não mostra "local" nem "nuvem" para ele.
+ * Onde o modelo roda, pelas listas `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM`. Vale para o log
+ * gravado antes da versão 0.5.0 do contrato, sem o campo `onde`, e para o chat. Um modelo fora das
+ * duas listas volta sem lugar: a tela não mostra "local" nem "nuvem" para ele.
  */
 export function ondeRoda(modelo: string): ProviderLocation | undefined {
   if (MODELOS_LOCAIS.has(modelo)) {
@@ -133,12 +136,24 @@ export function linhaDoEvento(evento: Evento, n: number): LogEvent {
         tokens: dados.tokens_entrada + dados.tokens_saida,
         seconds: dados.duracao_ms / 1000,
         model: dados.modelo,
-        location: ondeRoda(dados.modelo),
+        // O log diz onde a chamada rodou desde o contrato 0.5.0; antes, as listas do ambiente dizem.
+        location: dados.onde ?? ondeRoda(dados.modelo),
       };
     }
     case "tool_chamada": {
       const dados = evento.dados;
       return { ...base, agent: dados.agente ?? undefined, text: chamadaDeTool(dados.nome, dados.argumentos) };
+    }
+    case "agente_concluido": {
+      const dados = evento.dados;
+      return {
+        ...base,
+        agent: dados.agente,
+        text: `${EVENT[evento.tipo].label} · ${STOP_REASON[dados.motivo]}`,
+        detail: [plural(dados.voltas, "chamada à IA", "chamadas à IA"), dados.veredito ? `veredito ${VERDICT[dados.veredito]}` : null]
+          .filter(Boolean)
+          .join(" · "),
+      };
     }
     case "recomendacao_emitida": {
       const dados = evento.dados;
@@ -443,21 +458,21 @@ export interface RecomendacaoDaTela {
 
 /** As recomendações do incidente, cada uma com o modelo que o agente usava naquele ponto. */
 function recomendacoesDoIncidente(view: IncidenteView): RecomendacaoDaTela[] {
-  const modeloDe = new Map<AgentName, string>();
+  const modeloDe = new Map<AgentName, { modelo: string; onde: ProviderLocation | undefined }>();
   const recomendacoes: RecomendacaoDaTela[] = [];
   for (const evento of view.eventos) {
     if (evento.tipo === "llm_chamada") {
-      modeloDe.set(evento.dados.agente, evento.dados.modelo);
+      modeloDe.set(evento.dados.agente, { modelo: evento.dados.modelo, onde: evento.dados.onde ?? ondeRoda(evento.dados.modelo) });
     } else if (evento.tipo === "recomendacao_emitida") {
-      const modelo = modeloDe.get(evento.dados.agente);
+      const ultima = modeloDe.get(evento.dados.agente);
       recomendacoes.push({
         id: evento.id,
         at: hora(evento.instante),
         agent: evento.dados.agente,
         text: evento.dados.texto,
         propostas: evento.dados.propostas,
-        model: modelo,
-        location: modelo === undefined ? undefined : ondeRoda(modelo),
+        model: ultima?.modelo,
+        location: ultima?.onde,
       });
     }
   }

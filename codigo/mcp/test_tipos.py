@@ -137,11 +137,15 @@ DADOS_POR_TIPO = {
     "incidente_encerrado": INCIDENTE_DA_ESPECIFICACAO | {"estado": "encerrado"},
     "llm_chamada": {
         "agente": "triagem", "modelo": "modelo-de-exemplo", "tokens_entrada": 812, "tokens_saida": 164,
-        "duracao_ms": 2300.0,
+        "duracao_ms": 2300.0, "motivo_termino": "tool_calls", "onde": "local",
     },
     "tool_chamada": {
         "agente": "triagem", "nome": "obter_incidente", "argumentos": {"id": "inc-0001"},
         "resultado": {"categoria": "DDoS"}, "duracao_ms": 4.0,
+    },
+    "agente_concluido": {
+        "agente": "triagem", "motivo": "resposta_final", "voltas": 2, "tokens_entrada": 1700,
+        "tokens_saida": 210, "veredito": "coerente",
     },
     "incidente_marcado_resolvido": {
         "incidente": "inc-0001", "canal": "interface", "usuario": "maria", "motivo": "Bloqueei a origem no roteador.",
@@ -538,8 +542,8 @@ def test_ambiente_separa_as_medidas_ativas_por_tipo():
 def test_tipos_de_evento_sao_os_da_especificacao():
     assert TIPOS_DE_EVENTO == (
         "janelas_classificadas", "incidente_aberto", "incidente_atualizado", "incidente_encerrado",
-        "incidente_marcado_resolvido", "llm_chamada", "tool_chamada", "recomendacao_emitida", "acao_proposta",
-        "acao_aprovada", "acao_rejeitada", "acao_executada", "acao_desfeita", "efeito_verificado",
+        "incidente_marcado_resolvido", "llm_chamada", "tool_chamada", "agente_concluido", "recomendacao_emitida",
+        "acao_proposta", "acao_aprovada", "acao_rejeitada", "acao_executada", "acao_desfeita", "efeito_verificado",
         "catalogo_ampliado", "recusa",
     )
     assert set(DADOS_POR_TIPO) == set(TIPOS_DE_EVENTO)
@@ -554,6 +558,31 @@ def test_evento_de_cada_tipo_e_valido_e_volta_igual(tipo):
     assert lido.id == "ev-000001"
     assert list(lido.model_dump(mode="json")) == ["id", "instante", "tipo", "incidente", "dados"]
     assert validar_evento(lido.model_dump(mode="json")) == lido
+
+
+def test_chamada_ao_modelo_gravada_antes_da_versao_0_5_0_continua_legivel():
+    antiga = {c: v for c, v in DADOS_POR_TIPO["llm_chamada"].items() if c not in ("motivo_termino", "onde")}
+    dados = validar_evento(evento("llm_chamada", dados=antiga)).dados
+    assert (dados.motivo_termino, dados.onde) == (None, None)
+    with pytest.raises(ValidationError):
+        validar_evento(evento("llm_chamada", dados=antiga | {"onde": "gateway"}))
+
+
+def test_conclusao_do_agente_so_tem_veredito_na_triagem_e_com_os_valores_do_contrato():
+    conclusao = DADOS_POR_TIPO["agente_concluido"]
+    assert validar_evento(evento("agente_concluido", dados=conclusao | {"veredito": "ruido"})).dados.veredito == "ruido"
+    decisao = conclusao | {"agente": "decisao", "veredito": None}
+    assert validar_evento(evento("agente_concluido", dados=decisao)).dados.veredito is None
+    for trocas in (
+        {"agente": "decisao"},  # veredito fora da triagem
+        {"veredito": "ruído"},  # o código do contrato é sem acento
+        {"motivo": "terminou"},
+        {"voltas": -1},
+    ):
+        with pytest.raises(ValidationError):
+            validar_evento(evento("agente_concluido", dados=conclusao | trocas))
+    with pytest.raises(ValidationError):
+        validar_evento(evento("agente_concluido", dados={c: v for c, v in conclusao.items() if c != "veredito"}))
 
 
 def test_motivos_de_recusa_do_contrato():
