@@ -54,7 +54,7 @@ function infoOf(p: StatusKind): StateInfo {
   }
 }
 
-/** State of an incident, proposal, execution or verified effect: tinted pill, icon and the exact label.
+/** State of an incident, proposal, execution or verified effect: tinted badge, icon and the exact label.
  *  "Aguardando aprovação" pulses and is the only state that asks a person for something. */
 export function StatusBadge(props: StatusBadgeProps): React.ReactElement {
   const info = infoOf(props);

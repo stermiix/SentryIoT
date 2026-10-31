@@ -108,7 +108,7 @@ export interface SegmentedProps {
   className?: string;
 }
 
-/** Pill segmented control ("Replay | Ao vivo", "Local | Nuvem"). Arrow keys move the selection. */
+/** Segmented control ("Replay | Ao vivo", "Local | Nuvem"). Arrow keys move the selection. */
 export function Segmented({ options, value, onChange, size = 'md', label, block = false, className }: SegmentedProps): React.ReactElement {
   const onKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
@@ -185,7 +185,7 @@ export interface SidebarProps {
   className?: string;
 }
 
-/** Floating pill navigation with wide and icon-only versions: black, with the active item in solid ice. */
+/** Floating navigation with wide and icon-only versions: black, with the active item in solid ice. */
 export function Sidebar({ logoSrc, sections, activeId, onNavigate, collapsed = false, onToggle, footer, className }: SidebarProps): React.ReactElement {
   return (
     <nav className={cx('sx-sidebar', collapsed && 'sx-sidebar--collapsed', className)} aria-label="Navegação principal">

@@ -18,7 +18,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   block?: boolean;
 }
 
-/** Pill button. Verb first, sentence case: "Aprovar ação", "Rejeitar", "Gerar relatório". */
+/** Button. Verb first, sentence case: "Aprovar ação", "Rejeitar", "Gerar relatório". */
 export function Button({ variant = 'secondary', size = 'md', icon, iconRight, loading = false, block = false, className, children, disabled, type = 'button', ...rest }: ButtonProps): React.ReactElement {
   const iconSize = size === 'sm' ? 16 : 18;
   return (
@@ -41,14 +41,14 @@ export interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonEl
   icon: IconName;
   /** Accessible name, also shown as the native tooltip. Required. */
   label: string;
-  /** glass: botão redondo de vidro (padrão) · ghost: sem fundo · primary: gelo (play do replay, enviar). */
+  /** glass: botão com fundo e fio (padrão) · ghost: sem fundo · primary: gelo (play do replay, enviar). */
   variant?: 'glass' | 'ghost' | 'primary';
   size?: 'sm' | 'md' | 'lg';
   /** Toggle state (e.g. play/pause, collapse). */
   pressed?: boolean;
 }
 
-/** Round glass button for a single icon: the "SOURCE BTN" reference. */
+/** Square button for a single icon. */
 export function IconButton({ icon, label, variant = 'glass', size = 'md', pressed, className, type = 'button', ...rest }: IconButtonProps): React.ReactElement {
   return (
     <button
