@@ -34,7 +34,6 @@ entra nos testes.
 | Tela 3, isolado × integrado | `#/isolado-integrado` | funciona com o log |
 | Tela 4, custo e latência | `#/custo-latencia` | funciona com o log; local × nuvem depende de `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM` |
 | Tela 5, qualidade do modelo | `#/qualidade-do-modelo` | matriz real da configuração 5 |
-| Tela 6, segurança do MCP | `#/seguranca-do-mcp` | planejada; vazia até o teste de tool poisoning rodar |
 | Chat com o modelo | `#/chat` (e o antigo `#chat`) | funciona com o backend |
 | Relatório do incidente, em A4: sumário, fatos, o que o classificador viu, triagem (veredito, atacante apontado, análise e candidatos), ações, recomendações e decisões | `#/relatorio/<id>` | funciona com o log; com um log anterior ao contrato 0.6.0, diz o que o log não traz |
 | Entrar | `#/entrar` | visual pronto; o login ainda não existe |
@@ -63,9 +62,6 @@ visão geral fica em zero e cada tela diz que nenhum log foi carregado.
   `VITE_MODELOS_NA_NUVEM` (separados por vírgula) para a tela mostrar "local" ou "nuvem" nas
   chamadas e para a Tela 4 comparar os dois. No chat, um modelo fora das listas aparece como
   nuvem: é o caso que pede cuidado.
-- **Tela 6:** fica vazia até o teste de tool poisoning rodar. Os resultados entram em `TESTES`,
-  em `src/telas/SegurancaMcp.tsx`, e cada teste vira um painel com o conteúdo injetado e o que
-  aconteceu.
 
 ## Leitura do log e reconstrução
 

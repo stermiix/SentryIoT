@@ -13,7 +13,6 @@ import { TelaIsoladoIntegrado } from "./telas/IsoladoIntegrado";
 import { Moldura, type ModeloDoBackend } from "./telas/Moldura";
 import { TelaQualidadeModelo } from "./telas/QualidadeModelo";
 import { TelaRelatorio } from "./telas/Relatorio";
-import { TelaSegurancaMcp } from "./telas/SegurancaMcp";
 import { TelaSimulacao } from "./telas/Simulacao";
 import { TelaVisaoGeral } from "./telas/VisaoGeral";
 import { useReplay, type PropsDaTela } from "./telas/replay";
@@ -91,8 +90,6 @@ export function Pagina({ rota, modelo, erroDoLog = null, simulacao = null, aoSim
         return <TelaCustoLatencia {...props} />;
       case "qualidade":
         return <TelaQualidadeModelo />;
-      case "seguranca-mcp":
-        return <TelaSegurancaMcp />;
       case "chat":
         return <ChatDoModelo />;
       case "relatorio":
@@ -109,7 +106,7 @@ export function Pagina({ rota, modelo, erroDoLog = null, simulacao = null, aoSim
   })();
   // Telas que não dependem do replay não levam o controle dele no pé.
   const semReplay =
-    rota.tela === "chat" || rota.tela === "qualidade" || rota.tela === "seguranca-mcp" || rota.tela === "ao-vivo" || rota.tela === "simulacao";
+    rota.tela === "chat" || rota.tela === "qualidade" || rota.tela === "ao-vivo" || rota.tela === "simulacao";
   return (
     <Moldura {...props} ativa={rota.tela} modelo={modelo} dock={semReplay ? null : undefined} cheia={rota.tela === "chat"}>
       {erroDoLog && !semReplay && (

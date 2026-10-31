@@ -29,7 +29,6 @@ function secoes(props: PropsDaTela, ativa: Tela): NavSection[] {
         { id: "isolado-integrado", label: "Isolado × integrado", icon: "columns-2" },
         { id: "custo-latencia", label: "Custo e latência", icon: "timer" },
         { id: "qualidade", label: "Qualidade do modelo", icon: "grid-3x3" },
-        { id: "seguranca-mcp", label: "Segurança do MCP", icon: "shield-check", planned: true },
       ],
     },
     {

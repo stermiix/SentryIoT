@@ -216,15 +216,6 @@ describe("telas do artigo", () => {
     expect(html).toContain("regerado_janela_100_ponto.csv");
     expect(html).not.toContain("ilustrativ");
   });
-
-  it("Tela 6 fica vazia até o teste rodar, com os três desfechos em zero e o selo de planejada", () => {
-    const html = texto(pagina("seguranca-mcp"));
-    expect(html).toContain("Os testes ainda não rodaram");
-    expect(html).toContain("Planejada");
-    expect(html).toContain("Agente resistiu0");
-    expect(html).not.toContain("ilustrativ");
-    expect(html).not.toContain("inc-0001");
-  });
 });
 
 describe("ao vivo e relatório", () => {
@@ -435,7 +426,7 @@ describe("sem log de eventos", () => {
   });
 
   it("nenhuma tela mostra número, incidente ou texto do log de exemplo", () => {
-    const telas: Tela[] = ["visao-geral", "incidente", "ao-vivo", "isolado-integrado", "custo-latencia", "seguranca-mcp", "relatorio", "componentes"];
+    const telas: Tela[] = ["visao-geral", "incidente", "ao-vivo", "isolado-integrado", "custo-latencia", "relatorio", "componentes"];
     for (const tela of telas) {
       const html = texto(vazia(tela));
       for (const trecho of ["inc-0001", "inc-0002", fmtInt(10_970), fmtInt(25_514), "ilustrativ", "log de exemplo"]) {
@@ -469,7 +460,7 @@ describe("outras telas", () => {
   });
 
   it("toda tela da moldura desenha no primeiro, num do meio e no último passo sem lançar erro", () => {
-    const telas: Tela[] = ["visao-geral", "incidente", "ao-vivo", "isolado-integrado", "custo-latencia", "qualidade", "seguranca-mcp", "relatorio", "componentes"];
+    const telas: Tela[] = ["visao-geral", "incidente", "ao-vivo", "isolado-integrado", "custo-latencia", "qualidade", "relatorio", "componentes"];
     for (const tela of telas) {
       for (const passo of [1, 32, lido.eventos.length]) {
         expect(() => pagina(tela, passo), `${tela} no passo ${passo}`).not.toThrow();
