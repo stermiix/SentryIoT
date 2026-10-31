@@ -554,6 +554,154 @@ describe("regras de sequência", () => {
   });
 });
 
+// O que a versão 0.6.0 do contrato trouxe: janelas por categoria e candidatos no incidente, e o
+// atacante apontado, a análise e o sumário da triagem. O log gravado antes dela continua legível.
+describe("contrato 0.6.0", () => {
+  const CANDIDATO = {
+    endereco: "198.51.100.99",
+    janelas: 18,
+    no_trafego_normal: 0,
+    quadros_enviados: 880,
+    quadros_recebidos: 412,
+    conexoes_abertas: 310,
+    conexoes_recebidas: 0,
+    destinos: [{ endereco: "192.168.137.31", quadros: 870 }],
+    portas: [{ porta: 22, protocolo: "tcp", quadros: 870 }],
+  };
+  const NOVOS = new Set(["atacante_apontado", "analise_emitida", "sumario_emitido"]);
+  const atacante = copia("atacante_apontado");
+  const incidenteDoAtacante = atacante.incidente!;
+
+  /** Todas as versões do incidente, com os candidatos dados. */
+  function comCandidatos(incidente: string, candidatos: unknown[]): Bruto[] {
+    return base
+      .filter((evento) => TIPOS_DE_INCIDENTE.has(evento.tipo) && evento.incidente === incidente)
+      .map((evento) => ({ ...structuredClone(evento), dados: { ...evento.dados, candidatos } }));
+  }
+
+  /** O log como era gravado antes da versão 0.6.0: sem os eventos novos e sem os campos novos do incidente. */
+  const logAntigo = base
+    .filter((evento) => !NOVOS.has(evento.tipo))
+    .map((evento) => {
+      if (!TIPOS_DE_INCIDENTE.has(evento.tipo)) {
+        return evento;
+      }
+      const { janelas_por_categoria: _janelas, candidatos: _candidatos, ...dados } = evento.dados;
+      return { ...evento, dados };
+    });
+
+  it("o log antigo, sem os campos e os eventos novos, é lido sem aviso", () => {
+    const resultado = ler(logAntigo);
+    expect(resultado.avisosDaLeitura).toEqual([]);
+    expect(resultado.avisos).toEqual([]);
+    expect(resultado.incidentes.map((view) => view.id)).toEqual(ESPERADO.incidentes);
+    for (const view of resultado.incidentes) {
+      expect(view).toMatchObject({ analise: null, atacante: null, sumario: null });
+      expect(view.incidente.candidatos).toBeUndefined();
+      expect(view.incidente.janelas_por_categoria).toBeUndefined();
+    }
+    // Sem a análise, o veredito da triagem só aparece na conclusão dela.
+    expect(resultado.incidentes.map((view) => view.vereditoDaConclusao)).toEqual(
+      ESPERADO.incidentes.map((id) => copia("agente_concluido", (evento) => evento.incidente === id && evento.dados.agente === "triagem").dados.veredito),
+    );
+  });
+
+  it("aceita janelas por categoria e candidatos no incidente, com ou sem as portas do candidato", () => {
+    const { portas: _portas, ...semPortas } = CANDIDATO;
+    const versoes = comCandidatos(incidenteDoAtacante, [CANDIDATO, { ...semPortas, endereco: "198.51.100.98" }]);
+    versoes[0].dados.janelas_por_categoria = { BruteForce: 15, Benign: 3 };
+    const resultado = ler(trocando(...versoes));
+    expect(resultado.avisosDaLeitura).toEqual([]);
+    expect(resultado.incidentes.find((view) => view.id === incidenteDoAtacante)!.incidente).toMatchObject({
+      janelas_por_categoria: { BruteForce: 15, Benign: 3 },
+      candidatos: [CANDIDATO, { ...semPortas, endereco: "198.51.100.98" }],
+    });
+  });
+
+  it("descarta candidato e janelas por categoria fora do contrato", () => {
+    const casos: [unknown[], string][] = [
+      [[{ ...CANDIDATO, no_trafego_normal: 1.5 }], "dados.candidatos[0].no_trafego_normal"],
+      [[{ ...CANDIDATO, endereco: "não é IP" }], "dados.candidatos[0].endereco"],
+      [[{ ...CANDIDATO, destinos: Array(4).fill(CANDIDATO.destinos[0]) }], "dados.candidatos[0].destinos"],
+      [[{ ...CANDIDATO, portas: [{ porta: 22, protocolo: "icmp", quadros: 1 }] }], "dados.candidatos[0].portas[0].protocolo"],
+      [Array(6).fill(CANDIDATO), "dados.candidatos"],
+    ];
+    for (const [candidatos, campo] of casos) {
+      const [aberto] = comCandidatos(incidenteDoAtacante, candidatos);
+      expect(ler(trocando(aberto)).avisosDaLeitura.join(" "), campo).toContain(`incidente_aberto com ${campo} fora do contrato`);
+    }
+    const [porCategoria] = comCandidatos(incidenteDoAtacante, []);
+    porCategoria.dados.janelas_por_categoria = { DDoS: 3 };
+    expect(ler(trocando(porCategoria)).avisosDaLeitura.join(" ")).toContain("incidente_aberto com dados.janelas_por_categoria.DDoS fora do contrato");
+  });
+
+  it("a análise e o sumário só vêm da triagem, com o rótulo e o tamanho do contrato", () => {
+    const deOutroAgente = copia("analise_emitida");
+    deOutroAgente.dados.agente = "decisao";
+    expect(ler(trocando(deOutroAgente)).avisosDaLeitura.join(" ")).toContain("analise_emitida com dados.agente fora do contrato");
+    const comOutroRotulo = copia("analise_emitida");
+    comOutroRotulo.dados.veredito = "talvez";
+    expect(ler(trocando(comOutroRotulo)).avisosDaLeitura.join(" ")).toContain("analise_emitida com dados.veredito fora do contrato");
+    const longo = copia("sumario_emitido");
+    longo.dados.texto = "a".repeat(2001);
+    expect(ler(trocando(longo)).avisosDaLeitura.join(" ")).toContain("sumario_emitido com dados.texto fora do contrato");
+    const comQuebraDeLinha = copia("atacante_apontado");
+    comQuebraDeLinha.dados.justificativa = "Primeira linha.\nSegunda linha.";
+    expect(ler(trocando(comQuebraDeLinha)).avisosDaLeitura.join(" ")).toContain("atacante_apontado com dados.justificativa fora do contrato");
+  });
+
+  it("guarda a última análise, o último atacante e o último sumário de cada incidente", () => {
+    const view = final.incidentes.find((item) => item.id === incidenteDoAtacante)!;
+    const analise = copia("analise_emitida", (evento) => evento.incidente === incidenteDoAtacante);
+    const sumario = copia("sumario_emitido", (evento) => evento.incidente === incidenteDoAtacante);
+    expect(view.atacante).toEqual({ id: atacante.id, instante: atacante.instante, ...atacante.dados });
+    expect(view.analise).toEqual({ id: analise.id, instante: analise.instante, texto: analise.dados.texto, veredito: analise.dados.veredito });
+    expect(view.sumario).toEqual({ id: sumario.id, instante: sumario.instante, texto: sumario.dados.texto });
+    const deNovo = { ...structuredClone(atacante), id: novoId(), dados: { ...atacante.dados, justificativa: "Apontado de novo, com outra justificativa." } };
+    const resultado = ler([...base, deNovo]);
+    expect(resultado.incidentes.find((item) => item.id === incidenteDoAtacante)!.atacante).toMatchObject({ id: deNovo.id, justificativa: deNovo.dados.justificativa });
+  });
+
+  it("o atacante apontado precisa ser um candidato ou uma origem do incidente", () => {
+    const deFora = { ...structuredClone(atacante), dados: { ...atacante.dados, endereco: "203.0.113.250" } };
+    const resultado = ler(trocando(deFora));
+    expect(resultado.avisos.join(" ")).toContain(
+      `Evento “${deFora.id}” (atacante_apontado) ignorado: o endereço apontado não está entre os candidatos nem as origens`,
+    );
+    expect(resultado.incidentes.find((item) => item.id === incidenteDoAtacante)!.atacante).toBeNull();
+  });
+
+  it("um candidato fora das origens pode ser apontado e ganha o rótulo de origem depois delas, como em _rotular", () => {
+    const apontado = { ...structuredClone(atacante), dados: { ...atacante.dados, endereco: CANDIDATO.endereco } };
+    const resultado = ler(trocando(...comCandidatos(incidenteDoAtacante, [CANDIDATO]), apontado));
+    expect(resultado.avisos).toEqual([]);
+    const view = resultado.incidentes.find((item) => item.id === incidenteDoAtacante)!;
+    expect(view.atacante!.endereco).toBe(CANDIDATO.endereco);
+    expect(view.rotulos.get(`origem-${view.incidente.origens.length + 1}`)).toBe(CANDIDATO.endereco);
+  });
+
+  it("a proposta pode ter como alvo o rótulo de um candidato", () => {
+    const versoes = comCandidatos(incidenteDoFlood, [CANDIDATO]);
+    const rotulo = `origem-${versoes[0].dados.origens.length + 1}`;
+    const proposta = structuredClone(propostaDeRiscoAlto);
+    proposta.id = novoId();
+    proposta.dados = { ...proposta.dados, id: "prop-0099", alvo: CANDIDATO.endereco, alvo_com_rotulo: rotulo };
+    const resultado = ler([...trocando(...versoes), proposta]);
+    expect(resultado.avisos).toEqual([]);
+    expect(resultado.propostas.get("prop-0099")).toMatchObject({ alvo: CANDIDATO.endereco, alvoComRotulo: rotulo });
+  });
+
+  it("análise, sumário e atacante sem incidente não entram em lugar nenhum", () => {
+    for (const tipo of NOVOS) {
+      const evento = copia(tipo);
+      evento.incidente = null;
+      const resultado = ler(trocando(evento));
+      expect(resultado.avisos.join(" "), tipo).toContain(`Evento “${evento.id}” (${tipo}) ignorado`);
+      expect(resultado.incidentes.every((view) => !view.eventos.some((item) => item.id === evento.id)), tipo).toBe(true);
+    }
+  });
+});
+
 describe("replay passo a passo", () => {
   it("só mostra o incidente depois do evento de abertura", () => {
     const { eventos } = lerLog(textoDoExemplo);

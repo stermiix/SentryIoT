@@ -5,15 +5,18 @@ import {
   CATEGORIAS_DO_MODELO,
   CODIGOS_DE_RISCO_ALTO,
   COLUNAS,
+  DESTINOS_DO_CANDIDATO,
   ESTADOS_DA_EXECUCAO,
   ESTADOS_DA_PROPOSTA,
   ESTADOS_DO_INCIDENTE,
   LUGARES_DO_MODELO,
+  MAXIMO_DE_CANDIDATOS,
   MAXIMO_DE_PASSOS,
   MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO,
   MOTIVOS_DE_PARADA,
   MOTIVOS_DE_RECUSA,
   ORIGENS_DE_ACAO,
+  PORTAS_DO_CANDIDATO,
   PROTOCOLOS_DE_TRANSPORTE,
   RESULTADOS_DO_EFEITO,
   RISCOS,
@@ -116,6 +119,9 @@ const enderecoIP: Regra = (valor, caminho) =>
 const livre: Regra = (valor, caminho) => (ehObjeto(valor) ? null : caminho);
 const nomeDeAcao = texto(60, NOME_DE_ACAO);
 const textoLongo = texto(TEXTO_LONGO);
+const paragrafos = texto(TEXTO_LONGO, PARAGRAFOS);
+// O texto da análise e o do sumário só vêm da triagem (`Literal["triagem"]`, em `tipos.py`).
+const daTriagem = umDe(["triagem"]);
 
 function ouNulo(regra: Regra): Regra {
   return (valor, caminho) => (valor === null ? null : regra(valor, caminho));
@@ -187,6 +193,20 @@ const PortaContada = objeto({
   quadros: contagem,
 });
 const FeaturePrincipal = objeto({ nome: umDe(COLUNAS), valor: numero(), referencia_benigno: numero() });
+const PortaDoCandidato = objeto({ porta, protocolo: umDe(PROTOCOLOS_DE_TRANSPORTE), quadros: contagem });
+const CandidatoAAtacante = objeto({
+  endereco: enderecoIP,
+  janelas: contagem,
+  no_trafego_normal: numero(0, 1),
+  quadros_enviados: contagem,
+  quadros_recebidos: contagem,
+  conexoes_abertas: contagem,
+  conexoes_recebidas: contagem,
+  destinos: lista(EnderecoContado, DESTINOS_DO_CANDIDATO),
+}, {
+  // Opcional: o contrato dá uma lista vazia quando o campo não vem.
+  portas: lista(PortaDoCandidato, PORTAS_DO_CANDIDATO),
+});
 const Incidente = objeto({
   id: texto(),
   estado: umDe(ESTADOS_DO_INCIDENTE),
@@ -204,6 +224,9 @@ const Incidente = objeto({
 }, {
   // Opcional: o log gravado antes da versão 0.4.0 do contrato não tem as portas.
   portas: lista(PortaContada),
+  // Opcionais: o log gravado antes da versão 0.6.0 do contrato não os tem.
+  janelas_por_categoria: mapa(umDe(CATEGORIAS_DO_MODELO), contagem),
+  candidatos: lista(CandidatoAAtacante, MAXIMO_DE_CANDIDATOS),
 });
 const MotivoDeRiscoAlto = objeto({ codigo: umDe(CODIGOS_DE_RISCO_ALTO), descricao: textoLongo });
 const Execucao = objeto({
@@ -236,6 +259,8 @@ export const DEFINICOES: Record<string, RegraDeObjeto> = {
   EnderecoContado,
   PortaContada,
   FeaturePrincipal,
+  PortaDoCandidato,
+  CandidatoAAtacante,
   Incidente,
   MotivoDeRiscoAlto,
   Execucao,
@@ -269,11 +294,14 @@ export const DEFINICOES: Record<string, RegraDeObjeto> = {
     resultado: livre,
     duracao_ms: numero(0),
   }),
+  AtacanteApontado: objeto({ endereco: enderecoIP, justificativa: textoLongo }),
+  AnaliseDaTriagem: objeto({ agente: daTriagem, texto: paragrafos, veredito: ouNulo(umDe(VEREDITOS_DA_TRIAGEM)) }),
   Recomendacao: objeto({
     agente: umDe(AGENTES),
-    texto: texto(TEXTO_LONGO, PARAGRAFOS),
+    texto: paragrafos,
     propostas: lista(texto(), MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO),
   }),
+  Sumario: objeto({ agente: daTriagem, texto: paragrafos }),
   Proposta: objeto({
     id: texto(),
     incidente: texto(),
@@ -315,7 +343,10 @@ export const DADOS_DO_TIPO = new Map<TipoDeEvento, string>([
   ["llm_chamada", "ChamadaDeLLM"],
   ["tool_chamada", "ChamadaDeTool"],
   ["agente_concluido", "ConclusaoDoAgente"],
+  ["atacante_apontado", "AtacanteApontado"],
+  ["analise_emitida", "AnaliseDaTriagem"],
   ["recomendacao_emitida", "Recomendacao"],
+  ["sumario_emitido", "Sumario"],
   ["acao_proposta", "Proposta"],
   ["acao_aprovada", "Decisao"],
   ["acao_rejeitada", "Decisao"],

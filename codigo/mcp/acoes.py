@@ -57,6 +57,8 @@ from codigo.mcp.tipos import (
     TEXTO_LONGO,
     AcaoDoCatalogo,
     Ambiente,
+    AtacanteApontado,
+    AtacanteRotulado,
     Decisao,
     EnderecoRotulado,
     Execucao,
@@ -526,8 +528,9 @@ def _enderecos_do_incidente(estado, incidente):
     ocorrido = estado.incidentes.get(incidente)
     if ocorrido is None or ocorrido.estado != "aberto":
         return frozenset(), frozenset()
+    # O candidato a atacante é origem do incidente: a triagem pode apontá-lo mesmo fora das origens com mais quadros.
     return (
-        frozenset(item.endereco for item in ocorrido.origens),
+        _suspeitos(ocorrido),
         frozenset(item.endereco for item in ocorrido.destinos),
     )
 
@@ -627,6 +630,8 @@ class Estado:
     rotulos: dict = field(default_factory=dict)
     # Último efeito verificado em cada incidente, na ordem do log.
     ultimos_efeitos: dict = field(default_factory=dict)
+    # O atacante que a triagem apontou em cada incidente: vale o último apontado.
+    atacantes: dict = field(default_factory=dict)
 
 
 class _Violacao(Exception):
@@ -749,6 +754,17 @@ def _aplicar(estado, evento):
             )
             estado.efeitos[dados.execucao] = dados
             estado.ultimos_efeitos[dados.incidente] = dados
+        case "atacante_apontado":
+            _exigir(evento.incidente is not None, "o atacante apontado não diz de que incidente é")
+            ocorrido = _citado(estado.incidentes, evento.incidente, "o incidente")
+            _exigir(
+                dados.endereco in _suspeitos(ocorrido),
+                f"o endereço apontado como atacante não está entre os candidatos nem as origens do incidente {ocorrido.id}",
+            )
+            estado.atacantes[ocorrido.id] = dados
+            _rotular_origem(estado, ocorrido.id, dados.endereco)
+        case "analise_emitida" | "sumario_emitido":
+            _exigir(evento.incidente is not None, f"o evento {evento.tipo} não diz de que incidente é")
         case "recomendacao_emitida":
             for citada in dados.propostas:
                 proposta = _citado(estado.propostas, citada, "a proposta")
@@ -795,12 +811,30 @@ def _rotular(estado, incidente):
     (origem ou destino) faz parte do rótulo, e o endereço que aparece nos dois ganha um de cada.
     """
     rotulos = estado.rotulos.setdefault(incidente.id, {})
-    for papel, lista in (("origem", incidente.origens), ("destino", incidente.destinos)):
+    # Os candidatos a atacante são origens também, e vêm depois das origens: o rótulo das origens fica
+    # igual ao de um log gravado antes dos candidatos.
+    for papel, lista in (
+        ("origem", [*incidente.origens, *incidente.candidatos]),
+        ("destino", incidente.destinos),
+    ):
         do_papel = [endereco for rotulo, endereco in rotulos.items() if rotulo.startswith(f"{papel}-")]
         for item in lista:
             if item.endereco not in do_papel:
                 do_papel.append(item.endereco)
                 rotulos[f"{papel}-{len(do_papel)}"] = item.endereco
+
+
+def _rotular_origem(estado, incidente, endereco):
+    """Dá o rótulo de origem ao endereço, se ele ainda não tiver um (o atacante apontado de uma versão antiga)."""
+    rotulos = estado.rotulos.setdefault(incidente, {})
+    origens = [valor for rotulo, valor in rotulos.items() if rotulo.startswith("origem-")]
+    if endereco not in origens:
+        rotulos[f"origem-{len(origens) + 1}"] = endereco
+
+
+def _suspeitos(incidente):
+    """Os endereços que podem ser apontados como atacante: os candidatos e as origens do incidente."""
+    return frozenset(item.endereco for item in [*incidente.candidatos, *incidente.origens])
 
 
 def _resolver_rotulo(estado, incidente, alvo):
@@ -962,7 +996,64 @@ def resumo_do_incidente(estado, politica, identificador):
             for item in incidente.portas
         ],
         ultimo_efeito=estado.ultimos_efeitos.get(identificador),
+        atacante_apontado=_atacante_rotulado(estado, identificador),
     )
+
+
+def _atacante_rotulado(estado, identificador):
+    """O atacante apontado pela triagem, pelo rótulo, com a justificativa sem endereço nenhum."""
+    apontado = estado.atacantes.get(identificador)
+    if apontado is None:
+        return None
+    rotulos = estado.rotulos[identificador]
+    rotulo = next(r for r, endereco in rotulos.items() if r.startswith("origem-") and endereco == apontado.endereco)
+    justificativa = com_rotulos(apontado.justificativa, rotulos)
+    if len(justificativa) > TEXTO_LONGO:
+        justificativa = justificativa[: TEXTO_LONGO - 1].rstrip() + "…"
+    return AtacanteRotulado(rotulo=rotulo, justificativa=justificativa)
+
+
+def com_rotulos(texto, rotulos):
+    """O texto com cada endereço do incidente trocado pelo rótulo dele e qualquer outro pelo marcador.
+
+    Um endereço que é origem e destino fica com o rótulo de origem. O que sobrar com cara de endereço
+    passa por `mascarar_enderecos`, como o veredito da triagem.
+    """
+    por_endereco = {}
+    for rotulo, endereco in rotulos.items():
+        if rotulo.startswith("origem-") or endereco not in por_endereco:
+            por_endereco[endereco] = rotulo
+    # O endereço mais longo primeiro: 10.0.0.12 não pode virar origem-1 seguido de 2. O ponto final da
+    # frase pode vir colado ao endereço; o ponto seguido de dígito, não.
+    for endereco in sorted(por_endereco, key=len, reverse=True):
+        padrao = rf"(?<![0-9A-Fa-f.:]){re.escape(endereco)}(?![0-9A-Fa-f:]|\.[0-9A-Fa-f])"
+        texto = re.sub(padrao, por_endereco[endereco], texto)
+    return mascarar_enderecos(texto)
+
+
+def apontar_atacante(estado, identificador, endereco, justificativa):
+    """Registra o atacante que a triagem apontou. Devolve o apontamento e o rascunho do evento.
+
+    Só vale um dos candidatos ou das origens do incidente aberto: a triagem escolhe entre o que o
+    classificador e a política de acionamento viram, e não traz endereço de fora.
+    """
+    incidente = estado.incidentes[identificador]
+    if incidente.estado != "aberto":
+        raise PedidoRecusado("incidente_encerrado", f"O incidente {identificador} está encerrado.")
+    canonico = _endereco(endereco)
+    if canonico is None or canonico not in _suspeitos(incidente):
+        raise PedidoRecusado(
+            "alvo_nao_permitido",
+            f"O atacante apontado precisa ser um dos candidatos ou das origens do incidente {identificador}, "
+            "escrito como o incidente o traz.",
+        )
+    try:
+        apontado = AtacanteApontado(endereco=canonico, justificativa=_TEXTO_LONGO.validate_python(justificativa))
+    except ValidationError:
+        raise PedidoRecusado(
+            "argumentos_invalidos", f"O apontamento precisa de uma justificativa: {_UMA_LINHA}."
+        ) from None
+    return apontado, [novo("atacante_apontado", apontado, identificador)]
 
 
 def ambiente(estado):

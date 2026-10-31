@@ -598,3 +598,32 @@ def test_endereco_que_manda_para_si_mesmo_nao_quebra_os_papeis(tmp_path):
 
     assert incidente.categoria in ("DoS", "DDoS")
     assert incidente.origens
+
+
+def test_o_incidente_traz_os_candidatos_com_as_medidas_e_as_janelas_por_categoria(tmp_path):
+    # O atacante abre as conexões à porta 22; a vítima responde e aparece como origem também.
+    def gerar(i):
+        if i % 2 == 0:
+            return tcp(ATACANTE, VITIMA, dpkt.tcp.TH_SYN, porta=22)
+        return tcp(VITIMA, ATACANTE, dpkt.tcp.TH_SYN | dpkt.tcp.TH_ACK, porta=40000)
+
+    incidente = _cenario(tmp_path, [benigno(4), (6, gerar, 0.0), benigno(4)]).incidente
+
+    assert incidente.janelas_por_categoria == {"DDoS+DoS": 6}
+    por_endereco = {candidato.endereco: candidato for candidato in incidente.candidatos}
+    assert set(por_endereco) == {ATACANTE, VITIMA}
+    atacante = por_endereco[ATACANTE]
+    assert (atacante.janelas, atacante.no_trafego_normal, atacante.conexoes_abertas, atacante.conexoes_recebidas) == (
+        6, 0.0, 300, 0,
+    )
+    assert [(d.endereco, d.quadros) for d in atacante.destinos] == [(VITIMA, 300)]
+    assert [(p.porta, p.protocolo, p.quadros) for p in atacante.portas] == [(22, "tcp", 300)]
+    # A vítima aparece no tráfego normal (é o destino do benigno, não a origem), mas não abre conexão.
+    assert por_endereco[VITIMA].conexoes_abertas == 0 and por_endereco[VITIMA].quadros_recebidos == 300
+
+
+def test_flood_com_origem_forjada_vem_sem_candidatos(tmp_path):
+    origens = tuple(f"10.{i // 250}.{i % 250}.1" for i in range(600))
+    incidente = _cenario(tmp_path, [ataque(6, origens=origens), benigno(10)]).incidente
+
+    assert incidente.candidatos == []

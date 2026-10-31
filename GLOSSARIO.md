@@ -264,6 +264,23 @@ O nome que o servidor MCP põe no lugar de cada endereço no resumo do incidente
 servidor troca o rótulo pelo endereço antes de calcular o risco. Assim nenhum endereço da rede
 sai do ambiente.
 
+**Candidato a atacante**
+Uma origem do incidente que se destaca do tráfego normal: aparece em muitas janelas do incidente e
+em poucas das benignas. O incidente traz até cinco, com as medidas de cada um (conexões abertas,
+destinos, portas), para a triagem escolher. Existe porque a regra fixa que monta as origens erra o
+atacante em quase metade dos incidentes: um aparelho comum que abre muitas conexões com a nuvem
+passa à frente dele.
+
+**Atacante apontado**
+O candidato que a triagem escolheu como atacante, com a justificativa, pela tool
+`apontar_atacante`. O agente de decisão o recebe pelo rótulo neutro e mira nele as ações sobre a
+origem do ataque. Desde 31/10/2026.
+
+**Sumário do incidente**
+O parágrafo que a triagem escreve quando o orquestrador termina, a partir do log: o que o
+classificador viu, o que a triagem concluiu, o que foi proposto, o que a pessoa decidiu e o efeito.
+Abre o relatório do incidente.
+
 **Contrato da tool**
 O acordo escrito de o que a ferramenta recebe e o que devolve, em JSON. Fechar isso cedo permite
 que a frente do classificador e a frente dos agentes trabalhem em paralelo sem se atrapalhar.

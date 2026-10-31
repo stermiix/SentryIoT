@@ -45,7 +45,7 @@ de outro incidente.
 
 `--agente` é obrigatório. Com `triagem`, `decisao` ou `execucao`, o servidor só expõe as tools
 da linha desse agente e registra o nome dele em cada chamada. O indicado é um processo por
-agente, todos sobre o mesmo log. `--agente todos` expõe as dez tools em um processo só e deixa
+agente, todos sobre o mesmo log. `--agente todos` expõe as onze tools em um processo só e deixa
 o campo `agente` do log nulo. Serve para desenvolvimento, e só para isso: com todas as tools, um
 mesmo cliente propõe e executa, e a separação entre quem lê conteúdo da rede e quem aplica
 ações deixa de existir. Na API Python vale o mesmo: `Stub(registro)` sem agente é erro, e todas
@@ -122,7 +122,8 @@ está e a segunda sempre resolve.
 
 | Tool | Agentes | Devolve |
 |---|---|---|
-| `obter_incidente(id)` | triagem | O incidente, com os endereços |
+| `obter_incidente(id)` | triagem | O incidente, com os endereços, as janelas por categoria e os candidatos a atacante |
+| `apontar_atacante(id, endereco, justificativa)` | triagem | O atacante apontado entre os candidatos e as origens; vale o último |
 | `obter_janelas(id, limite)` | triagem | Até 20 janelas, espaçadas ao longo do incidente, com as 39 features |
 | `obter_resumo(id)` | decisão | O resumo montado pelo servidor, sem endereço, com os rótulos neutros |
 | `consultar_mitigacoes(categoria)` | decisão | Até 10 mitigações recomendadas e o catálogo de ações |
@@ -202,6 +203,30 @@ extrator. `portas` traz até 5 portas de destino do TCP e do UDP, as que mais re
 entre os destinos listados. A porta sai do cabeçalho de transporte de cada quadro e não é uma das
 39 features: serve para o agente escolher a porta de `fechar_porta`. Vem vazia sem TCP nem UDP,
 como num ARP spoofing ou num flood ICMP, e num log gravado antes da versão 0.4.0.
+
+`janelas_por_categoria` diz o que o classificador disse de todas as janelas do incidente, inclusive
+as benignas entre as de ataque: é a visão de todas as janelas que `obter_janelas`, com até 20, não dá.
+`candidatos` traz até 5 origens que se destacam do tráfego normal (`codigo/reprodutor/reprodutor.py`,
+"Candidatos"), cada uma com as janelas em que aparece, a parcela das janelas benignas em que aparece
+(`no_trafego_normal`), os quadros e as conexões TCP enviados e recebidos e os 3 destinos e as 3
+portas a que mais mandou quadros. As `origens` são o palpite de uma regra fixa, que erra o atacante
+em quase metade dos incidentes da avaliação; quem escolhe entre os candidatos é a triagem, com
+`apontar_atacante` (decisão de 2026-10-31). Os dois campos vêm vazios num log anterior à versão 0.6.0
+e nos cenários de exemplo.
+
+**`apontar_atacante`** (triagem)
+
+```json
+{"id": "inc-0002", "endereco": "192.168.137.65", "justificativa": "Abre as 66 conexões à porta 22 do destino."}
+```
+```json
+{"endereco": "192.168.137.65", "justificativa": "Abre as 66 conexões à porta 22 do destino."}
+```
+
+O endereço precisa ser um dos candidatos ou das origens do incidente aberto; outro é recusado
+(`alvo_nao_permitido`). O apontamento vai para o log como `atacante_apontado`, e o resumo da decisão
+o traz em `atacante_apontado`, com o rótulo e a justificativa com cada endereço trocado pelo rótulo
+dele. O candidato apontado conta como origem do incidente no cálculo do risco.
 
 **`obter_janelas`** (triagem)
 
@@ -673,7 +698,10 @@ pendente, é recusado na gravação e na leitura.
 | `llm_chamada` | agentes, pelo `GravadorDoAgente` | Agente, modelo, tokens de entrada e de saída, duração, finish_reason (`motivo_termino`) e onde o modelo rodou (`local` ou `nuvem`); os dois últimos ficam nulos nos logs anteriores à versão 0.5.0 |
 | `tool_chamada` | servidor | Agente, nome da tool, argumentos, resultado resumido, duração |
 | `agente_concluido` | agentes, pelo `GravadorDoAgente`, no fim do laço | Agente, motivo da parada, voltas, tokens somados e, na triagem, o veredito (`coerente`, `duvidoso` ou `ruido`) |
+| `atacante_apontado` | servidor, na `apontar_atacante` da triagem | Endereço e justificativa |
+| `analise_emitida` | orquestrador, pelo `GravadorDoAgente` da triagem, antes da conclusão dela | Agente (`triagem`), a resposta final e o veredito lido dela |
 | `recomendacao_emitida` | agente de decisão, pelo `GravadorDoAgente` | Agente, texto e propostas ligadas |
+| `sumario_emitido` | orquestrador, pelo `GravadorDoAgente` da triagem, no fim do incidente | Agente (`triagem`) e o sumário escrito a partir do log; a chamada ao modelo que o escreveu vai como `llm_chamada` da triagem, sem `agente_concluido` |
 | `acao_proposta` | servidor | A proposta, com o alvo e o alvo com rótulo, e os motivos quando o risco é alto |
 | `acao_aprovada`, `acao_rejeitada` | comando `aprovar` | Proposta, canal, usuário e motivo |
 | `acao_executada`, `acao_desfeita` | servidor | A execução |
@@ -776,7 +804,18 @@ de exemplo direto daqui: depois de gerá-lo de novo, rode também o `npm test` e
 ## Versão do contrato
 
 A versão fica em `contrato.json`, no campo `versao`, e sai de `VERSAO`, em `tipos.py`. A atual é
-a 0.5.0. O que mudou em relação à 0.4.0, para quem já usava o stub:
+a 0.6.0. O que mudou em relação à 0.5.0, para quem já usava o stub:
+
+- **A triagem aponta o atacante.** `Incidente` ganhou `janelas_por_categoria` e `candidatos`, com
+  valor padrão vazio: um log gravado com a 0.5.0 continua legível. Tool nova da triagem,
+  `apontar_atacante`, que grava `atacante_apontado`, e `ResumoDoIncidente` ganhou
+  `atacante_apontado`, com o rótulo. Os candidatos recebem rótulo de origem depois das origens, e
+  o rótulo das origens não muda.
+- **O que o relatório mostra.** Eventos novos `analise_emitida` (a resposta final da triagem) e
+  `sumario_emitido` (o sumário escrito pela triagem no fim), gravados pelo orquestrador; o
+  `GravadorDoAgente` passou a aceitar os dois.
+
+O que mudou da 0.4.0 para a 0.5.0:
 
 - **Medição dos agentes.** `llm_chamada` ganhou `motivo_termino` (o finish_reason do provedor) e
   `onde` (`local` ou `nuvem`). Os dois têm valor padrão nulo: um log gravado com a 0.4.0 continua

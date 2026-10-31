@@ -85,7 +85,7 @@ export const CHANNEL: Record<Channel, { label: string; icon: IconName }> = {
 
 export type ProviderLocation = 'local' | 'nuvem';
 
-/* ---------- the 17 event types of the log, as the timeline draws them ---------- */
+/* ---------- the 20 event types of the log, as the timeline draws them ---------- */
 export type EventType = TipoDeEvento;
 
 export const EVENT: Record<EventType, StateInfo> = {
@@ -97,7 +97,10 @@ export const EVENT: Record<EventType, StateInfo> = {
   'llm_chamada':                 { label: 'Chamada à IA',              tone: 'neutral', icon: 'brain-circuit' },
   'tool_chamada':                { label: 'Chamada de tool',           tone: 'neutral', icon: 'plug' },
   'agente_concluido':            { label: 'Agente concluiu',           tone: 'neutral', icon: 'list-checks' },
+  'atacante_apontado':           { label: 'Atacante apontado',         tone: 'info',    icon: 'crosshair' },
+  'analise_emitida':             { label: 'Análise da triagem',        tone: 'neutral', icon: 'scan-search' },
   'recomendacao_emitida':        { label: 'Recomendação emitida',      tone: 'neutral', icon: 'message-square-quote' },
+  'sumario_emitido':             { label: 'Sumário do incidente',      tone: 'neutral', icon: 'scroll-text' },
   'acao_proposta':               { label: 'Proposta criada',           tone: 'neutral', icon: 'clipboard-plus' },
   'acao_aprovada':               { label: 'Aprovada',                  tone: 'success', icon: 'badge-check' },
   'acao_rejeitada':              { label: 'Rejeitada',                 tone: 'danger',  icon: 'ban' },
@@ -145,7 +148,7 @@ export const STOP_REASON: Record<MotivoDeParada, string> = {
   limite_de_saida: 'limite de saída',
 };
 
-/* ---------- the triage label (`agente_concluido.veredito`) ---------- */
+/* ---------- the triage label (`analise_emitida.veredito` and `agente_concluido.veredito`) ---------- */
 export const VERDICT: Record<VereditoDaTriagem, string> = {
   coerente: 'coerente',
   duvidoso: 'duvidoso',

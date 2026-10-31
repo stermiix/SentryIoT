@@ -149,7 +149,7 @@ export function TelaComponentes({ replay }: PropsDaTela) {
             [
               { rotulo: "Categorias", itens: (Object.keys(CATEGORY) as (keyof typeof CATEGORY)[]).map((k) => ({ icone: CATEGORY[k].icon, nome: CATEGORY[k].label, cor: `var(--${CATEGORY[k].token})` })) },
               { rotulo: "Agentes", itens: (Object.keys(AGENT) as AgentName[]).map((k) => ({ icone: AGENT[k].icon, nome: AGENT[k].label })) },
-              { rotulo: "Eventos (16)", itens: EVENT_TYPES.map((t) => ({ icone: EVENT[t].icon, nome: EVENT[t].label })) },
+              { rotulo: `Eventos (${EVENT_TYPES.length})`, itens: EVENT_TYPES.map((t) => ({ icone: EVENT[t].icon, nome: EVENT[t].label })) },
             ] as { rotulo: string; itens: { icone: IconName; nome: string; cor?: string }[] }[]
           ).map((grupo) => (
             <Linha key={grupo.rotulo} rotulo={grupo.rotulo}>

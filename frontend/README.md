@@ -36,7 +36,7 @@ entra nos testes.
 | Tela 5, qualidade do modelo | `#/qualidade-do-modelo` | matriz real da configuração 5 |
 | Tela 6, segurança do MCP | `#/seguranca-do-mcp` | planejada; vazia até o teste de tool poisoning rodar |
 | Chat com o modelo | `#/chat` (e o antigo `#chat`) | funciona com o backend |
-| Relatório do incidente, em A4 | `#/relatorio/<id>` | funciona com o log; o sumário escrito pela IA é planejado |
+| Relatório do incidente, em A4: sumário, fatos, o que o classificador viu, triagem (veredito, atacante apontado, análise e candidatos), ações, recomendações e decisões | `#/relatorio/<id>` | funciona com o log; com um log anterior ao contrato 0.6.0, diz o que o log não traz |
 | Entrar | `#/entrar` | visual pronto; o login ainda não existe |
 | Componentes (catálogo do design system) | `#/componentes` | os blocos de dados usam o log; os outros mostram cada componente com valores de amostra |
 
@@ -63,8 +63,6 @@ visão geral fica em zero e cada tela diz que nenhum log foi carregado.
   `VITE_MODELOS_NA_NUVEM` (separados por vírgula) para a tela mostrar "local" ou "nuvem" nas
   chamadas e para a Tela 4 comparar os dois. No chat, um modelo fora das listas aparece como
   nuvem: é o caso que pede cuidado.
-- **Sumário do relatório:** o lugar dele está na primeira página interna; o texto entra quando o
-  agente passar a escrevê-lo no log.
 - **Tela 6:** fica vazia até o teste de tool poisoning rodar. Os resultados entram em `TESTES`,
   em `src/telas/SegurancaMcp.tsx`, e cada teste vira um painel com o conteúdo injetado e o que
   aconteceu.
@@ -149,7 +147,7 @@ no build: depois de mudar uma, gere o `dist/` de novo.
 - **Contrato** (`src/contrato.test.ts`): as listas de `src/listas.ts` contra o `contrato.json` e o
   `acoes.py`.
 - **Adaptador** (`src/adaptador.test.ts`): cada número e estado que a tela mostra, no log de
-  exemplo, e o vocabulário do design system contra o contrato (17 tipos de evento, 9 motivos de
+  exemplo, e o vocabulário do design system contra o contrato (20 tipos de evento, 9 motivos de
   risco alto).
 - **Telas** (`src/telas.test.tsx`): cada tela desenhada no Node em passos escolhidos do replay,
   incluindo o HTML vindo do log escapado e as duas vozes do texto, e cada tela sem log, vazia e sem
@@ -169,6 +167,7 @@ a cada PR, os testes, o `npm audit --omit=dev --audit-level=high` e o build.
 | `src/contrato.ts` | Confere cada linha do log contra o contrato |
 | `src/log.ts` | Lê o JSONL, reconstrói o estado e agrega os eventos por incidente |
 | `src/adaptador.ts` | Do log aos objetos que os componentes desenham |
+| `src/paginacao.ts` | Onde cada página A4 do relatório quebra, a partir das alturas medidas no navegador |
 | `src/formato.ts` | A hora dos eventos no fuso de quem abre a página |
 | `src/rotas.ts` | A tela pela âncora |
 | `src/operacao.ts` | Decisões e login; hoje, o comando de terminal equivalente |

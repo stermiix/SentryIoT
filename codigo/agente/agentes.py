@@ -3,14 +3,20 @@
 Não é um quarto agente (decisão de 25/10/2026): é Python que decide só a ordem, que é quase sempre a
 mesma. A cada incidente aberto no log:
 
-1. a triagem lê o incidente e dá o veredito;
+1. a triagem lê o incidente, aponta o atacante entre os candidatos e dá o veredito; a resposta dela vai
+   para o log como `analise_emitida`;
 2. o veredito passa por `mascarar_enderecos` e segue para o agente de decisão, que lê o resumo (sem
-   endereços), propõe a ação e escreve a recomendação;
+   endereços, com o atacante apontado pelo rótulo), propõe a ação e escreve a recomendação;
 3. se a proposta é de risco alto, o orquestrador espera a `acao_aprovada` no log. Quem aprova é uma pessoa,
    pelo comando `python -m codigo.mcp.aprovar`, ou um `aprovador` entregue por quem chama (os
    experimentos usam um aprovador automático);
 4. o agente de execução aplica a proposta liberada e verifica o efeito;
-5. se o efeito não cessou, a decisão volta, até `maximo_de_rodadas`.
+5. se o efeito não cessou, a decisão volta, até `maximo_de_rodadas`. Se a pessoa rejeitou todas as
+   propostas e escreveu o motivo, a decisão também volta, com o motivo, para propor outra ou dizer que não
+   há (`rodada_apos_rejeicao`, ligada pela linha de comando e desligada nos experimentos, em que quem
+   rejeita é o gabarito e o motivo dele daria a resposta);
+6. no fim, a triagem escreve o sumário do incidente a partir do log (`sumario.py`; `sumario`, também
+   ligado só pela linha de comando).
 
 Cada agente roda no modelo que a configuração diz (`CONFIGURACOES`): tudo local, tudo na nuvem ou
 híbrida, com a decisão na nuvem. Cada chamada ao modelo e o fim de cada agente vão para o log
@@ -30,8 +36,14 @@ from codigo.agente.pedidos import (
     COMPLEMENTO_DO_SISTEMA,
     prompt_da_skill,
 )
-from codigo.agente.registro import chamadas_no_log, conclusao_no_log
-from codigo.mcp.acoes import decidir, reconstruir
+from codigo.agente.registro import (
+    chamadas_no_log,
+    conclusao_no_log,
+    veredito_da_triagem,
+)
+from codigo.agente.sumario import escrever_sumario
+from codigo.api.provedor import ErroDoProvedor
+from codigo.mcp.acoes import com_rotulos, decidir, reconstruir
 from codigo.mcp.eventos import GravadorDoAgente, Registro, ler, novo
 from codigo.mcp.tipos import TEXTO_LONGO, mascarar_enderecos
 
@@ -67,6 +79,13 @@ ABERTURA_DA_DECISAO_DE_NOVO = (
     "\"{efeito}\". Este é o veredito da triagem, sem endereços:\n\n"
     "{veredito}\n\n"
     "Leia o resumo de novo, que traz o último efeito, proponha outra ação e devolva a recomendação."
+)
+ABERTURA_DA_DECISAO_DEPOIS_DA_REJEICAO = (
+    "O incidente {incidente} continua aberto: a pessoa que opera a rede rejeitou a proposta anterior e "
+    "escreveu, com os endereços trocados pelos rótulos:\n\n{motivos}\n\n"
+    "Este é o veredito da triagem, sem endereços:\n\n{veredito}\n\n"
+    "Leia o resumo de novo. Se houver outra ação que respeite o motivo da rejeição, proponha-a e devolva a "
+    "recomendação; se não houver, diga isso na recomendação, sem propor nada."
 )
 ABERTURA_DA_EXECUCAO = (
     "A proposta {proposta} do incidente {incidente} está liberada. Aplique a ação, verifique o efeito "
@@ -127,6 +146,8 @@ def orquestrar(
     relogio=time.monotonic,
     abrir_cliente=ClienteMCP,
     ao_esperar=None,
+    rodada_apos_rejeicao=False,
+    sumario=False,
     **limites_do_laco,
 ):
     """Trata um incidente aberto no log, da triagem ao efeito verificado.
@@ -135,6 +156,8 @@ def orquestrar(
     `aprovador(estado, pendentes)` recebe as propostas que aguardam aprovação e grava as decisões no log
     (ver `decidir_no_log`); sem ele, o orquestrador espera até `espera_da_aprovacao_s` que uma pessoa decida.
     `ao_esperar(pendentes)` é chamado uma vez quando há proposta esperando uma pessoa.
+    `rodada_apos_rejeicao` devolve a vez à decisão quando todas as propostas foram rejeitadas com motivo, e
+    `sumario` pede o sumário à triagem no fim. A linha de comando liga os dois; os experimentos, não.
     """
     if configuracao not in CONFIGURACOES:
         raise ValueError(f"configuração desconhecida: {configuracao!r}. Diga {', '.join(CONFIGURACOES)}")
@@ -149,6 +172,16 @@ def orquestrar(
     avisos = []
 
     def terminar(desfecho):
+        if sumario and desfecho != INCIDENTE_ENCERRADO:
+            try:
+                escrito = escrever_sumario(
+                    incidente, log=log, perfil=perfis[onde["triagem"]], onde=onde["triagem"], desfecho=desfecho
+                )
+            except (ErroDoProvedor, OSError, ValueError) as erro:
+                avisos.append(f"o sumário do incidente não foi escrito: {erro}"[:300])
+            else:
+                if escrito is None:
+                    avisos.append("o sumário do incidente não foi escrito: o modelo da triagem não respondeu")
         return ResultadoDoIncidente(incidente, configuracao, desfecho, tuple(execucoes), tuple(avisos))
 
     def agente(papel, rodada, abertura, depois=None):
@@ -165,19 +198,26 @@ def orquestrar(
     if estado.incidentes[incidente].estado == "encerrado":
         return terminar(INCIDENTE_ENCERRADO)
 
-    triagem = agente("triagem", 1, ABERTURA_DA_TRIAGEM.format(id=incidente))
+    def analise(resultado):
+        aviso = _registrar_analise(log, incidente, resultado.resposta)
+        if aviso:
+            avisos.append(aviso)
+
+    triagem = agente("triagem", 1, ABERTURA_DA_TRIAGEM.format(id=incidente), depois=analise)
     if not triagem.terminou_bem:
         return terminar(AGENTE_PAROU)
     veredito = para_a_decisao(triagem.resposta)
 
     efeito = None
+    rejeicao = None
     for rodada in range(1, maximo_de_rodadas + 1):
         antes = _ids_do_incidente(estado, incidente)
-        abertura = (
-            ABERTURA_DA_DECISAO.format(incidente=incidente, veredito=veredito)
-            if efeito is None
-            else ABERTURA_DA_DECISAO_DE_NOVO.format(incidente=incidente, veredito=veredito, efeito=efeito)
-        )
+        if rejeicao is not None:
+            abertura = ABERTURA_DA_DECISAO_DEPOIS_DA_REJEICAO.format(incidente=incidente, veredito=veredito, motivos=rejeicao)
+        elif efeito is None:
+            abertura = ABERTURA_DA_DECISAO.format(incidente=incidente, veredito=veredito)
+        else:
+            abertura = ABERTURA_DA_DECISAO_DE_NOVO.format(incidente=incidente, veredito=veredito, efeito=efeito)
 
         def registrar(resultado, antes=antes):
             aviso = _registrar_recomendacao(log, incidente, resultado.resposta, antes)
@@ -191,7 +231,8 @@ def orquestrar(
         estado = reconstruir(ler(log))
         novas = _propostas_novas(estado, incidente, antes)
         if not novas:
-            return terminar(SEM_PROPOSTA)
+            # Depois de uma rejeição, a decisão pode dizer que não há outra ação: o desfecho continua o da rejeição.
+            return terminar(TODAS_REJEITADAS if rejeicao is not None else SEM_PROPOSTA)
 
         estado, decidido = _aguardar_decisoes(
             log, novas, aprovador, espera_da_aprovacao_s, esperar, relogio, ao_esperar
@@ -200,7 +241,12 @@ def orquestrar(
             return terminar(SEM_APROVACAO)
         liberadas = [id_ for id_ in novas if estado.propostas[id_].estado == "liberada"]
         if not liberadas:
-            return terminar(TODAS_REJEITADAS)
+            motivos = _motivos_das_rejeicoes(log, novas, estado.rotulos.get(incidente, {}))
+            if not (rodada_apos_rejeicao and motivos) or rodada == maximo_de_rodadas:
+                return terminar(TODAS_REJEITADAS)
+            rejeicao = motivos
+            continue
+        rejeicao = None
 
         execucoes_antes = set(estado.execucoes)
         for proposta in liberadas:
@@ -295,6 +341,35 @@ def _aguardar_decisoes(log, novas, aprovador, espera_s, esperar, relogio, ao_esp
         estado = reconstruir(ler(log))
         pendentes = pendentes_de(estado)
     return estado, True
+
+
+def _motivos_das_rejeicoes(log, propostas, rotulos):
+    """O que a pessoa escreveu ao rejeitar as propostas, com os endereços trocados pelos rótulos. Vazio sem motivo."""
+    linhas = []
+    for evento in ler(log):
+        if evento.tipo == "acao_rejeitada" and evento.dados.proposta in propostas and evento.dados.motivo:
+            linhas.append(f"- {evento.dados.proposta}: {com_rotulos(evento.dados.motivo, rotulos)}")
+    return "\n".join(linhas)
+
+
+def _registrar_analise(log, incidente, texto):
+    """Grava a resposta final da triagem como a análise dela. Devolve um aviso, ou None se gravou."""
+    texto = (texto or "").strip()
+    if not texto:
+        return None
+    if len(texto) > TEXTO_LONGO:
+        texto = texto[: TEXTO_LONGO - 1].rstrip() + "…"
+    try:
+        GravadorDoAgente("triagem", log).gravar(
+            novo(
+                "analise_emitida",
+                {"agente": "triagem", "texto": texto, "veredito": veredito_da_triagem(texto)},
+                incidente,
+            )
+        )
+    except ValueError as erro:
+        return f"a análise da triagem não foi gravada: {erro}"
+    return None
 
 
 def _registrar_recomendacao(log, incidente, texto, antes):

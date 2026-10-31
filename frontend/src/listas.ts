@@ -82,7 +82,10 @@ export const TIPOS_DE_EVENTO = [
   "llm_chamada",
   "tool_chamada",
   "agente_concluido",
+  "atacante_apontado",
+  "analise_emitida",
   "recomendacao_emitida",
+  "sumario_emitido",
   "acao_proposta",
   "acao_aprovada",
   "acao_rejeitada",
@@ -98,6 +101,10 @@ export const TEXTO_CURTO = 200;
 export const TEXTO_LONGO = 2_000;
 export const MAXIMO_DE_PASSOS = 20;
 export const MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO = 20;
+// Candidatos a atacante por incidente, e destinos e portas citados de cada um (contrato 0.6.0).
+export const MAXIMO_DE_CANDIDATOS = 5;
+export const DESTINOS_DO_CANDIDATO = 3;
+export const PORTAS_DO_CANDIDATO = 3;
 
 // O catálogo de base e as ações que são sempre de risco alto não estão no contrato: vêm de
 // `BASE` e `_SEMPRE_DE_RISCO_ALTO`, em `codigo/mcp/acoes.py`, e `contrato.test.ts` também as confere

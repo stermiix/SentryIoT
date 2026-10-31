@@ -10,7 +10,9 @@ reprodução. O `.env` traz o modelo local (`LLM_*`) e o da nuvem (`LLM_NUVEM_*`
 precisa do primeiro, a `nuvem` só do segundo, e a `hibrida` dos dois.
 
 Se uma proposta de risco alto aguardar aprovação, o comando espera que uma pessoa decida, em outro
-terminal, com `python -m codigo.mcp.aprovar --log <o mesmo log> prop-0002`.
+terminal, com `python -m codigo.mcp.aprovar --log <o mesmo log> prop-0002`. Se a pessoa rejeitar todas as
+propostas com um motivo (`--motivo`), a decisão volta com ele, para propor outra ou dizer que não há; no
+fim, a triagem escreve o sumário do incidente no log. `--sem-nova-rodada` e `--sem-sumario` desligam os dois.
 
 A saída é um resumo do que cada agente fez: nunca traz a chave, o texto dos modelos nem endereços.
 """
@@ -79,6 +81,10 @@ def main(argv=None):
         "--espera-aprovacao", type=float, default=ESPERA_DA_APROVACAO_S, help="segundos esperando uma pessoa aprovar"
     )
     analisador.add_argument("--env", default=os.path.join(RAIZ, ".env"), help="arquivo .env (padrão: o da raiz)")
+    analisador.add_argument(
+        "--sem-nova-rodada", action="store_true", help="não devolve a vez à decisão depois de uma rejeição com motivo"
+    )
+    analisador.add_argument("--sem-sumario", action="store_true", help="não pede à triagem o sumário do incidente")
     argumentos = analisador.parse_args(argv)
 
     carregar_env(argumentos.env)
@@ -104,6 +110,7 @@ def main(argv=None):
             argumentos.incidente, log=argumentos.log, cenarios=argumentos.cenarios, perfis=perfis,
             configuracao=argumentos.configuracao, maximo_de_rodadas=argumentos.rodadas,
             espera_da_aprovacao_s=argumentos.espera_aprovacao, ao_esperar=esperando,
+            rodada_apos_rejeicao=not argumentos.sem_nova_rodada, sumario=not argumentos.sem_sumario,
         )
     except (ErroDoProvedor, ErroDoServidor, OSError, ValueError) as erro:
         print(f"erro: {erro}", file=sys.stderr)
