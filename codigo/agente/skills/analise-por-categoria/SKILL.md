@@ -23,8 +23,8 @@ mesmo jeito, para o fluxo ser o mesmo nas três configurações comparadas no ar
 ## Quando usar
 
 - Depois que a `triagem-do-alerta` devolve o rótulo **coerente** para o incidente.
-- Em incidente **duvidoso**, a análise serve só para apoiar a decisão de pedir uma reavaliação à
-  triagem ou de escalar para a pessoa, e não para justificar uma ação de risco alto.
+- Em incidente **duvidoso**, a análise serve só para apoiar a decisão de não agir ou de escalar
+  para a pessoa, e não para justificar uma ação de risco alto.
 
 ## O que a tool MCP devolve
 
@@ -40,9 +40,10 @@ mesmo jeito, para o fluxo ser o mesmo nas três configurações comparadas no ar
     `destino` (o rótulo), a `porta`, o `protocolo` e os `quadros`. Vem vazia sem TCP nem UDP.
   - `estado`, `ja_resolvido` e `ultimo_efeito`: o que já foi tentado e se a pessoa já resolveu.
 
-Quando o resumo não basta para confirmar o padrão, o caminho é pedir uma reavaliação à triagem,
-que tem as janelas. O agente de decisão não lê janelas nem a política de risco: quem decide o
-risco é o servidor, em `propor_acao`.
+Quando o resumo não basta para confirmar o padrão, o agente diz isso na recomendação e prefere
+nenhuma ação, ou uma de risco baixo, a adivinhar: não há como pedir uma segunda triagem, porque o
+orquestrador roda a triagem uma vez por incidente. O agente de decisão não lê janelas nem a
+política de risco: quem decide o risco é o servidor, em `propor_acao`.
 
 ## Passo a passo (o que olhar em cada categoria)
 
