@@ -34,6 +34,9 @@ from codigo.api.configuracao import (
     carregar_env,
 )
 from codigo.api.provedor import ErroDoProvedor, Provedor
+from codigo.mcp.cenarios import CENARIOS, ler_cenarios
+from codigo.mcp.eventos import Registro
+from codigo.mcp.stub import Stub
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PREFIXOS = {"local": PREFIXO_LOCAL, "nuvem": PREFIXO_DA_NUVEM}
@@ -93,12 +96,16 @@ def main(argv=None):
         print(f"aguardando uma pessoa: python -m codigo.mcp.aprovar --log {argumentos.log} {ids}", file=sys.stderr)
 
     try:
+        # Como o servidor MCP faz ao subir: um log novo recebe a abertura dos incidentes dos cenários
+        # (os de exemplo, sem `--cenarios`). Num log que já os tem, não muda nada.
+        cenarios = ler_cenarios(argumentos.cenarios) if argumentos.cenarios else CENARIOS
+        Stub(Registro(argumentos.log), agente="todos", cenarios=cenarios).abrir_incidentes()
         resultado = orquestrar(
             argumentos.incidente, log=argumentos.log, cenarios=argumentos.cenarios, perfis=perfis,
             configuracao=argumentos.configuracao, maximo_de_rodadas=argumentos.rodadas,
             espera_da_aprovacao_s=argumentos.espera_aprovacao, ao_esperar=esperando,
         )
-    except (ErroDoProvedor, ErroDoServidor, ValueError) as erro:
+    except (ErroDoProvedor, ErroDoServidor, OSError, ValueError) as erro:
         print(f"erro: {erro}", file=sys.stderr)
         return 1
     print(resumo(resultado))

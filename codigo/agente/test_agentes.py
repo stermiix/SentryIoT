@@ -349,6 +349,22 @@ def test_main_com_valor_invalido_no_env_diz_qual_variavel_e_nao_levanta(tmp_path
     assert "LLM_TEMPERATURA" in erro and "k-local" not in erro
 
 
+def test_main_num_log_novo_abre_os_incidentes_de_exemplo_antes_de_orquestrar(tmp_path, monkeypatch, capsys):
+    # O provedor não responde (porta 1): o que importa é que o incidente já existe no log quando o laço começa.
+    # As variáveis entram no ambiente de verdade, e não num dicionário no lugar dele: o servidor MCP é um
+    # processo filho e, sem o resto do ambiente (no Windows, o SYSTEMROOT), nem sobe.
+    for variavel, valor in {**LOCAL, "LLM_BASE_URL": "http://127.0.0.1:1/v1"}.items():
+        monkeypatch.setenv(variavel, valor)
+    caminho = tmp_path / "novo.jsonl"
+
+    codigo = main(["--incidente", "inc-0001", "--log", str(caminho), "--configuracao", "local", "--env", str(tmp_path / "nao.env")])
+
+    erro = capsys.readouterr().err
+    assert "não existe no log" not in erro
+    assert codigo == 1 and "falha ao falar com o provedor" in erro
+    assert "inc-0001" in reconstruir(ler(caminho)).incidentes
+
+
 def test_o_resumo_nao_traz_texto_de_modelo_nem_a_chave(log):
     modelo = ProvedorFalso(*triagem("inc-0002"), *decisao("inc-0002", "bloquear_ip", "origem-1", {"duracao": 15}),
                            *execucao("prop-0001", "exec-0001"))
