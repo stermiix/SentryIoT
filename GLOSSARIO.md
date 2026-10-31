@@ -337,7 +337,7 @@ resto segue só pelo modelo local (a implementar).
 A lista das ações do catálogo aceitáveis em cada categoria de ataque e do alvo de cada uma
 (`experimentos/gabarito_da_recomendacao.toml`), que fica fixa antes da primeira rodada dos
 experimentos. A qualidade da recomendação é a porcentagem de incidentes com uma ação aceitável no
-alvo certo. O arquivo é um rascunho que a equipe ainda revisa. A conferência de cada proposta contra ele
+alvo certo. O arquivo foi revisado e fixado em 31/10. A conferência de cada proposta contra ele
 está em `codigo/agente/aprovador.py` (`conferir_proposta`); a das rodadas, somando os incidentes, ainda não
 está implementada.
 

@@ -1,7 +1,7 @@
 # Gabarito da qualidade da recomendação dos agentes (decisão de 2026-10-25).
 #
-# Rascunho para a equipe revisar. Depois de revisado, ele fica fixo antes da primeira rodada do
-# experimento ponta a ponta, para não ser ajustado depois de ver os resultados.
+# Revisado pela equipe e fixado em 2026-10-31, antes da primeira rodada do experimento ponta a
+# ponta. Não muda depois de ver os resultados.
 #
 # Para cada categoria do incidente, as ações do catálogo aceitáveis e os papéis de alvo aceitos em
 # cada uma. "origem" é um dos atacantes do dataset, identificados pelo MAC; "destino" é o
