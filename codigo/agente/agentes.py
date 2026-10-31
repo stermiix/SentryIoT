@@ -8,15 +8,15 @@ mesma. A cada incidente aberto no log:
 2. o veredito passa por `mascarar_enderecos` e segue para o agente de decisão, que lê o resumo (sem
    endereços, com o atacante apontado pelo rótulo), propõe a ação e escreve a recomendação;
 3. se a proposta é de risco alto, o orquestrador espera a `acao_aprovada` no log. Quem aprova é uma pessoa,
-   pelo comando `python -m codigo.mcp.aprovar`, ou um `aprovador` entregue por quem chama (os
-   experimentos usam um aprovador automático);
+   pelo comando `python -m codigo.mcp.aprovar` ou pela tela de simulação, ou um `aprovador` entregue por quem
+   chama (os experimentos usam um aprovador automático);
 4. o agente de execução aplica a proposta liberada e verifica o efeito;
 5. se o efeito não cessou, a decisão volta, até `maximo_de_rodadas`. Se a pessoa rejeitou todas as
    propostas e escreveu o motivo, a decisão também volta, com o motivo, para propor outra ou dizer que não
-   há (`rodada_apos_rejeicao`, ligada pela linha de comando e desligada nos experimentos, em que quem
-   rejeita é o gabarito e o motivo dele daria a resposta);
+   há (`rodada_apos_rejeicao`, ligada pela linha de comando e pela simulação e desligada nos experimentos,
+   em que quem rejeita é o gabarito e o motivo dele daria a resposta);
 6. no fim, a triagem escreve o sumário do incidente a partir do log (`sumario.py`; `sumario`, também
-   ligado só pela linha de comando).
+   ligado pela linha de comando e pela simulação).
 
 Cada agente roda no modelo que a configuração diz (`CONFIGURACOES`): tudo local, tudo na nuvem ou
 híbrida, com a decisão na nuvem. Cada chamada ao modelo e o fim de cada agente vão para o log
@@ -157,7 +157,8 @@ def orquestrar(
     (ver `decidir_no_log`); sem ele, o orquestrador espera até `espera_da_aprovacao_s` que uma pessoa decida.
     `ao_esperar(pendentes)` é chamado uma vez quando há proposta esperando uma pessoa.
     `rodada_apos_rejeicao` devolve a vez à decisão quando todas as propostas foram rejeitadas com motivo, e
-    `sumario` pede o sumário à triagem no fim. A linha de comando liga os dois; os experimentos, não.
+    `sumario` pede o sumário à triagem no fim. A linha de comando e a simulação ligam os dois; os
+    experimentos, não.
     """
     if configuracao not in CONFIGURACOES:
         raise ValueError(f"configuração desconhecida: {configuracao!r}. Diga {', '.join(CONFIGURACOES)}")

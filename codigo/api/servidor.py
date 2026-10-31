@@ -18,7 +18,14 @@ from starlette.routing import Route
 
 from codigo.api.prompts import ler_prompts
 from codigo.api.provedor import PAPEIS, ErroDoProvedor
-from codigo.api.simulacao import PcapInvalido, SemTrechoDeTeste, nome_do_pcap
+from codigo.api.simulacao import (
+    TIPOS_DE_DECISAO,
+    PcapInvalido,
+    SemSimulacaoEmAndamento,
+    SemTrechoDeTeste,
+    nome_do_pcap,
+)
+from codigo.mcp.acoes import PedidoRecusado
 
 log = logging.getLogger(__name__)
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -84,13 +91,26 @@ def _ler_pedido_de_chat(corpo):
     return modelo, sistema, lidas
 
 
+def _ler_decisao(corpo):
+    """Confere a forma do corpo de `/api/simulacao/decisao`. Devolve `(tipo, alvo, motivo)`."""
+    if not isinstance(corpo, dict):
+        raise PedidoInvalido("o corpo precisa ser um objeto JSON")
+    tipo = _campo_de_texto(corpo, "tipo")
+    if tipo not in TIPOS_DE_DECISAO:
+        raise PedidoInvalido("o campo tipo precisa ser " + ", ".join(TIPOS_DE_DECISAO))
+    alvo = _campo_de_texto(corpo, "id")
+    motivo = _campo_de_texto(corpo, "motivo", obrigatorio=False)
+    return tipo, alvo, motivo.strip() or None
+
+
 def criar_app(
     config, chamar_provedor, pasta_de_skills=PASTA_DE_SKILLS, pasta_construida=PASTA_CONSTRUIDA, simulador=None,
     limite_do_pcap=LIMITE_DO_PCAP,
 ):
     """O app ASGI. Com `pasta_construida` existente, serve a interface construída fora de `/api`.
 
-    `simulador` atende `/api/simulacao` (ver `codigo/api/simulacao.py`); sem ele, a rota responde 503.
+    `simulador` atende `/api/simulacao` e as rotas abaixo dela (ver `codigo/api/simulacao.py`); sem
+    ele, elas respondem 503.
     """
     async def chat(request: Request):
         faltando = config.faltando()
@@ -134,7 +154,8 @@ def criar_app(
     async def prompts(request: Request):
         return JSONResponse({"prompts": await run_in_threadpool(ler_prompts, pasta_de_skills)})
 
-    async def simulacao(request: Request):
+    def recusa_da_simulacao(request):
+        """A resposta de recusa comum às rotas da simulação, ou None se o pedido pode seguir."""
         if simulador is None or not simulador.disponivel():
             return JSONResponse(
                 {"erro": "a simulação está desligada: falta o modelo do sistema em modelos/rf_regerado_janela_100.joblib"},
@@ -144,11 +165,17 @@ def criar_app(
         # site disparar a rota; o backend não dá essa licença, e o pedido não chega.
         if request.headers.get(CABECALHO_DA_INTERFACE[0], "") != CABECALHO_DA_INTERFACE[1]:
             return JSONResponse({"erro": f"falta o cabeçalho {CABECALHO_DA_INTERFACE[0]} da interface"}, status_code=403)
+        return None
+
+    async def simulacao(request: Request):
+        recusa = recusa_da_simulacao(request)
+        if recusa is not None:
+            return recusa
         limite_mb = limite_do_pcap // (1024 * 1024)
         declarado = request.headers.get("content-length", "")
         if declarado.isdigit() and int(declarado) > limite_do_pcap:
             return JSONResponse({"erro": f"o pcap passa do limite de {limite_mb} MB"}, status_code=413)
-        if simulador.trava.locked():
+        if simulador.ocupado():
             return JSONResponse({"erro": "já há uma simulação em andamento; espere ela terminar"}, status_code=409)
         caminho = None
         try:
@@ -165,7 +192,7 @@ def criar_app(
                 return JSONResponse({"erro": "o corpo veio vazio: envie o pcap"}, status_code=400)
             nome = nome_do_pcap(request.query_params.get("nome"))
             so_teste = request.query_params.get("so_teste", "") in ("1", "true", "sim")
-            if not simulador.trava.acquire(blocking=False):
+            if simulador.ocupado() or not simulador.trava.acquire(blocking=False):
                 return JSONResponse({"erro": "já há uma simulação em andamento; espere ela terminar"}, status_code=409)
             try:
                 resultado = await run_in_threadpool(simulador.simular, caminho, nome, so_teste)
@@ -181,6 +208,35 @@ def criar_app(
             if caminho is not None and os.path.exists(caminho):
                 os.remove(caminho)
 
+    async def simulacao_atual(request: Request):
+        recusa = recusa_da_simulacao(request)
+        if recusa is not None:
+            return recusa
+        return JSONResponse({"simulacao": await run_in_threadpool(simulador.atual)})
+
+    async def simulacao_decisao(request: Request):
+        recusa = recusa_da_simulacao(request)
+        if recusa is not None:
+            return recusa
+        try:
+            tipo, alvo, motivo = _ler_decisao(await request.json())
+        except ValueError:
+            return JSONResponse({"erro": "o corpo precisa ser JSON"}, status_code=400)
+        except PedidoInvalido as erro:
+            return JSONResponse({"erro": erro.mensagem}, status_code=400)
+        try:
+            await run_in_threadpool(simulador.decidir, tipo, alvo, motivo)
+        except (PedidoRecusado, SemSimulacaoEmAndamento) as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=409)
+        return JSONResponse({"ok": True})
+
+    async def simulacao_parar(request: Request):
+        recusa = recusa_da_simulacao(request)
+        if recusa is not None:
+            return recusa
+        await run_in_threadpool(simulador.parar)
+        return JSONResponse({"ok": True})
+
     async def api_desconhecida(request: Request):
         return JSONResponse({"erro": "rota desconhecida"}, status_code=404)
 
@@ -189,6 +245,9 @@ def criar_app(
         Route("/api/modelos", modelos, methods=["GET"]),
         Route("/api/prompts", prompts, methods=["GET"]),
         Route("/api/simulacao", simulacao, methods=["POST"]),
+        Route("/api/simulacao/atual", simulacao_atual, methods=["GET"]),
+        Route("/api/simulacao/decisao", simulacao_decisao, methods=["POST"]),
+        Route("/api/simulacao/parar", simulacao_parar, methods=["POST"]),
         Route("/api", api_desconhecida, methods=["GET", "POST", "PUT", "PATCH", "DELETE"]),
         Route("/api/{resto:path}", api_desconhecida, methods=["GET", "POST", "PUT", "PATCH", "DELETE"]),
     ]

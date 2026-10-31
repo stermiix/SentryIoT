@@ -21,7 +21,7 @@ import {
   VoiceQuote,
   fmtInt,
 } from "../design-system";
-import { AvisosDoLog, DialogoDeDecisao, type PedidoDeDecisao } from "./comum";
+import { AVISO_DO_EFEITO, AvisosDoLog, DialogoDeDecisao, type PedidoDeDecisao } from "./comum";
 import type { PropsDaTela } from "./replay";
 
 /** O incidente da rota, ou o primeiro da fila (no passo atual ou, se nenhum abriu ainda, no log inteiro). */
@@ -75,7 +75,7 @@ function Recomendacoes({ detalhe }: { detalhe: DetalheDoIncidente }) {
 }
 
 /** Detalhe do incidente no passo do replay: veredito, features, propostas, endereços, agentes e histórico. */
-export function TelaIncidente({ replay, navegar, incidente: pedido }: PropsDaTela & { incidente: string | null }) {
+export function TelaIncidente({ replay, navegar, incidente: pedido, efeitoSimulado = false }: PropsDaTela & { incidente: string | null; efeitoSimulado?: boolean }) {
   const [decisao, setDecisao] = useState<PedidoDeDecisao | null>(null);
   const [rastroCompleto, setRastroCompleto] = useState(false);
   const id = incidenteEscolhido({ replay, navegar }, pedido);
@@ -155,6 +155,7 @@ export function TelaIncidente({ replay, navegar, incidente: pedido }: PropsDaTel
         }
       />
       <AvisosDoLog avisos={replay.avisos} />
+      {efeitoSimulado && <Alert title="Incidente de uma simulação com pcap.">{AVISO_DO_EFEITO}</Alert>}
       {incidente.awaiting > 0 && (
         <Alert tone="attention" title={`${incidente.awaiting} ${incidente.awaiting === 1 ? "proposta de risco alto aguarda" : "propostas de risco alto aguardam"} aprovação`}>
           Nada é executado antes de uma pessoa aprovar, pelo terminal ou pela interface.

@@ -1,8 +1,8 @@
 # Servidor fino da interface
 
 Backend em Python (Starlette e uvicorn) que serve a API da interface web. Nesta etapa ele
-expõe o chat com o modelo do provedor de LLM configurado e a simulação com um pcap, que vai até
-a porta do modelo da triagem; a chave do provedor fica só aqui, nunca no navegador.
+expõe o chat com o modelo do provedor de LLM configurado e a simulação com um pcap, em que cada
+incidente passa pelos agentes; a chave do provedor fica só aqui, nunca no navegador.
 
 Todos os comandos são dados a partir da raiz do repositório, com o ambiente do
 `requirements.txt` ativo.
@@ -54,8 +54,10 @@ No desenvolvimento da interface, o Vite (`npm run dev` em `frontend/`) encaminha
   `papel` em `usuario` ou `assistente` e `modelo` vazio para usar o padrão. Chama o provedor sem
   streaming e devolve `{"conteudo", "modelo", "tokens_entrada", "tokens_saida", "tempo_ms"}`.
   Tokens vêm nulos quando o provedor não informa o uso.
-- `POST /api/simulacao`: recebe um pcap no corpo e o leva até a porta do modelo da triagem, sem
-  chamar o provedor. Ver "Simulação com um pcap", abaixo.
+- `POST /api/simulacao`: recebe um pcap no corpo, e cada incidente segue para os agentes em
+  segundo plano. Ver "Simulação com um pcap", abaixo.
+- `GET /api/simulacao/atual`, `POST /api/simulacao/decisao` e `POST /api/simulacao/parar`:
+  acompanham a simulação, gravam a decisão da pessoa e param os agentes.
 
 Rota sob `/api` que não existe devolve 404 em JSON. Fora de `/api`, se `frontend/dist/`
 existir, o servidor serve a interface construída: `/` e qualquer caminho desconhecido devolvem o
@@ -71,9 +73,15 @@ dos limites; 502 quando o provedor recusa ou não responde (com `codigo`, o stat
 
 `POST /api/simulacao?nome=<arquivo>&so_teste=1` recebe o pcap cru no corpo, e não num formulário,
 e o passa pelo reprodutor de tráfego (`codigo/reprodutor/`): extrator, modelo do sistema e
-política de acionamento. Os incidentes vão para um log de eventos novo, e o primeiro deles ganha
-o pedido que o orquestrador mandaria ao modelo da triagem. A chamada ao modelo fica de fora:
-`para_o_llm.enviado` é sempre falso por enquanto.
+política de acionamento. Os incidentes vão para um log de eventos novo, e a resposta volta logo
+depois da classificação. Em segundo plano, cada incidente segue para o orquestrador
+(`codigo/agente/agentes.py`), um por vez e na ordem em que abriu: triagem, decisão, aprovação de
+uma pessoa quando o risco é alto, execução, verificação do efeito e sumário. Os agentes rodam na
+configuração `local`, com o modelo do `.env`. Um erro num incidente não impede os seguintes.
+
+Em replay, a ação não age sobre o tráfego gravado: a verificação do efeito é simulada e sempre dá
+"cessou" (`EFEITOS_DO_REPLAY`, em `codigo/reprodutor/reprodutor.py`). A interface diz isso na
+tela da simulação, no detalhe do incidente e no relatório.
 
 - `nome` é o nome do arquivo enviado. Fica só o último trecho do caminho, com caracteres
   seguros, e o padrão é `captura.pcap`. É por ele que `so_teste` acha o pcap no manifesto.
@@ -82,11 +90,11 @@ o pedido que o orquestrador mandaria ao modelo da triagem. A chamada ao modelo f
   anteriores são extraídas, para manter o alinhamento, mas não são classificadas, e a resposta
   as conta em `janelas_puladas`. O pcap que ficou inteiro no teste é lido todo; o que ficou
   inteiro no treino, ou que não está na regeração, recebe 400.
-- A rota exige o cabeçalho `X-SentryIoT: interface`, que só a interface manda. Um cabeçalho
+- As rotas da simulação exigem o cabeçalho `X-SentryIoT: interface`, que só a interface manda. Um cabeçalho
   próprio obriga o navegador a pedir licença (CORS) antes de uma página de outro site disparar a
   rota, e o backend não dá essa licença.
-- Roda uma simulação por vez. O envio do arquivo vem antes da trava, para um cliente lento não
-  segurar a vez dos outros.
+- Roda uma simulação por vez, contando o tempo dos agentes. O envio do arquivo vem antes da trava,
+  para um cliente lento não segurar a vez dos outros.
 
 A resposta é o resumo do reprodutor: quadros, janelas, janelas por categoria, relógio de
 reprodução, trecho lido, modelo, ponto de operação, parâmetros da política de acionamento e os
@@ -96,16 +104,33 @@ incidentes, com categoria, confiança, instantes e atraso de detecção. Vêm ai
 |---|---|
 | `log`, `cenarios` | Os caminhos do log de eventos e dos cenários gravados, relativos à raiz do repositório |
 | `eventos` | O texto do log de eventos, em JSONL |
-| `para_o_llm` | Nulo quando não abriu incidente. Senão: `enviado` (sempre `false`), `motivo`, `agente` (`triagem`), `onde_roda`, `incidente`, o `pedido` no formato de `chat/completions` (montado por `codigo/agente/pedidos.py`), a `primeira_leitura`, que é o resultado de `obter_incidente`, com os endereços, e a `visao_da_fronteira`, que é o de `obter_resumo`, com rótulos neutros no lugar dos endereços |
+| `agentes` | `estado` (`rodando`, `parando`, `concluidos`, `interrompidos`, `sem_modelo` ou `sem_incidentes`), `configuracao`, `modelo`, `motivo` (por que não rodaram, quando falta o modelo) e `incidentes`, com `id`, `situacao` (`na_fila`, `em_andamento`, `concluido`, `erro` ou `interrompido`), `desfecho` do orquestrador e `erro` |
+
+`GET /api/simulacao/atual` devolve `{"simulacao": ...}` com a mesma forma, o log como está agora e
+os agentes como estão agora, ou nulo se o servidor não rodou nenhuma simulação desde que subiu. A
+interface lê essa rota a cada 2 segundos enquanto os agentes rodam, e também ao abrir a página, para
+um recarregamento não largar a simulação.
+
+`POST /api/simulacao/decisao` recebe `{"tipo", "id", "motivo"}`, com `tipo` em `aprovar`, `rejeitar`
+ou `resolvido`; `id` é a proposta nos dois primeiros e o incidente no último. A decisão vai para o
+log pelo mesmo caminho do comando `python -m codigo.mcp.aprovar`, com o canal `interface` e o usuário
+do sistema dono do processo. Nenhum agente chega a esta rota. Rejeitar com motivo devolve a vez ao
+agente de decisão. Sem agentes rodando, a decisão não teria efeito e recebe 409, assim como o pedido
+que o servidor recusa (proposta que não existe, por exemplo).
+
+`POST /api/simulacao/parar` encerra na hora a espera por uma pessoa, e nenhum incidente novo começa.
+Uma chamada ao modelo já em curso termina antes, por isso os agentes passam por `parando`.
 
 Cada simulação grava em `dados/eventos/simulacoes/<instante>-<pcap>/`, fora do git, o
-`eventos.jsonl`, o `eventos.cenarios.json` e o `resumo.json`, que é a resposta sem `eventos`. Os
+`eventos.jsonl`, o `eventos.cenarios.json` e o `resumo.json`, que é a resposta sem `eventos`, com o
+estado final dos agentes. Os
 três trazem endereços da rede, e por isso a pasta só abre para o dono (700) e os arquivos só são
 lidos e escritos por ele (600). O pcap enviado vai para um arquivo temporário, apagado no fim,
 com sucesso ou com erro.
 
 Os erros vêm em `{"erro": "..."}`: 400 para corpo vazio, arquivo que o extrator não lê (pcapng,
-outro formato ou outro tipo de enlace) ou `so_teste` sem trecho fora do treino; 403 sem o
+outro formato ou outro tipo de enlace), `so_teste` sem trecho fora do treino ou decisão fora do
+formato; 403 sem o
 cabeçalho da interface; 409 com outra simulação em andamento; 413 para pcap acima de 600 MB (o
 extrator lê cerca de 160 mil quadros por segundo, e um pcap desse tamanho leva perto de um
 minuto); 500, sem detalhe, para falha do próprio backend; e 503 sem o modelo do sistema em
@@ -148,9 +173,9 @@ launchd ou equivalente) com o diretório de trabalho na raiz do repositório.
 | Arquivo | Papel |
 |---|---|
 | `configuracao.py` | Leitura do `.env` e da configuração do provedor |
-| `provedor.py` | Cliente de `chat/completions`, só com a biblioteca padrão; o orquestrador vai reaproveitá-lo |
+| `provedor.py` | Cliente de `chat/completions`, só com a biblioteca padrão; o orquestrador usa o mesmo |
 | `prompts.py` | Leitura das skills dos agentes como prompts de sistema |
-| `simulacao.py` | A simulação com um pcap: o reprodutor, a pasta da simulação e o pedido à triagem, sem chamada ao provedor |
+| `simulacao.py` | A simulação com um pcap: o reprodutor, a pasta da simulação, os agentes em segundo plano e a decisão da pessoa |
 | `servidor.py` | As rotas, em Starlette |
 | `__main__.py` | A linha de comando |
 | `test_*.py` | Testes sem rede: o provedor e a abertura da conexão são trocados |

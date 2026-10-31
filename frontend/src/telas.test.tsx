@@ -489,34 +489,22 @@ describe("simulação", () => {
     janelas_incompletas: 1,
     trecho: { a_partir_da_janela: 159, so_teste: true },
     eventos: textoDoExemplo,
-    para_o_llm: {
-      enviado: false,
-      motivo: "A simulação para na porta do modelo.",
-      agente: "triagem",
-      onde_roda: "modelo local",
-      incidente: "inc-0001",
-      pedido: {
-        model: "qwen-teste",
-        messages: [
-          { role: "system", content: "# Triagem do alerta" },
-          { role: "user", content: "Abriu o incidente inc-0001 (evento incidente_aberto)." },
-        ],
-        tools: [
-          { type: "function", function: { name: "obter_incidente", description: "" } },
-          { type: "function", function: { name: "obter_janelas", description: "" } },
-        ],
-        stream: false,
-        temperature: 0,
-      },
-      primeira_leitura: { tool: "obter_incidente", resultado: { id: "inc-0001", origens: [{ endereco: "203.0.113.7", quadros: 10 }] } },
-      visao_da_fronteira: { tool: "obter_resumo", resultado: { id: "inc-0001", origens: [{ rotulo: "origem-1", quadros: 10 }] } },
+    agentes: {
+      estado: "rodando",
+      configuracao: "local",
+      modelo: "qwen-teste",
+      motivo: null,
+      incidentes: [
+        { id: "inc-0001", situacao: "em_andamento", desfecho: null, erro: null },
+        { id: "inc-0002", situacao: "na_fila", desfecho: null, erro: null },
+      ],
     },
   };
 
-  function simulacao(resultado: ResultadoDaSimulacao | null): string {
+  function simulacao(resultado: ResultadoDaSimulacao | null, passo = lido.eventos.length): string {
     const rota: Rota = { tela: "simulacao", incidente: null };
     return renderToString(
-      <Pagina rota={rota} replay={replayNo(lido.eventos.length)} navegar={nada} modelo={{ nome: "m", online: true }} simulacao={resultado} aoSimular={nada} />,
+      <Pagina rota={rota} replay={replayNo(passo)} navegar={nada} modelo={{ nome: "m", online: true }} simulacao={resultado} aoSimular={nada} />,
     );
   }
 
@@ -531,27 +519,104 @@ describe("simulação", () => {
     expect(botao?.split(">")[0]).toContain("disabled");
   });
 
-  it("com o resultado, mostra o fluxo até a porta do modelo e o pedido à triagem como não enviado", () => {
+  it("com o resultado, mostra o fluxo até os agentes e o que cada incidente está fazendo", () => {
     const textoDaTela = texto(simulacao(RESULTADO));
 
-    expect(textoDaTela).toContain("Do Recon-PingSweep.pcap até a porta do modelo");
+    expect(textoDaTela).toContain("Do Recon-PingSweep.pcap até a resposta ao incidente");
     expect(textoDaTela).toContain("227 janelas de 100 quadros, das quais 159 do trecho de treino ficaram de fora");
     expect(textoDaTela).not.toContain("inclui o trecho do pcap usado no treino");
-    expect(textoDaTela).toContain("pedido de inc-0001 montado, não enviado");
-    expect(textoDaTela).toContain("Não enviado");
+    expect(textoDaTela).toContain("0 de 2 incidentes tratados");
     expect(textoDaTela).toContain("qwen-teste");
-    expect(textoDaTela).toContain("obter_incidente, obter_janelas");
-    expect(textoDaTela).toContain("temperature");
-    expect(textoDaTela).toContain("inc-0001");
+    expect(textoDaTela).toContain("inc-0002");
+    expect(textoDaTela).toContain("Na fila");
+    expect(textoDaTela).toContain("Parar os agentes");
+    expect(textoDaTela).not.toContain("Não enviado");
+    expect(textoDaTela).not.toContain("porta do modelo");
   });
 
-  it("o bloco da fronteira traz só rótulos neutros, e o endereço fica no bloco do modelo local", () => {
-    const textoDaTela = texto(simulacao(RESULTADO));
-    const [local, fronteira] = textoDaTela.split("O que chegaria à fronteira");
+  it("diz em que agente o incidente está, pelo log", () => {
+    expect(texto(simulacao(RESULTADO))).toContain("Agente de triagem");
+  });
 
-    expect(local).toContain("203.0.113.7");
-    expect(fronteira).toContain("origem-1");
-    expect(fronteira).not.toContain("203.0.113.7");
+  it("uma proposta de risco alto aguarda a pessoa na própria tela, com os botões de decidir", () => {
+    const textoDaTela = texto(simulacao(RESULTADO, 38));
+
+    expect(textoDaTela).toContain("Decisões pendentes");
+    expect(textoDaTela).toContain("Aguardando aprovação");
+    expect(textoDaTela).toContain("Aprovar");
+    expect(textoDaTela).toContain("Rejeitar");
+  });
+
+  it("sem proposta pendente, a tela não abre o painel de decisões", () => {
+    expect(texto(simulacao(RESULTADO))).not.toContain("Decisões pendentes");
+  });
+
+  it("deixa claro que o efeito verificado é simulado, porque o tráfego é gravado", () => {
+    expect(texto(simulacao(RESULTADO))).toContain("a ação não age sobre o tráfego gravado");
+  });
+
+  it("sem o modelo configurado, diz o que falta, e não oferece parar", () => {
+    const agentes = { ...RESULTADO.agentes, estado: "sem_modelo" as const, motivo: "faltam LLM_BASE_URL" };
+    const textoDaTela = texto(simulacao({ ...RESULTADO, agentes }));
+
+    expect(textoDaTela).toContain("faltam LLM_BASE_URL");
+    expect(textoDaTela).not.toContain("Parar os agentes");
+  });
+
+  it("no fim, mostra o desfecho de cada incidente e o erro de quem falhou", () => {
+    const agentes = {
+      ...RESULTADO.agentes,
+      estado: "concluidos" as const,
+      incidentes: [
+        { id: "inc-0001", situacao: "concluido" as const, desfecho: "resolvido", erro: null },
+        { id: "inc-0002", situacao: "erro" as const, desfecho: null, erro: "o modelo não respondeu" },
+      ],
+    };
+    const textoDaTela = texto(simulacao({ ...RESULTADO, agentes }));
+
+    expect(textoDaTela).toContain("Resolvido");
+    expect(textoDaTela).toContain("o modelo não respondeu");
+    expect(textoDaTela).toContain("2 de 2 incidentes tratados");
+    expect(textoDaTela).not.toContain("Parar os agentes");
+  });
+
+  function telaDeIncidente(tela: "incidente" | "relatorio", resultado: ResultadoDaSimulacao | null): string {
+    const rota: Rota = { tela, incidente: "inc-0001" };
+    return texto(renderToString(<Pagina rota={rota} replay={replayNo(lido.eventos.length)} navegar={nada} modelo={{ nome: "m", online: true }} simulacao={resultado} aoSimular={nada} />));
+  }
+
+  it("o detalhe e o relatório de uma simulação dizem que o efeito verificado é simulado", () => {
+    expect(telaDeIncidente("incidente", RESULTADO)).toContain("a ação não age sobre o tráfego gravado");
+    expect(telaDeIncidente("relatorio", RESULTADO)).toContain("a ação não age sobre o tráfego gravado");
+  });
+
+  it("fora de uma simulação, o detalhe e o relatório não trazem essa ressalva", () => {
+    expect(telaDeIncidente("incidente", null)).not.toContain("a ação não age sobre o tráfego gravado");
+    expect(telaDeIncidente("relatorio", null)).not.toContain("a ação não age sobre o tráfego gravado");
+  });
+
+  it("quando um agente para antes do fim, diz que o incidente segue aberto e sem ação", () => {
+    const agentes = {
+      ...RESULTADO.agentes,
+      estado: "concluidos" as const,
+      incidentes: [{ id: "inc-0001", situacao: "concluido" as const, desfecho: "agente_parou", erro: null }],
+    };
+
+    expect(texto(simulacao({ ...RESULTADO, agentes }))).toContain("o incidente segue aberto, sem ação");
+  });
+
+  it("depois de parar, o que ficou na fila aparece como não tratado, e não como quem ainda vai rodar", () => {
+    const agentes = { ...RESULTADO.agentes, estado: "interrompidos" as const };
+    const textoDaTela = texto(simulacao({ ...RESULTADO, agentes }));
+
+    expect(textoDaTela).toContain("Não tratado");
+    expect(textoDaTela).not.toContain("Na fila");
+  });
+
+  it("sem incidente, diz que os agentes não tinham o que tratar", () => {
+    const agentes = { ...RESULTADO.agentes, estado: "sem_incidentes" as const, incidentes: [] };
+
+    expect(texto(simulacao({ ...RESULTADO, agentes }))).toContain("Nenhum incidente para os agentes");
   });
 
   it("avisa quando a simulação inclui o trecho de treino do modelo", () => {

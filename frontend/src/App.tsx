@@ -1,9 +1,10 @@
-import { Component, Suspense, lazy, useCallback, useEffect, useState, type ErrorInfo, type ReactNode } from "react";
+import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { listarModelos } from "./chat";
 import { Alert, Skeleton } from "./design-system";
 import { CAMINHO_DO_LOG, agregar, carregarLog, lerLog } from "./log";
+import { ligarSimulacao } from "./operacao";
 import { ancoraDa, lerRota, type Rota } from "./rotas";
-import type { ResultadoDaSimulacao } from "./simulacao";
+import { agentesAtivos, consultarSimulacao, type ResultadoDaSimulacao } from "./simulacao";
 import { TelaAoVivo } from "./telas/AoVivo";
 import { ChatDoModelo } from "./telas/Chat";
 import { TelaCustoLatencia } from "./telas/CustoLatencia";
@@ -18,6 +19,9 @@ import { TelaVisaoGeral } from "./telas/VisaoGeral";
 import { useReplay, type PropsDaTela } from "./telas/replay";
 import type { Evento } from "./types";
 import "./estilo.css";
+
+// De quanto em quanto tempo o log é lido enquanto os agentes rodam.
+const INTERVALO_DA_SIMULACAO_MS = 2000;
 
 // O catálogo de componentes só carrega quando alguém abre a tela dele.
 const TelaComponentes = lazy(() => import("./telas/Componentes").then((modulo) => ({ default: modulo.TelaComponentes })));
@@ -79,7 +83,7 @@ export function Pagina({ rota, modelo, erroDoLog = null, simulacao = null, aoSim
       case "visao-geral":
         return <TelaVisaoGeral {...props} />;
       case "incidente":
-        return <TelaIncidente {...props} incidente={rota.incidente} />;
+        return <TelaIncidente {...props} incidente={rota.incidente} efeitoSimulado={simulacao !== null} />;
       case "ao-vivo":
         return <TelaAoVivo />;
       case "simulacao":
@@ -93,7 +97,7 @@ export function Pagina({ rota, modelo, erroDoLog = null, simulacao = null, aoSim
       case "chat":
         return <ChatDoModelo />;
       case "relatorio":
-        return <TelaRelatorio {...props} incidente={rota.incidente} />;
+        return <TelaRelatorio {...props} incidente={rota.incidente} efeitoSimulado={simulacao !== null} />;
       case "componentes":
         return (
           <Suspense fallback={<Skeleton lines={6} label="Carregando o catálogo" />}>
@@ -160,10 +164,18 @@ export default function App() {
   const [carregando, setCarregando] = useState(Boolean(CAMINHO_DO_LOG));
   const replay = useReplay(eventos, avisos);
   const [simulacao, setSimulacao] = useState<ResultadoDaSimulacao | null>(null);
+  const logDaSimulacao = useRef<string | null>(null);
   // O log da simulação passa a ser o das telas: a fila, o detalhe e o relatório mostram os incidentes do pcap.
   const aoSimular = useCallback((resultado: ResultadoDaSimulacao) => {
-    const lido = lerLog(resultado.eventos);
+    ligarSimulacao(agentesAtivos(resultado.agentes));
     setSimulacao(resultado);
+    // Sem evento novo, só o estado dos agentes mudou: o replay fica onde está.
+    if (resultado.eventos === logDaSimulacao.current) {
+      return;
+    }
+    logDaSimulacao.current = resultado.eventos;
+    // A última linha sem quebra pode estar no meio da gravação, porque os agentes escrevem no log.
+    const lido = lerLog(resultado.eventos, { ignorarUltimaIncompleta: true });
     setEventos(lido.eventos);
     setAvisos([...lido.avisos, ...agregar(lido.eventos).avisos]);
     setErro(null);
@@ -182,6 +194,62 @@ export default function App() {
       .catch((falha: Error) => setErro(falha.message))
       .finally(() => setCarregando(false));
   }, []);
+
+  // Ao abrir a página, retoma a simulação que o backend tem, para um recarregamento não largar os agentes.
+  useEffect(() => {
+    if (carregando) {
+      return;
+    }
+    let ligado = true;
+    consultarSimulacao()
+      .then((resultado) => {
+        if (ligado && resultado) {
+          aoSimular(resultado);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      ligado = false;
+    };
+  }, [carregando, aoSimular]);
+
+  // Enquanto os agentes rodam, o log é lido de novo a cada poucos segundos, em qualquer tela.
+  const acompanhando = simulacao !== null && agentesAtivos(simulacao.agentes);
+  useEffect(() => {
+    if (!acompanhando) {
+      return;
+    }
+    let ligado = true;
+    let lendo = false;
+    const ler = async () => {
+      if (lendo) {
+        return;
+      }
+      lendo = true;
+      try {
+        const resultado = await consultarSimulacao();
+        if (!ligado) {
+          return;
+        }
+        if (resultado) {
+          aoSimular(resultado);
+        } else {
+          // O backend reiniciou: ninguém mais trata os incidentes.
+          ligarSimulacao(false);
+          setSimulacao((atual) => atual && { ...atual, agentes: { ...atual.agentes, estado: "interrompidos" } });
+        }
+      } catch {
+        // Fora do ar por um instante: a próxima leitura tenta de novo.
+      } finally {
+        lendo = false;
+      }
+    };
+    const relogio = window.setInterval(() => void ler(), INTERVALO_DA_SIMULACAO_MS);
+    return () => {
+      ligado = false;
+      window.clearInterval(relogio);
+    };
+  }, [acompanhando, aoSimular]);
 
   if (rota.tela === "entrar") {
     return <TelaEntrar navegar={navegar} />;

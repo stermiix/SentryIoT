@@ -1,6 +1,10 @@
-// O acesso à simulação (`POST /api/simulacao`, em `codigo/api/simulacao.py`): o pcap escolhido na
-// tela vai no corpo, passa pelo extrator, pelo classificador e pela política de acionamento, e
-// volta com o log de eventos e o pedido que iria ao modelo da triagem. Nenhum modelo é chamado.
+// O acesso à simulação (`/api/simulacao`, em `codigo/api/simulacao.py`): o pcap escolhido na tela vai
+// no corpo, passa pelo extrator, pelo classificador e pela política de acionamento, e cada incidente
+// segue para os agentes em segundo plano. A tela acompanha o log com `consultarSimulacao`, e a pessoa
+// decide o que depende dela com `decidirNaSimulacao`.
+
+import type { AgentName } from "./design-system";
+import type { Evento } from "./types";
 
 export interface IncidenteDaSimulacao {
   id: string;
@@ -18,33 +22,25 @@ export interface IncidenteDaSimulacao {
   reaberturas: number;
 }
 
-export interface MensagemDoPedido {
-  role: string;
-  content: string;
+export type EstadoDosAgentes = "rodando" | "parando" | "concluidos" | "interrompidos" | "sem_modelo" | "sem_incidentes";
+
+export type SituacaoDoIncidente = "na_fila" | "em_andamento" | "concluido" | "erro" | "interrompido";
+
+export interface IncidenteNosAgentes {
+  id: string;
+  situacao: SituacaoDoIncidente;
+  /** Como o orquestrador terminou o incidente (`resolvido`, `sem_proposta`...). */
+  desfecho: string | null;
+  erro: string | null;
 }
 
-export interface ToolDoPedido {
-  type: string;
-  function: { name: string; description: string };
-}
-
-export interface PedidoAoModelo {
-  model: string;
-  messages: MensagemDoPedido[];
-  tools: ToolDoPedido[];
-  [parametro: string]: unknown;
-}
-
-export interface ParaOLlm {
-  /** Sempre falso: a simulação para na porta do modelo. */
-  enviado: false;
-  motivo: string;
-  agente: "triagem";
-  onde_roda: string;
-  incidente: string;
-  pedido: PedidoAoModelo;
-  primeira_leitura: { tool: string; resultado: Record<string, unknown> };
-  visao_da_fronteira: { tool: string; resultado: Record<string, unknown> };
+export interface AgentesDaSimulacao {
+  estado: EstadoDosAgentes;
+  configuracao: string;
+  modelo: string;
+  /** Por que os agentes não rodaram, quando o modelo não está configurado. */
+  motivo: string | null;
+  incidentes: IncidenteNosAgentes[];
 }
 
 export interface ResultadoDaSimulacao {
@@ -68,9 +64,16 @@ export interface ResultadoDaSimulacao {
   log: string;
   /** Os cenários ao lado do log, para subir o servidor MCP com `--cenarios`. */
   cenarios: string;
-  /** O log de eventos gravado, em JSON Lines, para as outras telas lerem. */
+  /** O log de eventos como está agora, em JSON Lines, para as telas lerem. */
   eventos: string;
-  para_o_llm: ParaOLlm | null;
+  agentes: AgentesDaSimulacao;
+}
+
+/** O que a pessoa decide pela tela. Em `resolvido`, o `id` é o do incidente; nos outros, o da proposta. */
+export interface DecisaoNaSimulacao {
+  tipo: "aprovar" | "rejeitar" | "resolvido";
+  id: string;
+  motivo?: string;
 }
 
 export type TipoDeErro = "backend" | "rede";
@@ -92,19 +95,11 @@ const buscarPadrao: Buscar = (entrada, init) => fetch(entrada, init);
 /** O cabeçalho que o backend exige nas rotas que gastam máquina: uma página de outro site não o manda sem licença. */
 export const CABECALHO_DA_INTERFACE = { "X-SentryIoT": "interface" } as const;
 
-/**
- * O arquivo vai cru no corpo, com o nome na consulta; o backend aceita um por vez. Com `soTeste`,
- * só o trecho do pcap que ficou fora do treino do modelo é classificado.
- */
-export async function iniciarSimulacao(arquivo: Blob, nome: string, soTeste = false, buscar: Buscar = buscarPadrao): Promise<ResultadoDaSimulacao> {
+/** Faz o pedido e devolve o corpo já lido. A recusa do backend vira `ErroDaSimulacao`, com a mensagem dele. */
+async function pedir(caminho: string, init: RequestInit, buscar: Buscar): Promise<unknown> {
   let resposta: Response;
-  const consulta = `nome=${encodeURIComponent(nome)}${soTeste ? "&so_teste=1" : ""}`;
   try {
-    resposta = await buscar(`/api/simulacao?${consulta}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/vnd.tcpdump.pcap", ...CABECALHO_DA_INTERFACE },
-      body: arquivo,
-    });
+    resposta = await buscar(caminho, { ...init, headers: { ...init.headers, ...CABECALHO_DA_INTERFACE } });
   } catch {
     throw new ErroDaSimulacao("rede", "O backend não está no ar.", null);
   }
@@ -119,10 +114,55 @@ export async function iniciarSimulacao(arquivo: Blob, nome: string, soTeste = fa
     const erro = ehObjeto(corpo) && typeof corpo.erro === "string" ? corpo.erro : `O backend respondeu com o status ${resposta.status}.`;
     throw new ErroDaSimulacao("backend", erro, resposta.status);
   }
+  return corpo;
+}
+
+const FORA_DO_FORMATO = "O backend devolveu a simulação fora do formato esperado.";
+
+/**
+ * O arquivo vai cru no corpo, com o nome na consulta; o backend aceita um por vez. Com `soTeste`,
+ * só o trecho do pcap que ficou fora do treino do modelo é classificado.
+ */
+export async function iniciarSimulacao(arquivo: Blob, nome: string, soTeste = false, buscar: Buscar = buscarPadrao): Promise<ResultadoDaSimulacao> {
+  const consulta = `nome=${encodeURIComponent(nome)}${soTeste ? "&so_teste=1" : ""}`;
+  const corpo = await pedir(`/api/simulacao?${consulta}`, { method: "POST", headers: { "Content-Type": "application/vnd.tcpdump.pcap" }, body: arquivo }, buscar);
   if (!ehResultado(corpo)) {
-    throw new ErroDaSimulacao("backend", "O backend devolveu a simulação fora do formato esperado.", resposta.status);
+    throw new ErroDaSimulacao("backend", FORA_DO_FORMATO, null);
   }
   return corpo;
+}
+
+/** A simulação mais recente no backend, com o log como está agora. Nula se não houve nenhuma. */
+export async function consultarSimulacao(buscar: Buscar = buscarPadrao): Promise<ResultadoDaSimulacao | null> {
+  const corpo = await pedir("/api/simulacao/atual", { cache: "no-store" }, buscar);
+  if (!ehObjeto(corpo) || (corpo.simulacao !== null && !ehResultado(corpo.simulacao))) {
+    throw new ErroDaSimulacao("backend", FORA_DO_FORMATO, null);
+  }
+  return corpo.simulacao as ResultadoDaSimulacao | null;
+}
+
+export async function decidirNaSimulacao(decisao: DecisaoNaSimulacao, buscar: Buscar = buscarPadrao): Promise<void> {
+  await pedir("/api/simulacao/decisao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(decisao) }, buscar);
+}
+
+export async function pararSimulacao(buscar: Buscar = buscarPadrao): Promise<void> {
+  await pedir("/api/simulacao/parar", { method: "POST" }, buscar);
+}
+
+/** Enquanto os agentes rodam, a tela acompanha o log e as decisões chegam a eles. */
+export function agentesAtivos(agentes: AgentesDaSimulacao): boolean {
+  return agentes.estado === "rodando" || agentes.estado === "parando";
+}
+
+/** O agente da última chamada à IA do incidente: é onde ele está agora. */
+export function ultimoAgente(eventos: Evento[], incidente: string): AgentName | null {
+  for (let indice = eventos.length - 1; indice >= 0; indice -= 1) {
+    const evento = eventos[indice];
+    if (evento.tipo === "llm_chamada" && evento.incidente === incidente) {
+      return evento.dados.agente;
+    }
+  }
+  return null;
 }
 
 /** Tamanho de arquivo em B, KB, MB ou GB, com vírgula decimal. */
@@ -138,13 +178,6 @@ export function tamanhoDoArquivo(bytes: number): string {
   return `${valor.toFixed(casas).replace(".", ",")} ${unidades[unidade]}`;
 }
 
-/** Os parâmetros de geração do pedido: tudo o que não é modelo, mensagens, tools nem stream. */
-export function parametrosDoPedido(pedido: PedidoAoModelo): [string, string][] {
-  return Object.entries(pedido)
-    .filter(([chave]) => !["model", "messages", "tools", "stream"].includes(chave))
-    .map(([chave, valor]) => [chave, typeof valor === "object" ? JSON.stringify(valor) : String(valor)]);
-}
-
 function ehObjeto(valor: unknown): valor is Record<string, unknown> {
   return typeof valor === "object" && valor !== null && !Array.isArray(valor);
 }
@@ -157,6 +190,8 @@ function ehResultado(valor: unknown): valor is ResultadoDaSimulacao {
     ehObjeto(valor.por_categoria) &&
     Array.isArray(valor.incidentes) &&
     typeof valor.eventos === "string" &&
-    (valor.para_o_llm === null || (ehObjeto(valor.para_o_llm) && valor.para_o_llm.enviado === false && ehObjeto(valor.para_o_llm.pedido)))
+    ehObjeto(valor.agentes) &&
+    typeof valor.agentes.estado === "string" &&
+    Array.isArray(valor.agentes.incidentes)
   );
 }

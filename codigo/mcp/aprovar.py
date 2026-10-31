@@ -1,9 +1,8 @@
 """Comando de terminal com que a pessoa aprova ou rejeita uma proposta de ação.
 
 A aprovação e a rejeição não são tools: nenhum agente consegue aprovar a própria proposta.
-Elas entram por este comando, que é o canal da pessoa neste trabalho. Mais adiante serão os
-botões da interface web, pelo mesmo caminho: um evento gravado no log, com o usuário do sistema
-que decidiu.
+Elas entram por este comando ou pelos botões da tela de simulação (`codigo/api/simulacao.py`),
+pelo mesmo caminho: um evento gravado no log, com o usuário do sistema que decidiu.
 
 O comando também promove ao catálogo uma ação nova que já foi aprovada e aplicada, e marca um
 incidente como já resolvido quando a pessoa resolveu antes dos agentes. São outras decisões que

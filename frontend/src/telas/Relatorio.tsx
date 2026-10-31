@@ -28,6 +28,7 @@ import {
   type AgentName,
 } from "../design-system";
 import { paginar, paginarSemMedida, type SecaoMedida, type Trecho } from "../paginacao";
+import { AVISO_DO_EFEITO } from "./comum";
 import { incidenteEscolhido } from "./Incidente";
 import type { PropsDaTela } from "./replay";
 
@@ -119,7 +120,7 @@ function Endereco({ rotulo, endereco }: { rotulo?: string; endereco: string }) {
   );
 }
 
-function secoesDoRelatorio(detalhe: DetalheDoIncidente, sumarioAdiante: boolean): Secao[] {
+function secoesDoRelatorio(detalhe: DetalheDoIncidente, sumarioAdiante: boolean, efeitoSimulado: boolean): Secao[] {
   const { incidente, atacante } = detalhe;
   const marcaDoAtacante = atacante ? { address: atacante.address, label: "atacante", icon: EVENT.atacante_apontado.icon } : undefined;
 
@@ -352,6 +353,7 @@ function secoesDoRelatorio(detalhe: DetalheDoIncidente, sumarioAdiante: boolean)
       ) : (
         <p key="acoes">Nenhuma ação foi proposta.</p>
       ),
+      ...(efeitoSimulado ? [<p key="ressalva-do-efeito" className="body-sm sx-muted">{AVISO_DO_EFEITO}</p>] : []),
     ],
   };
 
@@ -519,7 +521,7 @@ function PaginasDoRelatorio({ secoes, titulo, data }: { secoes: Secao[]; titulo:
  * triagem, ações, recomendações e decisões humanas, tudo tirado do log até o cursor. O texto dos
  * agentes (sumário, análise, justificativa do atacante, recomendações) aparece na voz deles.
  */
-export function TelaRelatorio(props: PropsDaTela & { incidente: string | null }) {
+export function TelaRelatorio(props: PropsDaTela & { incidente: string | null; efeitoSimulado?: boolean }) {
   const { replay } = props;
   const id = incidenteEscolhido(props, props.incidente);
   const detalhe = id ? detalheDoIncidente(replay.estado, replay.final, replay.linhas, id) : null;
@@ -616,7 +618,7 @@ export function TelaRelatorio(props: PropsDaTela & { incidente: string | null })
           date={data}
           mode="Modo replay"
         />
-        <PaginasDoRelatorio secoes={secoesDoRelatorio(detalhe, sumarioAdiante)} titulo={`Relatório de incidente · ${incidente.id}`} data={data} />
+        <PaginasDoRelatorio secoes={secoesDoRelatorio(detalhe, sumarioAdiante, props.efeitoSimulado ?? false)} titulo={`Relatório de incidente · ${incidente.id}`} data={data} />
       </div>
     </>
   );

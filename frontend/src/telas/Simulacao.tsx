@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
+import { propostasDaTela } from "../adaptador";
 import {
-  AgentBadge,
+  AGENT,
   Alert,
   Button,
   CATEGORY,
@@ -11,11 +12,26 @@ import {
   MetricCard,
   PageHeader,
   Panel,
+  ProposalCard,
+  StatusBadge,
   fmtInt,
   type AnyCategory,
   type IconName,
+  type Proposal,
 } from "../design-system";
-import { ErroDaSimulacao, iniciarSimulacao, parametrosDoPedido, tamanhoDoArquivo, type ResultadoDaSimulacao } from "../simulacao";
+import {
+  ErroDaSimulacao,
+  agentesAtivos,
+  iniciarSimulacao,
+  pararSimulacao,
+  tamanhoDoArquivo,
+  ultimoAgente,
+  type AgentesDaSimulacao,
+  type IncidenteNosAgentes,
+  type ResultadoDaSimulacao,
+} from "../simulacao";
+import type { Evento } from "../types";
+import { AVISO_DO_EFEITO, DialogoDeDecisao, type PedidoDeDecisao } from "./comum";
 import type { PropsDaTela } from "./replay";
 
 export interface PropsDaSimulacao extends PropsDaTela {
@@ -30,6 +46,56 @@ interface Etapa {
   titulo: string;
   detalhe: string;
   feita: boolean;
+}
+
+/** Como o orquestrador terminou cada incidente, para quem lê a tela. */
+const DESFECHO: Record<string, string> = {
+  resolvido: "Resolvido: efeito verificado",
+  sem_resolucao: "Sem resolução depois de todas as rodadas",
+  incidente_encerrado: "O incidente já estava encerrado",
+  agente_parou: "Um agente parou antes do fim: o incidente segue aberto, sem ação",
+  sem_proposta: "O agente de decisão não propôs ação",
+  sem_aprovacao: "Sem decisão de uma pessoa a tempo",
+  todas_rejeitadas: "Propostas rejeitadas",
+  efeito_nao_verificado: "O efeito não foi verificado",
+};
+
+function tratados(agentes: AgentesDaSimulacao): string {
+  const total = agentes.incidentes.length;
+  const feitos = agentes.incidentes.filter((item) => item.situacao === "concluido" || item.situacao === "erro").length;
+  return `${fmtInt(feitos)} de ${fmtInt(total)} ${total === 1 ? "incidente tratado" : "incidentes tratados"}`;
+}
+
+function etapaDosAgentes({ agentes }: ResultadoDaSimulacao): Etapa {
+  const etapa = { icone: "bot" as IconName, titulo: "Agentes" };
+  if (agentes.estado === "sem_incidentes") {
+    return { ...etapa, detalhe: "Nenhum incidente para os agentes", feita: true };
+  }
+  if (agentes.estado === "sem_modelo") {
+    return { ...etapa, detalhe: agentes.motivo ?? "O modelo não está configurado", feita: false };
+  }
+  return { ...etapa, detalhe: `Triagem, decisão, aprovação e execução: ${tratados(agentes)}`, feita: agentes.estado === "concluidos" };
+}
+
+/** Em que ponto o incidente está: o ícone e o texto da linha dele. */
+function situacaoNaTela(item: IncidenteNosAgentes, ativos: boolean, eventos: Evento[], pendentes: Proposal[]): { icone: IconName; texto: string; feita: boolean } {
+  if (item.situacao === "na_fila") {
+    return ativos ? { icone: "clock", texto: "Na fila", feita: false } : { icone: "pause", texto: "Não tratado", feita: false };
+  }
+  if (item.situacao === "concluido") {
+    return { icone: "circle-check", texto: DESFECHO[item.desfecho ?? ""] ?? "Concluído", feita: true };
+  }
+  if (item.situacao === "erro") {
+    return { icone: "circle-x", texto: item.erro ?? "Os agentes falharam neste incidente", feita: false };
+  }
+  if (item.situacao === "interrompido") {
+    return { icone: "pause", texto: "Interrompido", feita: false };
+  }
+  if (pendentes.some((proposta) => proposta.incident === item.id)) {
+    return { icone: "hourglass", texto: "Aguardando a decisão de uma pessoa", feita: false };
+  }
+  const agente = ultimoAgente(eventos, item.id);
+  return { icone: "loader-circle", texto: agente ? `Agente de ${AGENT[agente].label.toLowerCase()}` : "Começando", feita: false };
 }
 
 function etapas(r: ResultadoDaSimulacao): Etapa[] {
@@ -58,12 +124,7 @@ function etapas(r: ResultadoDaSimulacao): Etapa[] {
       feita: true,
     },
     { icone: "server", titulo: "Servidor MCP", detalhe: `${fmtInt(eventos)} eventos no log ${r.log}`, feita: true },
-    {
-      icone: "send-horizontal",
-      titulo: "Modelo da triagem",
-      detalhe: r.para_o_llm ? `pedido de ${r.para_o_llm.incidente} montado, não enviado` : "nenhum incidente para enviar",
-      feita: false,
-    },
+    etapaDosAgentes(r),
   ];
 }
 
@@ -88,13 +149,15 @@ function duracao(valor: number): string {
   return segundos(valor);
 }
 
-/** Simulação: um pcap anexado passa pelo sistema até a porta do modelo da triagem, sem chamá-lo. */
+/** Simulação: um pcap anexado passa pelo sistema inteiro, e cada incidente segue como um incidente de verdade. */
 export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: PropsDaSimulacao) {
   const entrada = useRef<HTMLInputElement>(null);
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [soTeste, setSoTeste] = useState(true);
   const [rodando, setRodando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [decisao, setDecisao] = useState<PedidoDeDecisao | null>(null);
+  const [erroAoParar, setErroAoParar] = useState<string | null>(null);
 
   const iniciar = async () => {
     if (!arquivo) {
@@ -117,7 +180,18 @@ export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: 
         .filter(([categoria]) => categoria in CATEGORY)
         .map(([categoria, valor]) => ({ category: categoria as AnyCategory, value: valor }))
     : [];
-  const llm = resultado?.para_o_llm ?? null;
+  const agentes = resultado?.agentes ?? null;
+  const ativos = agentes !== null && agentesAtivos(agentes);
+  const pendentes = replay.estado.agregado.incidentes.flatMap((view) => propostasDaTela(view).filter((proposta) => proposta.state === "aguardando_aprovacao"));
+
+  const parar = async () => {
+    setErroAoParar(null);
+    try {
+      await pararSimulacao();
+    } catch (falha) {
+      setErroAoParar(falha instanceof ErroDaSimulacao ? falha.message : "Falha inesperada ao pedir a parada.");
+    }
+  };
 
   return (
     <>
@@ -125,8 +199,8 @@ export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: 
       <div className="sx-grid">
         <Panel className="sx-span-12" eyebrow="Captura" title="Iniciar simulação">
           <p className="body-sm sx-muted app-nota">
-            O pcap passa pelo extrator, pelo classificador e pela política de acionamento; os incidentes vão para o log do servidor MCP, e o
-            pedido ao modelo da triagem é montado sem ser enviado.
+            O pcap passa pelo extrator, pelo classificador e pela política de acionamento, e cada incidente segue para os agentes: triagem,
+            decisão, aprovação de uma pessoa quando o risco é alto, execução e verificação do efeito.
           </p>
           <div className="app-simulacao-envio">
             <input
@@ -156,7 +230,7 @@ export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: 
               <input type="checkbox" checked={soTeste} onChange={(evento) => setSoTeste(evento.target.checked)} disabled={rodando} />
               Só o trecho que o modelo não viu no treino
             </label>
-            <Button variant="primary" icon="play" onClick={iniciar} disabled={!arquivo || rodando} loading={rodando}>
+            <Button variant="primary" icon="play" onClick={iniciar} disabled={!arquivo || rodando || ativos} loading={rodando}>
               {rodando ? "Processando…" : "Iniciar simulação"}
             </Button>
           </div>
@@ -170,7 +244,8 @@ export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: 
         {!resultado ? (
           <Panel className="sx-span-12" eyebrow="Resultado" title="Nenhuma simulação ainda">
             <EmptyState icon="flask-conical" title="Anexe um pcap e inicie a simulação">
-              Os incidentes encontrados aparecem aqui e nas telas de operação. O pedido ao modelo da triagem é mostrado como iria, sem envio.
+              Os incidentes encontrados aparecem aqui e nas telas de operação, e os agentes tratam cada um deles. O que depende de uma pessoa
+              espera a decisão nesta tela.
             </EmptyState>
           </Panel>
         ) : (
@@ -181,11 +256,11 @@ export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: 
                 no treino" ou use um pcap que ficou inteiro fora do treino.
               </Alert>
             )}
-            <Panel className="sx-span-12" eyebrow="Fluxo" title={`Do ${resultado.arquivo} até a porta do modelo`}>
+            <Panel className="sx-span-12" eyebrow="Fluxo" title={`Do ${resultado.arquivo} até a resposta ao incidente`}>
               <ol className="app-fluxo">
                 {etapas(resultado).map((etapa) => (
                   <li key={etapa.titulo} className={etapa.feita ? "app-fluxo__etapa is-feita" : "app-fluxo__etapa is-parada"}>
-                    <Icon name={etapa.feita ? "circle-check" : "pause"} size={18} />
+                    <Icon name={etapa.feita ? "circle-check" : etapa.titulo === "Agentes" && ativos ? "loader-circle" : "pause"} size={18} />
                     <Icon name={etapa.icone} size={18} />
                     <span className="app-fluxo__titulo">{etapa.titulo}</span>
                     <span className="body-sm sx-muted">{etapa.detalhe}</span>
@@ -193,6 +268,57 @@ export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: 
                 ))}
               </ol>
             </Panel>
+            {pendentes.length > 0 && (
+              <Panel className="sx-span-12" eyebrow="Requer você" title="Decisões pendentes" tone="attention" actions={<StatusBadge kind="proposal" value="aguardando_aprovacao" />}>
+                <div className="sx-stack sx-stack--sm">
+                  {pendentes.map((proposta) => (
+                    <ProposalCard key={proposta.id} proposal={proposta} onApprove={() => setDecisao({ tipo: "approve", proposta })} onReject={() => setDecisao({ tipo: "reject", proposta })} />
+                  ))}
+                </div>
+              </Panel>
+            )}
+            {agentes && agentes.incidentes.length > 0 && (
+              <Panel
+                className="sx-span-12"
+                eyebrow="Agentes"
+                title="Resposta aos incidentes"
+                actions={
+                  ativos ? (
+                    <Button size="sm" variant="secondary" icon="pause" onClick={parar} disabled={agentes.estado === "parando"}>
+                      {agentes.estado === "parando" ? "Parando…" : "Parar os agentes"}
+                    </Button>
+                  ) : undefined
+                }
+              >
+                <p className="body-sm sx-muted app-nota">
+                  Configuração {agentes.configuracao}, modelo <span className="data-sm">{agentes.modelo || "não configurado"}</span>. Um incidente por vez,
+                  na ordem em que abriram.
+                </p>
+                <ol className="app-fluxo app-simulacao-bloco">
+                  {agentes.incidentes.map((item) => {
+                    const situacao = situacaoNaTela(item, ativos, replay.eventos, pendentes);
+                    return (
+                      <li key={item.id} className={situacao.feita ? "app-fluxo__etapa is-feita" : "app-fluxo__etapa"}>
+                        <Icon name={situacao.icone} size={18} />
+                        <Icon name="shield-alert" size={18} />
+                        <span className="app-fluxo__titulo data-sm">
+                          <Button size="sm" variant="ghost" onClick={() => navegar({ tela: "incidente", incidente: item.id })}>
+                            {item.id}
+                          </Button>
+                        </span>
+                        <span className="body-sm sx-muted">{situacao.texto}</span>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <p className="body-sm sx-muted app-nota app-simulacao-bloco">{AVISO_DO_EFEITO}</p>
+                {erroAoParar && (
+                  <Alert tone="danger" title="Os agentes não pararam." className="app-simulacao-erro">
+                    {erroAoParar}
+                  </Alert>
+                )}
+              </Panel>
+            )}
             <MetricCard className="sx-span-3" label="Janelas" value={resultado.janelas} icon="layers" context={`${fmtInt(resultado.quadros)} quadros lidos`} />
             <MetricCard
               className="sx-span-3"
@@ -239,62 +365,10 @@ export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: 
                 }
               />
             </Panel>
-            {llm && (
-              <Panel
-                className="sx-span-12"
-                eyebrow="Na porta do modelo"
-                title={`Pedido à triagem para ${llm.incidente}`}
-                actions={
-                  <span className="app-linha-com-icone body-sm">
-                    <Icon name="lock" size={16} /> Não enviado
-                  </span>
-                }
-              >
-                <div className="app-pedido">
-                  <div className="app-pedido__linha">
-                    <AgentBadge agent="triagem" location="local" model={llm.pedido.model} />
-                    <span className="body-sm sx-muted">{llm.motivo}</span>
-                  </div>
-                  <dl className="app-pedido__parametros">
-                    {parametrosDoPedido(llm.pedido).map(([chave, valor]) => (
-                      <div key={chave}>
-                        <dt className="data-sm">{chave}</dt>
-                        <dd className="data-sm">{valor}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  <details className="app-detalhes">
-                    <summary className="body-sm">
-                      Prompt de sistema: skill triagem-do-alerta, {fmtInt(llm.pedido.messages[0]?.content.length ?? 0)} caracteres
-                    </summary>
-                    <pre className="app-json">{llm.pedido.messages[0]?.content}</pre>
-                  </details>
-                  <p className="body-sm app-nota">
-                    <strong>Mensagem:</strong> {llm.pedido.messages[1]?.content}
-                  </p>
-                  <p className="body-sm app-nota">
-                    <strong>Tools:</strong> {llm.pedido.tools.map((tool) => tool.function.name).join(", ")}
-                  </p>
-                  <div className="app-pedido__leituras">
-                    <div>
-                      <h4 className="body-sm">
-                        O que a triagem lê em <span className="data-sm">{llm.primeira_leitura.tool}</span> (modelo local, com endereços)
-                      </h4>
-                      <pre className="app-json">{JSON.stringify(llm.primeira_leitura.resultado, null, 2)}</pre>
-                    </div>
-                    <div>
-                      <h4 className="body-sm">
-                        O que chegaria à fronteira em <span className="data-sm">{llm.visao_da_fronteira.tool}</span> (rótulos neutros, sem endereços)
-                      </h4>
-                      <pre className="app-json">{JSON.stringify(llm.visao_da_fronteira.resultado, null, 2)}</pre>
-                    </div>
-                  </div>
-                </div>
-              </Panel>
-            )}
           </>
         )}
       </div>
+      <DialogoDeDecisao pedido={decisao} aoFechar={() => setDecisao(null)} />
     </>
   );
 }

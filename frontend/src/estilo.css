@@ -92,21 +92,13 @@
 .app-simulacao-envio { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-3); }
 .app-nome-do-arquivo { flex: 1; min-width: 200px; overflow-wrap: anywhere; }
 .app-simulacao-erro { margin-top: var(--space-3); }
+.app-simulacao-bloco { margin-top: var(--space-3); }
 .app-opcao { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; }
 .app-fluxo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .app-fluxo__etapa { display: grid; grid-template-columns: auto auto 14rem 1fr; align-items: center; gap: var(--space-2); }
 .app-fluxo__etapa.is-feita > .sx-icon:first-child { color: var(--ice); }
 .app-fluxo__etapa.is-parada { color: var(--ink-2); }
 .app-fluxo__titulo { font-weight: 600; }
-.app-pedido { display: flex; flex-direction: column; gap: var(--space-3); }
-.app-pedido__linha { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
-.app-pedido__parametros { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin: 0; }
-.app-pedido__parametros > div { display: flex; gap: var(--space-2); }
-.app-pedido__parametros dd { margin: 0; color: var(--ice); }
-.app-pedido__leituras { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-4); }
-.app-pedido__leituras h4 { margin: 0 0 var(--space-2); font-weight: 500; }
-.app-detalhes summary { cursor: pointer; }
-.app-json { margin: var(--space-2) 0 0; max-height: 320px; overflow: auto; padding: var(--space-3); border-radius: var(--radius-md); background: var(--surface-2); border: 1px solid var(--line-1); font-family: var(--font-mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 720px) {
   .app-fluxo__etapa { grid-template-columns: auto auto 1fr; }
   .app-fluxo__etapa > .body-sm { grid-column: 1 / -1; }

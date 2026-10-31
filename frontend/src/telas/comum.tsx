@@ -34,6 +34,9 @@ export function AvisosDoLog({ avisos }: { avisos: string[] }) {
   );
 }
 
+/** Vale para todo incidente que veio de um pcap: o que a tela e o relatório precisam dizer ao lado do efeito. */
+export const AVISO_DO_EFEITO = 'Em replay, a ação não age sobre o tráfego gravado: a verificação do efeito é simulada e sempre dá "o incidente cessou".';
+
 export type PedidoDeDecisao =
   | { tipo: "approve" | "reject"; proposta: Proposal }
   | { tipo: "resolve"; incidente: string; resumo: { label: string; value: ReactNode }[] };
