@@ -391,3 +391,111 @@ def test_o_resumo_nao_traz_texto_de_modelo_nem_a_chave(log):
     assert texto.splitlines()[0] == "incidente inc-0002, configuração local: resolvido"
     assert "triagem" in texto and "decisao" in texto and "execucao" in texto
     assert ORIGEM not in texto and "Recomendo" not in texto
+
+
+# --- análise da triagem, nova rodada depois da rejeição e sumário (decisão de 2026-10-31) -------------
+
+
+def rejeita_com(log, motivo):
+    def rejeita(_estado, pendentes):
+        for proposta in pendentes:
+            decidir_no_log(log, proposta.id, False, usuario="operador", motivo=motivo)
+
+    return rejeita
+
+
+def test_a_resposta_da_triagem_vai_ao_log_como_analise_antes_da_conclusao(log):
+    modelo = ProvedorFalso(*triagem("inc-0002"), chamada("obter_resumo", {"id": "inc-0002"}, "d1"), resposta("Nada."))
+
+    orquestrar("inc-0002", log=log, perfis={"local": Perfil(modelo, "qwen")}, configuracao="local")
+
+    da_triagem = [e.tipo for e in ler(log) if e.tipo in ("analise_emitida", "agente_concluido") and e.incidente == "inc-0002"]
+    assert da_triagem[:2] == ["analise_emitida", "agente_concluido"]
+    analise = eventos_de(log, "analise_emitida")[0].dados
+    assert (analise.veredito, analise.texto) == ("coerente", ROTULO.format(id="inc-0002", origem=ORIGEM))
+
+
+def test_depois_da_rejeicao_com_motivo_a_decisao_volta_com_o_motivo_em_rotulos(log):
+    origem = reconstruir(ler(log)).incidentes["inc-0001"].origens[0].endereco
+    modelo = ProvedorFalso(
+        *triagem("inc-0001"),
+        *decisao("inc-0001", "isolar_dispositivo", "destino-1", {}),
+        chamada("obter_resumo", {"id": "inc-0001"}, "d3"),
+        resposta("Não há outra ação que respeite o motivo. Nenhuma ação foi proposta."),
+    )
+
+    resultado = orquestrar(
+        "inc-0001", log=log, perfis={"local": Perfil(modelo, "qwen")}, configuracao="local",
+        aprovador=rejeita_com(log, f"Não isolar; o ataque vem de {origem}."), rodada_apos_rejeicao=True,
+    )
+
+    assert resultado.desfecho == TODAS_REJEITADAS
+    assert [(e.agente, e.rodada) for e in resultado.execucoes] == [("triagem", 1), ("decisao", 1), ("decisao", 2)]
+    abertura = next(r for r in modelo.rodadas if "rejeitou a proposta anterior" in r["mensagens"][1]["content"])
+    assert "- prop-0001: Não isolar; o ataque vem de origem-1." in abertura["mensagens"][1]["content"]
+    assert origem not in abertura["mensagens"][1]["content"]
+    assert len(eventos_de(log, "recomendacao_emitida")) == 2
+
+
+def test_rejeicao_sem_motivo_nao_devolve_a_vez_a_decisao(log):
+    def rejeita(_estado, pendentes):
+        for proposta in pendentes:
+            decidir_no_log(log, proposta.id, False, usuario="operador")
+
+    modelo = ProvedorFalso(*triagem("inc-0001"), *decisao("inc-0001", "isolar_dispositivo", "destino-1", {}))
+
+    resultado = orquestrar(
+        "inc-0001", log=log, perfis={"local": Perfil(modelo, "qwen")}, configuracao="local", aprovador=rejeita,
+        rodada_apos_rejeicao=True,
+    )
+
+    assert resultado.desfecho == TODAS_REJEITADAS
+    assert [e.agente for e in resultado.execucoes] == ["triagem", "decisao"]
+
+
+def test_sem_a_opcao_a_rejeicao_com_motivo_encerra_como_antes(log):
+    modelo = ProvedorFalso(*triagem("inc-0001"), *decisao("inc-0001", "isolar_dispositivo", "destino-1", {}))
+
+    resultado = orquestrar(
+        "inc-0001", log=log, perfis={"local": Perfil(modelo, "qwen")}, configuracao="local",
+        aprovador=rejeita_com(log, "Fora do gabarito."),
+    )
+
+    assert resultado.desfecho == TODAS_REJEITADAS
+    assert [e.agente for e in resultado.execucoes] == ["triagem", "decisao"]
+
+
+def test_no_fim_a_triagem_escreve_o_sumario_a_partir_do_log_numa_chamada_sem_tools(log):
+    modelo = ProvedorFalso(
+        *triagem("inc-0002"), chamada("obter_resumo", {"id": "inc-0002"}, "d1"), resposta("Nada a fazer."),
+        resposta("Força bruta no SSH de um dispositivo. A triagem confirmou, e nenhuma ação foi proposta."),
+    )
+
+    resultado = orquestrar(
+        "inc-0002", log=log, perfis={"local": Perfil(modelo, "qwen")}, configuracao="local", sumario=True,
+    )
+
+    assert resultado.avisos == ()
+    pedido_do_sumario = modelo.rodadas[-1]
+    assert pedido_do_sumario["tools"] in (None, [])
+    assert "Nenhuma ação foi proposta." in pedido_do_sumario["mensagens"][1]["content"]
+    assert "Análise da triagem (rótulo coerente)" in pedido_do_sumario["mensagens"][1]["content"]
+    sumario = eventos_de(log, "sumario_emitido")
+    assert [s.dados.texto for s in sumario] == ["Força bruta no SSH de um dispositivo. A triagem confirmou, e nenhuma ação foi proposta."]
+    # A chamada do sumário fica no log como da triagem, sem uma segunda conclusão dela.
+    assert eventos_de(log, "llm_chamada")[-1].dados.agente == "triagem"
+    assert [e.dados.agente for e in eventos_de(log, "agente_concluido")] == ["triagem", "decisao"]
+
+
+def test_sumario_sem_resposta_vira_aviso_e_nao_derruba_o_incidente(log):
+    modelo = ProvedorFalso(
+        *triagem("inc-0002"), chamada("obter_resumo", {"id": "inc-0002"}, "d1"), resposta("Nada a fazer."), resposta(""),
+    )
+
+    resultado = orquestrar(
+        "inc-0002", log=log, perfis={"local": Perfil(modelo, "qwen")}, configuracao="local", sumario=True,
+    )
+
+    assert resultado.desfecho == SEM_PROPOSTA
+    assert resultado.avisos == ("o sumário do incidente não foi escrito: o modelo da triagem não respondeu",)
+    assert eventos_de(log, "sumario_emitido") == []

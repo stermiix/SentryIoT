@@ -256,8 +256,15 @@ def test_o_resumo_diz_por_configuracao_as_rodadas_os_erros_a_qualidade_e_a_triag
     linhas = resumo(ler_rodadas(rodadas))
 
     assert linhas == [
-        "hibrida: 1 rodadas, 0 com erro, qualidade 100.0% (1 verdadeiras), triagem certa em 100.0%",
-        "local: 1 rodadas, 0 com erro, qualidade 0.0% (1 verdadeiras), triagem certa em 100.0%",
+        # Os agentes de mentira não apontam atacante; a regra fixa acerta o do incidente de teste.
+        (
+            "hibrida: 1 rodadas, 0 com erro, qualidade 100.0% (1 verdadeiras), triagem certa em 100.0%, "
+            "atacante certo em 0 (a regra fixa: 1)"
+        ),
+        (
+            "local: 1 rodadas, 0 com erro, qualidade 0.0% (1 verdadeiras), triagem certa em 100.0%, "
+            "atacante certo em 0 (a regra fixa: 1)"
+        ),
     ]
 
 

@@ -152,10 +152,6 @@ const SEMPRE_ALTO = new Set<string>(SEMPRE_DE_RISCO_ALTO);
 // (`_ALVO_COM_ROTULO`, em acoes.py).
 export const ALVO_COM_ROTULO =
   /^(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,63}@|[1-9][0-9]{0,4}\/(?:tcp|udp)@)?(?:origem|destino)-[1-9][0-9]{0,5}$/;
-const PAPEIS = [
-  ["origem", "origens"],
-  ["destino", "destinos"],
-] as const;
 
 /** O estado que os eventos deixam, como o `Estado` de `codigo/mcp/acoes.py`, mais o que a tela mostra. */
 interface Estado {
@@ -166,6 +162,23 @@ interface Estado {
   propostas: Map<string, { incidente: string; parametros: unknown; view: PropostaView }>;
   execucoes: Map<string, { dados: Execucao; view: ExecucaoView }>;
   promovidas: Set<string>;
+}
+
+/** Os endereços que a triagem pode apontar como atacante (`_suspeitos`): as origens e os candidatos. */
+function suspeitos(incidente: Incidente): string[] {
+  return [...incidente.origens, ...(incidente.candidatos ?? [])].map((item) => item.endereco);
+}
+
+/**
+ * Os endereços de cada papel, na ordem em que recebem rótulo. Os candidatos a atacante são origens
+ * também e vêm depois das origens, como em `_rotular`: o rótulo das origens fica igual ao de um log
+ * gravado antes dos candidatos.
+ */
+function enderecosPorPapel(incidente: Incidente): [papel: "origem" | "destino", enderecos: string[]][] {
+  return [
+    ["origem", suspeitos(incidente)],
+    ["destino", incidente.destinos.map((item) => item.endereco)],
+  ];
 }
 
 /** Igualdade de valores JSON, sem depender da ordem das chaves. */
@@ -184,21 +197,31 @@ function iguais(a: unknown, b: unknown): boolean {
   );
 }
 
-/** Dá um rótulo neutro a cada endereço novo do incidente, na ordem em que ele aparece (`_rotular`). */
-function rotular(estado: Estado, incidente: Incidente) {
-  let rotulos = estado.rotulos.get(incidente.id);
+function rotulosDe(estado: Estado, incidente: string): Map<string, string> {
+  let rotulos = estado.rotulos.get(incidente);
   if (!rotulos) {
     rotulos = new Map();
-    estado.rotulos.set(incidente.id, rotulos);
+    estado.rotulos.set(incidente, rotulos);
   }
-  for (const [papel, campo] of PAPEIS) {
-    const doPapel = Array.from(rotulos).filter(([rotulo]) => rotulo.startsWith(`${papel}-`)).map(([, endereco]) => endereco);
-    for (const item of incidente[campo]) {
-      if (!doPapel.includes(item.endereco)) {
-        doPapel.push(item.endereco);
-        rotulos.set(`${papel}-${doPapel.length}`, item.endereco);
-      }
+  return rotulos;
+}
+
+/** Dá um rótulo neutro a cada endereço do papel que ainda não tem um, na ordem da lista. */
+function rotularPapel(rotulos: Map<string, string>, papel: "origem" | "destino", enderecos: string[]) {
+  const doPapel = Array.from(rotulos).filter(([rotulo]) => rotulo.startsWith(`${papel}-`)).map(([, endereco]) => endereco);
+  for (const endereco of enderecos) {
+    if (!doPapel.includes(endereco)) {
+      doPapel.push(endereco);
+      rotulos.set(`${papel}-${doPapel.length}`, endereco);
     }
+  }
+}
+
+/** Dá um rótulo neutro a cada endereço novo do incidente, na ordem em que ele aparece (`_rotular`). */
+function rotular(estado: Estado, incidente: Incidente) {
+  const rotulos = rotulosDe(estado, incidente.id);
+  for (const [papel, enderecos] of enderecosPorPapel(incidente)) {
+    rotularPapel(rotulos, papel, enderecos);
   }
 }
 
@@ -338,6 +361,25 @@ function aplicar(estado: Estado, evento: Evento): string | null {
       execucao.view.efeitos.push({ instante: evento.instante, resultado: dados.resultado, observacao: dados.observacao });
       return null;
     }
+    case "atacante_apontado": {
+      // Como em `_aplicar`: o atacante é um dos candidatos ou das origens do incidente, na versão dele
+      // naquele ponto do log, e ganha o rótulo de origem se ainda não tiver um.
+      if (evento.incidente === null) {
+        return "o atacante apontado não diz de que incidente é";
+      }
+      const incidente = estado.incidentes.get(evento.incidente);
+      if (!incidente) {
+        return `o incidente ${citar(evento.incidente)} não existe até este ponto`;
+      }
+      if (!suspeitos(incidente).includes(evento.dados.endereco)) {
+        return `o endereço apontado não está entre os candidatos nem as origens do incidente ${citar(incidente.id)}`;
+      }
+      rotularPapel(rotulosDe(estado, incidente.id), "origem", [evento.dados.endereco]);
+      return null;
+    }
+    case "analise_emitida":
+    case "sumario_emitido":
+      return evento.incidente === null ? `o evento ${evento.tipo} não diz de que incidente é` : null;
     case "recomendacao_emitida":
       for (const citada of evento.dados.propostas) {
         const proposta = estado.propostas.get(citada);
@@ -515,6 +557,10 @@ export function agregar(eventos: Evento[]): Agregado {
         recomendacoes: [],
         propostas: [],
         marcacao: null,
+        analise: null,
+        atacante: null,
+        sumario: null,
+        vereditoDaConclusao: null,
         // O mesmo mapa do estado: segue recebendo os rótulos dos endereços que aparecerem depois.
         rotulos: estado.rotulos.get(evento.incidente) ?? new Map(),
       };
@@ -530,6 +576,23 @@ export function agregar(eventos: Evento[]): Agregado {
         break;
       case "recomendacao_emitida":
         montagem.recomendacoes.push(evento);
+        break;
+      // Da triagem, vale o último de cada: a análise, o atacante apontado e o sumário.
+      case "analise_emitida":
+        montagem.analise = { id: evento.id, instante: evento.instante, texto: evento.dados.texto, veredito: evento.dados.veredito };
+        break;
+      case "atacante_apontado":
+        montagem.atacante = { id: evento.id, instante: evento.instante, endereco: evento.dados.endereco, justificativa: evento.dados.justificativa };
+        break;
+      case "sumario_emitido":
+        montagem.sumario = { id: evento.id, instante: evento.instante, texto: evento.dados.texto };
+        break;
+      // O sumário vem de uma chamada da triagem sem conclusão própria: só a conclusão da triagem
+      // mexe no veredito.
+      case "agente_concluido":
+        if (evento.dados.agente === "triagem") {
+          montagem.vereditoDaConclusao = evento.dados.veredito;
+        }
         break;
       case "acao_proposta":
         montagem.propostas.push(estado.propostas.get(evento.dados.id)!.view);

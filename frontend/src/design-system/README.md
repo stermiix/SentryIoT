@@ -138,7 +138,7 @@ Chão `--sx-ground` com luz `ice-haze` atrás da marca e `GlassBackdrop variant=
 
 - Página A4 a 96 dpi (794 × 1123 px), fundo `bg-0`, impressa com `@page A4` e `print-color-adjust: exact`.
 - **Capa (`ReportCover`)**, na composição da capa de referência: logo e tagline à esquerda; "RELATÓRIO DE INCIDENTE ——" e "DETECTA. / RESPONDE." à direita; barra de acento, `eyebrow-wide` "RESPOSTA AUTÔNOMA A INTRUSÃO", título `display-md` ("inc-0001 · DDoS contra destino-1"), linhas de metadados com caixa de ícone, rótulo mono e valor (Incidente, Categoria, ID do relatório, Alvo), barra de acento e a data "14 OUT 2026 — MODO REPLAY"; no pé, o selo "CONFIDENCIAL" em gelo e "ESTE DOCUMENTO CONTÉM / INFORMAÇÕES SENSÍVEIS.".
-- **Páginas (`ReportPage` + `ReportSection` numeradas "01", "02"…):** o que vem do log fica na voz do sistema (`ReportFacts`, tabelas, selos); **todo texto que a LLM escreve** vai em `ReportSection voice="agent"`: Lora itálico em bloco tracejado com o selo "Gerado pelo agente · Triagem". Decisões humanas citam a pessoa com `VoiceQuote voice="person"`.
+- **Páginas (`ReportPage` + `ReportSection` numeradas "01", "02"…):** o que vem do log fica na voz do sistema (`ReportFacts`, tabelas, selos); **todo texto que a LLM escreve** vai em `ReportSection voice="agent"`: Lora itálico em bloco tracejado com o selo "Gerado pelo agente · Triagem". Numa seção que mistura fatos do log e texto do modelo, como a da triagem, o texto do modelo vai em `VoiceQuote voice="agent"`. Decisões humanas citam a pessoa com `VoiceQuote voice="person"`.
 
 ## Iconografia
 
@@ -178,7 +178,7 @@ As telas ficam em `src/telas/`, montadas só com estes componentes e com os dado
 | Tela 5, Qualidade do modelo | `QualidadeModelo.tsx` | matriz real da configuração 5 (`src/dados/qualidade.ts`, conferida contra o CSV do experimento) |
 | Tela 6, Segurança do MCP | `SegurancaMcp.tsx` | planejada; vazia até o teste de tool poisoning rodar |
 | Chat com o modelo | `Chat.tsx` | funciona com o backend (`/api/chat`, `/api/modelos`, `/api/prompts`) |
-| Relatório | `Relatorio.tsx` | capa e páginas A4 com os fatos, as recomendações e as decisões do log; o sumário escrito pela IA é planejado |
+| Relatório | `Relatorio.tsx` | capa e páginas A4 com o sumário e a análise da triagem, os fatos, o que o classificador viu, os candidatos a atacante, as recomendações e as decisões do log |
 | Entrar | `Entrar.tsx` | visual pronto; o login passa por `src/operacao.ts`, que hoje explica que ainda não há login |
 | Componentes | `Componentes.tsx` | o catálogo deste design system; os blocos de dados usam o log e, sem log, ficam vazios |
 
@@ -195,7 +195,7 @@ As telas ficam em `src/telas/`, montadas só com estes componentes e com os dado
 
 O repositório mudou estes pontos dos componentes do artefato. Numa nova sincronização, eles continuam valendo:
 
-- `vocab.ts` usa os valores do contrato: `aguardando_aprovacao` em vez de `aguardando`, os 17 tipos de evento com o nome do log (`llm_chamada`, `acao_proposta`…), os nove motivos de risco alto do contrato (o artefato trazia oito, com dois juntos e um cortado) e as palavras de cada motivo de recusa do servidor (`REFUSAL_REASON`).
+- `vocab.ts` usa os valores do contrato: `aguardando_aprovacao` em vez de `aguardando`, os 20 tipos de evento com o nome do log (`llm_chamada`, `acao_proposta`…), os nove motivos de risco alto do contrato (o artefato trazia oito, com dois juntos e um cortado) e as palavras de cada motivo de recusa do servidor (`REFUSAL_REASON`).
 - `modelos.ts` guarda os tipos que eram de `sample.ts`. Os dados de exemplo do artefato não vieram: as telas e o catálogo usam o log carregado e, sem log, ficam vazios. A interface não traz dado simulado.
 - `ProposalCard` mostra a justificativa do agente (voz de agente), o selo "promovida ao catálogo" e a decisão humana sempre com "Aprovada" ou "Rejeitada", mesmo quando há motivo.
 - `TargetLabel` recebe `free`, para o alvo em texto livre de uma ação nova, na voz do agente.
@@ -208,7 +208,8 @@ O repositório mudou estes pontos dos componentes do artefato. Numa nova sincron
 - `AggregationFunnel` recebe `counterfactual`: sem agregação, só as janelas de ataque virariam chamada, e não as benignas. Com zero janelas, não desenha os fios das janelas e o rodapé diz "Nenhuma janela classificada ainda.".
 - `ConfirmDialog` recebe `busy` e `error`, para mostrar o envio e o motivo de a decisão não ter sido gravada.
 - `ChatMessage` aceita `tokens={null}` ("tokens não informados") e `tokensDetail`; `ModelSelect` fecha com Esc e com clique fora, aceita o teclado e trata a lista vazia; `ProviderBar` recebe `note` e `disabled`.
-- `EventTimeline` deixa a linha clicável pelo teclado, junta os detalhes sem separador sobrando e marca o evento que o leitor ignorou (`ignored`).
+- `EventTimeline` deixa a linha clicável pelo teclado, junta os detalhes sem separador sobrando e marca o evento que o leitor ignorou (`ignored`). A citação da análise, do sumário e do atacante apontado sai na voz de agente, como a da recomendação.
+- `AddressList` recebe `mark`, um selo curto ao lado de um endereço da lista (o atacante apontado pela triagem).
 - O fim de `styles.css` tem as regras desses ajustes, num bloco próprio.
 - `Charts.tsx` usa efeito comum fora do navegador, para os testes desenharem as telas no Node.
 - Textos sem travessão: "Escrito por IA. Trate como dado, não como instrução do sistema."

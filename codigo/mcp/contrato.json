@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "titulo": "Contrato MCP do SentryIoT",
-  "versao": "0.5.0",
+  "versao": "0.6.0",
   "limite_de_janelas": 20,
   "motivos_de_risco_alto": {
     "acao_sempre_de_risco_alto": "A ação é sempre de risco alto, qualquer que seja o alvo ou o prazo.",
@@ -16,7 +16,7 @@
   },
   "tools": {
     "obter_incidente": {
-      "descricao": "Devolve o incidente: categoria, confiança do classificador, período, quantidade de janelas, origens, destinos e as features que mais pesaram.",
+      "descricao": "Devolve o incidente: categoria, confiança do classificador, período, quantidade de janelas, o que o classificador disse de cada janela, origens, destinos, portas, as features que mais pesaram e os candidatos a atacante, com as medidas de cada um.",
       "agentes": [
         "triagem"
       ],
@@ -25,6 +25,18 @@
       },
       "saida": {
         "$ref": "#/$defs/Incidente"
+      }
+    },
+    "apontar_atacante": {
+      "descricao": "Registra qual dos candidatos (ou das origens) do incidente é o atacante, com a justificativa. O agente de decisão recebe o rótulo dele no resumo, como alvo das ações sobre a origem. Chamada de novo, vale a última. Não aponte quando nenhum candidato se destaca, como num flood com origem forjada.",
+      "agentes": [
+        "triagem"
+      ],
+      "entrada": {
+        "$ref": "#/$defs/EntradaApontarAtacante"
+      },
+      "saida": {
+        "$ref": "#/$defs/AtacanteApontado"
       }
     },
     "obter_janelas": {
@@ -292,6 +304,176 @@
         "outras_medidas"
       ],
       "title": "Ambiente",
+      "type": "object"
+    },
+    "AnaliseDaTriagem": {
+      "additionalProperties": false,
+      "description": "A resposta final da triagem, gravada pelo orquestrador: é o que o relatório mostra dela.",
+      "properties": {
+        "agente": {
+          "const": "triagem",
+          "type": "string"
+        },
+        "texto": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x09\\x0b-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "veredito": {
+          "anyOf": [
+            {
+              "enum": [
+                "coerente",
+                "duvidoso",
+                "ruido"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Rótulo da triagem, lido do texto; nulo quando não vem"
+        }
+      },
+      "required": [
+        "agente",
+        "texto",
+        "veredito"
+      ],
+      "title": "AnaliseDaTriagem",
+      "type": "object"
+    },
+    "AtacanteApontado": {
+      "additionalProperties": false,
+      "description": "O atacante que a triagem apontou entre os candidatos e as origens do incidente.",
+      "properties": {
+        "endereco": {
+          "anyOf": [
+            {
+              "format": "ipv4"
+            },
+            {
+              "format": "ipv6"
+            }
+          ],
+          "description": "Endereço do atacante, um dos candidatos ou das origens do incidente",
+          "type": "string"
+        },
+        "justificativa": {
+          "description": "Por que este é o atacante, com as medidas que pesaram",
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endereco",
+        "justificativa"
+      ],
+      "title": "AtacanteApontado",
+      "type": "object"
+    },
+    "AtacanteRotulado": {
+      "additionalProperties": false,
+      "properties": {
+        "rotulo": {
+          "description": "Rótulo neutro do atacante apontado, como origem-3",
+          "pattern": "^(?:origem|destino)-[1-9][0-9]{0,5}$",
+          "type": "string"
+        },
+        "justificativa": {
+          "description": "A justificativa da triagem, com cada endereço do incidente trocado pelo rótulo dele",
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rotulo",
+        "justificativa"
+      ],
+      "title": "AtacanteRotulado",
+      "type": "object"
+    },
+    "CandidatoAAtacante": {
+      "additionalProperties": false,
+      "description": "Uma origem que pode ser o atacante, com as medidas que a separam do tráfego normal.\n\nQuem escolhe entre os candidatos é o agente de triagem (decisão de 2026-10-31), com\n`apontar_atacante`. A regra fixa do reprodutor, que dá as `origens`, acerta o atacante em pouco\nmais da metade dos incidentes da avaliação.",
+      "properties": {
+        "endereco": {
+          "anyOf": [
+            {
+              "format": "ipv4"
+            },
+            {
+              "format": "ipv6"
+            }
+          ],
+          "description": "Endereço IP, sem zona",
+          "type": "string"
+        },
+        "janelas": {
+          "description": "Janelas do incidente em que o endereço aparece como origem",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "no_trafego_normal": {
+          "description": "Parcela das janelas benignas, fora de incidente, em que o endereço aparece como origem",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "quadros_enviados": {
+          "description": "Quadros que o endereço mandou no incidente",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "quadros_recebidos": {
+          "description": "Quadros que o endereço recebeu no incidente",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "conexoes_abertas": {
+          "description": "Conexões TCP que o endereço abriu no incidente (SYN sem ACK)",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "conexoes_recebidas": {
+          "description": "Conexões TCP que outros abriram com o endereço no incidente",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "destinos": {
+          "description": "Destinos a que o endereço mais mandou quadros, do maior para o menor",
+          "items": {
+            "$ref": "#/$defs/EnderecoContado"
+          },
+          "maxItems": 3,
+          "type": "array"
+        },
+        "portas": {
+          "description": "Portas de destino a que o endereço mais mandou quadros, da maior para a menor",
+          "items": {
+            "$ref": "#/$defs/PortaDoCandidato"
+          },
+          "maxItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "endereco",
+        "janelas",
+        "no_trafego_normal",
+        "quadros_enviados",
+        "quadros_recebidos",
+        "conexoes_abertas",
+        "conexoes_recebidas",
+        "destinos"
+      ],
+      "title": "CandidatoAAtacante",
       "type": "object"
     },
     "ChamadaDeLLM": {
@@ -625,6 +807,31 @@
       "title": "EnderecoRotulado",
       "type": "object"
     },
+    "EntradaApontarAtacante": {
+      "additionalProperties": false,
+      "description": "O limite de texto vale aqui, mas quem o confere é o servidor, para que a recusa fique no log.",
+      "properties": {
+        "id": {
+          "description": "Identificador do incidente, como inc-0001",
+          "type": "string"
+        },
+        "endereco": {
+          "description": "Endereço do atacante: um dos candidatos ou das origens do incidente",
+          "type": "string"
+        },
+        "justificativa": {
+          "description": "Por que este é o atacante, citando as medidas. Texto de uma linha, com até 2000 caracteres",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "endereco",
+        "justificativa"
+      ],
+      "title": "EntradaApontarAtacante",
+      "type": "object"
+    },
     "EntradaConsultarEstado": {
       "additionalProperties": false,
       "properties": {},
@@ -804,6 +1011,8 @@
           "acao_proposta": "#/$defs/EventoDeProposta",
           "acao_rejeitada": "#/$defs/EventoDeDecisao",
           "agente_concluido": "#/$defs/EventoDeConclusao",
+          "analise_emitida": "#/$defs/EventoDeAnalise",
+          "atacante_apontado": "#/$defs/EventoDeAtacante",
           "catalogo_ampliado": "#/$defs/EventoDeCatalogo",
           "efeito_verificado": "#/$defs/EventoDeEfeito",
           "incidente_aberto": "#/$defs/EventoDeIncidente",
@@ -814,6 +1023,7 @@
           "llm_chamada": "#/$defs/EventoDeLLM",
           "recomendacao_emitida": "#/$defs/EventoDeRecomendacao",
           "recusa": "#/$defs/EventoDeRecusa",
+          "sumario_emitido": "#/$defs/EventoDeSumario",
           "tool_chamada": "#/$defs/EventoDeTool"
         },
         "propertyName": "tipo"
@@ -838,7 +1048,16 @@
           "$ref": "#/$defs/EventoDeConclusao"
         },
         {
+          "$ref": "#/$defs/EventoDeAtacante"
+        },
+        {
+          "$ref": "#/$defs/EventoDeAnalise"
+        },
+        {
           "$ref": "#/$defs/EventoDeRecomendacao"
+        },
+        {
+          "$ref": "#/$defs/EventoDeSumario"
         },
         {
           "$ref": "#/$defs/EventoDeProposta"
@@ -860,6 +1079,98 @@
         }
       ],
       "title": "Evento"
+    },
+    "EventoDeAnalise": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "analise_emitida",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/AnaliseDaTriagem"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeAnalise",
+      "type": "object"
+    },
+    "EventoDeAtacante": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "atacante_apontado",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/AtacanteApontado"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeAtacante",
+      "type": "object"
     },
     "EventoDeCatalogo": {
       "additionalProperties": false,
@@ -1421,6 +1732,52 @@
         "dados"
       ],
       "title": "EventoDeRecusa",
+      "type": "object"
+    },
+    "EventoDeSumario": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "sumario_emitido",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/Sumario"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeSumario",
       "type": "object"
     },
     "EventoDeTool": {
@@ -2177,6 +2534,33 @@
             "$ref": "#/$defs/PortaContada"
           },
           "type": "array"
+        },
+        "janelas_por_categoria": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "O que o classificador disse de cada janela do incidente, contando as benignas que ficaram entre as de ataque. Cobre todas as janelas, e não só as que obter_janelas devolve",
+          "propertyNames": {
+            "enum": [
+              "DDoS+DoS",
+              "Mirai",
+              "Recon",
+              "Spoofing",
+              "Web",
+              "BruteForce",
+              "Benign"
+            ]
+          },
+          "type": "object"
+        },
+        "candidatos": {
+          "description": "Até cinco origens que mais se destacam do tráfego normal, da que mais se destaca para a que menos, com as medidas de cada uma, para a triagem apontar o atacante. Vem vazia quando nenhuma origem se destaca, como num flood com origem forjada",
+          "items": {
+            "$ref": "#/$defs/CandidatoAAtacante"
+          },
+          "maxItems": 5,
+          "type": "array"
         }
       },
       "required": [
@@ -2553,6 +2937,36 @@
       "title": "PortaContada",
       "type": "object"
     },
+    "PortaDoCandidato": {
+      "additionalProperties": false,
+      "properties": {
+        "porta": {
+          "description": "Porta de destino do TCP ou do UDP",
+          "maximum": 65535,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "protocolo": {
+          "enum": [
+            "tcp",
+            "udp"
+          ],
+          "type": "string"
+        },
+        "quadros": {
+          "description": "Quadros que o candidato mandou a essa porta, em qualquer destino",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "porta",
+        "protocolo",
+        "quadros"
+      ],
+      "title": "PortaDoCandidato",
+      "type": "object"
+    },
     "PortaRotulada": {
       "additionalProperties": false,
       "properties": {
@@ -2922,6 +3336,18 @@
             }
           ],
           "description": "O último efeito verificado no incidente, depois de uma ação aplicada, ou nulo"
+        },
+        "atacante_apontado": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AtacanteRotulado"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "O atacante que a triagem apontou, pelo rótulo, ou nulo quando ela não apontou. É o alvo das ações sobre a origem do ataque, mesmo quando não é a origem com mais quadros"
         }
       },
       "required": [
@@ -2973,6 +3399,28 @@
         "trechos"
       ],
       "title": "Solucoes",
+      "type": "object"
+    },
+    "Sumario": {
+      "additionalProperties": false,
+      "description": "O sumário do incidente, escrito pelo agente de triagem a partir do log quando o orquestrador termina.",
+      "properties": {
+        "agente": {
+          "const": "triagem",
+          "type": "string"
+        },
+        "texto": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x09\\x0b-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agente",
+        "texto"
+      ],
+      "title": "Sumario",
       "type": "object"
     },
     "Trecho": {

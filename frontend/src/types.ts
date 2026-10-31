@@ -17,7 +17,7 @@ import type {
   VEREDITOS_DA_TRIAGEM,
 } from "./listas";
 
-// Tipos do log de eventos, escritos a partir de `codigo/mcp/contrato.json` (contrato 0.5.0, que
+// Tipos do log de eventos, escritos a partir de `codigo/mcp/contrato.json` (contrato 0.6.0, que
 // sai de `codigo/mcp/tipos.py`). Cada linha do log é um `Evento`, e o campo `tipo` diz o formato de
 // `dados`: a união abaixo é discriminada por ele. Os valores fixos vêm de `listas.ts`, que um teste
 // confere contra o `contrato.json`, e a conferência em tempo de execução fica em `contrato.ts`.
@@ -65,6 +65,28 @@ export interface FeaturePrincipal {
   referencia_benigno: number;
 }
 
+/** Porta a que um candidato a atacante mais mandou quadros, em qualquer destino. */
+export interface PortaDoCandidato {
+  porta: number;
+  protocolo: (typeof PROTOCOLOS_DE_TRANSPORTE)[number];
+  quadros: number;
+}
+
+/** Uma origem que pode ser o atacante, com as medidas que a separam do tráfego normal. */
+export interface CandidatoAAtacante {
+  endereco: string;
+  janelas: number;
+  /** Parcela das janelas benignas, fora de incidente, em que o endereço aparece como origem (0 a 1). */
+  no_trafego_normal: number;
+  quadros_enviados: number;
+  quadros_recebidos: number;
+  conexoes_abertas: number;
+  conexoes_recebidas: number;
+  destinos: EnderecoContado[];
+  /** O contrato dá uma lista vazia como padrão: o campo pode faltar. */
+  portas?: PortaDoCandidato[];
+}
+
 export interface Incidente {
   id: string;
   estado: EstadoDoIncidente;
@@ -81,6 +103,10 @@ export interface Incidente {
   features_principais: FeaturePrincipal[];
   /** Ausente nos logs gravados antes da versão 0.4.0 do contrato. */
   portas?: PortaContada[];
+  /** O que o classificador disse de cada janela do incidente. Ausente antes da versão 0.6.0. */
+  janelas_por_categoria?: Partial<Record<CategoriaDoModelo, number>>;
+  /** Até cinco origens que se destacam do tráfego normal. Ausente antes da versão 0.6.0. */
+  candidatos?: CandidatoAAtacante[];
 }
 
 /** A pessoa que opera a rede marcou o incidente como já resolvido. */
@@ -112,6 +138,25 @@ export interface ConclusaoDoAgente {
   tokens_saida: number;
   /** Só na triagem, quando a resposta traz o rótulo. */
   veredito: VereditoDaTriagem | null;
+}
+
+/** O atacante que a triagem apontou entre os candidatos e as origens do incidente. */
+export interface AtacanteApontado {
+  endereco: string;
+  justificativa: string;
+}
+
+/** A resposta final da triagem, com o rótulo lido dela. */
+export interface AnaliseDaTriagem {
+  agente: "triagem";
+  texto: string;
+  veredito: VereditoDaTriagem | null;
+}
+
+/** O sumário do incidente, escrito pela triagem a partir do log no fim do orquestrador. */
+export interface Sumario {
+  agente: "triagem";
+  texto: string;
 }
 
 export interface ChamadaDeTool {
@@ -223,7 +268,10 @@ export type EventoDeMarca = Linha<"incidente_marcado_resolvido", MarcaDeResolvid
 export type EventoDeLLM = Linha<"llm_chamada", ChamadaDeLLM>;
 export type EventoDeTool = Linha<"tool_chamada", ChamadaDeTool>;
 export type EventoDeConclusao = Linha<"agente_concluido", ConclusaoDoAgente>;
+export type EventoDeAtacante = Linha<"atacante_apontado", AtacanteApontado>;
+export type EventoDeAnalise = Linha<"analise_emitida", AnaliseDaTriagem>;
 export type EventoDeRecomendacao = Linha<"recomendacao_emitida", Recomendacao>;
+export type EventoDeSumario = Linha<"sumario_emitido", Sumario>;
 export type EventoDeProposta = Linha<"acao_proposta", Proposta>;
 export type EventoDeDecisao = Linha<"acao_aprovada" | "acao_rejeitada", Decisao>;
 export type EventoDeExecucao = Linha<"acao_executada" | "acao_desfeita", Execucao>;
@@ -238,7 +286,10 @@ export type Evento =
   | EventoDeLLM
   | EventoDeTool
   | EventoDeConclusao
+  | EventoDeAtacante
+  | EventoDeAnalise
   | EventoDeRecomendacao
+  | EventoDeSumario
   | EventoDeProposta
   | EventoDeDecisao
   | EventoDeExecucao
@@ -293,6 +344,29 @@ export interface MarcacaoView {
   motivo: string | null;
 }
 
+/** A análise que a triagem escreveu no incidente. */
+export interface AnaliseView {
+  id: string;
+  instante: string;
+  texto: string;
+  veredito: VereditoDaTriagem | null;
+}
+
+/** O atacante que a triagem apontou no incidente. */
+export interface AtacanteView {
+  id: string;
+  instante: string;
+  endereco: string;
+  justificativa: string;
+}
+
+/** O sumário que a triagem escreveu no fim do incidente. */
+export interface SumarioView {
+  id: string;
+  instante: string;
+  texto: string;
+}
+
 export interface IncidenteView {
   id: string;
   incidente: Incidente;
@@ -304,6 +378,17 @@ export interface IncidenteView {
   recomendacoes: EventoDeRecomendacao[];
   propostas: PropostaView[];
   marcacao: MarcacaoView | null;
+  /** A última análise da triagem (desde o contrato 0.6.0). */
+  analise: AnaliseView | null;
+  /** O último atacante que a triagem apontou: vale o último (desde o contrato 0.6.0). */
+  atacante: AtacanteView | null;
+  /** O último sumário do incidente (desde o contrato 0.6.0). */
+  sumario: SumarioView | null;
+  /**
+   * O veredito da última conclusão da triagem. Num log anterior ao contrato 0.6.0, que não tem a
+   * análise, é o único lugar em que o veredito aparece.
+   */
+  vereditoDaConclusao: VereditoDaTriagem | null;
   /** O endereço de cada rótulo neutro do incidente (origem-1, destino-1), na ordem em que apareceram. */
   rotulos: ReadonlyMap<string, string>;
 }

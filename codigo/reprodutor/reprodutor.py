@@ -68,6 +68,15 @@ enviados ao alvo; é a regra que separa DDoS de DoS, que o modelo não separa. C
 cada quadro, nenhuma domina, e o incidente sai distribuído. No ARP spoofing não há destino IP: as
 origens são os endereços anunciados, e a lista de destinos fica vazia.
 
+Candidatos. A regra dos papéis acerta o atacante em pouco mais da metade dos incidentes da
+avaliação: num ataque de pouco volume, um dispositivo comum que abre muitas conexões passa à frente
+dele. Por isso o incidente traz também os candidatos (decisão de 2026-10-31): até
+`MAXIMO_DE_CANDIDATOS` origens, as que a regra escolheu e as de destaque maior, de pelo menos
+`DESTAQUE_DO_CANDIDATO`, todas presentes em `JANELAS_DO_CANDIDATO` janelas ou mais (a origem forjada
+de um flood aparece numa só), da que mais se destaca para a que menos, com as medidas que a regra usa
+(janelas, parcela no fundo, quadros e conexões enviados e recebidos) e os destinos e as portas a que
+cada uma mais mandou quadros. Quem escolhe entre eles é o agente de triagem.
+
 Contagens. As contagens de endereço de um incidente são podadas para os `CONTADOS_DEPOIS_DA_PODA`
 mais frequentes quando passam de `LIMITE_DE_CONTADOS`: com origem forjada, a memória fica limitada,
 e os mais frequentes, que são os que o incidente lista, continuam certos.
@@ -92,7 +101,7 @@ import json
 import math
 import socket
 import time
-from collections import Counter, deque
+from collections import Counter, defaultdict, deque
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -105,12 +114,17 @@ from codigo.mcp.cenarios import Cenario, gravar_cenarios, ler_cenarios
 from codigo.mcp.eventos import Registro, agora, novo
 from codigo.mcp.tipos import (
     DDOS_E_DOS,
+    DESTINOS_DO_CANDIDATO,
+    MAXIMO_DE_CANDIDATOS,
+    PORTAS_DO_CANDIDATO,
+    CandidatoAAtacante,
     EnderecoContado,
     FeaturePrincipal,
     Incidente,
     Janela,
     LoteDeJanelas,
     PortaContada,
+    PortaDoCandidato,
 )
 
 JANELA = 100
@@ -133,6 +147,10 @@ PARCELA_DA_MAIOR_ORIGEM = 0.8
 MINIMO_DE_ABERTURAS = 3
 # Uma origem conta como candidata a atacante se o destaque dela chega a esta fração do maior.
 DESTAQUE_RELATIVO = 0.5
+# O destaque mínimo de um candidato que vai para a triagem, e em quantas janelas ele precisa aparecer:
+# tira as origens forjadas de um flood, que aparecem numa janela só.
+DESTAQUE_DO_CANDIDATO = 0.1
+JANELAS_DO_CANDIDATO = 2
 LIMITE_DE_CONTADOS = 20_000
 CONTADOS_DEPOIS_DA_PODA = 5_000
 # Quantos endereços o incidente lista, quantas features principais e quantas janelas reais guarda
@@ -161,11 +179,12 @@ class _ExtratorComContagens(Extrator):
 
     Lê a lista de medidas da janela antes de o extrator fechá-la. A origem de um quadro ARP é o
     IP que ele anuncia, a única origem que um spoofing de ARP tem. As portas são contadas por
-    destino, protocolo e porta.
+    destino, protocolo e porta, e de novo por origem, para os candidatos a atacante.
     """
 
     def _fechar(self):
         origens, destinos, pares, aberturas, portas = Counter(), Counter(), Counter(), Counter(), Counter()
+        portas_por_origem = Counter()
         for medida in self._pendentes:
             origem = medida["ip_origem"] or medida["ip_arp"]
             destino = medida["ip_destino"]
@@ -175,12 +194,15 @@ class _ExtratorComContagens(Extrator):
                 destinos[destino] += 1
                 if medida["porta_destino"]:
                     portas[destino, medida["Protocol Type"], medida["porta_destino"]] += 1
+            if origem and medida["porta_destino"]:
+                portas_por_origem[origem, medida["Protocol Type"], medida["porta_destino"]] += 1
             if origem and destino:
                 pares[origem, destino] += 1
                 if medida["syn_flag_number"] and not medida["ack_flag_number"]:
                     aberturas[origem, destino] += 1
         inicio, fim, quadros = self._pendentes[0]["ts"], self._pendentes[-1]["ts"], len(self._pendentes)
-        return super()._fechar(), _Contagens(origens, destinos, pares, aberturas, portas), inicio, fim, quadros
+        contagens = _Contagens(origens, destinos, pares, aberturas, portas, portas_por_origem)
+        return super()._fechar(), contagens, inicio, fim, quadros
 
 
 @dataclass
@@ -191,6 +213,8 @@ class _Contagens:
     aberturas: Counter
     # Quadros por (destino, protocolo, porta de destino).
     portas: Counter = field(default_factory=Counter)
+    # Quadros por (origem, protocolo, porta de destino).
+    portas_por_origem: Counter = field(default_factory=Counter)
 
 
 @dataclass(frozen=True)
@@ -260,6 +284,7 @@ class IncidenteReproduzido:
     presenca_origem: Counter = field(default_factory=Counter)
     presenca_destino: Counter = field(default_factory=Counter)
     portas: Counter = field(default_factory=Counter)
+    portas_por_origem: Counter = field(default_factory=Counter)
     # Janelas benignas depois da última de ataque: só contam no lote se outra de ataque vier.
     benignas_pendentes: int = 0
     # Janelas seguidas que não são dele; com `fecha_apos` delas, ele se encerra.
@@ -291,7 +316,7 @@ class IncidenteReproduzido:
         self.sem_ele = 0
         self.ataque.append(janela)
         self.por_categoria[janela.categoria] += 1
-        for nome in ("origens", "destinos", "pares", "aberturas", "portas"):
+        for nome in ("origens", "destinos", "pares", "aberturas", "portas", "portas_por_origem"):
             contagem = getattr(self, nome)
             contagem.update(getattr(contagens, nome))
             _podar(contagem)
@@ -305,6 +330,7 @@ class IncidenteReproduzido:
             self.primeira_janela_de_ataque, self.aberto_em, list(self.ataque), Counter(self.por_categoria),
             Counter(self.origens), Counter(self.destinos), Counter(self.pares), Counter(self.aberturas),
             Counter(self.presenca_origem), Counter(self.presenca_destino), Counter(self.portas),
+            Counter(self.portas_por_origem),
         )
 
 
@@ -628,6 +654,60 @@ def _papeis(incidente, categoria_do_modelo, fundo=None):
     return origens, destinos, len(origens), max(origens.values()) / total < PARCELA_DA_MAIOR_ORIGEM
 
 
+def _candidatos(incidente, fundo=None, da_regra=()):
+    """As origens que mais se destacam do fundo, com as medidas de cada uma (ver "Candidatos" no docstring).
+
+    `da_regra` são as origens que a regra dos papéis escolheu: entram sempre, para a triagem poder
+    confirmá-las, mesmo com destaque menor que o dos outros.
+    """
+    if not incidente.pares:
+        return []
+    fundo = fundo or Fundo()
+    como_origem = _destaque(incidente.presenca_origem, len(incidente.ataque), fundo.origens, fundo.janelas)
+    enviados, recebidos, abre, recebe_abertura = Counter(), Counter(), Counter(), Counter()
+    destinos = defaultdict(Counter)
+    for (origem, destino), n in incidente.pares.items():
+        enviados[origem] += n
+        recebidos[destino] += n
+        destinos[origem][destino] += n
+    for (origem, destino), n in incidente.aberturas.items():
+        abre[origem] += n
+        recebe_abertura[destino] += n
+    portas = defaultdict(Counter)
+    for (origem, protocolo, porta), n in incidente.portas_por_origem.items():
+        if protocolo in _TRANSPORTE:
+            portas[origem][porta, _TRANSPORTE[protocolo]] += n
+    presenca = incidente.presenca_origem
+    pela_ordem = sorted(
+        (
+            e for e, d in como_origem.items()
+            if d >= DESTAQUE_DO_CANDIDATO and presenca[e] >= JANELAS_DO_CANDIDATO and e in enviados and _unicast(e)
+            and _ip(e) not in _nao_atacantes()
+        ),
+        key=lambda e: (-como_origem[e], -enviados[e], e),
+    )
+    obrigatorios = [e for e in da_regra if e in enviados and presenca[e] >= JANELAS_DO_CANDIDATO][:MAXIMO_DE_CANDIDATOS]
+    outros = [e for e in pela_ordem if e not in obrigatorios][: MAXIMO_DE_CANDIDATOS - len(obrigatorios)]
+    escolhidos = sorted([*obrigatorios, *outros], key=lambda e: (-como_origem.get(e, 0.0), -enviados[e], e))
+    return [
+        CandidatoAAtacante(
+            endereco=_ip(e),
+            janelas=incidente.presenca_origem[e],
+            no_trafego_normal=round(fundo.origens.get(e, 0) / fundo.janelas, 4) if fundo.janelas else 0.0,
+            quadros_enviados=enviados[e],
+            quadros_recebidos=recebidos[e],
+            conexoes_abertas=abre[e],
+            conexoes_recebidas=recebe_abertura[e],
+            destinos=[EnderecoContado(endereco=_ip(d), quadros=n) for d, n in destinos[e].most_common(DESTINOS_DO_CANDIDATO)],
+            portas=[
+                PortaDoCandidato(porta=porta, protocolo=protocolo, quadros=n)
+                for (porta, protocolo), n in portas[e].most_common(PORTAS_DO_CANDIDATO)
+            ],
+        )
+        for e in escolhidos
+    ]
+
+
 def _papeis_pelo_volume(pares):
     """Sem origem que se destaque (origem forjada a cada quadro): o alvo é quem mais recebe."""
     recebidos, leque = Counter(), Counter()
@@ -692,6 +772,8 @@ def montar_incidente(incidente, identificador, classificador, referencia, desloc
         destinos=_contados(destinos),
         features_principais=principais,
         portas=_portas(incidente.portas, destinos),
+        janelas_por_categoria=dict(incidente.por_categoria),
+        candidatos=_candidatos(incidente, fundo, da_regra=[e for e, _ in origens.most_common(ENDERECOS_LISTADOS)]),
     )
     return dados, medianas
 

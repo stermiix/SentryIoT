@@ -59,6 +59,9 @@ export function VoiceQuote({ voice, agent, author, at, refId, channel, clampLine
 }
 
 /* ---------------- EventTimeline ---------------- */
+/** Events whose quote was written by an agent; any other quote is a person's (decision reason, "já resolvido"). */
+const AGENT_QUOTE: ReadonlySet<LogEvent['type']> = new Set(['recomendacao_emitida', 'analise_emitida', 'sumario_emitido', 'atacante_apontado']);
+
 export interface EventTimelineProps {
   events: LogEvent[];
   /** Replay cursor (event number, 1-based). Later events are dimmed; the cursor row is marked "agora". */
@@ -117,7 +120,7 @@ export function EventTimeline({ events, cursor, hideFuture = false, density = 'c
                 </div>
               )}
               {density === 'comfortable' && e.quote && (
-                e.type === 'recomendacao_emitida'
+                AGENT_QUOTE.has(e.type)
                   ? <VoiceQuote voice="agent" agent={e.agent} refId={e.ref} clampLines={2} className="sx-tl__quote">{e.quote}</VoiceQuote>
                   : <VoiceQuote voice="person" author={e.user} clampLines={2} className="sx-tl__quote">{e.quote}</VoiceQuote>
               )}

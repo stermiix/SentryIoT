@@ -18,6 +18,7 @@ import { EVENT_TYPES, RISK_REASON, REFUSAL_REASON } from "./design-system/compon
 import { hora } from "./formato";
 import { CODIGOS_DE_RISCO_ALTO, MOTIVOS_DE_RECUSA, TIPOS_DE_EVENTO } from "./listas";
 import { agregar, lerLog } from "./log";
+import type { Evento } from "./types";
 
 // A ponte entre o log e o design system, com o log de exemplo: cada número e cada estado que a
 // tela mostra tem de sair do log, e nada além dele.
@@ -28,7 +29,7 @@ const final = agregar(eventos);
 const fim = estadoNoPasso(eventos, linhas, eventos.length);
 
 describe("vocabulário do design system contra o contrato", () => {
-  it("tem rótulo e ícone para cada um dos 17 tipos de evento do log", () => {
+  it("tem rótulo e ícone para cada um dos 20 tipos de evento do log", () => {
     expect(new Set(EVENT_TYPES)).toEqual(new Set(TIPOS_DE_EVENTO));
   });
 
@@ -78,6 +79,19 @@ describe("linhas da linha do tempo", () => {
     expect(conclusoes[1]).toMatchObject({ agent: "decisao", detail: "2 chamadas à IA" });
     // A conclusão não soma tokens na linha: eles já estão nas chamadas à IA.
     expect(conclusoes.every((linha) => linha.tokens === undefined)).toBe(true);
+  });
+
+  it("o atacante apontado, a análise e o sumário são da triagem, e o texto dela vai como citação do agente", () => {
+    const porTipo = (tipo: string) => linhas.find((linha) => linha.type === tipo)!;
+    const atacante = eventos.find((evento) => evento.tipo === "atacante_apontado")!;
+    if (atacante.tipo !== "atacante_apontado") throw new Error("tipo");
+    expect(porTipo("atacante_apontado")).toMatchObject({ agent: "triagem", text: atacante.dados.endereco, quote: atacante.dados.justificativa });
+    const analise = eventos.find((evento) => evento.tipo === "analise_emitida")!;
+    if (analise.tipo !== "analise_emitida") throw new Error("tipo");
+    expect(porTipo("analise_emitida")).toMatchObject({ agent: "triagem", detail: "veredito coerente", quote: analise.dados.texto });
+    const sumario = eventos.find((evento) => evento.tipo === "sumario_emitido")!;
+    if (sumario.tipo !== "sumario_emitido") throw new Error("tipo");
+    expect(porTipo("sumario_emitido")).toMatchObject({ agent: "triagem", text: "Sumário do incidente", quote: sumario.dados.texto });
   });
 
   it("a recusa diz a tool e o motivo em palavras do sistema, e a mensagem vai entre aspas", () => {
@@ -159,10 +173,11 @@ describe("estado num passo do replay", () => {
   it("no fim do log, soma janelas, chamadas e tokens, e separa as janelas de ataque das benignas", () => {
     expect(fim.janelas).toBe(10_946 + 24);
     expect(fim.janelasDeAtaque).toBe(10_734 + 18);
-    expect(fim.chamadas).toBe(13);
+    // O sumário de cada incidente é uma chamada da triagem a mais: 12 no inc-0001 e 3 no inc-0002.
+    expect(fim.chamadas).toBe(15);
     expect(fim.tokens).toBe(final.resumo.tokens);
-    expect(fim.tokensAcumulados).toHaveLength(13);
-    expect(fim.tokensAcumulados[12]).toBe(fim.tokens);
+    expect(fim.tokensAcumulados).toHaveLength(15);
+    expect(fim.tokensAcumulados[14]).toBe(fim.tokens);
   });
 
   it("a fila mostra o inc-0001 encerrado e o inc-0002 marcado como já resolvido, com o motivo da pessoa", () => {
@@ -174,12 +189,12 @@ describe("estado num passo do replay", () => {
     expect(fim.incidentes[0]).toMatchObject({ category: "DDoS", modelCategory: "DDoS+DoS", confidence: 0.97, windows: 21_468, sources: 37, destinations: 1 });
   });
 
-  it("o passo com mais pendências é o 31, com as duas propostas de risco alto aguardando", () => {
+  it("o passo com mais pendências é o 32, com as duas propostas de risco alto aguardando", () => {
     const passo = passoComMaisPendencias(eventos, linhas);
-    expect(passo).toBe(31);
+    expect(passo).toBe(32);
     const estado = estadoNoPasso(eventos, linhas, passo);
     expect(estado.aguardando).toBe(2);
-    expect(estado.atual?.id).toBe(eventos[30].id);
+    expect(estado.atual?.id).toBe(eventos[31].id);
   });
 
   it("antes do primeiro incidente, a fila está vazia", () => {
@@ -192,20 +207,20 @@ describe("estado num passo do replay", () => {
     const marcas = marcasDoReplay(eventos).map((marca) => [marca.n, marca.tone]);
     expect(marcas).toEqual([
       [2, "info"],
-      [29, "attention"],
-      [31, "attention"],
-      [37, "danger"],
-      [38, "success"],
-      [43, "success"],
-      [52, "info"],
-      [53, "neutral"],
+      [30, "attention"],
+      [32, "attention"],
+      [38, "danger"],
+      [39, "success"],
+      [44, "success"],
+      [55, "info"],
+      [56, "neutral"],
     ]);
   });
 });
 
 describe("detalhe do incidente", () => {
-  it("no passo 31, as propostas que aguardam vêm primeiro, com os motivos do contrato", () => {
-    const estado = estadoNoPasso(eventos, linhas, 31);
+  it("no passo 32, as propostas que aguardam vêm primeiro, com os motivos do contrato", () => {
+    const estado = estadoNoPasso(eventos, linhas, 32);
     const detalhe = detalheDoIncidente(estado, final, linhas, "inc-0001")!;
     expect(detalhe.propostas.map((proposta) => [proposta.id, proposta.state])).toEqual([
       ["prop-0002", "aguardando_aprovacao"],
@@ -258,10 +273,149 @@ describe("detalhe do incidente", () => {
     expect(detalhe.recomendacoes[1].propostas).toEqual(["prop-0002", "prop-0003"]);
   });
 
+  it("o relatório lista as propostas na ordem em que foram criadas, e as decisões na ordem em que vieram", () => {
+    const detalhe = detalheDoIncidente(fim, final, linhas, "inc-0001")!;
+    expect(detalhe.propostasNaOrdem.map((proposta) => proposta.id)).toEqual(["prop-0001", "prop-0002", "prop-0003"]);
+    expect(detalhe.decididas.map((proposta) => proposta.id)).toEqual(["prop-0002", "prop-0003"]);
+    // Com a aprovação gravada antes da rejeição, a ordem das decisões muda e a das propostas não.
+    const rejeicao = eventos.find((evento) => evento.tipo === "acao_rejeitada")!;
+    const aprovacao = eventos.find((evento) => evento.tipo === "acao_aprovada")!;
+    const trocados = lerLog(
+      textoDoExemplo
+        .replace(`"id":"${rejeicao.id}"`, '"id":"troca"')
+        .replace(`"id":"${aprovacao.id}"`, `"id":"${rejeicao.id}"`)
+        .replace('"id":"troca"', `"id":"${aprovacao.id}"`),
+    ).eventos;
+    const outraLinhas = linhasDoLog(trocados);
+    const outroFinal = agregar(trocados);
+    const outro = detalheDoIncidente(estadoNoPasso(trocados, outraLinhas, trocados.length), outroFinal, outraLinhas, "inc-0001")!;
+    expect(outro.decididas.map((proposta) => proposta.id)).toEqual(["prop-0003", "prop-0002"]);
+    expect(outro.propostasNaOrdem.map((proposta) => proposta.id)).toEqual(["prop-0001", "prop-0002", "prop-0003"]);
+  });
+
+  it("uma recomendação depois da rejeição entra depois das outras, na ordem do log", () => {
+    const ultima = eventos[eventos.length - 1];
+    const nova = { id: "ev-000099", instante: ultima.instante, tipo: "recomendacao_emitida", incidente: "inc-0001", dados: { agente: "decisao", texto: "Depois da rejeição, não há outra ação a propor.", propostas: [] } };
+    const comNova = lerLog(`${textoDoExemplo.trimEnd()}\n${JSON.stringify(nova)}\n`).eventos;
+    const outraLinhas = linhasDoLog(comNova);
+    const detalhe = detalheDoIncidente(estadoNoPasso(comNova, outraLinhas, comNova.length), agregar(comNova), outraLinhas, "inc-0001")!;
+    expect(detalhe.recomendacoes.map((recomendacao) => recomendacao.text.slice(0, 20))).toEqual([
+      ...detalheDoIncidente(fim, final, linhas, "inc-0001")!.recomendacoes.map((recomendacao) => recomendacao.text.slice(0, 20)),
+      "Depois da rejeição, ",
+    ]);
+  });
+
   it("inc-0002 traz a marca de já resolvido, e um incidente que ainda não abriu não tem detalhe", () => {
     const detalhe = detalheDoIncidente(fim, final, linhas, "inc-0002")!;
     expect(detalhe.marcacao).toMatchObject({ channel: "terminal", user: "operador", reason: "Bloqueei a origem no roteador antes de os agentes responderem." });
     expect(detalheDoIncidente(estadoNoPasso(eventos, linhas, 10), final, linhas, "inc-0002")).toBeNull();
+  });
+});
+
+describe("triagem e classificador no detalhe", () => {
+  const evento = <T extends Evento["tipo"]>(tipo: T, incidente: string) =>
+    eventos.find((item): item is Extract<Evento, { tipo: T }> => item.tipo === tipo && item.incidente === incidente)!;
+
+  it("o atacante, a análise e o sumário vêm com a hora e o modelo que os escreveu", () => {
+    const detalhe = detalheDoIncidente(fim, final, linhas, "inc-0002")!;
+    const atacante = evento("atacante_apontado", "inc-0002");
+    expect(detalhe.atacante).toEqual({
+      id: atacante.id,
+      at: hora(atacante.instante),
+      address: atacante.dados.endereco,
+      label: "origem-1",
+      justification: atacante.dados.justificativa,
+      listed: true,
+      model: "modelo-de-exemplo",
+      location: undefined,
+    });
+    const analise = evento("analise_emitida", "inc-0002");
+    expect(detalhe.analise).toMatchObject({ id: analise.id, at: hora(analise.instante), text: analise.dados.texto, model: "modelo-de-exemplo" });
+    expect(detalhe.veredito).toBe(analise.dados.veredito);
+    const sumario = evento("sumario_emitido", "inc-0002");
+    expect(detalhe.sumario).toMatchObject({ id: sumario.id, at: hora(sumario.instante), text: sumario.dados.texto });
+  });
+
+  it("antes da triagem responder, não há análise, atacante nem veredito", () => {
+    const abertura = eventos.findIndex((item) => item.tipo === "incidente_aberto" && item.incidente === "inc-0002");
+    const detalhe = detalheDoIncidente(estadoNoPasso(eventos, linhas, abertura + 1), final, linhas, "inc-0002")!;
+    expect(detalhe).toMatchObject({ analise: null, atacante: null, sumario: null, veredito: null });
+  });
+
+  it("o log antigo não tem análise: o veredito vem da conclusão da triagem, e os campos novos ficam vazios", () => {
+    const antigo = textoDoExemplo
+      .split("\n")
+      .filter((linha) => !/"tipo":"(atacante_apontado|analise_emitida|sumario_emitido)"/.test(linha))
+      .join("\n")
+      .replace(/,"janelas_por_categoria":\{[^}]*\},"candidatos":\[\]/g, "");
+    const lidos = lerLog(antigo);
+    expect(lidos.avisos).toEqual([]);
+    const outraLinhas = linhasDoLog(lidos.eventos);
+    const detalhe = detalheDoIncidente(estadoNoPasso(lidos.eventos, outraLinhas, lidos.eventos.length), agregar(lidos.eventos), outraLinhas, "inc-0001")!;
+    expect(detalhe.view.incidente.candidatos).toBeUndefined();
+    expect(detalhe).toMatchObject({ analise: null, atacante: null, sumario: null, candidatos: null, janelasPorCategoria: [], veredito: "coerente" });
+  });
+
+  it("as janelas por categoria vêm da maior para a menor, e os candidatos com os rótulos do incidente", () => {
+    const candidato = {
+      endereco: "198.51.100.99",
+      janelas: 18,
+      no_trafego_normal: 0.25,
+      quadros_enviados: 880,
+      quadros_recebidos: 412,
+      conexoes_abertas: 310,
+      conexoes_recebidas: 1,
+      destinos: [
+        { endereco: "192.168.137.31", quadros: 870 },
+        { endereco: "192.168.137.1", quadros: 10 },
+      ],
+      portas: [{ porta: 22, protocolo: "tcp", quadros: 870 }],
+    };
+    const abertura = eventos.find((item) => item.tipo === "incidente_aberto" && item.incidente === "inc-0002")!;
+    const atacante = eventos.find((item) => item.tipo === "atacante_apontado" && item.incidente === "inc-0002")!;
+    if (abertura.tipo !== "incidente_aberto" || atacante.tipo !== "atacante_apontado") throw new Error("tipo");
+    const origem = abertura.dados.origens[0].endereco;
+    // A triagem aponta um candidato que não está entre as origens com mais quadros.
+    const trocas = new Map<string, unknown>([
+      [abertura.id, { ...abertura, dados: { ...abertura.dados, janelas_por_categoria: { Benign: 3, BruteForce: 15 }, candidatos: [{ ...candidato, endereco: origem }, candidato] } }],
+      [atacante.id, { ...atacante, dados: { ...atacante.dados, endereco: candidato.endereco } }],
+    ]);
+    const texto = textoDoExemplo
+      .split("\n")
+      .map((linha) => {
+        const id = /"id":"([^"]+)"/.exec(linha)?.[1];
+        return id && trocas.has(id) ? JSON.stringify(trocas.get(id)) : linha;
+      })
+      .join("\n");
+    const lidos = lerLog(texto);
+    const outraLinhas = linhasDoLog(lidos.eventos);
+    const outroFinal = agregar(lidos.eventos);
+    expect(outroFinal.avisos).toEqual([]);
+    const detalhe = detalheDoIncidente(estadoNoPasso(lidos.eventos, outraLinhas, lidos.eventos.length), outroFinal, outraLinhas, "inc-0002")!;
+    expect(detalhe.janelasPorCategoria).toEqual([
+      { category: "BruteForce", value: 15 },
+      { category: "Benign", value: 3 },
+    ]);
+    expect(detalhe.candidatos!.map((item) => [item.label, item.address, item.pointed])).toEqual([
+      ["origem-1", origem, false],
+      ["origem-2", candidato.endereco, true],
+    ]);
+    expect(detalhe.candidatos![1]).toMatchObject({
+      windows: 18,
+      normalShare: 0.25,
+      framesSent: 880,
+      framesReceived: 412,
+      connectionsOpened: 310,
+      connectionsReceived: 1,
+      destinations: [
+        { address: "192.168.137.31", label: "destino-1", frames: 870 },
+        { address: "192.168.137.1", label: undefined, frames: 10 },
+      ],
+      ports: [{ port: 22, protocol: "tcp", frames: 870 }],
+    });
+    // O apontado é um candidato que não está entre as origens com mais quadros.
+    expect(detalhe.atacante).toMatchObject({ address: candidato.endereco, label: "origem-2", listed: false });
+    expect(detalhe.portas).toEqual([{ port: 22, protocol: "tcp", destination: { address: "192.168.137.31", label: "destino-1" }, frames: 912 }]);
   });
 });
 

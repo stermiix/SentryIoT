@@ -40,7 +40,14 @@ from codigo.mcp.acoes import (
 from codigo.mcp.cenarios import CENARIOS
 from codigo.mcp.eventos import GravadorDoAgente, Registro, novo
 from codigo.mcp.stub import Stub
-from codigo.mcp.tipos import AGENTES, ChamadaDeLLM, ConclusaoDoAgente, Recomendacao
+from codigo.mcp.tipos import (
+    AGENTES,
+    AnaliseDaTriagem,
+    ChamadaDeLLM,
+    ConclusaoDoAgente,
+    Recomendacao,
+    Sumario,
+)
 
 SAIDA_PADRAO = Path(__file__).with_name("exemplos") / "incidente_flood.jsonl"
 MODELO = "modelo-de-exemplo"
@@ -116,6 +123,18 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
         )
         gravadores[agente].gravar(novo("agente_concluido", conclusao, incidente))
 
+    def analisar(texto, veredito, incidente=_INCIDENTE):
+        # O orquestrador grava a resposta final da triagem antes da conclusão dela.
+        analise = AnaliseDaTriagem(agente="triagem", texto=texto, veredito=veredito)
+        gravadores["triagem"].gravar(novo("analise_emitida", analise, incidente))
+
+    def resumir(texto, incidente=_INCIDENTE):
+        # No fim do incidente no orquestrador, a triagem escreve o sumário a partir do log.
+        modelo("triagem", 2210, 140, 2.6, incidente=incidente)
+        # A chamada do sumário não entra na próxima conclusão da triagem: ela não tem conclusão própria.
+        em_curso["triagem"].pop()
+        gravadores["triagem"].gravar(novo("sumario_emitido", Sumario(agente="triagem", texto=texto), incidente))
+
     def recomendar(texto, *propostas, incidente=_INCIDENTE):
         recomendacao = Recomendacao(agente="decisao", texto=texto, propostas=propostas)
         gravadores["decisao"].gravar(novo("recomendacao_emitida", recomendacao, incidente))
@@ -131,6 +150,12 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
     triagem.chamar("obter_incidente", id=_INCIDENTE)
     triagem.chamar("obter_janelas", id=_INCIDENTE, limite=5)
     modelo("triagem", 3980, 212, 3.4)
+    analisar(
+        "Incidente: inc-0001\nCategoria: DDoS (confiança 0,97)\nRótulo da triagem: coerente\n"
+        "Por quê: as janelas concordam com o resumo, e o flood vem de 37 origens.\n"
+        "Atacante: nenhum apontado; num flood distribuído nenhuma origem se destaca das outras.",
+        "coerente",
+    )
     concluir("triagem", veredito="coerente")
 
     # Decisão: lê o resumo, sem endereço, consulta as mitigações da categoria e propõe a de risco baixo.
@@ -218,6 +243,12 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
     modelo("execucao", 1480, 93, 2.0)
     concluir("execucao")
 
+    resumir(
+        "Flood de SYN distribuído contra destino-1, com 37 origens. O bloqueio da origem com mais quadros não "
+        "resolveu; a pessoa rejeitou isolar o dispositivo e aprovou ativar SYN cookies nele, e o flood cessou. "
+        "O bloqueio inútil foi desfeito."
+    )
+
     # Com a ação nova aplicada e o incidente encerrado, a pessoa a promove ao catálogo.
     pessoa(promover, syn_cookies.id, espera=90)
 
@@ -231,7 +262,16 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
         motivo="Bloqueei a origem no roteador antes de os agentes responderem.",
     )
     modelo("triagem", 1180, 88, 2.0, incidente=forca_bruta)
-    triagem.chamar("obter_incidente", id=forca_bruta)
+    incidente_da_forca_bruta = triagem.chamar("obter_incidente", id=forca_bruta)
+    triagem.chamar(
+        "apontar_atacante", id=forca_bruta, endereco=incidente_da_forca_bruta.origens[0].endereco,
+        justificativa="Única origem, presente em todas as janelas e ausente do tráfego normal; abre as conexões ao SSH.",
+    )
+    analisar(
+        "Incidente: inc-0002\nCategoria: BruteForce\nRótulo da triagem: coerente\n"
+        "Por quê: uma origem só, com SSH em quase todos os quadros.\nAtacante: a única origem, apontada.",
+        "coerente", incidente=forca_bruta,
+    )
     concluir("triagem", veredito="coerente", incidente=forca_bruta)
     modelo("decisao", 1290, 154, 3.2, incidente=forca_bruta)
     # O resumo traz a marca de já resolvido: o agente de decisão só explica.
@@ -244,6 +284,11 @@ def executar(saida=SAIDA_PADRAO, sobrescrever=False):
         incidente=forca_bruta,
     )
     concluir("decisao", incidente=forca_bruta)
+    resumir(
+        "Ataque de dicionário contra o SSH de um dispositivo, vindo de uma origem só. A pessoa bloqueou a origem "
+        "no roteador e marcou o incidente como já resolvido; nada foi proposto nem aplicado.",
+        incidente=forca_bruta,
+    )
     return saida
 
 

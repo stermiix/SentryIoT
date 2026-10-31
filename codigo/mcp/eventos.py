@@ -23,9 +23,11 @@ from pydantic import ValidationError
 
 from codigo.mcp.tipos import (
     AGENTES,
+    AnaliseDaTriagem,
     ChamadaDeLLM,
     ConclusaoDoAgente,
     Recomendacao,
+    Sumario,
     validar_evento,
     visivel,
 )
@@ -40,7 +42,8 @@ RAIZ = Path(__file__).resolve().parents[2]
 CAMINHO_PADRAO = RAIZ / "dados" / "eventos" / "eventos.jsonl"
 # O que o código de um agente pode gravar, e o formato dos dados de cada tipo.
 _DADOS_DO_AGENTE = {
-    "llm_chamada": ChamadaDeLLM, "agente_concluido": ConclusaoDoAgente, "recomendacao_emitida": Recomendacao,
+    "llm_chamada": ChamadaDeLLM, "agente_concluido": ConclusaoDoAgente, "analise_emitida": AnaliseDaTriagem,
+    "recomendacao_emitida": Recomendacao, "sumario_emitido": Sumario,
 }
 TIPOS_DO_AGENTE = tuple(_DADOS_DO_AGENTE)
 # Caracteres que o JSON deixa passar crus dentro de um texto e que alguns leitores tratam como fim
@@ -276,7 +279,8 @@ def _linha(evento):
 class GravadorDoAgente:
     """O que o código de um agente recebe para gravar no log: só o que é dele.
 
-    Aceita `llm_chamada`, `agente_concluido` e `recomendacao_emitida`, sempre em nome do próprio agente,
+    Aceita `llm_chamada`, `agente_concluido`, `analise_emitida`, `recomendacao_emitida` e `sumario_emitido`,
+    sempre em nome do próprio agente (a análise e o sumário são da triagem),
     num incidente que existe no log (ou sem incidente), e a recomendação só cita proposta que existe e
     é do mesmo incidente. Proposta, aprovação, execução e os demais eventos são gravados pelo servidor
     e pelo comando de aprovação, nunca pelo agente.

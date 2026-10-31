@@ -209,8 +209,8 @@ Features do incidente contra a referência benigna, numa escala logarítmica cen
 
 Origens ou destinos com a quantidade de quadros e o rótulo neutro de cada um.
 
-- **Você fornece:** `title` ("Origens", "Destinos"), `items` (`address`, `label`, `frames`), `total` (o resto vira "+ 32 origens"), `hideAddresses` (como a nuvem vê).
-- Colunas alinhadas; em contêiner estreito a barra some e ficam rótulo e número.
+- **Você fornece:** `title` ("Origens", "Destinos"), `items` (`address`, `label`, `frames`), `total` (o resto vira "+ 32 origens"), `hideAddresses` (como a nuvem vê), `mark` (um endereço da lista com um selo curto ao lado: `address`, `label`, `icon`; no app, o atacante que a triagem apontou).
+- Colunas alinhadas; em contêiner estreito a barra some e ficam rótulo e número, e o selo de `mark` desce para baixo do rótulo.
 
 ## Agentes e decisões
 
@@ -219,7 +219,7 @@ Origens ou destinos com a quantidade de quadros e o rótulo neutro de cada um.
 Linha do tempo do log: hora, ícone do tipo, agente, texto e id em todas as linhas.
 
 - **Você fornece:** `events` (`LogEvent[]`), `cursor` (evento do replay: os seguintes esmaecem, o atual ganha "agora"), `hideFuture`, `density` (`comfortable` com detalhes e citações · `compact` uma linha, para o rastro dos agentes), `onSelect` (clicar leva o replay ao evento).
-- Recomendações e motivos aparecem como `VoiceQuote`; chamadas de tool em mono, só com chaves e identificadores (texto livre do agente vira "…"); chamadas à IA com tokens, duração e onde rodaram.
+- Recomendações, a análise e o sumário da triagem, a justificativa do atacante apontado e os motivos aparecem como `VoiceQuote` (os quatro primeiros na voz de agente); chamadas de tool em mono, só com chaves e identificadores (texto livre do agente vira "…"); chamadas à IA com tokens, duração e onde rodaram.
 - Evento com `ignored` (o leitor do log não o aplicou) aparece riscado, com o selo "ignorado".
 
 ### ProposalCard
@@ -351,7 +351,7 @@ Capa A4 (794 × 1123 px) do relatório do incidente, na composição da capa de 
 Página interna A4 com cabeçalho corrido, seções numeradas e rodapé "Confidencial · 02 / 04".
 
 - **Você fornece:** `logoSrc`, `docTitle`, `date`, `page`, `pages`, e as seções: `ReportSection` (`n`, `title`, `voice`, `agent`) e `ReportFacts` (`items`, `columns`).
-- **Todo texto escrito pela LLM** vai em `ReportSection voice="agent"` (Lora itálico + selo "Gerado pelo agente"); fatos do log ficam em `ReportFacts` e tabelas.
+- **Todo texto escrito pela LLM** vai em `ReportSection voice="agent"` (Lora itálico + selo "Gerado pelo agente"); fatos do log ficam em `ReportFacts` e tabelas. Numa seção que mistura os dois (a triagem: veredito e candidatos do log, justificativa e análise do modelo), o texto do modelo vai em `VoiceQuote voice="agent"`.
 - Imprima com `@page A4` e `print-color-adjust: exact`; cada página quebra sozinha.
 
 ## Telas
@@ -369,7 +369,7 @@ Visão geral: o funil do argumento, três cartões e a fila de incidentes, até 
 
 Detalhe do incidente, no ponto do replay em que o cursor está.
 
-- Veredito com as duas categorias, features contra o benigno, propostas (aguardando primeiro), origens e destinos, rastro dos agentes, recomendações na voz de agente e o histórico de decisões com os eventos futuros esmaecidos.
+- Veredito com as duas categorias, features contra o benigno, propostas (aguardando primeiro), origens e destinos (com o atacante apontado pela triagem marcado, ou numa linha à parte quando ele não está entre as origens listadas), rastro dos agentes, recomendações na voz de agente e o histórico de decisões com os eventos futuros esmaecidos.
 - "Já resolvido", "Aprovar" e "Rejeitar" abrem o `ConfirmDialog`.
 
 ### TelaAoVivo
@@ -410,10 +410,11 @@ Chat com o modelo: ferramenta da equipe para testar prompts e as skills dos agen
 
 ### TelaRelatorio
 
-O relatório do incidente: capa A4 no estilo da capa de referência e duas páginas internas, com o que está no log.
+O relatório do incidente: capa A4 no estilo da capa de referência e as páginas internas, com o que está no log.
 
-- Capa: marca de vidro acesa sangrando a borda, título do incidente, metadados com caixas de ícone, data e modo, selo "CONFIDENCIAL".
-- Páginas: sumário (planejado: a IA o escreve no fim do incidente), fatos do log, ações, recomendações dos agentes (voz de agente, selo "Gerado pelo agente") e decisões humanas.
+- Capa: marca de vidro acesa sangrando a borda, título do incidente, metadados com caixas de ícone (com a origem apontada pela triagem, quando há), data e modo, selo "CONFIDENCIAL".
+- Seções: 01 sumário (escrito pela triagem no fim, voz de agente), 02 fatos do log, 03 o que o classificador viu (`ClassifierVerdict`, `CategoryBars` das janelas por categoria, `FeatureTable`, `AddressList` e as portas), 04 triagem (veredito, atacante apontado, a justificativa e a análise em `VoiceQuote`, e a tabela dos candidatos), 05 ações, 06 recomendações (voz de agente, selo "Gerado pelo agente") e 07 decisões humanas.
+- O número de páginas varia com o texto: cada seção é medida numa página escondida e as páginas quebram entre os blocos, com "(continuação)" no título da seção que segue na página seguinte.
 
 ### TelaLogin
 

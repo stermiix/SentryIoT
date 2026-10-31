@@ -102,7 +102,8 @@ ERRO = "erro"
 COLUNAS_DA_AVALIACAO = (
     "pcap", "incidente", "categoria", "categoria_do_pcap", "verdadeiro", "configuracao", "repeticao", "desfecho",
     "triagem_rotulo", "triagem_correta", "n_propostas", "n_aceitaveis", "primeira_aceitavel", "acao_primeira",
-    "papel_primeiro", "n_aprovadas", "n_rejeitadas", "n_baixo_risco", "n_novas",
+    "papel_primeiro", "n_aprovadas", "n_rejeitadas", "n_baixo_risco", "n_novas", "atacante_apontado",
+    "atacante_certo", "origem_da_regra_certa",
 )
 COLUNAS_DO_CUSTO = (
     "pcap", "incidente", "configuracao", "repeticao", "agente", "onde", "chamadas", "tokens_entrada",
@@ -264,6 +265,10 @@ def medir(item, configuracao, repeticao, identificador, log, aprovador, gabarito
     conferencias = [conferir_proposta(p, estado.incidentes[item.incidente], atacantes, gabarito) for p in propostas]
     decisoes = [d for d in aprovador.decisoes if d.incidente == item.incidente]
     primeira = conferencias[0] if conferencias else None
+    # Quem a triagem apontou, contra a regra fixa do reprodutor (a primeira origem do incidente), nos
+    # atacantes do dataset. Num incidente falso, não há atacante certo a apontar.
+    apontado = estado.atacantes.get(item.incidente)
+    origens = estado.incidentes[item.incidente].origens
     return {
         "rodada": identificador, **{k: v for k, v in asdict(item).items() if k in _DO_ITEM},
         "configuracao": configuracao, "repeticao": repeticao, "desfecho": desfecho, "erro": erro,
@@ -275,6 +280,9 @@ def medir(item, configuracao, repeticao, identificador, log, aprovador, gabarito
         "n_aprovadas": sum(d.conferencia.aceitavel for d in decisoes),
         "n_rejeitadas": sum(not d.conferencia.aceitavel for d in decisoes),
         "n_baixo_risco": len(propostas) - len(decisoes), "n_novas": sum(p.nova for p in propostas),
+        "atacante_apontado": apontado is not None,
+        "atacante_certo": bool(apontado and item.verdadeiro and apontado.endereco in atacantes),
+        "origem_da_regra_certa": bool(origens and item.verdadeiro and origens[0].endereco in atacantes),
         "agentes_s": round(agentes_s, 3),
         "por_agente": [{**linha, "llm_s": round(linha["llm_s"], 3)} for linha in por_agente.values()],
     }
@@ -345,9 +353,13 @@ def resumo(rodadas):
         validas = [r for r in delas if r["desfecho"] != ERRO]
         qualidade = f"{100 * sum(r['primeira_aceitavel'] for r in verdadeiras) / len(verdadeiras):.1f}%" if verdadeiras else "-"
         triagem = f"{100 * sum(r['triagem_correta'] for r in validas) / len(validas):.1f}%" if validas else "-"
+        # As rodadas gravadas antes do atacante apontado não têm as duas colunas.
+        atacante = sum(r.get("atacante_certo", False) for r in verdadeiras)
+        regra = sum(r.get("origem_da_regra_certa", False) for r in verdadeiras)
         linhas.append(
             f"{configuracao}: {len(delas)} rodadas, {erros} com erro, qualidade {qualidade} "
-            f"({len(verdadeiras)} verdadeiras), triagem certa em {triagem}"
+            f"({len(verdadeiras)} verdadeiras), triagem certa em {triagem}, atacante certo em {atacante} "
+            f"(a regra fixa: {regra})"
         )
     return linhas
 

@@ -334,11 +334,13 @@ export interface AddressListProps {
   total?: number;
   /** Hide real addresses (figure for the article, screen shared with the cloud view). */
   hideAddresses?: boolean;
+  /** One address of the list singled out with a short tag, e.g. the attacker the triage pointed at. */
+  mark?: { address: string; label: string; icon: IconName };
   className?: string;
 }
 
 /** Addresses with frame counts and the neutral label each one gets before reaching the cloud agent. */
-export function AddressList({ title, items, total, hideAddresses = false, className }: AddressListProps): React.ReactElement {
+export function AddressList({ title, items, total, hideAddresses = false, mark, className }: AddressListProps): React.ReactElement {
   const max = Math.max(...items.map((i) => i.frames), 1);
   const more = (total ?? items.length) - items.length;
   return (
@@ -350,7 +352,14 @@ export function AddressList({ title, items, total, hideAddresses = false, classN
       <ul className="sx-addr__list">
         {items.map((a) => (
           <li key={a.address} className="sx-addr__row">
-            <TargetLabel label={a.label} address={hideAddresses ? undefined : a.address} />
+            {mark?.address === a.address ? (
+              <span className="sx-addr__who">
+                <TargetLabel label={a.label} address={hideAddresses ? undefined : a.address} />
+                <span className="sx-addr__mark data-sm"><Icon name={mark.icon} size={12} />{mark.label}</span>
+              </span>
+            ) : (
+              <TargetLabel label={a.label} address={hideAddresses ? undefined : a.address} />
+            )}
             <span className="sx-addr__bar" aria-hidden="true"><span style={{ width: (a.frames / max) * 100 + '%' }} /></span>
             <span className="sx-addr__frames data">{fmtInt(a.frames)}</span>
           </li>

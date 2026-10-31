@@ -11,16 +11,19 @@ import {
   CATEGORIAS_DO_MODELO,
   CODIGOS_DE_RISCO_ALTO,
   COLUNAS,
+  DESTINOS_DO_CANDIDATO,
   ESTADOS_DA_EXECUCAO,
   ESTADOS_DA_PROPOSTA,
   ESTADOS_DO_INCIDENTE,
   LUGARES_DO_MODELO,
+  MAXIMO_DE_CANDIDATOS,
   MAXIMO_DE_PASSOS,
   MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO,
   MOTIVOS_DE_PARADA,
   MOTIVOS_DE_RECUSA,
   MOTIVOS_DE_RISCO_ALTO,
   ORIGENS_DE_ACAO,
+  PORTAS_DO_CANDIDATO,
   PROTOCOLOS_DE_TRANSPORTE,
   RESULTADOS_DO_EFEITO,
   RISCOS,
@@ -63,18 +66,26 @@ describe("listas de valores", () => {
     ["RESULTADOS_DO_EFEITO", RESULTADOS_DO_EFEITO, "Efeito", "resultado"],
     ["ORIGENS_DE_ACAO", ORIGENS_DE_ACAO, "AcaoDoCatalogo", "origem"],
     ["PROTOCOLOS_DE_TRANSPORTE", PROTOCOLOS_DE_TRANSPORTE, "PortaContada", "protocolo"],
+    ["PROTOCOLOS_DE_TRANSPORTE", PROTOCOLOS_DE_TRANSPORTE, "PortaDoCandidato", "protocolo"],
     ["CODIGOS_DE_RISCO_ALTO", CODIGOS_DE_RISCO_ALTO, "MotivoDeRiscoAlto", "codigo"],
     ["MOTIVOS_DE_RECUSA", MOTIVOS_DE_RECUSA, "Recusa", "motivo"],
     ["COLUNAS", COLUNAS, "FeaturePrincipal", "nome"],
     ["LUGARES_DO_MODELO", LUGARES_DO_MODELO, "ChamadaDeLLM", "onde"],
     ["MOTIVOS_DE_PARADA", MOTIVOS_DE_PARADA, "ConclusaoDoAgente", "motivo"],
     ["VEREDITOS_DA_TRIAGEM", VEREDITOS_DA_TRIAGEM, "ConclusaoDoAgente", "veredito"],
+    ["VEREDITOS_DA_TRIAGEM", VEREDITOS_DA_TRIAGEM, "AnaliseDaTriagem", "veredito"],
   ] as const)("%s é a lista de %s.%s", (_nome, lista, definicao, campo) => {
     expect(ordenado(lista)).toEqual(ordenado(propriedade(definicao, campo).enum ?? []));
   });
 
-  it("as chaves de por_categoria são as categorias do modelo", () => {
+  it("as chaves de por_categoria e de janelas_por_categoria são as categorias do modelo", () => {
     expect(ordenado(CATEGORIAS_DO_MODELO)).toEqual(ordenado(definicoes.LoteDeJanelas.properties!.por_categoria.propertyNames!.enum!));
+    expect(ordenado(CATEGORIAS_DO_MODELO)).toEqual(ordenado(definicoes.Incidente.properties!.janelas_por_categoria.propertyNames!.enum!));
+  });
+
+  it("a análise e o sumário só vêm da triagem", () => {
+    expect(propriedade("AnaliseDaTriagem", "agente").const).toBe("triagem");
+    expect(propriedade("Sumario", "agente").const).toBe("triagem");
   });
 
   it("a frase de cada motivo de risco alto é a do contrato", () => {
@@ -109,6 +120,20 @@ describe("campos de cada definição", () => {
     expect(propriedade("AcaoDoCatalogo", "passos").maxItems).toBe(MAXIMO_DE_PASSOS);
     expect(propriedade("Recomendacao", "propostas").maxItems).toBe(MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO);
     expect(propriedade("Proposta", "motivos_de_risco_alto").maxItems).toBe(CODIGOS_DE_RISCO_ALTO.length);
+    expect(propriedade("Incidente", "candidatos").maxItems).toBe(MAXIMO_DE_CANDIDATOS);
+    expect(propriedade("CandidatoAAtacante", "destinos").maxItems).toBe(DESTINOS_DO_CANDIDATO);
+    expect(propriedade("CandidatoAAtacante", "portas").maxItems).toBe(PORTAS_DO_CANDIDATO);
+    expect(propriedade("AtacanteApontado", "justificativa").maxLength).toBe(TEXTO_LONGO);
+    expect(propriedade("AnaliseDaTriagem", "texto").maxLength).toBe(TEXTO_LONGO);
+    expect(propriedade("Sumario", "texto").maxLength).toBe(TEXTO_LONGO);
+  });
+
+  it("os campos que o incidente ganhou nas versões 0.4.0 e 0.6.0 são opcionais, como no contrato", () => {
+    // O log gravado antes deles continua legível: o contrato dá um valor padrão a cada um.
+    expect(definicoes.Incidente.required).not.toContain("portas");
+    expect(definicoes.Incidente.required).not.toContain("janelas_por_categoria");
+    expect(definicoes.Incidente.required).not.toContain("candidatos");
+    expect(definicoes.CandidatoAAtacante.required).not.toContain("portas");
   });
 });
 
