@@ -18,8 +18,15 @@ e não um agente, só chama a decisão depois dela.
   ou nas respostas das tools.
 - As tools são `obter_resumo`, `consultar_mitigacoes`, `pesquisar_solucoes` e `propor_acao`, só com
   rótulos neutros (`origem-1`, `destino-1`). Não há tool para ler janelas nem para pedir outra triagem.
+- No resumo, `atacante_apontado` traz o rótulo do atacante que a triagem escolheu entre os
+  candidatos, com a justificativa dela, ou vem nulo quando ela não apontou ninguém. Ele pode não ser a
+  origem com mais quadros, e às vezes nem aparece em `origens`: a regra que monta as origens erra o
+  atacante em quase metade dos incidentes.
 - Da segunda rodada em diante, a mensagem diz que a ação anterior foi aplicada e informa o efeito
   verificado, `persiste` ou `diminuiu`. O mesmo valor está em `ultimo_efeito`, no resumo.
+- Se a pessoa que opera a rede rejeitou a proposta anterior com um motivo, a mensagem traz o motivo.
+  Ele vale mais que o veredito: não repetir a ação rejeitada no mesmo alvo e respeitar o que a pessoa
+  disse. Se nenhuma outra ação servir, não propor e dizer isso.
 
 ## Passo a passo
 
@@ -44,6 +51,9 @@ e não um agente, só chama a decisão depois dela.
 ## Regras
 
 - Uma ação por rodada.
+- Ação sobre a origem do ataque (`bloquear_ip`, `limitar_taxa` na origem) vai no rótulo do
+  `atacante_apontado`. Sem atacante apontado, não escolher a origem pela quantidade de quadros: preferir
+  uma ação sobre o destino atacado, ou dizer que o atacante não ficou claro.
 - Nunca escrever nem tentar deduzir um endereço: usar os rótulos do resumo. Proposta com endereço é
   recusada.
 - Não recalcular o risco: o servidor o calcula em `propor_acao`.

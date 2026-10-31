@@ -58,7 +58,8 @@ inclusive a de uma proposta já aprovada (`incidente_ja_resolvido`).
 2. Chamar `consultar_mitigacoes(categoria)` com a categoria confirmada pela skill anterior.
 3. Escolher, entre as mitigações devolvidas, a que mais combina com o padrão observado (ex.:
    `bloquear_ip` quando o padrão é concentrado em poucas origens; não faz sentido para DDoS com
-   dezenas de origens distintas). O alvo é um rótulo do resumo, como `origem-1`.
+   dezenas de origens distintas). O alvo é um rótulo do resumo, como `origem-1`; para a origem do
+   ataque, o rótulo de `atacante_apontado`.
    `fechar_porta` serve quando o ataque mira um serviço que o dispositivo não precisa expor, como
    o Telnet que o Mirai usa para entrar: o alvo é a porta, o protocolo e o rótulo do destino, como
    `23/tcp@destino-1`, tirados de `portas` no resumo. Porta que não aparece ali não é proposta,
@@ -67,7 +68,8 @@ inclusive a de uma proposta já aprovada (`incidente_ja_resolvido`).
 4. Se nenhuma mitigação do catálogo servir para o padrão, chamar `pesquisar_solucoes` com uma
    descrição curta do padrão (até 2.000 caracteres) e avaliar os trechos devolvidos.
 5. Montar a `justificativa` da proposta citando o dado concreto que motivou a escolha (ex.:
-   "origem com mais quadros no incidente", não "parece suspeito").
+   "atacante apontado pela triagem, que abre as conexões à porta 22 do destino", não "parece
+   suspeito" nem só "origem com mais quadros").
 6. Chamar `propor_acao`. Se a ação é nova (fora do catálogo), incluir `descricao`, `passos`,
    `efeito_esperado` e `como_desfazer` nos parâmetros; sem isso a proposta é recusada. O alvo de
    uma ação nova é o rótulo (`destino-1`) ou um texto sem endereço ("o dispositivo atacado").
