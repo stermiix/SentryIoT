@@ -13,7 +13,13 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import dpkt
 import pytest
 
-from codigo.agente.agentes import RESOLVIDO, SEM_PROPOSTA, TODAS_REJEITADAS, Perfil
+from codigo.agente.agentes import (
+    AGENTE_PAROU,
+    RESOLVIDO,
+    SEM_PROPOSTA,
+    TODAS_REJEITADAS,
+    Perfil,
+)
 from codigo.agente.experimento import (
     AVALIACAO,
     COLUNAS_DA_AVALIACAO,
@@ -97,6 +103,13 @@ def test_rodada_com_proposta_aceitavel_de_risco_alto_e_medida(base, tmp_path):
     assert (por_agente["triagem"]["onde"], por_agente["decisao"]["onde"]) == ("local", "nuvem")
     assert all(linha["chamadas"] >= 1 and linha["tokens_entrada"] > 0 for linha in por_agente.values())
     assert medida["agentes_s"] >= 0
+    # Por que cada agente parou e quantas chamadas ao modelo fez, na ordem em que rodaram.
+    assert medida["conclusoes"] == [
+        {"agente": "triagem", "rodada": 1, "onde": "local", "motivo": "resposta_final", "voltas": 2},
+        {"agente": "decisao", "rodada": 1, "onde": "nuvem", "motivo": "resposta_final", "voltas": 3},
+        {"agente": "execucao", "rodada": 1, "onde": "local", "motivo": "resposta_final", "voltas": 3},
+    ]
+    assert medida["avisos"] == []
     # O log do incidente não é tocado: cada rodada trabalha numa cópia.
     assert len(list(ler(base))) == antes
     assert (tmp_path / "rodadas" / "exemplo-inc-0002-hibrida-r1.json").is_file()
@@ -152,6 +165,32 @@ def test_incidente_falso_com_proposta_aceitavel_pelo_gabarito_nao_conta_como_qua
     assert medida["triagem_correta"] is False
 
 
+def test_o_json_da_rodada_guarda_os_avisos_do_orquestrador(base, tmp_path):
+    # Sem resposta para o sumário, o orquestrador avisa e segue; o aviso fica no JSON da rodada.
+    modelo = ProvedorFalso(
+        *triagem("inc-0002"), chamada("obter_resumo", {"id": "inc-0002"}, "d1"), resposta("Nada a fazer."), resposta(""),
+    )
+
+    medida = rodar_item(
+        item_de(base), "local", 1, perfis={"local": Perfil(modelo, "qwen")}, pasta_das_rodadas=tmp_path / "rodadas",
+        sumario=True,
+    )
+
+    assert medida["desfecho"] == SEM_PROPOSTA
+    assert medida["avisos"] == ["o sumário do incidente não foi escrito: o modelo da triagem não respondeu"]
+    gravada = json.loads((tmp_path / "rodadas" / "exemplo-inc-0002-local-r1.json").read_text(encoding="utf-8"))
+    assert gravada["avisos"] == medida["avisos"]
+
+
+def test_o_json_da_rodada_diz_por_que_o_agente_parou(base, tmp_path):
+    medida = roda(base, tmp_path, triagem_do_modelo=[resposta("")])
+
+    assert medida["desfecho"] == AGENTE_PAROU
+    assert medida["conclusoes"] == [
+        {"agente": "triagem", "rodada": 1, "onde": "local", "motivo": "resposta_vazia", "voltas": 1},
+    ]
+
+
 @pytest.mark.parametrize(
     ("verdadeiro", "rotulo", "certa"),
     [
@@ -186,6 +225,7 @@ def test_erro_do_provedor_nao_derruba_a_rodada_e_ela_roda_de_novo_na_proxima_vez
 
     assert com_erro["desfecho"] == ERRO and "o provedor caiu" in com_erro["erro"]
     assert (com_erro["n_propostas"], com_erro["por_agente"]) == (0, [])
+    assert (com_erro["avisos"], com_erro["conclusoes"]) == ([], [])
 
     de_novo = roda(base, tmp_path, *decisao("inc-0002", "bloquear_ip", "origem-1", {"duracao": 15}))
 
@@ -227,6 +267,19 @@ def test_consolidar_grava_os_dois_csv_com_uma_linha_por_rodada(base, tmp_path):
     assert int(total["tokens_entrada"]) == sum(
         int(c["tokens_entrada"]) for c in custo if c["configuracao"] == "hibrida" and c["agente"] != "total"
     )
+
+
+def test_consolidar_e_o_resumo_leem_a_rodada_gravada_antes_dos_avisos_e_das_conclusoes(base, tmp_path):
+    rodadas = duas_rodadas(base, tmp_path)
+    caminho = rodadas / "exemplo-inc-0002-local-r1.json"
+    antiga = json.loads(caminho.read_text(encoding="utf-8"))
+    del antiga["avisos"], antiga["conclusoes"]
+    caminho.write_text(json.dumps(antiga, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+
+    lidas = consolidar(rodadas, tmp_path / "saida")
+
+    assert [("avisos" in r, r["desfecho"]) for r in lidas] == [(True, RESOLVIDO), (False, TODAS_REJEITADAS)]
+    assert resumo(lidas)[1].startswith("local: 1 rodadas, 0 com erro, qualidade 0.0%")
 
 
 def test_o_custo_em_dolar_so_conta_o_que_rodou_na_nuvem(base, tmp_path):

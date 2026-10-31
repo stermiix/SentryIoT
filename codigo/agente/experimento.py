@@ -51,11 +51,12 @@ ver os resultados. Os cenários são os do artigo (seção 3.6), DDoS, varredura
 
 `preparar` reproduz cada pcap (só o trecho fora do treino, como `python -m codigo.reprodutor --so-teste`),
 grava o log e os cenários de cada um e anota os IPs dos atacantes do dataset, que o aprovador e a conferência
-usam. `rodar` guarda um JSON por rodada e retoma de onde parou: a rodada que já terminou, sem erro, não
-repete, o que importa numa conta paga. Se alguma rodada deu erro, o comando termina com o código 3: é só rodá-lo de
-novo, e só as rodadas com erro repetem. `consolidar` junta os JSON em `avaliacao_agentes.csv` e
-`custo_latencia.csv`. Os experimentos rodam em Linux ou em macOS, ou em sequência: sem `fcntl` (Windows), duas
-rodadas ao mesmo tempo sobre um log não são seguras. Aqui cada rodada tem o log só dela, e elas rodam em fila.
+usam. `rodar` guarda um JSON por rodada, com as medidas, os avisos do orquestrador e por que cada agente parou,
+e retoma de onde parou: a rodada que já terminou, sem erro, não repete, o que importa numa conta paga. Se alguma
+rodada deu erro, o comando termina com o código 3: é só rodá-lo de novo, e só as rodadas com erro repetem.
+`consolidar` junta os JSON em `avaliacao_agentes.csv` e `custo_latencia.csv`. Os experimentos rodam em Linux ou
+em macOS, ou em sequência: sem `fcntl` (Windows), duas rodadas ao mesmo tempo sobre um log não são seguras. Aqui
+cada rodada tem o log só dela, e elas rodam em fila.
 
 Fica de fora desta versão a rodada com a marca de "já resolvido" (a explicação, sem ação), que o artigo também
 compara no tempo.
@@ -228,6 +229,7 @@ def rodar_item(
 
     erro = None
     desfecho = ERRO
+    orquestrado = None
     inicio = time.perf_counter()
     try:
         orquestrado = executar(
@@ -238,13 +240,21 @@ def rodar_item(
     except _ERROS_DA_RODADA as excecao:
         erro = f"{type(excecao).__name__}: {excecao}"[:300]
     agentes_s = time.perf_counter() - inicio - no_aprovador[0]
-    medida = medir(item, configuracao, repeticao, identificador, log, aprovador, gabarito, desfecho, erro, agentes_s)
+    medida = medir(
+        item, configuracao, repeticao, identificador, log, aprovador, gabarito, desfecho, erro, agentes_s, orquestrado
+    )
     resultado.write_text(json.dumps(medida, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return medida
 
 
-def medir(item, configuracao, repeticao, identificador, log, aprovador, gabarito, desfecho, erro, agentes_s):
-    """O que a rodada deixou no log, em números: triagem, propostas conferidas, tokens e tempo."""
+def medir(
+    item, configuracao, repeticao, identificador, log, aprovador, gabarito, desfecho, erro, agentes_s, orquestrado=None,
+):
+    """O que a rodada deixou no log, em números: triagem, propostas conferidas, tokens e tempo.
+
+    Do resultado do orquestrador (`orquestrado`) saem os avisos dele e, para cada agente que rodou, por que o laço
+    parou e quantas chamadas ao modelo fez. Na rodada com erro, sem resultado, as duas listas ficam vazias.
+    """
     eventos = list(ler(log))
     estado = reconstruir(eventos)
     atacantes = frozenset(endereco_canonico(a) for a in item.atacantes)
@@ -288,10 +298,21 @@ def medir(item, configuracao, repeticao, identificador, log, aprovador, gabarito
         "origem_da_regra_certa": bool(origens and item.verdadeiro and origens[0].endereco in atacantes),
         "agentes_s": round(agentes_s, 3),
         "por_agente": [{**linha, "llm_s": round(linha["llm_s"], 3)} for linha in por_agente.values()],
+        # As rodadas gravadas antes destas duas chaves não as têm, e `consolidar` e `resumo` não dependem delas.
+        "avisos": list(orquestrado.avisos) if orquestrado is not None else [],
+        "conclusoes": [_conclusao(execucao) for execucao in orquestrado.execucoes] if orquestrado is not None else [],
     }
 
 
 _DO_ITEM = ("pcap", "incidente", "categoria", "categoria_do_pcap", "verdadeiro", "confianca", "deteccao_s")
+
+
+def _conclusao(execucao):
+    """Como terminou o laço de um agente na rodada, com as voltas contadas como no `agente_concluido` do log."""
+    return {
+        "agente": execucao.agente, "rodada": execucao.rodada, "onde": execucao.onde, "motivo": execucao.motivo,
+        "voltas": len(execucao.resultado.chamadas_ao_modelo),
+    }
 
 
 def _linha_do_agente(agente, onde):
