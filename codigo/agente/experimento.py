@@ -8,7 +8,8 @@ repetição, roda o orquestrador (`codigo/agente/agentes.py`) com o aprovador au
   conferida com `conferir_proposta`, inclusive as de risco baixo, que não passam pelo aprovador;
 - o acerto da triagem, ao lado: `coerente` num incidente verdadeiro, `duvidoso` ou `ruido` num falso. Um
   incidente é verdadeiro pela mesma regra de `codigo/reprodutor/limiar.py`: o pcap não é benigno, alguma
-  janela do incidente tem quadro de um atacante do dataset e a categoria do incidente é a do pcap;
+  janela do incidente tem quadro de um atacante do dataset e a categoria do incidente é a do pcap, com DDoS e DoS
+  como uma família só (`mesma_familia`);
 - tokens, custo e tempo por agente, e o tempo até a remediação em duas partes: a detecção (da primeira
   janela de ataque à abertura do incidente, vinda do reprodutor) e os agentes (da abertura ao fim da
   execução, sem o tempo de uma pessoa aprovar: o aprovador automático decide na hora);
@@ -82,7 +83,7 @@ from codigo.agente.cliente_mcp import ErroDoServidor
 from codigo.api.configuracao import carregar_env
 from codigo.api.provedor import ErroDoProvedor
 from codigo.classificador.atacantes import rotulo_do_pcap
-from codigo.classificador.mapeamento import CATEGORIA_DO_ROTULO
+from codigo.classificador.mapeamento import CATEGORIA_DO_ROTULO, mesma_familia
 from codigo.mcp.acoes import PedidoRecusado, reconstruir
 from codigo.mcp.eventos import ler
 from codigo.mcp.tipos import endereco_canonico
@@ -156,7 +157,9 @@ def preparar_pcap(pcap, pasta, classificador, *, a_partir_da_janela=0, por_pcap=
         com_atacante = sum(1 for janela in incidente.ataque if verdade[janela.indice][0] > 0)
         itens.append(ItemDoConjunto(
             pcap=pcap.name, incidente=dados.id, categoria=dados.categoria, categoria_do_pcap=categoria_do_pcap,
-            verdadeiro=categoria_do_pcap != "Benign" and com_atacante > 0 and dados.categoria == categoria_do_pcap,
+            verdadeiro=(
+                categoria_do_pcap != "Benign" and com_atacante > 0 and mesma_familia(dados.categoria, categoria_do_pcap)
+            ),
             confianca=dados.confianca, deteccao_s=round(incidente.aberto_em - incidente.primeira_janela_de_ataque, 3),
             atacantes=atacantes, log=log.name, cenarios=R.caminho_dos_cenarios(log).name,
         ))
