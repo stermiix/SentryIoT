@@ -431,10 +431,29 @@ def test_depois_da_rejeicao_com_motivo_a_decisao_volta_com_o_motivo_em_rotulos(l
 
     assert resultado.desfecho == TODAS_REJEITADAS
     assert [(e.agente, e.rodada) for e in resultado.execucoes] == [("triagem", 1), ("decisao", 1), ("decisao", 2)]
-    abertura = next(r for r in modelo.rodadas if "rejeitou a proposta anterior" in r["mensagens"][1]["content"])
-    assert "- prop-0001: Não isolar; o ataque vem de origem-1." in abertura["mensagens"][1]["content"]
+    abertura = next(r for r in modelo.rodadas if "rejeitou o que foi proposto" in r["mensagens"][1]["content"])
+    assert "- prop-0001 (isolar_dispositivo em destino-1): Não isolar; o ataque vem de origem-1." in abertura["mensagens"][1]["content"]
     assert origem not in abertura["mensagens"][1]["content"]
     assert len(eventos_de(log, "recomendacao_emitida")) == 2
+
+
+def test_a_terceira_rodada_ainda_ve_a_primeira_rejeicao(log):
+    modelo = ProvedorFalso(
+        *triagem("inc-0001"),
+        *decisao("inc-0001", "isolar_dispositivo", "destino-1", {}),
+        *decisao("inc-0001", "bloquear_ip", "origem-1", {}),
+        chamada("obter_resumo", {"id": "inc-0001"}, "d5"),
+        resposta("Não há outra ação que respeite o motivo. Nenhuma ação foi proposta."),
+    )
+
+    orquestrar(
+        "inc-0001", log=log, perfis={"local": Perfil(modelo, "qwen")}, configuracao="local",
+        aprovador=rejeita_com(log, "Fora do gabarito."), rodada_apos_rejeicao=True,
+    )
+
+    abertura = [r for r in modelo.rodadas if "rejeitou o que foi proposto" in r["mensagens"][1]["content"]][-1]
+    assert "- prop-0001 (isolar_dispositivo em destino-1): Fora do gabarito." in abertura["mensagens"][1]["content"]
+    assert "- prop-0002 (bloquear_ip em origem-1): Fora do gabarito." in abertura["mensagens"][1]["content"]
 
 
 def test_rejeicao_sem_motivo_nao_devolve_a_vez_a_decisao(log):
