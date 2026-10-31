@@ -51,7 +51,8 @@ ver os resultados. Os cenários são os do artigo (seção 3.6), DDoS, varredura
 `preparar` reproduz cada pcap (só o trecho fora do treino, como `python -m codigo.reprodutor --so-teste`),
 grava o log e os cenários de cada um e anota os IPs dos atacantes do dataset, que o aprovador e a conferência
 usam. `rodar` guarda um JSON por rodada e retoma de onde parou: a rodada que já terminou, sem erro, não
-repete, o que importa numa conta paga. `consolidar` junta os JSON em `avaliacao_agentes.csv` e
+repete, o que importa numa conta paga. Se alguma rodada deu erro, o comando termina com o código 3: é só rodá-lo de
+novo, e só as rodadas com erro repetem. `consolidar` junta os JSON em `avaliacao_agentes.csv` e
 `custo_latencia.csv`. Os experimentos rodam em Linux ou em macOS, ou em sequência: sem `fcntl` (Windows), duas
 rodadas ao mesmo tempo sobre um log não são seguras. Aqui cada rodada tem o log só dela, e elas rodam em fila.
 
@@ -401,7 +402,12 @@ def _rodar(argumentos):
                 feitas += 1
                 medida = rodar_item(item, configuracao, repeticao, perfis=perfis, pasta_das_rodadas=pasta, gabarito=gabarito)
                 print(f"[{feitas}/{total}] {medida['rodada']}: {medida['desfecho']}", flush=True)
-    print("\n".join(resumo(ler_rodadas(pasta))))
+    rodadas = ler_rodadas(pasta)
+    print("\n".join(resumo(rodadas)))
+    com_erro = [r for r in rodadas if r["desfecho"] == ERRO]
+    if com_erro:
+        print(f"{len(com_erro)} rodadas com erro: rode o mesmo comando de novo para repeti-las", file=sys.stderr)
+        return 3
     return 0
 
 

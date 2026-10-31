@@ -279,6 +279,24 @@ def test_o_comando_rodar_sem_o_ambiente_completo_para_antes_de_chamar_qualquer_c
     assert "LLM_BASE_URL" in erro and "LLM_NUVEM_BASE_URL" in erro
 
 
+def test_o_comando_rodar_devolve_3_quando_alguma_rodada_deu_erro_e_a_registra(base, tmp_path, monkeypatch, capsys):
+    # O provedor não responde (porta 1): a rodada dá erro, o comando diz isso e sai com 3.
+    for variavel, valor in {"LLM_BASE_URL": "http://127.0.0.1:1/v1", "LLM_API_KEY": "k", "LLM_MODEL": "m"}.items():
+        monkeypatch.setenv(variavel, valor)
+    conjunto = gravar_conjunto([item_de(base)], tmp_path)
+
+    codigo = main([
+        "rodar", "--conjunto", str(conjunto), "--configuracoes", "local", "--repeticoes", "1", "--saida", str(tmp_path),
+        "--env", str(tmp_path / "nao.env"),
+    ])
+
+    saida = capsys.readouterr()
+    assert codigo == 3
+    assert "local: 1 rodadas, 1 com erro" in saida.out and "1 rodadas com erro" in saida.err
+    (rodada,) = ler_rodadas(tmp_path / "rodadas")
+    assert rodada["desfecho"] == ERRO and "falha ao falar com o provedor" in rodada["erro"]
+
+
 # --- do pcap à rodada ------------------------------------------------------------------------
 
 
