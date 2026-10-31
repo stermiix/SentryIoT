@@ -81,8 +81,8 @@ ABERTURA_DA_DECISAO_DE_NOVO = (
     "Leia o resumo de novo, que traz o último efeito, proponha outra ação e devolva a recomendação."
 )
 ABERTURA_DA_DECISAO_DEPOIS_DA_REJEICAO = (
-    "O incidente {incidente} continua aberto: a pessoa que opera a rede rejeitou a proposta anterior e "
-    "escreveu, com os endereços trocados pelos rótulos:\n\n{motivos}\n\n"
+    "O incidente {incidente} continua aberto: a pessoa que opera a rede rejeitou o que foi proposto. Cada linha "
+    "traz a proposta rejeitada, a ação, o alvo e o motivo, com os endereços trocados pelos rótulos:\n\n{motivos}\n\n"
     "Este é o veredito da triagem, sem endereços:\n\n{veredito}\n\n"
     "Leia o resumo de novo. Se houver outra ação que respeite o motivo da rejeição, proponha-a e devolva a "
     "recomendação; se não houver, diga isso na recomendação, sem propor nada."
@@ -242,10 +242,11 @@ def orquestrar(
             return terminar(SEM_APROVACAO)
         liberadas = [id_ for id_ in novas if estado.propostas[id_].estado == "liberada"]
         if not liberadas:
-            motivos = _motivos_das_rejeicoes(log, novas, estado.rotulos.get(incidente, {}))
+            motivos = _motivos_das_rejeicoes(log, novas, estado, incidente)
             if not (rodada_apos_rejeicao and motivos) or rodada == maximo_de_rodadas:
                 return terminar(TODAS_REJEITADAS)
-            rejeicao = motivos
+            # As rejeições das rodadas anteriores continuam valendo: a decisão não pode esquecê-las.
+            rejeicao = f"{rejeicao}\n{motivos}" if rejeicao else motivos
             continue
         rejeicao = None
 
@@ -344,12 +345,17 @@ def _aguardar_decisoes(log, novas, aprovador, espera_s, esperar, relogio, ao_esp
     return estado, True
 
 
-def _motivos_das_rejeicoes(log, propostas, rotulos):
-    """O que a pessoa escreveu ao rejeitar as propostas, com os endereços trocados pelos rótulos. Vazio sem motivo."""
+def _motivos_das_rejeicoes(log, propostas, estado, incidente):
+    """Uma linha por proposta rejeitada com motivo: a ação, o alvo e o que a pessoa escreveu, com os rótulos no
+    lugar dos endereços. A decisão não lê as propostas no resumo, e sem isso não saberia o que foi rejeitado.
+    Vazio sem motivo."""
+    rotulos = estado.rotulos.get(incidente, {})
     linhas = []
     for evento in ler(log):
         if evento.tipo == "acao_rejeitada" and evento.dados.proposta in propostas and evento.dados.motivo:
-            linhas.append(f"- {evento.dados.proposta}: {com_rotulos(evento.dados.motivo, rotulos)}")
+            proposta = estado.propostas[evento.dados.proposta]
+            alvo = com_rotulos(proposta.alvo, rotulos)
+            linhas.append(f"- {proposta.id} ({proposta.acao} em {alvo}): {com_rotulos(evento.dados.motivo, rotulos)}")
     return "\n".join(linhas)
 
 
