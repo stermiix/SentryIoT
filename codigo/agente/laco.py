@@ -11,6 +11,11 @@ por volta, histórico, resultado de tool e repetição. Os limites em caracteres
 custo descontrolado: não medem tokens nem configuram a janela de contexto do servidor do modelo, que
 responde com erro se o pedido passar dela.
 
+Uma chamada igual a outra já feita no laço (mesma tool, mesmos argumentos) não roda de novo: o
+modelo recebe um aviso de que o resultado já está no histórico. Vale também para uma leitura depois
+de uma ação, que poderia trazer outro resultado, como `consultar_estado` antes e depois de
+`executar_acao`; nenhuma skill pede a mesma leitura duas vezes.
+
 Cada chamada ao modelo gera uma `ChamadaAoModelo`, entregue a `ao_chamar` na hora. É o que vira o
 evento `llm_chamada` do log (ver `registro.py`).
 """
@@ -22,7 +27,10 @@ from copy import deepcopy
 from dataclasses import dataclass
 
 MAXIMO_DE_VOLTAS = 8
-# A mesma tool com os mesmos argumentos: na terceira vez o laço para sem executar.
+# A mesma tool com os mesmos argumentos roda uma vez só em cada laço. Cada repetição recebe o aviso
+# de chamada repetida, e na terceira, quando o modelo já ignorou dois avisos, o laço para. No teste
+# de 31/10, a triagem refez a sequência inteira de tools em 39 das 98 rodadas, e a trava antiga, que
+# parava na terceira vez sem aviso, encerrou um incidente antes do veredito.
 MAXIMO_DE_REPETICOES = 3
 # Medido contra o stub em 26/10/2026: `obter_janelas(id, 20)`, que a skill da triagem pede, devolve
 # de 6,9 mil a 15 mil caracteres nos quatro incidentes de exemplo, e até cerca de 22,5 mil com as 39
@@ -46,6 +54,12 @@ RECUSA_DO_PROVEDOR = "recusa_do_provedor"
 # A resposta foi cortada no máximo de tokens de saída (finish_reason length).
 LIMITE_DE_SAIDA = "limite_de_saida"
 _TERMINO_INTERROMPIDO = {"content_filter": RECUSA_DO_PROVEDOR, "length": LIMITE_DE_SAIDA}
+
+AVISO_DE_CHAMADA_REPETIDA = (
+    "Chamada repetida, não executada: esta tool já foi chamada nesta conversa com estes mesmos argumentos, "
+    "e o resultado está acima, na resposta à primeira chamada. Não repita a chamada; use aquele resultado "
+    "para seguir com o próximo passo ou dar a resposta final."
+)
 
 
 @dataclass(frozen=True)
@@ -126,7 +140,8 @@ def rodar(
     tools = deepcopy(list(tools))
     permitidas = {tool["function"]["name"] for tool in tools}
     chamadas = []
-    repeticoes = Counter()
+    # Quantas vezes cada chamada (tool e argumentos) já foi pedida neste laço.
+    pedidas = Counter()
 
     def terminar(motivo, resposta=None):
         return ResultadoDoLaco(motivo, resposta, tuple(historico), tuple(chamadas))
@@ -168,9 +183,10 @@ def rodar(
             return interromper(LIMITE_DE_VOLTAS, resposta.pedidos)
         argumentos = [_argumentos(pedido.argumentos) for pedido in resposta.pedidos]
         # Confere o lote inteiro antes de executar: a repetição no fim não dispara as ações do começo.
-        if _repetiu(resposta.pedidos, argumentos, repeticoes, maximo_de_repeticoes):
+        repetidas = _repetidas(resposta.pedidos, argumentos, pedidas, maximo_de_repeticoes)
+        if repetidas is None:
             return interromper(CHAMADA_REPETIDA, resposta.pedidos)
-        _executar_pedidos(historico, resposta.pedidos, argumentos, permitidas, executar, maximo_do_resultado)
+        _executar_pedidos(historico, resposta.pedidos, argumentos, repetidas, permitidas, executar, maximo_do_resultado)
     return terminar(LIMITE_DE_VOLTAS)
 
 
@@ -196,19 +212,30 @@ def _termino_da_resposta(resposta, cabe_no_historico, maximo_de_tools):
     return RESPOSTA_FINAL if resposta.conteudo.strip() else RESPOSTA_VAZIA
 
 
-def _repetiu(pedidos, argumentos, repeticoes, maximo):
+def _repetidas(pedidos, argumentos, pedidas, maximo):
+    """Diz, pedido a pedido, se a chamada já foi feita no laço, inclusive antes no mesmo lote.
+
+    Devolve `None` quando uma chamada chega à repetição de número `maximo`: o modelo insistiu depois
+    dos avisos, e o laço para.
+    """
+    repetidas = []
     for pedido, dados in zip(pedidos, argumentos, strict=True):
         chave = json.dumps(dados, sort_keys=True, ensure_ascii=False) if dados is not None else pedido.argumentos
         igual = (pedido.nome, chave)
-        repeticoes[igual] += 1
-        if repeticoes[igual] >= maximo:
-            return True
-    return False
+        if pedidas[igual] >= maximo:
+            return None
+        repetidas.append(pedidas[igual] > 0)
+        pedidas[igual] += 1
+    return repetidas
 
 
-def _executar_pedidos(historico, pedidos, argumentos, permitidas, executar, maximo):
-    for pedido, dados in zip(pedidos, argumentos, strict=True):
-        if pedido.nome not in permitidas:
+def _executar_pedidos(historico, pedidos, argumentos, repetidas, permitidas, executar, maximo):
+    for pedido, dados, repetida in zip(pedidos, argumentos, repetidas, strict=True):
+        if repetida:
+            # Sem executar de novo: uma ação (apontar, propor) não chega duas vezes ao servidor, e o
+            # resultado, que já está no histórico, não é mandado outra vez.
+            texto = AVISO_DE_CHAMADA_REPETIDA
+        elif pedido.nome not in permitidas:
             texto = "Erro da tool: ferramenta não disponibilizada a este agente."
         elif dados is None:
             texto = "Erro da tool: os argumentos precisam ser um objeto JSON válido em UTF-8, sem chaves repetidas."

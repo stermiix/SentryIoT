@@ -5,6 +5,7 @@ import dataclasses
 import pytest
 
 from codigo.agente.laco import (
+    AVISO_DE_CHAMADA_REPETIDA,
     CHAMADA_REPETIDA,
     LIMITE_DE_SAIDA,
     LIMITE_DE_TOOLS,
@@ -25,7 +26,7 @@ ABERTURA = [
 ]
 TOOLS = [
     {"type": "function", "function": {"name": nome, "description": "x", "parameters": {}}}
-    for nome in ("obter_incidente", "obter_resumo", "obter_janelas", "consultar_estado")
+    for nome in ("obter_incidente", "obter_resumo", "obter_janelas", "consultar_estado", "apontar_atacante", "propor_acao")
 ]
 
 
@@ -225,7 +226,54 @@ def test_argumento_com_surrogate_solto_nao_chega_a_tool():
     assert resultado.terminou_bem
 
 
-def test_mesma_chamada_pela_terceira_vez_para_sem_executar():
+def test_chamada_repetida_nao_roda_de_novo_e_o_modelo_recebe_o_aviso_sem_o_resultado():
+    provedor = ProvedorFalso(resposta(pedidos=[pedido()]), resposta(pedidos=[pedido(identificador="c2")]), resposta("Pronto."))
+    executor = Executor(ResultadoDeTool("incidente lido"))
+
+    resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, executor)
+
+    assert resultado.motivo == RESPOSTA_FINAL
+    assert executor.chamadas == [("obter_incidente", {"id": "inc-0001"})]
+    aviso = provedor.rodadas[2]["mensagens"][-1]
+    assert aviso == {"role": "tool", "tool_call_id": "c2", "content": AVISO_DE_CHAMADA_REPETIDA}
+    assert "incidente lido" not in aviso["content"]
+    assert [m["content"] for m in resultado.mensagens if m["role"] == "tool"].count("incidente lido") == 1
+
+
+def test_a_triagem_que_refaz_a_sequencia_inteira_executa_cada_tool_uma_vez():
+    # Teste de 31/10: obter_incidente, obter_janelas e apontar_atacante, e depois as três de novo, iguais.
+    sequencia = [
+        pedido("obter_incidente", '{"id": "inc-0001"}', "a"),
+        pedido("obter_janelas", '{"id": "inc-0001", "limite": 20}', "b"),
+        pedido("apontar_atacante", '{"id": "inc-0001", "endereco": "10.0.0.3", "justificativa": "Mais quadros."}', "c"),
+    ]
+    provedor = ProvedorFalso(*[resposta(pedidos=[p]) for p in sequencia * 2], resposta("Rótulo da triagem: coerente"))
+    executor = Executor()
+
+    resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, executor)
+
+    assert resultado.motivo == RESPOSTA_FINAL
+    assert [nome for nome, _ in executor.chamadas] == ["obter_incidente", "obter_janelas", "apontar_atacante"]
+    assert [m["content"] for m in resultado.mensagens[-6:-1:2]] == [AVISO_DE_CHAMADA_REPETIDA] * 3
+
+
+def test_a_mesma_chamada_duas_vezes_no_mesmo_lote_roda_so_a_primeira():
+    proposta = '{"id": "inc-0001", "acao": "bloquear_ip", "alvo": "origem-1"}'
+    lote = [pedido("propor_acao", proposta, "p1"), pedido("propor_acao", proposta, "p2")]
+    provedor = ProvedorFalso(resposta(pedidos=lote), resposta("Proposta feita."))
+    executor = Executor(ResultadoDeTool('{"proposta": "prop-0001"}'))
+
+    resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, executor)
+
+    assert resultado.terminou_bem
+    assert len(executor.chamadas) == 1
+    assert [(m["tool_call_id"], m["content"]) for m in provedor.rodadas[1]["mensagens"][3:]] == [
+        ("p1", '{"proposta": "prop-0001"}'),
+        ("p2", AVISO_DE_CHAMADA_REPETIDA),
+    ]
+
+
+def test_quem_insiste_depois_de_dois_avisos_para_o_laco_sem_executar():
     provedor = ProvedorFalso(*[resposta(pedidos=[pedido()]) for _ in range(5)])
     executor = Executor()
 
@@ -233,21 +281,23 @@ def test_mesma_chamada_pela_terceira_vez_para_sem_executar():
 
     assert resultado.motivo == CHAMADA_REPETIDA
     assert resultado.resposta is None
-    assert len(executor.chamadas) == 2
-    assert len(resultado.chamadas_ao_modelo) == 3
+    assert len(executor.chamadas) == 1
+    assert len(resultado.chamadas_ao_modelo) == 4
+    assert [m["content"] for m in resultado.mensagens if m["role"] == "tool"].count(AVISO_DE_CHAMADA_REPETIDA) == 2
     assert resultado.mensagens[-1]["role"] == "tool"
     assert "não executada" in resultado.mensagens[-1]["content"]
 
 
 def test_a_repeticao_vale_para_o_mesmo_objeto_escrito_com_as_chaves_em_outra_ordem():
     pedidos = [pedido("obter_janelas", '{"id": "inc-0001", "limite": 5}'), pedido("obter_janelas", '{"limite": 5, "id": "inc-0001"}')]
-    provedor = ProvedorFalso(*[resposta(pedidos=[p]) for p in pedidos], resposta(pedidos=[pedidos[0]]))
+    provedor = ProvedorFalso(*[resposta(pedidos=[p]) for p in pedidos], resposta("Pronto."))
     executor = Executor()
 
     resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, executor)
 
-    assert resultado.motivo == CHAMADA_REPETIDA
-    assert len(executor.chamadas) == 2
+    assert resultado.terminou_bem
+    assert len(executor.chamadas) == 1
+    assert provedor.rodadas[2]["mensagens"][-1]["content"] == AVISO_DE_CHAMADA_REPETIDA
 
 
 def test_argumentos_diferentes_nao_contam_como_repeticao():
@@ -394,8 +444,7 @@ def test_limites_invalidos_falham_antes_de_chamar_o_provedor(campo, valor):
 def test_repeticao_no_fim_do_lote_nao_dispara_a_tool_no_comeco():
     repetido = pedido()
     provedor = ProvedorFalso(
-        resposta(pedidos=[repetido]),
-        resposta(pedidos=[repetido]),
+        *[resposta(pedidos=[repetido]) for _ in range(3)],
         resposta(pedidos=[pedido("consultar_estado", "{}", "novo"), repetido]),
     )
     executor = Executor()
@@ -403,7 +452,7 @@ def test_repeticao_no_fim_do_lote_nao_dispara_a_tool_no_comeco():
     resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, executor)
 
     assert resultado.motivo == CHAMADA_REPETIDA
-    assert [nome for nome, _ in executor.chamadas] == ["obter_incidente", "obter_incidente"]
+    assert [nome for nome, _ in executor.chamadas] == ["obter_incidente"]
     assert [m["tool_call_id"] for m in resultado.mensagens[-2:]] == ["novo", "c1"]
 
 
