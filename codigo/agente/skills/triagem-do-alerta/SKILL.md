@@ -115,7 +115,7 @@ janelas:
 Incidente: <id>
 Categoria: <categoria> (confiança <confianca>)
 Rótulo da triagem: coerente | duvidoso | ruído
-Por quê: <uma frase, citando o que confirmou ou gerou a dúvida, sem endereço>
+Por quê: <uma frase curta, citando o que confirmou ou gerou a dúvida, sem endereço e sem listar portas>
 Atacante: apontado (<as medidas que decidiram, sem endereço>) | nenhum apontado (<por quê>)
 Origens distintas: <n>  |  Distribuído: sim/não
 Features que mais chamam atenção: <até 3, com valor e referência do tráfego benigno>
