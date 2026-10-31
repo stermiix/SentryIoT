@@ -48,8 +48,12 @@ fechar_porta = ["destino"]
 isolar_dispositivo = ["origem"]
 
 [Web]
-# A única medida do levantamento ligada ao catálogo é conter o dispositivo com backdoor, que é o
-# atacado. Nas outras variantes de Web, a resposta esperada é ação nova ou nenhuma ação.
+# Bloquear no gateway a origem das requisições maliciosas, enquanto a falha não é corrigida.
+bloquear_ip = ["origem"]
+# Conter o dispositivo com backdoor, que é o atacado. Isolar o dispositivo atacado só cabe com indício
+# de backdoor; nas outras variantes de Web (SQL Injection, XSS e as demais), a falha se corrige na
+# aplicação. O classificador não separa as variantes e a conferência automática não vê o indício: ela
+# aceita o isolamento do destino em qualquer incidente Web.
 isolar_dispositivo = ["destino"]
 
 [BruteForce]

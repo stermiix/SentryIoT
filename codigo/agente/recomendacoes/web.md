@@ -9,6 +9,7 @@ Categorias: Web
 
 | Mitigações Recomendadas | Ação do catálogo | Fonte |
 | --- | --- | --- |
+| Bloquear no gateway a origem das requisições maliciosas enquanto a falha da aplicação não é corrigida. | `bloquear_ip` | [CISA — Incident and Vulnerability Response Playbooks](https://www.cisa.gov/sites/default/files/publications/Federal_Government_Cybersecurity_Incident_and_Vulnerability_Response_Playbooks_508C.pdf) |
 | SQL Injection: utilizar consultas parametrizadas e conceder o menor privilégio necessário às contas de banco de dados. | nenhuma | [OWASP — SQL Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html) |
 | Command Injection: evitar construção de comandos de shell com entradas externas; preferir APIs seguras e validar argumentos. | nenhuma | [OWASP — OS Command Injection Defense](https://cheatsheetseries.owasp.org/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.html) |
 | XSS: codificar saídas conforme seu contexto e sanitizar conteúdo não confiável, usando CSP como proteção complementar. | nenhuma | [OWASP — XSS Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html) |

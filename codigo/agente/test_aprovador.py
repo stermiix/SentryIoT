@@ -106,6 +106,7 @@ def test_o_endereco_ipv6_que_embute_um_ipv4_e_o_mesmo_dispositivo():
         ("Mirai", "fechar_porta", f"23/tcp@{ATACANTE}"),
         ("Mirai", "bloquear_ip", ATACANTE),
         ("Web", "isolar_dispositivo", VITIMA),
+        ("Web", "bloquear_ip", ATACANTE),
     ],
 )
 def test_acao_aceitavel_sobre_o_alvo_no_papel_certo_e_aceita(categoria, acao, alvo):
