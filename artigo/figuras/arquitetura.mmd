@@ -4,22 +4,24 @@
 flowchart TB
     subgraph deteccao["<b>Detecção</b>"]
         direction LR
-        rede(["Rede IoT"]) --> captura["<b>Captura</b><br/>arquivo pcap"]
+        rede(["Rede IoT"]) --> captura["<b>Captura</b><br/>tcpdump no gateway,<br/>arquivo pcap"]
         captura --> extrator["<b>Extrator</b> (dpkt)<br/>39 features por janela<br/>de 100 quadros"]
         extrator --> rf["<b>Classificador</b><br/>Random Forest, 7 categorias,<br/>+ regra DDoS/DoS pelas origens"]
     end
 
-    mcp["<b>Servidor MCP</b><br/>10 tools, separadas por agente · política de risco<br/>(baixo: executa; alto: exige aprovação humana)<br/>log de eventos JSONL · ambiente simulado, com desfazer"]
+    mcp["<b>Servidor MCP</b><br/>10 tools, separadas por agente · política de risco<br/>(baixo: executa; alto: exige aprovação humana)<br/>catálogo: limitar_taxa, bloquear_ip, isolar_dispositivo,<br/>revogar_credencial e fechar_porta<br/>log de eventos JSONL · ambiente simulado, com desfazer"]
 
-    subgraph local["<b>Modelo local</b> (Ollama, Qwen3 8B)"]
+    subgraph local["<b>Modelo local</b> (qwen3.8-27c)"]
         direction LR
         triagem["<b>Agente de triagem</b><br/>lê o incidente e as janelas,<br/>com os endereços"]
         execucao["<b>Agente de execução</b><br/>aplica, verifica o efeito e desfaz;<br/>único com credenciais"]
     end
 
     subgraph nuvem["<b>Modelo de fronteira na nuvem</b>"]
-        decisao["<b>Agente de decisão</b><br/>lê o resumo com rótulos neutros<br/>(origem-1, destino-1), sem endereços,<br/>e propõe a ação"]
+        decisao["<b>Agente de decisão</b><br/>coordena o incidente: aceita ou descarta<br/>o veredito da triagem e propõe a ação,<br/>lendo o resumo com rótulos neutros<br/>(origem-1, destino-1), sem endereços"]
     end
+
+    orquestrador["<b>Orquestrador</b> (código, não é um agente)<br/>chama a triagem, filtra os endereços do veredito,<br/>espera a aprovação no log e chama a execução"]
 
     pessoa(["<b>Pessoa que opera a rede</b><br/>aprova ou rejeita a proposta de risco alto<br/>e pode marcar o incidente como já resolvido"])
     interface["<b>Interface web</b><br/>fila de incidentes e detalhe,<br/>ao vivo ou em replay do log"]
@@ -28,6 +30,8 @@ flowchart TB
     mcp <--> triagem
     mcp <-- "só dados anonimizados" --> decisao
     mcp <--> execucao
+    orquestrador --> local
+    orquestrador --> nuvem
     mcp -- "aviso ao abrir o incidente" --> pessoa
     mcp -- "log de eventos" --> interface
     interface --> pessoa

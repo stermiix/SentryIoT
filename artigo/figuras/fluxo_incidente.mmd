@@ -1,22 +1,23 @@
 %% Fluxo de um incidente, da janela classificada à verificação, com os eventos que o log grava.
-%% Nomes de evento e de tool do contrato 0.3.0 (codigo/mcp/README.md, codigo/mcp/contrato.json);
+%% Nomes de evento e de tool do contrato 0.5.0 (codigo/mcp/README.md, codigo/mcp/contrato.json);
 %% a sequência segue o log de exemplo codigo/mcp/exemplos/incidente_flood.jsonl. Cada evento
 %% leva o seu instante no log; a figura não traz tempos medidos.
 %% Regerar o PNG e o PDF: python -m artigo.figuras.diagramas fluxo_incidente
 %%{init: {"theme": "neutral", "themeVariables": {"fontFamily": "Times New Roman, Times, serif", "fontSize": "15px"}, "flowchart": {"nodeSpacing": 30, "rankSpacing": 34, "wrappingWidth": 460}}}%%
 flowchart TB
     aberto["<b>Classificador</b>: <code>janelas_classificadas</code><br/><code>incidente_aberto</code> e aviso à pessoa que opera a rede,<br/>com categoria e confiança"]
-    triagem["<b>Agente de triagem</b> (local)<br/><code>llm_chamada</code>, <code>tool_chamada</code><br/>obter_incidente, obter_janelas"]
-    decisao["<b>Agente de decisão</b> (nuvem)<br/><code>llm_chamada</code>, <code>tool_chamada</code><br/>obter_resumo, consultar_mitigacoes,<br/>pesquisar_solucoes, propor_acao<br/><code>acao_proposta</code>, <code>recomendacao_emitida</code>"]
+    triagem["<b>Agente de triagem</b> (local)<br/><code>llm_chamada</code>, <code>tool_chamada</code>, <code>agente_concluido</code><br/>obter_incidente, obter_janelas"]
+    decisao["<b>Agente de decisão</b> (nuvem), coordena o incidente<br/>aceita ou descarta o veredito e propõe a ação<br/><code>llm_chamada</code>, <code>tool_chamada</code>, <code>agente_concluido</code><br/>obter_resumo, consultar_mitigacoes,<br/>pesquisar_solucoes, propor_acao<br/><code>acao_proposta</code>, <code>recomendacao_emitida</code>"]
     aprovacao["<b>Pessoa</b>, pelo comando aprovar<br/><code>acao_aprovada</code> ou<br/><code>acao_rejeitada</code>"]
-    execucao["<b>Agente de execução</b> (local)<br/><code>llm_chamada</code>, <code>tool_chamada</code><br/>executar_acao: <code>acao_executada</code><br/>verificar_efeito: <code>efeito_verificado</code>"]
+    execucao["<b>Agente de execução</b> (local)<br/><code>llm_chamada</code>, <code>tool_chamada</code>, <code>agente_concluido</code><br/>executar_acao, ação do catálogo ou nova já aprovada:<br/><code>acao_executada</code><br/>verificar_efeito: <code>efeito_verificado</code>"]
     encerrado["<code>incidente_encerrado</code>"]
     atualizado["<code>incidente_atualizado</code>"]
 
     resolvido["<b>Pessoa marca 'já resolvido'</b><br/><code>incidente_marcado_resolvido</code>"]
     so_explica["Servidor recusa propor e executar:<br/><code>recusa</code> (incidente_ja_resolvido).<br/>A decisão só explica:<br/><code>recomendacao_emitida</code>"]
 
-    aberto --> triagem --> decisao
+    aberto -- "orquestrador (código)<br/>chama a triagem" --> triagem
+    triagem -- "veredito, com os<br/>endereços filtrados" --> decisao
     decisao -- "risco baixo:<br/>liberada" --> execucao
     decisao -- "risco alto:<br/>aguarda" --> aprovacao
     aprovacao -- "aprovada" --> execucao
