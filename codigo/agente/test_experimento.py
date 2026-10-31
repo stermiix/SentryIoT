@@ -7,6 +7,8 @@ destino 192.168.137.31). Um teste monta o conjunto a partir de um pcap de mentir
 import csv
 import json
 import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import dpkt
 import pytest
@@ -277,6 +279,74 @@ def test_o_comando_rodar_sem_o_ambiente_completo_para_antes_de_chamar_qualquer_c
     erro = capsys.readouterr().err
     assert codigo == 2
     assert "LLM_BASE_URL" in erro and "LLM_NUVEM_BASE_URL" in erro
+
+
+def test_o_comando_rodar_de_ponta_a_ponta_por_um_gateway_http_de_mentira(base, tmp_path, monkeypatch, capsys):
+    # O .env com os dois conjuntos, o Provedor HTTP, o laço, o servidor MCP, o aprovador, o JSON e o resumo.
+    def tool(nome, argumentos, numero):
+        chamada = {"id": f"call_{numero}", "type": "function", "function": {"name": nome, "arguments": json.dumps(argumentos)}}
+        return {"role": "assistant", "content": None, "tool_calls": [chamada]}, "tool_calls"
+
+    def texto(conteudo):
+        return {"role": "assistant", "content": conteudo}, "stop"
+
+    proposta = {"id": "inc-0002", "acao": "revogar_credencial", "alvo": "admin@destino-1", "parametros": {}, "justificativa": "A conta atacada."}
+    fila = [
+        tool("obter_incidente", {"id": "inc-0002"}, 1),
+        texto("Incidente: inc-0002\nRótulo da triagem: coerente\nPor quê: força bruta."),
+        tool("obter_resumo", {"id": "inc-0002"}, 2),
+        tool("propor_acao", proposta, 3),
+        texto("Veredito da triagem: aceito\nRevogar a credencial em destino-1."),
+        tool("executar_acao", {"id_proposta": "prop-0001"}, 4),
+        tool("verificar_efeito", {"id_execucao": "exec-0001"}, 5),
+        texto("Efeito verificado: cessou."),
+    ]
+    pedidos = []
+
+    class Gateway(BaseHTTPRequestHandler):
+        def do_POST(self):
+            pedidos.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+            mensagem, motivo = fila[len(pedidos) - 1]
+            corpo = json.dumps({
+                "choices": [{"message": mensagem, "finish_reason": motivo}],
+                "usage": {"prompt_tokens": 1000, "completion_tokens": 50},
+            }).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(corpo)))
+            self.end_headers()
+            self.wfile.write(corpo)
+
+        def log_message(self, *_):
+            pass
+
+    servidor = HTTPServer(("127.0.0.1", 0), Gateway)
+    threading.Thread(target=servidor.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{servidor.server_address[1]}/v1"
+    ambiente = {
+        "LLM_BASE_URL": url, "LLM_API_KEY": "k-local", "LLM_MODEL": "qwen",
+        "LLM_NUVEM_BASE_URL": url, "LLM_NUVEM_API_KEY": "k-nuvem", "LLM_NUVEM_MODEL": "claude", "LLM_NUVEM_PROVEDORES": "anthropic",
+    }
+    for variavel, valor in ambiente.items():
+        monkeypatch.setenv(variavel, valor)
+    conjunto = gravar_conjunto([item_de(base)], tmp_path)
+
+    try:
+        codigo = main([
+            "rodar", "--conjunto", str(conjunto), "--configuracoes", "hibrida", "--repeticoes", "1", "--saida", str(tmp_path),
+            "--env", str(tmp_path / "nao.env"),
+        ])
+    finally:
+        servidor.shutdown()
+
+    assert codigo == 0
+    assert "hibrida: 1 rodadas, 0 com erro, qualidade 100.0% (1 verdadeiras), triagem certa em 100.0%" in capsys.readouterr().out
+    # A triagem e a execução vão ao modelo local, e só a decisão vai à nuvem, com `provider.only`.
+    assert [p["model"] for p in pedidos] == ["qwen", "qwen", "claude", "claude", "claude", "qwen", "qwen", "qwen"]
+    assert [("provider" in p) for p in pedidos] == [False, False, True, True, True, False, False, False]
+    assert pedidos[2]["provider"] == {"only": ["anthropic"]}
+    (rodada,) = ler_rodadas(tmp_path / "rodadas")
+    assert (rodada["desfecho"], rodada["n_aprovadas"], rodada["primeira_aceitavel"]) == (RESOLVIDO, 1, True)
+    assert sum(linha["tokens_entrada"] for linha in rodada["por_agente"]) == 8000
 
 
 def test_o_comando_rodar_devolve_3_quando_alguma_rodada_deu_erro_e_a_registra(base, tmp_path, monkeypatch, capsys):
