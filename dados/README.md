@@ -517,7 +517,7 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `mcp/aprovar.py` | O comando de terminal com que a pessoa aprova, rejeita ou promove uma proposta de ação, e marca um incidente como já resolvido |
 | `mcp/roteiro.py` | Gera `mcp/exemplos/incidente_flood.jsonl`, o log de exemplo de um incidente inteiro, usado nos testes do MCP e da interface web |
 | `mcp/exemplos/` | O log de exemplo e o seu README, que explica o incidente passo a passo |
-| `agente/skills/` | As instruções dos três agentes, uma skill por pasta: triagem do alerta, análise por categoria, recomendação de mitigação e execução da ação. Cada skill é o prompt de sistema do agente. A skill de coordenação do agente de decisão está por escrever (decisão de 2026-10-25) |
+| `agente/skills/` | As instruções dos três agentes, uma skill por pasta: triagem do alerta, coordenação do incidente, análise por categoria, recomendação de mitigação e execução da ação. Cada skill é o prompt de sistema do agente, e o agente de decisão junta as três dele, com a coordenação primeiro (decisão de 2026-10-25) |
 | `agente/recomendacoes/` | Levantamento de mitigações por categoria, com as fontes |
 | `agente/pedidos.py` | Os pedidos aos modelos no formato de `chat/completions`, montados sem chamar ninguém: o prompt de sistema vem da skill do agente, e as tools são as da linha dele |
 | `agente/laco.py` | O laço ReAct de um agente: o modelo pede tools, o laço as executa e devolve o resultado, com limites de voltas, chamadas repetidas e tamanho, e um motivo claro de parada |

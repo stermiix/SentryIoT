@@ -23,6 +23,7 @@ from codigo.agente.agentes import (
     orquestrar,
     para_a_decisao,
 )
+from codigo.agente.pedidos import prompt_da_skill
 from codigo.agente.test_laco import ProvedorFalso, pedido, resposta
 from codigo.mcp.acoes import reconstruir
 from codigo.mcp.eventos import Registro, ler
@@ -115,6 +116,21 @@ def test_o_veredito_chega_a_decisao_sem_endereco(log):
     assert "Rótulo da triagem: coerente" in abertura
     assert "[endereço]" in abertura
     assert ORIGEM not in enviado
+
+
+def test_o_prompt_do_agente_de_decisao_junta_as_tres_skills_com_a_coordenacao_primeiro(log):
+    local = ProvedorFalso(*triagem("inc-0002"), *execucao("prop-0001", "exec-0001"))
+    nuvem = ProvedorFalso(*decisao("inc-0002", "bloquear_ip", "origem-1", {"duracao": 15}))
+    perfis = {"local": Perfil(local, "qwen"), "nuvem": Perfil(nuvem, "claude")}
+
+    orquestrar("inc-0002", log=log, perfis=perfis, configuracao="hibrida")
+
+    sistema = nuvem.rodadas[0]["mensagens"][0]["content"]
+    assert sistema.startswith(prompt_da_skill("coordenacao-do-incidente"))
+    assert sistema.index("# Coordenação do incidente") < sistema.index("# Análise por categoria de ataque")
+    assert sistema.index("# Análise por categoria de ataque") < sistema.index("# Recomendação de mitigação")
+    assert not sistema.startswith("---")
+    assert "# Coordenação do incidente" not in local.rodadas[0]["mensagens"][0]["content"]
 
 
 def test_a_recomendacao_vai_ao_log_antes_da_conclusao_e_cita_as_propostas_da_rodada(log):

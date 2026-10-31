@@ -43,11 +43,11 @@ CONFIGURACOES = {
     "nuvem": {"triagem": NUVEM, "decisao": NUVEM, "execucao": NUVEM},
     "hibrida": {"triagem": LOCAL, "decisao": NUVEM, "execucao": LOCAL},
 }
-# As skills que formam o prompt de sistema de cada agente. A skill de coordenação do agente de decisão
-# (aceitar ou descartar o veredito da triagem) ainda está por escrever: quando existir, entra aqui.
+# As skills que formam o prompt de sistema de cada agente. A de coordenação vem primeiro no agente de
+# decisão: ela diz como aceitar ou descartar o veredito da triagem e quando propor outra ação.
 SKILLS = {
     "triagem": ("triagem-do-alerta",),
-    "decisao": ("analise-por-categoria", "recomendacao-de-mitigacao"),
+    "decisao": ("coordenacao-do-incidente", "analise-por-categoria", "recomendacao-de-mitigacao"),
     "execucao": ("execucao-da-acao",),
 }
 MAXIMO_DE_RODADAS = 3
