@@ -38,7 +38,7 @@ from typing_extensions import TypedDict
 from codigo.captura.extrator import COLUNAS
 from codigo.classificador.mapeamento import CATEGORIAS
 
-VERSAO = "0.6.0"
+VERSAO = "0.7.0"
 # Máximo de janelas que o agente recebe por chamada. Um flood tem milhares de janelas, e mandar
 # todas para a LLM custaria tokens demais.
 LIMITE_DE_JANELAS = 20
@@ -105,6 +105,8 @@ MOTIVOS_DE_RISCO_ALTO = {
         "O alvo é um endereço da rede local, e bloqueá-lo equivale a isolar um dispositivo interno."
     ),
     "alvo_protegido": "O alvo é um endereço protegido pela política.",
+    # Desde a versão 0.7.0: depois de uma rejeição, nenhuma ação no mesmo alvo sai sem a pessoa.
+    "alvo_rejeitado": "A pessoa já rejeitou uma ação neste alvo neste incidente.",
     "orcamento_de_risco_baixo_esgotado": "O incidente já tem o máximo de medidas de risco baixo ativas.",
     "orcamento_global_de_risco_baixo_esgotado": (
         "O sistema já tem o máximo de medidas de risco baixo ativas, somando todos os incidentes."
@@ -140,6 +142,8 @@ MotivoDeRecusa = Literal[
     "incidente_ja_resolvido",
     "limite_de_propostas_pendentes",
     "limite_de_propostas_liberadas",
+    # Desde a versão 0.7.0: a proposta igual a uma que a pessoa já rejeitou no incidente.
+    "proposta_repetida",
     "acao_nova_incompleta",
     "proposta_nao_liberada",
     "proposta_ja_executada",
@@ -844,7 +848,8 @@ TOOLS = (
         "ela exige aprovação humana. O alvo usa o rótulo neutro do resumo, como origem-1: o servidor o troca "
         "pelo endereço e calcula o risco sobre ele. Ação nova é sempre de risco alto e precisa trazer em "
         "`parametros` a descrição, os passos, o efeito esperado e como desfazer. Incidente marcado como já "
-        "resolvido não recebe proposta.",
+        "resolvido não recebe proposta. Proposta igual a uma que a pessoa já rejeitou no incidente é recusada, "
+        "e qualquer outra sobre o mesmo alvo exige aprovação humana.",
         EntradaProporAcao, Proposta,
     ),
     Tool(

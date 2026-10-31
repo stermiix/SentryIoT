@@ -489,11 +489,11 @@ def test_proposta_e_execucao_validas():
         Execucao.model_validate(EXECUCAO | {"estado": "pendente"})
 
 
-def test_motivos_de_risco_alto_sao_nove_codigos_com_uma_frase_cada():
+def test_motivos_de_risco_alto_sao_dez_codigos_com_uma_frase_cada():
     assert tuple(MOTIVOS_DE_RISCO_ALTO) == (
         "acao_sempre_de_risco_alto", "acao_nova", "prazo_acima_do_limite", "alvo_fora_do_incidente",
-        "alvo_e_destino_do_incidente", "alvo_na_rede_local", "alvo_protegido", "orcamento_de_risco_baixo_esgotado",
-        "orcamento_global_de_risco_baixo_esgotado",
+        "alvo_e_destino_do_incidente", "alvo_na_rede_local", "alvo_protegido", "alvo_rejeitado",
+        "orcamento_de_risco_baixo_esgotado", "orcamento_global_de_risco_baixo_esgotado",
     )
     for codigo, frase in MOTIVOS_DE_RISCO_ALTO.items():
         # O código é um identificador curto. A frase é o que a pessoa lê: uma linha, com ponto final.
@@ -514,7 +514,7 @@ def test_proposta_traz_os_motivos_do_risco_alto():
     ]
     assert alta.model_dump(mode="json") == PROPOSTA_DE_RISCO_ALTO
     todos = [{"codigo": codigo, "descricao": frase} for codigo, frase in MOTIVOS_DE_RISCO_ALTO.items()]
-    assert len(Proposta.model_validate(PROPOSTA_DE_RISCO_ALTO | {"motivos_de_risco_alto": todos}).motivos_de_risco_alto) == 9
+    assert len(Proposta.model_validate(PROPOSTA_DE_RISCO_ALTO | {"motivos_de_risco_alto": todos}).motivos_de_risco_alto) == 10
     sem_o_campo = {campo: valor for campo, valor in PROPOSTA.items() if campo != "motivos_de_risco_alto"}
     for invalida in (
         sem_o_campo,
@@ -607,8 +607,8 @@ def test_motivos_de_recusa_do_contrato():
     assert motivos == [
         "identificador_desconhecido", "argumentos_invalidos", "alvo_malformado", "alvo_nao_permitido",
         "incidente_encerrado", "incidente_ja_resolvido", "limite_de_propostas_pendentes",
-        "limite_de_propostas_liberadas", "acao_nova_incompleta", "proposta_nao_liberada", "proposta_ja_executada",
-        "acao_nao_aplicada", "tool_fora_da_linha",
+        "limite_de_propostas_liberadas", "proposta_repetida", "acao_nova_incompleta", "proposta_nao_liberada",
+        "proposta_ja_executada", "acao_nao_aplicada", "tool_fora_da_linha",
     ]
     for motivo in motivos:
         assert validar_evento(evento("recusa", dados=DADOS_POR_TIPO["recusa"] | {"motivo": motivo})).dados.motivo == motivo

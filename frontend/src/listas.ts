@@ -42,6 +42,8 @@ export const MOTIVOS_DE_RISCO_ALTO = {
     "O alvo é destino do incidente, isto é, o dispositivo atacado, e esta ação só é de risco baixo sobre uma origem.",
   alvo_na_rede_local: "O alvo é um endereço da rede local, e bloqueá-lo equivale a isolar um dispositivo interno.",
   alvo_protegido: "O alvo é um endereço protegido pela política.",
+  // Desde o contrato 0.7.0.
+  alvo_rejeitado: "A pessoa já rejeitou uma ação neste alvo neste incidente.",
   orcamento_de_risco_baixo_esgotado: "O incidente já tem o máximo de medidas de risco baixo ativas.",
   orcamento_global_de_risco_baixo_esgotado:
     "O sistema já tem o máximo de medidas de risco baixo ativas, somando todos os incidentes.",
@@ -57,6 +59,8 @@ export const MOTIVOS_DE_RECUSA = [
   "incidente_ja_resolvido",
   "limite_de_propostas_pendentes",
   "limite_de_propostas_liberadas",
+  // Desde o contrato 0.7.0.
+  "proposta_repetida",
   "acao_nova_incompleta",
   "proposta_nao_liberada",
   "proposta_ja_executada",

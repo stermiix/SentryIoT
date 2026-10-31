@@ -10,8 +10,11 @@
 #   - na ação que só vale sobre origens, o alvo está fora das redes locais;
 #   - o alvo não é um endereço protegido nem crítico;
 #   - o incidente, e o sistema como um todo, ainda não atingiram o limite de medidas de risco
-#     baixo ativas.
-# Fora disso a proposta não é recusada: vira de risco alto e espera a aprovação.
+#     baixo ativas;
+#   - a pessoa não rejeitou, no mesmo incidente, nenhuma ação sobre o mesmo endereço.
+# Fora disso a proposta não é recusada: vira de risco alto e espera a aprovação. Já a proposta
+# igual a uma que a pessoa rejeitou no incidente é recusada. As duas regras da rejeição ficam no
+# código, sem número para ajustar aqui.
 #
 # A equipe ajusta os valores sem mexer no código. Quatro regras não estão neste arquivo, porque
 # ficam no código e não podem ser afrouxadas daqui: isolar_dispositivo, revogar_credencial,

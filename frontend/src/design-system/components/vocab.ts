@@ -112,7 +112,7 @@ export const EVENT: Record<EventType, StateInfo> = {
 };
 export const EVENT_TYPES = Object.keys(EVENT) as EventType[];
 
-/* ---------- the 9 reasons a proposal is high risk (text the person reads before approving) ----------
+/* ---------- the 10 reasons a proposal is high risk (text the person reads before approving) ----------
    The sentence is the contract's (`MOTIVOS_DE_RISCO_ALTO`), never the one that came in the log. */
 export type RiskReason = CodigoDeRiscoAlto;
 export const RISK_REASON: Record<RiskReason, string> = MOTIVOS_DE_RISCO_ALTO;
@@ -128,6 +128,7 @@ export const REFUSAL_REASON: Record<MotivoDeRecusa, string> = {
   incidente_ja_resolvido: 'incidente marcado como já resolvido',
   limite_de_propostas_pendentes: 'limite de propostas aguardando aprovação',
   limite_de_propostas_liberadas: 'limite de propostas liberadas e não executadas',
+  proposta_repetida: 'proposta igual a uma já rejeitada',
   acao_nova_incompleta: 'ação nova incompleta',
   proposta_nao_liberada: 'proposta não liberada',
   proposta_ja_executada: 'proposta já executada',

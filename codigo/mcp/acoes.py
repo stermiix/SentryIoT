@@ -22,6 +22,12 @@ A proposta de risco alto diz por quê: traz a lista dos motivos, cada um com um 
 uma frase (`tipos.MOTIVOS_DE_RISCO_ALTO`). A lista sai da mesma conta que decide o risco, e por
 isso é vazia quando o risco é baixo, e só então.
 
+A rejeição de uma pessoa vale para o resto do incidente. A proposta igual a uma rejeitada (mesma
+ação, mesmo alvo pelo endereço, mesmos parâmetros) é recusada, e toda ação sobre o endereço de um
+alvo rejeitado é de risco alto. Sem isso, a nova rodada da decisão depois da rejeição repetia a
+proposta rejeitada ou trocava a ação rejeitada por uma medida de risco baixo no mesmo alvo,
+aplicada sem ninguém (teste de 31/10).
+
 Quem chama as tools é um modelo de linguagem, que pode ser enganado por conteúdo vindo da rede.
 Por isso tudo o que chega é tratado como entrada: textos têm uma linha, tamanho máximo e só
 caracteres visíveis, o alvo de uma ação de base é um endereço IP sem zona ou o rótulo dele, e a
@@ -429,9 +435,9 @@ def _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros):
     """Os códigos dos motivos pelos quais aplicar agora a ação no incidente é de risco alto.
 
     Sem motivo, o risco é baixo. O nome da ação e a duração não bastam para isso: bloquear por 10
-    minutos o gateway, o dispositivo atacado ou um endereço que não tem relação com o incidente
-    não é uma medida de risco baixo. Saem todos os motivos que valem, na ordem da tabela do
-    contrato, para a pessoa que decide ver o quadro inteiro.
+    minutos o gateway, o dispositivo atacado, um endereço que não tem relação com o incidente ou um
+    em que a pessoa já rejeitou uma ação não é uma medida de risco baixo. Saem todos os motivos que
+    valem, na ordem da tabela do contrato, para a pessoa que decide ver o quadro inteiro.
     """
     if acao not in BASE:
         # Ação nova ou promovida: é sempre de risco alto, e o alvo é texto livre, sem o que conferir.
@@ -471,6 +477,10 @@ def _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros):
         valem.add("alvo_fora_do_incidente")
     if _protegido(politica, endereco):
         valem.add("alvo_protegido")
+    # Quem rejeitou uma ação no alvo decide também a próxima nele: uma medida de risco baixo no mesmo
+    # endereço contornaria a rejeição sem passar por ninguém.
+    if not _enderecos_rejeitados(estado, incidente).isdisjoint(_formas(endereco)):
+        valem.add("alvo_rejeitado")
     return [codigo for codigo in MOTIVOS_DE_RISCO_ALTO if codigo in valem]
 
 
@@ -544,6 +554,44 @@ def _medidas_de_risco_baixo(estado, incidente=None):
     )
 
 
+def _rejeitadas(estado, incidente):
+    """As propostas do incidente que uma pessoa rejeitou, na ordem do log."""
+    return [
+        proposta for proposta in estado.propostas.values()
+        if proposta.incidente == incidente and proposta.estado == "rejeitada"
+    ]
+
+
+def _enderecos_rejeitados(estado, incidente):
+    """Os endereços dos alvos rejeitados no incidente, com o IPv4 que um IPv6 leva dentro.
+
+    O endereço é o alvo inteiro, ou o que vem depois da arroba em revogar_credencial e fechar_porta:
+    a pessoa disse não a uma ação naquele dispositivo. O alvo em texto livre de uma ação nova só
+    entra quando é um endereço, o que ele já é quando veio com o rótulo.
+    """
+    enderecos = set()
+    for proposta in _rejeitadas(estado, incidente):
+        endereco = _endereco(proposta.alvo.rpartition("@")[2])
+        if endereco is not None:
+            enderecos.update(_formas(endereco))
+    return enderecos
+
+
+def _rejeitada_igual(estado, incidente, acao, alvo, parametros):
+    """A proposta rejeitada no incidente com a mesma ação, o mesmo alvo e os mesmos parâmetros, ou None.
+
+    O alvo comparado é o que tem o endereço, com o rótulo já trocado: dois rótulos do mesmo endereço
+    (origem-3 e destino-1, quando o dispositivo aparece nos dois papéis) são o mesmo alvo.
+    """
+    return next(
+        (
+            proposta for proposta in _rejeitadas(estado, incidente)
+            if (proposta.acao, proposta.alvo, proposta.parametros) == (acao, alvo, parametros)
+        ),
+        None,
+    )
+
+
 def _regra(politica, acao):
     regra = politica.acoes[acao]
     if acao in _SEMPRE_DE_RISCO_ALTO or regra["risco"] == "alto":
@@ -559,7 +607,8 @@ def _regra(politica, acao):
         f"tem menos de {politica.medidas_de_risco_baixo_por_incidente} medidas de risco baixo ativas e o sistema, "
         f"somando os incidentes, menos de {politica.medidas_de_risco_baixo_no_total}: o agente de execução aplica "
         f"sem aprovação. Fora disso ({sem_prazo}duracao maior, alvo que não consta do incidente, {destino}"
-        "endereço protegido pela política ou limite de medidas atingido), risco alto: só com aprovação humana."
+        "endereço protegido pela política, alvo em que a pessoa já rejeitou uma ação no incidente ou limite de "
+        "medidas atingido), risco alto: só com aprovação humana."
     )
 
 
@@ -1083,8 +1132,10 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa, s
     alvo de uma ação de base só pode vir com o rótulo, e nenhum alvo pode trazer endereço: o
     agente de decisão não conhece endereço, e o que vier com um foi copiado de texto de fora.
 
-    Alvo que não consta do incidente, endereço protegido e limite de medidas atingido não são
-    motivo de recusa: a proposta é registrada como de risco alto, e quem decide é a pessoa.
+    Alvo que não consta do incidente, endereço protegido, alvo em que a pessoa já rejeitou uma ação
+    e limite de medidas atingido não são motivo de recusa: a proposta é registrada como de risco
+    alto, e quem decide é a pessoa. A proposta igual a uma que ela já rejeitou no incidente, sim:
+    a resposta já foi dada.
 
     A fila da pessoa tem teto. A proposta de risco alto é recusada quando o incidente já tem o
     máximo de propostas aguardando aprovação que a política aceita.
@@ -1165,6 +1216,18 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa, s
         alvo = _alvo_livre(acao, alvo)
         parametros = _parametros_de_acao_nova(acao, parametros)
 
+    # Registrada de novo, a proposta rejeitada voltaria à fila da pessoa, e a nova rodada da decisão
+    # gastaria chamadas repetindo o que ela recusou. A conferência vem depois das outras: o pedido
+    # malformado continua recusado pelo próprio defeito.
+    repetida = _rejeitada_igual(estado, incidente, acao, alvo, parametros)
+    if repetida is not None:
+        raise PedidoRecusado(
+            "proposta_repetida",
+            f"A pessoa já rejeitou neste incidente a proposta {repetida.id}, com a mesma ação, o mesmo alvo e os "
+            "mesmos parâmetros, e esta não foi registrada. Dois rótulos do mesmo endereço são o mesmo alvo. Troque "
+            "a ação ou o alvo, ou encerre com a recomendação, sem propor de novo. Qualquer outra proposta nesse "
+            "alvo também vai para a aprovação da pessoa.",
+        )
     motivos = _motivos_de_risco_alto(estado, politica, incidente, acao, alvo, parametros)
     if motivos:
         _conferir_fila_de_aprovacao(estado, politica, incidente)
@@ -1480,8 +1543,9 @@ def executar(estado, politica, id_proposta, instante):
     `estado` da proposta, que veio do log, não basta para liberar. Proposta que exige
     aprovação só executa se o log tiver o evento de aprovação dela. Proposta registrada como de
     risco baixo tem o risco calculado de novo, com a política e o estado de agora: se o prazo
-    da política diminuiu, se o alvo virou endereço protegido, se o incidente encerrou ou se o
-    limite de medidas foi atingido, ela não executa sem passar por uma pessoa.
+    da política diminuiu, se o alvo virou endereço protegido, se o incidente encerrou, se a
+    pessoa rejeitou outra ação no mesmo alvo ou se o limite de medidas foi atingido, ela não
+    executa sem passar por uma pessoa.
     """
     proposta = _proposta(estado, id_proposta)
     if proposta.estado == "rejeitada":
@@ -1512,8 +1576,9 @@ def executar(estado, politica, id_proposta, instante):
             raise PedidoRecusado(
                 "proposta_nao_liberada",
                 f"A proposta {proposta.id} foi registrada como de risco baixo, mas pelas regras de agora ela é de "
-                "risco alto: mudou a política, o incidente encerrou ou o limite de medidas de risco baixo do "
-                "incidente foi atingido. Registre uma nova proposta, que passará pela aprovação humana.",
+                "risco alto: mudou a política, o incidente encerrou, a pessoa rejeitou uma ação no mesmo alvo ou o "
+                "limite de medidas de risco baixo do incidente foi atingido. Registre uma nova proposta, que passará "
+                "pela aprovação humana.",
             )
     execucao = Execucao(
         id=f"exec-{len(estado.execucoes) + 1:04d}",

@@ -55,7 +55,7 @@ O que o app acrescenta fica fora daqui: `src/estilo.css` (classes `app-*`, só c
 | Canal da decisão humana | pelo terminal · pela interface |
 | Eventos (16) | Janelas classificadas · Incidente aberto · Incidente atualizado · Incidente encerrado · Marcado como já resolvido · Chamada à IA · Chamada de tool · Recomendação emitida · Proposta criada · Aprovada · Rejeitada · Executada · Desfeita · Efeito verificado · Promovida ao catálogo · Recusada pelo servidor |
 
-Os nove motivos de risco alto (o texto lido antes de aprovar) estão em `vocab.RISK_REASON`, que é o próprio `MOTIVOS_DE_RISCO_ALTO` do contrato; use-os sem reescrever.
+Os dez motivos de risco alto (o texto lido antes de aprovar) estão em `vocab.RISK_REASON`, que é o próprio `MOTIVOS_DE_RISCO_ALTO` do contrato; use-os sem reescrever.
 
 ## Fundamentos visuais
 
@@ -194,7 +194,7 @@ As telas ficam em `src/telas/`, montadas só com estes componentes e com os dado
 
 O repositório mudou estes pontos dos componentes do artefato. Numa nova sincronização, eles continuam valendo:
 
-- `vocab.ts` usa os valores do contrato: `aguardando_aprovacao` em vez de `aguardando`, os 20 tipos de evento com o nome do log (`llm_chamada`, `acao_proposta`…), os nove motivos de risco alto do contrato (o artefato trazia oito, com dois juntos e um cortado) e as palavras de cada motivo de recusa do servidor (`REFUSAL_REASON`).
+- `vocab.ts` usa os valores do contrato: `aguardando_aprovacao` em vez de `aguardando`, os 20 tipos de evento com o nome do log (`llm_chamada`, `acao_proposta`…), os motivos de risco alto do contrato, hoje dez (o artefato trazia oito, com dois juntos e um cortado) e as palavras de cada motivo de recusa do servidor (`REFUSAL_REASON`).
 - `modelos.ts` guarda os tipos que eram de `sample.ts`. Os dados de exemplo do artefato não vieram: as telas e o catálogo usam o log carregado e, sem log, ficam vazios. A interface não traz dado simulado.
 - `ProposalCard` mostra a justificativa do agente (voz de agente), o selo "promovida ao catálogo" e a decisão humana sempre com "Aprovada" ou "Rejeitada", mesmo quando há motivo.
 - `TargetLabel` recebe `free`, para o alvo em texto livre de uma ação nova, na voz do agente.

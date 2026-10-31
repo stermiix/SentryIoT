@@ -370,14 +370,14 @@ def test_a_decima_primeira_proposta_pendente_do_incidente_e_recusada_e_registrad
     # O teto é de cada incidente, e a proposta de risco baixo não entra na conta.
     assert chamar(stub, "propor_acao", id="inc-0002", alvo="192.168.137.31", **ISOLAMENTO).exige_aprovacao
     assert not chamar(stub, "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO).exige_aprovacao
-    # A pessoa rejeita uma das pendentes, e a seguinte volta a entrar.
+    # A pessoa rejeita uma das pendentes, e a seguinte volta a entrar (noutro alvo: a igual à rejeitada é recusada).
     aprovar(stub, "prop-0001", aprovar=False)
-    assert chamar(stub, "propor_acao", id="inc-0001", alvo="192.168.137.20", **ISOLAMENTO).id == "prop-0013"
+    assert chamar(stub, "propor_acao", id="inc-0001", alvo="203.0.113.7", **ISOLAMENTO).id == "prop-0013"
     recusado(stub, "limite_de_propostas_pendentes", "propor_acao", id="inc-0001", alvo="192.168.137.20", **SYN_COOKIES)
 
     # Pelo servidor, a recusa chega ao cliente como erro de tool, com a mesma mensagem.
     resposta = chamar_pelo_servidor(criar_servidor(stub), "propor_acao", {
-        "id": "inc-0001", "acao": "isolar_dispositivo", "alvo": "192.168.137.20", "justificativa": "Dispositivo sob ataque.",
+        "id": "inc-0001", "acao": "isolar_dispositivo", "alvo": "203.0.113.7", "justificativa": "Dispositivo sob ataque.",
     })
     assert resposta.is_error is True and resposta.content[0].text == mensagem
 
@@ -972,6 +972,29 @@ def test_decisao_nao_propoe_com_endereco_e_a_recusa_nao_mostra_endereco(registro
     mensagem = recusado(decisao, "alvo_malformado", "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO)
     assert "rótulo" in mensagem and "203.0.113.7" not in mensagem
     assert "acao_proposta" not in [evento.tipo for evento in registro.ler()]
+
+
+def test_depois_da_rejeicao_a_decisao_nao_repete_a_proposta_nem_contorna_a_pessoa(registro):
+    _, decisao, execucao = stubs_das_tres_linhas(registro)
+    bloqueio = {**BLOQUEIO, "parametros": {}}
+    rejeitada = chamar(decisao, "propor_acao", id="inc-0001", alvo="origem-1", **bloqueio)
+    aprovar(decisao, rejeitada.id, aprovar=False)
+
+    # A mesma proposta é recusada e fica no log como recusa, sem endereço na mensagem.
+    mensagem = recusado(decisao, "proposta_repetida", "propor_acao", id="inc-0001", alvo="origem-1", **bloqueio)
+    assert rejeitada.id in mensagem and "203.0.113.7" not in mensagem
+    resposta = chamar_pelo_servidor(criar_servidor(decisao), "propor_acao", {
+        "id": "inc-0001", "alvo": "origem-1", **bloqueio,
+    })
+    assert resposta.is_error is True and resposta.content[0].text == mensagem
+
+    # A medida de risco baixo no mesmo alvo vai para a pessoa, e a execução não a aplica antes disso.
+    limite = chamar(decisao, "propor_acao", id="inc-0001", alvo="origem-1", **LIMITE)
+    assert (limite.risco, [motivo.codigo for motivo in limite.motivos_de_risco_alto]) == ("alto", ["alvo_rejeitado"])
+    assert registro.ler()[-2].dados.resultado["motivos_de_risco_alto"] == ["alvo_rejeitado"]
+    recusado(execucao, "proposta_nao_liberada", "executar_acao", id_proposta=limite.id)
+    # Em outro alvo, nada muda.
+    assert chamar(decisao, "propor_acao", id="inc-0001", alvo="origem-2", **LIMITE).risco == "baixo"
 
 
 @pytest.mark.parametrize("agente", ["decisao", "todos"])
