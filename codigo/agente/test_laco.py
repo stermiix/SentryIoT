@@ -491,3 +491,16 @@ def test_uso_parcial_nao_produz_soma_enganosa():
     resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, Executor())
     assert resultado.tokens_entrada is None
     assert resultado.tokens_saida == 30
+
+
+def test_depois_de_dois_avisos_o_modelo_so_pode_dar_a_resposta_final():
+    uma, outra = pedido("consultar_estado", "{}", "c1"), pedido("obter_incidente", '{"id": "inc-0001"}', "c2")
+    provedor = ProvedorFalso(
+        resposta(pedidos=[uma]), resposta(pedidos=[outra]), resposta(pedidos=[uma]), resposta(pedidos=[outra]),
+        resposta("Recomendação final."),
+    )
+
+    resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, Executor())
+
+    assert (resultado.motivo, resultado.resposta) == (RESPOSTA_FINAL, "Recomendação final.")
+    assert [bool(rodada["tools"]) for rodada in provedor.rodadas] == [True, True, True, True, False]

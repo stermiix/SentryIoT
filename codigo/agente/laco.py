@@ -32,6 +32,10 @@ MAXIMO_DE_VOLTAS = 8
 # de 31/10, a triagem refez a sequência inteira de tools em 39 das 98 rodadas, e a trava antiga, que
 # parava na terceira vez sem aviso, encerrou um incidente antes do veredito.
 MAXIMO_DE_REPETICOES = 3
+# Depois de tantos avisos no laço, somando as tools, a volta seguinte vai sem tools: o modelo só pode
+# dar a resposta final. Alternando entre duas tools repetidas, ele gastaria as voltas sem nunca parar
+# na trava de cima, e a proposta já registrada ficaria sem recomendação.
+AVISOS_ANTES_DE_TIRAR_AS_TOOLS = 2
 # Medido contra o stub em 26/10/2026: `obter_janelas(id, 20)`, que a skill da triagem pede, devolve
 # de 6,9 mil a 15 mil caracteres nos quatro incidentes de exemplo, e até cerca de 22,5 mil com as 39
 # features em 6 casas decimais, como as do reprodutor. As demais tools ficam abaixo de 4 mil. Um
@@ -147,6 +151,7 @@ def rodar(
     chamadas = []
     # Quantas vezes cada chamada (tool e argumentos) já foi pedida neste laço.
     pedidas = Counter()
+    avisos = 0
 
     def terminar(motivo, resposta=None, cortado=None):
         return ResultadoDoLaco(motivo, resposta, tuple(historico), tuple(chamadas), cortado)
@@ -163,7 +168,7 @@ def rodar(
         if not cabe_no_historico():
             return terminar(LIMITE_DO_HISTORICO)
         inicio = relogio()
-        resposta = provedor.conversar(modelo, historico, tools)
+        resposta = provedor.conversar(modelo, historico, [] if avisos >= AVISOS_ANTES_DE_TIRAR_AS_TOOLS else tools)
         chamada = ChamadaAoModelo(
             volta=volta,
             modelo=resposta.modelo,
@@ -193,6 +198,7 @@ def rodar(
         if repetidas is None:
             return interromper(CHAMADA_REPETIDA, resposta.pedidos)
         _executar_pedidos(historico, resposta.pedidos, argumentos, repetidas, permitidas, executar, maximo_do_resultado)
+        avisos += sum(repetidas)
     return terminar(LIMITE_DE_VOLTAS)
 
 
