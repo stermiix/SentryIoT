@@ -106,3 +106,55 @@ def test_parametro_de_geracao_invalido_e_erro_com_o_nome_da_variavel(variavel, v
     with pytest.raises(ValueError, match=variavel) as erro:
         Configuracao.do_ambiente({variavel: valor})
     assert trecho in str(erro.value)
+
+
+# --- o conjunto da nuvem (LLM_NUVEM_*) -------------------------------------------------------
+
+NUVEM = {"LLM_NUVEM_BASE_URL": "https://n/v1/", "LLM_NUVEM_API_KEY": "k-n", "LLM_NUVEM_MODEL": "claude"}
+
+
+def test_o_conjunto_da_nuvem_le_as_variaveis_com_o_prefixo_dele():
+    config = Configuracao.do_ambiente({**NUVEM, "LLM_BASE_URL": "https://local/v1", "LLM_MODEL": "qwen"}, "LLM_NUVEM_")
+
+    assert (config.url_base, config.chave, config.modelo) == ("https://n/v1", "k-n", "claude")
+    assert config.faltando() == []
+
+
+def test_os_dois_conjuntos_nao_se_misturam():
+    ambiente = {"LLM_BASE_URL": "https://local/v1", "LLM_API_KEY": "k-l", "LLM_MODEL": "qwen", **NUVEM}
+
+    local = Configuracao.do_ambiente(ambiente)
+    nuvem = Configuracao.do_ambiente(ambiente, "LLM_NUVEM_")
+
+    assert (local.modelo, local.chave) == ("qwen", "k-l")
+    assert (nuvem.modelo, nuvem.chave) == ("claude", "k-n")
+
+
+def test_faltando_diz_o_nome_do_conjunto_que_foi_lido():
+    nuvem = Configuracao.do_ambiente({"LLM_NUVEM_MODEL": "claude"}, "LLM_NUVEM_")
+
+    assert nuvem.faltando() == ["LLM_NUVEM_BASE_URL", "LLM_NUVEM_API_KEY"]
+
+
+def test_parametros_e_ca_da_nuvem_vem_das_variaveis_dela_e_nao_das_do_local():
+    ambiente = {
+        **NUVEM, "LLM_RACIOCINIO": "desligado", "LLM_CA_BUNDLE": "/x/ca-interna.pem",
+        "LLM_NUVEM_TEMPERATURA": "0.2", "LLM_NUVEM_TIMEOUT_S": "90",
+    }
+
+    nuvem = Configuracao.do_ambiente(ambiente, "LLM_NUVEM_")
+
+    assert nuvem.parametros() == {"temperature": 0.2}
+    assert (nuvem.ca, nuvem.prazo_s) == (None, 90)
+
+
+def test_erro_de_parametro_da_nuvem_cita_a_variavel_da_nuvem():
+    with pytest.raises(ValueError, match="LLM_NUVEM_TEMPERATURA"):
+        Configuracao.do_ambiente({"LLM_NUVEM_TEMPERATURA": "9"}, "LLM_NUVEM_")
+
+
+def test_provedores_do_openrouter_vao_em_provider_only():
+    config = Configuracao.do_ambiente({**NUVEM, "LLM_NUVEM_PROVEDORES": " anthropic , "}, "LLM_NUVEM_")
+
+    assert config.parametros() == {"provider": {"only": ["anthropic"]}}
+    assert Configuracao.do_ambiente(NUVEM, "LLM_NUVEM_").parametros() == {}

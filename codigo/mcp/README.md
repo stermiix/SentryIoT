@@ -887,10 +887,10 @@ O que mais fica de fora deste trabalho:
   em palavras. Como a busca é larga, troca também o que só parece endereço: uma versão em quatro
   grupos (`1.2.3.4`), uma sequência de seis números separados por hífen ou o `d::` de `std::vector`.
 - **O texto da triagem e o orquestrador.** O veredito da triagem é texto livre escrito por um
-  modelo local, e quem o entrega ao agente de decisão é o orquestrador, ainda não escrito. Ele
-  precisa passar esse texto pelo mesmo filtro (`tipos.mascarar_enderecos`) antes de mandá-lo à
-  nuvem. Também não há teto de incidentes enviados ao modelo da nuvem: origens forjadas abrem
-  incidentes, e cada um custa chamadas.
+  modelo local, e quem o entrega ao agente de decisão é o orquestrador (`codigo/agente/agentes.py`).
+  Ele passa esse texto pelo mesmo filtro (`tipos.mascarar_enderecos`) em toda configuração, antes de
+  mandá-lo ao agente de decisão, com um teste. Não há teto de incidentes enviados ao modelo da nuvem:
+  origens forjadas abrem incidentes, e cada um custa chamadas.
 - **Rótulos em texto livre.** O agente de decisão pode citar rótulos nos passos de uma ação nova
   ("Ativar SYN cookies em destino-1"). O servidor só troca o rótulo que é o alvo inteiro; nos
   passos, quem resolve é a pessoa, que vê o endereço de cada rótulo na tela de aprovação, também

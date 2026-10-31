@@ -519,8 +519,11 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `mcp/exemplos/` | O log de exemplo e o seu README, que explica o incidente passo a passo |
 | `agente/skills/` | As instruções dos três agentes, uma skill por pasta: triagem do alerta, análise por categoria, recomendação de mitigação e execução da ação. Cada skill é o prompt de sistema do agente. A skill de coordenação do agente de decisão está por escrever (decisão de 2026-10-25) |
 | `agente/recomendacoes/` | Levantamento de mitigações por categoria, com as fontes |
-| `agente/pedidos.py` | Os pedidos aos modelos no formato de `chat/completions`, montados sem chamar ninguém: o prompt de sistema vem da skill do agente, e as tools são as da linha dele. Hoje só a simulação da interface o usa, para montar o pedido à triagem |
-| `agente/agentes.py` | **(a criar)** O laço de cada agente com as tools e o orquestrador em código, que encadeia triagem, decisão e execução |
+| `agente/pedidos.py` | Os pedidos aos modelos no formato de `chat/completions`, montados sem chamar ninguém: o prompt de sistema vem da skill do agente, e as tools são as da linha dele |
+| `agente/laco.py` | O laço ReAct de um agente: o modelo pede tools, o laço as executa e devolve o resultado, com limites de voltas, chamadas repetidas e tamanho, e um motivo claro de parada |
+| `agente/cliente_mcp.py` | O cliente do servidor MCP de um agente: abre o stub por stdio só com as tools da linha dele |
+| `agente/registro.py` | O que o laço grava no log: um `llm_chamada` por chamada ao modelo e um `agente_concluido` por agente |
+| `agente/agentes.py` | O orquestrador em código: triagem, veredito sem endereço, decisão, espera da aprovação no log, execução e verificação do efeito, em três configurações (`local`, `nuvem`, `hibrida`). Roda com `python -m codigo.agente --incidente inc-0001 --log <log> --configuracao hibrida` |
 | `agente/teste_tool_poisoning.py` | **(a criar)** O experimento de segurança do MCP: uma tool com descrição envenenada, para medir se o agente cai |
 
 **Frente do reprodutor de tráfego** (`codigo/reprodutor/`)

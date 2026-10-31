@@ -27,6 +27,11 @@ Copie `.env.example` para `.env` na raiz (o `.env` é ignorado pelo git) e preen
 Os quatro parâmetros de geração vão em toda chamada quando definidos; o `.env.example` traz os
 valores medidos em 19/10 no gateway interno. Valor fora da faixa impede o servidor de subir.
 
+O orquestrador dos agentes (`python -m codigo.agente`) lê um segundo conjunto, o do modelo de nuvem do
+agente de decisão, com as mesmas variáveis e o prefixo `LLM_NUVEM_` (`LLM_NUVEM_BASE_URL`,
+`LLM_NUVEM_API_KEY`, `LLM_NUVEM_MODEL` e as opcionais). `LLM_NUVEM_PROVEDORES`, por exemplo `anthropic`, vai em
+`provider.only` e restringe os provedores que o OpenRouter pode usar. Este servidor só usa o conjunto `LLM_*`.
+
 Variável já definida no ambiente vence a do arquivo.
 
 ## Como subir
