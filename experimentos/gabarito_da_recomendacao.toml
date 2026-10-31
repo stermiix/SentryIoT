@@ -52,7 +52,10 @@ isolar_dispositivo = ["origem"]
 isolar_dispositivo = ["destino"]
 
 [BruteForce]
-limitar_taxa = ["origem"]
+# Limitar as tentativas vale por origem e no serviço atacado, que fica no destino.
+limitar_taxa = ["origem", "destino"]
 bloquear_ip = ["origem"]
 # A credencial revogada é a da conta atacada, no dispositivo atacado.
 revogar_credencial = ["destino"]
+# A porta fechada é a do login exposto (SSH, Telnet) do dispositivo atacado.
+fechar_porta = ["destino"]

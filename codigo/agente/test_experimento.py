@@ -104,7 +104,7 @@ def test_rodada_com_proposta_aceitavel_de_risco_alto_e_medida(base, tmp_path):
 
 
 def test_proposta_de_risco_alto_fora_do_gabarito_e_rejeitada_e_nao_e_aceitavel(base, tmp_path):
-    medida = roda(base, tmp_path, *decisao("inc-0002", "fechar_porta", "22/tcp@destino-1", {}))
+    medida = roda(base, tmp_path, *decisao("inc-0002", "isolar_dispositivo", "destino-1", {}))
 
     assert medida["desfecho"] == TODAS_REJEITADAS
     assert (medida["n_propostas"], medida["n_aceitaveis"], medida["primeira_aceitavel"]) == (1, 0, False)
@@ -200,7 +200,7 @@ def duas_rodadas(base, tmp_path):
     roda(base, tmp_path, *decisao("inc-0002", "revogar_credencial", "admin@destino-1", {}))
     rodar_item(
         item_de(base), "local", 1, pasta_das_rodadas=tmp_path / "rodadas",
-        perfis={"local": Perfil(ProvedorFalso(*triagem("inc-0002"), *decisao("inc-0002", "fechar_porta", "22/tcp@destino-1", {})), "qwen")},
+        perfis={"local": Perfil(ProvedorFalso(*triagem("inc-0002"), *decisao("inc-0002", "isolar_dispositivo", "destino-1", {})), "qwen")},
     )
     return tmp_path / "rodadas"
 

@@ -170,6 +170,7 @@ def test_mitigacoes_recomendadas_vem_da_base_local_com_a_acao_do_catalogo(stub):
     recomendadas = chamar(stub, "consultar_mitigacoes", categoria="BruteForce")
     assert [(trecho.origem, trecho.acao) for trecho in recomendadas.mitigacoes] == [
         ("bruteforce.md", "limitar_taxa"), ("bruteforce.md", "revogar_credencial"), ("bruteforce.md", "bloquear_ip"),
+        ("bruteforce.md", "fechar_porta"),
     ]
     assert chamar(stub, "consultar_mitigacoes", categoria="Benign").mitigacoes == []
 

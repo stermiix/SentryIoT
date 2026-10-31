@@ -96,6 +96,8 @@ def test_o_endereco_ipv6_que_embute_um_ipv4_e_o_mesmo_dispositivo():
         ("BruteForce", "revogar_credencial", f"admin@{VITIMA}"),
         ("BruteForce", "bloquear_ip", ATACANTE),
         ("BruteForce", "limitar_taxa", ATACANTE),
+        ("BruteForce", "limitar_taxa", VITIMA),
+        ("BruteForce", "fechar_porta", f"22/tcp@{VITIMA}"),
         ("DDoS", "limitar_taxa", VITIMA),
         ("DDoS", "bloquear_ip", ATACANTE),
         ("DDoS", "isolar_dispositivo", ATACANTE),
@@ -201,12 +203,12 @@ def test_aprova_a_proposta_de_risco_alto_que_o_gabarito_aceita_e_a_execucao_segu
 
 
 def test_rejeita_a_proposta_de_risco_alto_fora_do_gabarito_e_nada_e_executado(log):
-    resultado, aprovador = roda(log, "inc-0002", *decisao("inc-0002", "fechar_porta", "22/tcp@destino-1", {}))
+    resultado, aprovador = roda(log, "inc-0002", *decisao("inc-0002", "isolar_dispositivo", "destino-1", {}))
 
     assert resultado.desfecho == TODAS_REJEITADAS
     [rejeitada] = eventos_de(log, "acao_rejeitada")
     assert (rejeitada.dados.proposta, rejeitada.dados.usuario) == ("prop-0001", USUARIO)
-    assert "não aceita fechar_porta na categoria BruteForce" in rejeitada.dados.motivo
+    assert "não aceita isolar_dispositivo na categoria BruteForce" in rejeitada.dados.motivo
     assert eventos_de(log, "acao_executada") == []
     assert [d.conferencia.aceitavel for d in aprovador.decisoes] == [False]
 
