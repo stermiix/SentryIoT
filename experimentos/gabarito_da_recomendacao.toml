@@ -31,6 +31,7 @@ isolar_dispositivo = ["origem"]
 [Mirai]
 limitar_taxa = ["origem", "destino"]
 # Os atacantes fazem o papel dos dispositivos já comprometidos pela botnet.
+bloquear_ip = ["origem"]
 isolar_dispositivo = ["origem"]
 revogar_credencial = ["origem"]
 # O Telnet e as outras portas de administração por onde a botnet entra ficam nos dispositivos

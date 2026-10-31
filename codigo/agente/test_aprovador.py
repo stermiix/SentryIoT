@@ -104,6 +104,7 @@ def test_o_endereco_ipv6_que_embute_um_ipv4_e_o_mesmo_dispositivo():
         ("DoS", "isolar_dispositivo", ATACANTE),
         ("Recon", "fechar_porta", f"23/tcp@{VITIMA}"),
         ("Mirai", "fechar_porta", f"23/tcp@{ATACANTE}"),
+        ("Mirai", "bloquear_ip", ATACANTE),
         ("Web", "isolar_dispositivo", VITIMA),
     ],
 )
