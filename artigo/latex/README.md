@@ -1,10 +1,11 @@
 # Artigo em LaTeX
 
 O artigo do TCC II no template de artigo da FCI (2026), a versão LaTeX do template do Oriente,
-baseada no modelo de artigo do abnTeX2 (ABNT NBR 6022). O texto veio do `.docx` do PR 60 (branch
-`artigo-introducao-referencial`, commit `de7b90c`), sem correção de conteúdo, e daqui em diante é
-escrito e corrigido aqui. O que ainda falta escrever ou conferir fica em `\pendente{...}`, que sai
-em vermelho no PDF; nenhuma marca pode sobrar na versão submetida.
+baseada no modelo de artigo do abnTeX2 (ABNT NBR 6022). O texto veio do `.docx` do PR 60 (commit
+`de7b90c`, que continua na página do PR), sem correção de conteúdo, e daqui em diante é escrito e
+corrigido aqui. O `.docx` saiu do repositório em 30/10, depois de conferido que nada dele ficou de
+fora. O que ainda falta escrever ou conferir fica em `\pendente{...}`, que sai em vermelho no PDF;
+nenhuma marca pode sobrar na versão submetida.
 
 ## Regras do template
 

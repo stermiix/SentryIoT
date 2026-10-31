@@ -4,9 +4,10 @@ Rascunho das seções do artigo. Trechos marcados com `[PENDENTE]` ainda não t�
 demais são rascunho pronto para revisão, a partir do que já está decidido em `ROADMAP.md` e
 medido em `experimentos/resultados/`.
 
-**Pendências fora do texto (ação humana, não dá para resolver por aqui):**
-- O texto do artigo está em `artigo/Artigo_TCC2_SentryIoT.docx`, no template do Oriente. Este
-  esqueleto continua como rascunho e fonte das correções, que precisam ser levadas ao `.docx`.
+**O texto do artigo está em `artigo/latex/`, no template LaTeX da FCI, desde o PR 63.** Este
+esqueleto é o rascunho anterior e fica como registro; ele não é mais atualizado, e as correções vão
+direto ao LaTeX. O `.docx` que vinha antes do LaTeX saiu do repositório em 30/10, depois de conferido
+que todo o texto dele está no LaTeX (fica no histórico do git).
 
 Pelo edital, o TCC II de CC e SI entrega o artigo científico (10 a 20 páginas, submissão de 03 a
 09/11/2026) e a apresentação oral (15 a 20 minutos). Relatório técnico e pôster são entregas do
