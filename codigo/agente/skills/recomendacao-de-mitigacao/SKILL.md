@@ -32,10 +32,8 @@ inclusive a de uma proposta já aprovada (`incidente_ja_resolvido`).
 - De novo, no mesmo incidente, quando `ultimo_efeito` (no resumo) vier com `persiste` ou
   `diminuiu`. Ver o roteiro do cenário `inc-0001` em `codigo/mcp/README.md`, em que a primeira
   ação não resolve e o agente precisa propor outra.
-- Em incidente **duvidoso** (ou com o veredito descartado), nenhuma ação de risco alto: no máximo
-  uma de risco baixo, com prazo, ou nenhuma. Se a única saída for de risco alto (isolar
-  dispositivo, revogar credencial, fechar porta, bloquear uma origem da rede local, qualquer ação
-  nova), não propor: a recomendação diz qual seria a ação e por quê, e a pessoa decide.
+- Em incidente **duvidoso** (ou com o veredito descartado), não propor nada, nem ação de risco
+  baixo: a recomendação diz qual seria a ação, em que alvo e o que falta confirmar, e a pessoa decide.
 
 ## O que a tool MCP devolve
 
@@ -61,7 +59,9 @@ inclusive a de uma proposta já aprovada (`incidente_ja_resolvido`).
    dezenas de origens distintas). O alvo é um rótulo do resumo, como `origem-1`; para a origem do
    ataque, o rótulo de `atacante_apontado`. Rótulo com `protegido` verdadeiro fica de fora, em
    qualquer ação: limitar, bloquear, isolar ou fechar a porta do gateway ou do DNS atinge a rede
-   inteira. Ser protegido é motivo para descartar o alvo, nunca para escolhê-lo.
+   inteira. Ser protegido é motivo para descartar o alvo, nunca para escolhê-lo. Escolher pelo que
+   o ataque pede, e não pelo risco: com `atacante_apontado`, a ação vai nele, e trocar `bloquear_ip`
+   por `limitar_taxa`, ou mirar o destino, só para fugir da aprovação é contornar a pessoa.
    `fechar_porta` serve quando o ataque mira um serviço que o dispositivo não precisa expor, como
    o Telnet que o Mirai usa para entrar: o alvo é a porta, o protocolo e o rótulo do destino, como
    `23/tcp@destino-1`, tirados de `portas` no resumo. Porta que não aparece ali não é proposta,

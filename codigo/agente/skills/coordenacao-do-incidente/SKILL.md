@@ -39,10 +39,9 @@ e não um agente, só chama a decisão depois dela.
 3. Decidir pelo rótulo:
    - `coerente`, aceito: seguir a `analise-por-categoria` e depois a `recomendacao-de-mitigacao`, até
      a chamada a `propor_acao`.
-   - `duvidoso`, ou veredito descartado: **nenhuma ação de risco alto**, com qualquer justificativa.
-     No máximo uma ação que a `regra` do catálogo deixa de risco baixo, com prazo, ou nenhuma: só a
-     recomendação, para a pessoa decidir. `pesquisar_solucoes` não ajuda aqui: ação nova é sempre
-     de risco alto.
+   - `duvidoso`, ou veredito descartado: **não chamar `propor_acao`**, nem para uma ação de risco
+     baixo. A recomendação diz qual seria a ação, em que alvo e o que falta confirmar, e a pessoa
+     decide. `pesquisar_solucoes` não ajuda aqui.
    - `ruído`: não chamar `propor_acao`. Explicar em até duas frases por que não há o que fazer.
 4. Com `persiste` ou `diminuiu`, propor uma ação diferente da anterior: outra `acao` ou outro alvo,
    nunca a mesma ação no mesmo alvo. Com `diminuiu`, a anterior ajudou, e vale uma que a complemente.
@@ -89,5 +88,5 @@ formato da `recomendacao-de-mitigacao`, com esta linha a mais no começo:
 Veredito da triagem: aceito, <rótulo> | descartado, tratado como duvidoso (motivo em uma frase)
 ```
 
-Quando nenhuma ação foi proposta (`ruído`, `duvidoso` sem ação, nada que sirva), manter essa linha, dizer
+Quando nenhuma ação foi proposta (`ruído`, `duvidoso`, nada que sirva), manter essa linha, dizer
 em uma ou duas frases por que e terminar com "Nenhuma ação foi proposta.".
