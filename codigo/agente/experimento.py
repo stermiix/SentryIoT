@@ -14,14 +14,39 @@ repetição, roda o orquestrador (`codigo/agente/agentes.py`) com o aprovador au
   execução, sem o tempo de uma pessoa aprovar: o aprovador automático decide na hora);
 - as propostas aprovadas, rejeitadas e novas.
 
-O trabalho é em três comandos, a partir da raiz do repositório:
+O trabalho é em três comandos, a partir da raiz do repositório (o `preparar` abaixo é o conjunto fixado, ver
+"O conjunto dos experimentos"):
 
-    python -m codigo.agente.experimento preparar CICIoT2023/DDoS-UDP_Flood1.pcap CICIoT2023/Recon-PortScan.pcap \\
-        --por-pcap 10 --saida dados/processed/agentes
+    python -m codigo.agente.experimento preparar \\
+        CICIoT2023/DDoS-SYN_Flood1.pcap CICIoT2023/DDoS-UDP_Flood.pcap CICIoT2023/DDoS-HTTP_Flood-.pcap \\
+        CICIoT2023/Recon-PortScan.pcap CICIoT2023/Recon-OSScan.pcap CICIoT2023/Recon-HostDiscovery.pcap \\
+        CICIoT2023/DictionaryBruteForce.pcap CICIoT2023/BenignTraffic2.pcap \\
+        --por-pcap 4 --saida dados/processed/agentes
     python -m codigo.agente.experimento rodar --conjunto dados/processed/agentes/conjunto.json \\
         --configuracoes local hibrida nuvem --repeticoes 3 --saida dados/processed/agentes
     python -m codigo.agente.experimento consolidar --rodadas dados/processed/agentes/rodadas \\
         --saida experimentos/resultados
+
+O conjunto dos experimentos, fixado antes da primeira rodada, como o gabarito, para não ser ajustado depois de
+ver os resultados. Os cenários são os do artigo (seção 3.6), DDoS, varredura de portas (Recon) e força bruta
+(BruteForce), e as regras são estas:
+
+- só entra pcap com um trecho fora do treino do modelo do sistema, porque o `preparar` reproduz só esse trecho:
+  nenhuma janela dele foi vista no treino. `DDoS-SYN_Flood.pcap`, que ficou inteiro no treino, e
+  `Recon-PingSweep.pcap`, com 68 janelas de teste, ficam de fora;
+- DDoS: três técnicas diferentes, com três pcaps, o SYN flood (`DDoS-SYN_Flood1.pcap`, inteiro fora do treino), o
+  UDP flood e o HTTP flood, que é de aplicação. Recon: a varredura de portas (`Recon-PortScan.pcap`) e mais dois
+  pcaps da categoria, `Recon-OSScan.pcap` e `Recon-HostDiscovery.pcap`. BruteForce: o único pcap da categoria,
+  `DictionaryBruteForce.pcap`;
+- `BenignTraffic2.pcap`, o pcap benigno inteiro fora do treino, entra para haver alarme falso de verdade, em que a
+  triagem deve dizer `duvidoso` ou `ruido`. Os incidentes de categoria errada dos pcaps de ataque também são falsos
+  (`reprodutor/limiar.py`) e já vêm no conjunto, sem escolha;
+- de cada pcap entram os primeiros 4 incidentes, na ordem em que abriram (`--por-pcap 4`): sem escolher incidente
+  a incidente, para ninguém poder escolher os que dão certo. São no máximo 29 incidentes (4 em cada um dos sete
+  pcaps de ataque e o do benigno, que só tem 1), perto dos cerca de 30 previstos e, com 3 configurações e 3
+  repetições, perto das 270 rodadas. O que o `preparar` imprime diz quantos entraram de fato;
+- se entrarem menos de 27, sobe-se `--por-pcap` para 5, com a mesma lista de pcaps e sem olhar nenhum resultado dos
+  agentes. A lista de pcaps não muda depois disso.
 
 `preparar` reproduz cada pcap (só o trecho fora do treino, como `python -m codigo.reprodutor --so-teste`),
 grava o log e os cenários de cada um e anota os IPs dos atacantes do dataset, que o aprovador e a conferência
