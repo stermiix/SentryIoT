@@ -583,7 +583,7 @@ def test_resumo_de_cada_tool_no_log(stub):
     chamar(stub, "desfazer_acao", id_execucao=execucao.id)
     resumos = {e.dados.nome: e.dados.resultado for e in stub.registro.ler() if e.tipo == "tool_chamada"}
     assert resumos == {
-        "consultar_mitigacoes": {"mitigacoes": 2, "acoes": 5},
+        "consultar_mitigacoes": {"mitigacoes": 3, "acoes": 5},
         "pesquisar_solucoes": {"trechos": [
             "ddos.md: Habilitar SYN cookies quando houver evidência de SYN flood contra serviços TCP.",
             "dos.md: Habilitar SYN cookies em serviços TCP quando o vetor identificado for SYN flood.",

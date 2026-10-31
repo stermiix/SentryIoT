@@ -98,6 +98,8 @@ def test_o_endereco_ipv6_que_embute_um_ipv4_e_o_mesmo_dispositivo():
         ("BruteForce", "limitar_taxa", ATACANTE),
         ("DDoS", "limitar_taxa", VITIMA),
         ("DDoS", "bloquear_ip", ATACANTE),
+        ("DDoS", "isolar_dispositivo", ATACANTE),
+        ("DoS", "isolar_dispositivo", ATACANTE),
         ("Recon", "fechar_porta", f"23/tcp@{VITIMA}"),
         ("Mirai", "fechar_porta", f"23/tcp@{ATACANTE}"),
         ("Web", "isolar_dispositivo", VITIMA),
@@ -118,8 +120,9 @@ def test_acao_aceitavel_sobre_o_alvo_no_papel_certo_e_aceita(categoria, acao, al
         ("BruteForce", "revogar_credencial", f"admin@{ATACANTE}", ORIGEM, "só vale sobre destino"),
         ("DDoS", "bloquear_ip", VITIMA, DESTINO, "só vale sobre origem"),
         ("Recon", "fechar_porta", f"23/tcp@{ATACANTE}", ORIGEM, "só vale sobre destino"),
+        ("DDoS", "isolar_dispositivo", VITIMA, DESTINO, "só vale sobre origem"),
         # A ação não é aceitável na categoria.
-        ("DDoS", "isolar_dispositivo", VITIMA, None, "não aceita isolar_dispositivo na categoria DDoS"),
+        ("DDoS", "revogar_credencial", f"admin@{VITIMA}", None, "não aceita revogar_credencial na categoria DDoS"),
         ("Spoofing", "bloquear_ip", ATACANTE, None, "não aceita bloquear_ip na categoria Spoofing"),
         # O alvo não é atacante nem destino do incidente.
         ("BruteForce", "revogar_credencial", f"admin@{OUTRO}", None, "nem um destino listado"),
@@ -245,7 +248,8 @@ def test_no_flood_a_primeira_acao_de_risco_baixo_executa_e_a_de_risco_alto_fora_
 
     assert resultado.desfecho == TODAS_REJEITADAS
     assert [(d.proposta, d.acao) for d in aprovador.decisoes] == [("prop-0002", "isolar_dispositivo")]
-    assert "não aceita isolar_dispositivo na categoria DDoS" in eventos_de(log, "acao_rejeitada")[0].dados.motivo
+    # Em DDoS a quarentena só vale sobre a origem; isolar o dispositivo atacado fica fora do gabarito.
+    assert "isolar_dispositivo em DDoS só vale sobre origem" in eventos_de(log, "acao_rejeitada")[0].dados.motivo
 
 
 def test_atacante_com_endereco_invalido_e_erro(log):

@@ -12,5 +12,6 @@ Categorias: DoS
 | --- | --- | --- |
 | Estabelecer limites de requisições e de conexões simultâneas por cliente ou serviço, de acordo com sua capacidade. | `limitar_taxa` | [OWASP — API4:2023](https://api-security.owasp.org/editions/2023/en/0xa4-unrestricted-resource-consumption/) |
 | Filtrar ou bloquear temporariamente tráfego abusivo de origem, porta ou protocolo identificados, após avaliação de impacto. | `bloquear_ip` | [MITRE ATT&CK — T1499](https://attack.mitre.org/techniques/T1499/) |
+| Colocar em quarentena o dispositivo interno que origina o ataque, após corroborar o comprometimento e avaliar as funções que dependem dele. | `isolar_dispositivo` | [NIST — SP 800-83 Rev. 1, seção 4.3.4](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-83r1.pdf) |
 | Habilitar SYN cookies em serviços TCP quando o vetor identificado for SYN flood. | nenhuma | [MITRE ATT&CK — T1499](https://attack.mitre.org/techniques/T1499/) |
 | Limitar uso de CPU, memória, payload e tempo de processamento para reduzir esgotamento de recursos de aplicações/APIs. | nenhuma | [OWASP — API4:2023](https://api-security.owasp.org/editions/2023/en/0xa4-unrestricted-resource-consumption/) |

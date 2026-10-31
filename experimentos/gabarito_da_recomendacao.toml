@@ -17,13 +17,16 @@
 # para o gabarito cobrir todas as que o classificador entrega.
 
 [DDoS]
-# Limitar a taxa vale tanto para cada origem quanto para proteger o dispositivo atacado.
+# Limitar a taxa vale tanto para cada origem quanto para o tráfego destinado ao dispositivo atacado.
 limitar_taxa = ["origem", "destino"]
 bloquear_ip = ["origem"]
+# A quarentena é do dispositivo interno que origina o flood, nunca do atacado.
+isolar_dispositivo = ["origem"]
 
 [DoS]
 limitar_taxa = ["origem", "destino"]
 bloquear_ip = ["origem"]
+isolar_dispositivo = ["origem"]
 
 [Mirai]
 limitar_taxa = ["origem", "destino"]
