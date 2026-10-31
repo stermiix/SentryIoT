@@ -66,8 +66,8 @@ cinco, a resposta não está nos dados: dizer isso em vez de inventar.
 - **Recon**: `syn_count` com `rst_count` na mesma proporção (porta fechada responde RST),
   pacotes pequenos, `Time_To_Live` estável, poucas origens; no ping sweep, `ICMP` domina.
 - **Spoofing**: `ARP` ou `DNS` acima da referência do tráfego benigno numa rede em que esse
-  tráfego é raro. Se um destino vem com `protegido` verdadeiro (o gateway, por exemplo), dizer:
-  qualquer ação sobre ele dependerá da pessoa.
+  tráfego é raro. Se um destino vem com `protegido` verdadeiro (o gateway, por exemplo), dizer que
+  ele não é alvo de ação: o Spoofing costuma se passar por ele, e agir sobre ele derruba a rede.
 - **Web**: `HTTP` ou `HTTPS` dominando, `Rate` mais baixo que em DDoS e DoS, com risco de
   confundir com tráfego legítimo de alto volume; comparar sempre com `referencia_benigno`. É a
   categoria em que o classificador mais erra (recall abaixo de 40%,
