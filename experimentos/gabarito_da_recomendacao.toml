@@ -1,12 +1,30 @@
 # Gabarito da qualidade da recomendação dos agentes (decisão de 2026-10-25).
 #
-# Rascunho para a equipe revisar. Depois de revisado, ele fica fixo antes da primeira rodada do
-# experimento ponta a ponta, para não ser ajustado depois de ver os resultados.
+# Revisado pela equipe e fixado em 2026-10-31, antes da primeira rodada do experimento ponta a
+# ponta. Não muda depois de ver os resultados.
 #
 # Para cada categoria do incidente, as ações do catálogo aceitáveis e os papéis de alvo aceitos em
 # cada uma. "origem" é um dos atacantes do dataset, identificados pelo MAC; "destino" é o
 # dispositivo atacado. Uma recomendação está certa quando a ação proposta aparece na categoria do
 # incidente e o alvo, depois de trocado o rótulo pelo endereço, tem um dos papéis listados.
+#
+# Como o papel do alvo é conferido (`papel_do_alvo`, em `codigo/agente/aprovador.py`):
+#
+# - Conta só o papel do endereço que vem depois da arroba. Em revogar_credencial, o nome da conta não
+#   é conferido, porque o resumo que o agente lê não traz contas: admin@destino-1 e root@destino-1
+#   valem o mesmo, na métrica e no aprovador automático.
+# - O papel vem da verdade de campo, e não das listas do incidente. O IP de um atacante do dataset
+#   conta como origem mesmo quando o incidente também o lista entre os destinos. O endereço que não é
+#   atacante conta como destino quando o incidente o lista entre os destinos, ainda que apareça também
+#   entre as origens, como o dispositivo atacado que responde ao ataque. Para quem não é atacante, é a
+#   regra da política do servidor MCP (`codigo/mcp/politica.toml`, seção bloquear_ip), que não
+#   conhece os atacantes e trata como destino todo endereço que aparece nos dois papéis.
+# - Em Spoofing, o papel tem de ser conferido pelo MAC, nunca pelo IP, porque o atacante se passa pelo
+#   IP do gateway ou da vítima e repassa quadros com esses IPs. A conferência automática recebe os IPs
+#   que saem do MAC de um atacante, inclusive o anunciado no ARP, e por isso não serve para Spoofing,
+#   que fica fora dos três cenários do experimento.
+# - bloquear_ip só é aceito na origem, em todas as categorias: bloquear o destino tira do ar o
+#   dispositivo atacado, como diz a política (`codigo/agente/test_gabarito.py` confere).
 #
 # As ações aceitáveis saem do levantamento da equipe em `codigo/agente/recomendacoes/`: só entra
 # aqui a ação que a coluna "Ação do catálogo" liga a alguma medida da categoria
@@ -17,17 +35,21 @@
 # para o gabarito cobrir todas as que o classificador entrega.
 
 [DDoS]
-# Limitar a taxa vale tanto para cada origem quanto para proteger o dispositivo atacado.
+# Limitar a taxa vale tanto para cada origem quanto para o tráfego destinado ao dispositivo atacado.
 limitar_taxa = ["origem", "destino"]
 bloquear_ip = ["origem"]
+# A quarentena é do dispositivo interno que origina o flood, nunca do atacado.
+isolar_dispositivo = ["origem"]
 
 [DoS]
 limitar_taxa = ["origem", "destino"]
 bloquear_ip = ["origem"]
+isolar_dispositivo = ["origem"]
 
 [Mirai]
 limitar_taxa = ["origem", "destino"]
 # Os atacantes fazem o papel dos dispositivos já comprometidos pela botnet.
+bloquear_ip = ["origem"]
 isolar_dispositivo = ["origem"]
 revogar_credencial = ["origem"]
 # O Telnet e as outras portas de administração por onde a botnet entra ficam nos dispositivos
@@ -44,12 +66,19 @@ fechar_porta = ["destino"]
 isolar_dispositivo = ["origem"]
 
 [Web]
-# A única medida do levantamento ligada ao catálogo é conter o dispositivo com backdoor, que é o
-# atacado. Nas outras variantes de Web, a resposta esperada é ação nova ou nenhuma ação.
+# Bloquear no gateway a origem das requisições maliciosas, enquanto a falha não é corrigida.
+bloquear_ip = ["origem"]
+# Conter o dispositivo com backdoor, que é o atacado. Isolar o dispositivo atacado só cabe com indício
+# de backdoor; nas outras variantes de Web (SQL Injection, XSS e as demais), a falha se corrige na
+# aplicação. O classificador não separa as variantes e a conferência automática não vê o indício: ela
+# aceita o isolamento do destino em qualquer incidente Web.
 isolar_dispositivo = ["destino"]
 
 [BruteForce]
-limitar_taxa = ["origem"]
+# Limitar as tentativas vale por origem e no serviço atacado, que fica no destino.
+limitar_taxa = ["origem", "destino"]
 bloquear_ip = ["origem"]
 # A credencial revogada é a da conta atacada, no dispositivo atacado.
 revogar_credencial = ["destino"]
+# A porta fechada é a do login exposto (SSH, Telnet) do dispositivo atacado.
+fechar_porta = ["destino"]

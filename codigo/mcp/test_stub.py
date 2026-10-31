@@ -170,6 +170,7 @@ def test_mitigacoes_recomendadas_vem_da_base_local_com_a_acao_do_catalogo(stub):
     recomendadas = chamar(stub, "consultar_mitigacoes", categoria="BruteForce")
     assert [(trecho.origem, trecho.acao) for trecho in recomendadas.mitigacoes] == [
         ("bruteforce.md", "limitar_taxa"), ("bruteforce.md", "revogar_credencial"), ("bruteforce.md", "bloquear_ip"),
+        ("bruteforce.md", "fechar_porta"),
     ]
     assert chamar(stub, "consultar_mitigacoes", categoria="Benign").mitigacoes == []
 
@@ -583,7 +584,7 @@ def test_resumo_de_cada_tool_no_log(stub):
     chamar(stub, "desfazer_acao", id_execucao=execucao.id)
     resumos = {e.dados.nome: e.dados.resultado for e in stub.registro.ler() if e.tipo == "tool_chamada"}
     assert resumos == {
-        "consultar_mitigacoes": {"mitigacoes": 2, "acoes": 5},
+        "consultar_mitigacoes": {"mitigacoes": 3, "acoes": 5},
         "pesquisar_solucoes": {"trechos": [
             "ddos.md: Habilitar SYN cookies quando houver evidência de SYN flood contra serviços TCP.",
             "dos.md: Habilitar SYN cookies em serviços TCP quando o vetor identificado for SYN flood.",

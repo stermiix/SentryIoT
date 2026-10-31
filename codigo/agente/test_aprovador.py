@@ -83,6 +83,26 @@ def test_endereco_que_e_atacante_e_destino_conta_como_origem():
     assert papel_do_alvo(ATACANTE, {ATACANTE, VITIMA}, {ATACANTE}) == ORIGEM
 
 
+def test_endereco_que_nao_e_atacante_e_aparece_nas_origens_e_nos_destinos_conta_como_destino():
+    # A regra da política para o endereço nos dois papéis: o dispositivo atacado que responde continua destino.
+    ambos = [SimpleNamespace(endereco=VITIMA)]
+    no_incidente = SimpleNamespace(categoria="DDoS", origens=ambos, destinos=ambos)
+
+    conferencia = conferir_proposta(proposta("bloquear_ip", VITIMA), no_incidente, frozenset({ATACANTE}), GABARITO)
+
+    assert (conferencia.aceitavel, conferencia.papel) == (False, DESTINO)
+
+
+@pytest.mark.parametrize("conta", ["admin", "root", "conta_inventada"])
+def test_em_revogar_credencial_conta_so_o_papel_e_nao_o_nome_da_conta(conta):
+    # O resumo não traz contas: o agente escreve a que supõe, e a conferência não a julga.
+    no_atacado = conferir("revogar_credencial", f"{conta}@{VITIMA}")
+    no_atacante = conferir("revogar_credencial", f"{conta}@{ATACANTE}")
+
+    assert (no_atacado.aceitavel, no_atacado.papel) == (True, DESTINO)
+    assert (no_atacante.aceitavel, no_atacante.papel) == (False, ORIGEM)
+
+
 def test_o_endereco_ipv6_que_embute_um_ipv4_e_o_mesmo_dispositivo():
     assert papel_do_alvo(f"::ffff:{VITIMA}", {VITIMA}, set()) == DESTINO
 
@@ -96,11 +116,17 @@ def test_o_endereco_ipv6_que_embute_um_ipv4_e_o_mesmo_dispositivo():
         ("BruteForce", "revogar_credencial", f"admin@{VITIMA}"),
         ("BruteForce", "bloquear_ip", ATACANTE),
         ("BruteForce", "limitar_taxa", ATACANTE),
+        ("BruteForce", "limitar_taxa", VITIMA),
+        ("BruteForce", "fechar_porta", f"22/tcp@{VITIMA}"),
         ("DDoS", "limitar_taxa", VITIMA),
         ("DDoS", "bloquear_ip", ATACANTE),
+        ("DDoS", "isolar_dispositivo", ATACANTE),
+        ("DoS", "isolar_dispositivo", ATACANTE),
         ("Recon", "fechar_porta", f"23/tcp@{VITIMA}"),
         ("Mirai", "fechar_porta", f"23/tcp@{ATACANTE}"),
+        ("Mirai", "bloquear_ip", ATACANTE),
         ("Web", "isolar_dispositivo", VITIMA),
+        ("Web", "bloquear_ip", ATACANTE),
     ],
 )
 def test_acao_aceitavel_sobre_o_alvo_no_papel_certo_e_aceita(categoria, acao, alvo):
@@ -118,8 +144,9 @@ def test_acao_aceitavel_sobre_o_alvo_no_papel_certo_e_aceita(categoria, acao, al
         ("BruteForce", "revogar_credencial", f"admin@{ATACANTE}", ORIGEM, "só vale sobre destino"),
         ("DDoS", "bloquear_ip", VITIMA, DESTINO, "só vale sobre origem"),
         ("Recon", "fechar_porta", f"23/tcp@{ATACANTE}", ORIGEM, "só vale sobre destino"),
+        ("DDoS", "isolar_dispositivo", VITIMA, DESTINO, "só vale sobre origem"),
         # A ação não é aceitável na categoria.
-        ("DDoS", "isolar_dispositivo", VITIMA, None, "não aceita isolar_dispositivo na categoria DDoS"),
+        ("DDoS", "revogar_credencial", f"admin@{VITIMA}", None, "não aceita revogar_credencial na categoria DDoS"),
         ("Spoofing", "bloquear_ip", ATACANTE, None, "não aceita bloquear_ip na categoria Spoofing"),
         # O alvo não é atacante nem destino do incidente.
         ("BruteForce", "revogar_credencial", f"admin@{OUTRO}", None, "nem um destino listado"),
@@ -198,12 +225,12 @@ def test_aprova_a_proposta_de_risco_alto_que_o_gabarito_aceita_e_a_execucao_segu
 
 
 def test_rejeita_a_proposta_de_risco_alto_fora_do_gabarito_e_nada_e_executado(log):
-    resultado, aprovador = roda(log, "inc-0002", *decisao("inc-0002", "fechar_porta", "22/tcp@destino-1", {}))
+    resultado, aprovador = roda(log, "inc-0002", *decisao("inc-0002", "isolar_dispositivo", "destino-1", {}))
 
     assert resultado.desfecho == TODAS_REJEITADAS
     [rejeitada] = eventos_de(log, "acao_rejeitada")
     assert (rejeitada.dados.proposta, rejeitada.dados.usuario) == ("prop-0001", USUARIO)
-    assert "não aceita fechar_porta na categoria BruteForce" in rejeitada.dados.motivo
+    assert "não aceita isolar_dispositivo na categoria BruteForce" in rejeitada.dados.motivo
     assert eventos_de(log, "acao_executada") == []
     assert [d.conferencia.aceitavel for d in aprovador.decisoes] == [False]
 
@@ -245,7 +272,8 @@ def test_no_flood_a_primeira_acao_de_risco_baixo_executa_e_a_de_risco_alto_fora_
 
     assert resultado.desfecho == TODAS_REJEITADAS
     assert [(d.proposta, d.acao) for d in aprovador.decisoes] == [("prop-0002", "isolar_dispositivo")]
-    assert "não aceita isolar_dispositivo na categoria DDoS" in eventos_de(log, "acao_rejeitada")[0].dados.motivo
+    # Em DDoS a quarentena só vale sobre a origem; isolar o dispositivo atacado fica fora do gabarito.
+    assert "isolar_dispositivo em DDoS só vale sobre origem" in eventos_de(log, "acao_rejeitada")[0].dados.motivo
 
 
 def test_atacante_com_endereco_invalido_e_erro(log):
