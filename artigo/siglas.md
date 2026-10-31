@@ -1,10 +1,10 @@
 # Lista de siglas do artigo
 
-As siglas usadas em `artigo/Artigo_TCC2_SentryIoT.docx`, com o significado que o texto dá a cada
-uma no primeiro uso, como em "Internet das Coisas (IoT)". O verificador do artigo
+As siglas usadas no texto do artigo (`artigo/latex/secoes/`), com o significado que o texto dá a
+cada uma no primeiro uso, como em "Internet das Coisas (IoT)". O verificador do artigo
 (`python -m artigo.verificador`) lê esta lista: aponta a sigla do texto que não está aqui, a sigla
-cujo primeiro uso não traz o significado ao lado e a sigla daqui que o texto não usa. Sigla nova no
-artigo entra aqui, em ordem alfabética.
+cujo primeiro uso, no Resumo ou no corpo, não traz o significado ao lado e a sigla daqui que o texto
+não usa. Sigla nova no artigo entra aqui, em ordem alfabética.
 
 ## Siglas
 
@@ -18,7 +18,6 @@ artigo entra aqui, em ordem alfabética.
 | DHCP | Dynamic Host Configuration Protocol |
 | DNS | Domain Name System |
 | DoS | Denial of Service |
-| FCI | Faculdade de Computação e Informática |
 | HTTP | Hypertext Transfer Protocol |
 | HTTPS | Hypertext Transfer Protocol Secure |
 | IA | inteligência artificial |
@@ -50,6 +49,6 @@ artigo entra aqui, em ordem alfabética.
 Nomes próprios, unidades e rótulos que o verificador não cobra como sigla:
 
 - Datasets: CICIoT2023, CICIoMT2024, CICIDS2017, CIC-IDS-2017, CSE-CIC-IDS-2018, N-BaIoT, MERGED_CSV.
-- Produtos, empresas, formatos e métodos: SentryIoT, NetFlow, OpenAI, Vectra AI, MacBook, ReAct, TreeSHAP, SkopeAI, AdaBoost, JSON Lines.
+- Produtos, empresas, formatos e métodos: SentryIoT, NetFlow, OpenAI, Vectra AI, MacBook, ReAct, TreeSHAP, SkopeAI, AdaBoost, JSON Lines, TypeSafe AI, OBLITERATUS/Qwen3.8-27B-OBLITERATED.
 - Rótulos e arquivos do dataset: BenignTraffic, BruteForce, PortScan, PingSweep, SlowLoris, VulnerabilityScan, BrowserHijacking, SqlInjection, CommandInjection, Uploading_Attack, MITM-ArpSpoofing.
-- Versões e unidades: IPv4, IPv6, MB, GB, SP.
+- Versões e unidades: IPv4, IPv6, MB, GB.

@@ -1,57 +1,59 @@
-"""Verificador do artigo contra as regras do template do Oriente (FCI, TCC 2026).
+"""Verificador do artigo em LaTeX: o que o CI do artigo e o próprio LaTeX não conferem.
 
-Confere no .docx o que o template pede e o que dá para conferir sem ler o texto:
+O workflow "Artigo" compila o PDF, confere o limite de 20 páginas e mostra as palavras por
+arquivo; o abntex2cite monta as citações e a lista de referências a partir do `referencias.bib`,
+em ordem e só com o que o texto cita. Este verificador lê os `.tex` de `artigo/latex/`, na ordem
+dos `\\input` do `artigo.tex`, e confere o resto:
 
-- páginas: no máximo 20, com as referências, contadas no PDF que o LibreOffice gera;
-- Resumo e Abstract: de 150 a 250 palavras cada, seguidos de palavras-chave e keywords;
-- citações: toda citação, em linha, como "Neto et al. (2023)", ou entre parênteses, como
-  "(NETO et al., 2023)", tem referência, toda referência é citada, e a lista está em ordem
-  alfabética, como pede a ABNT (NBR 6023);
-- siglas: toda sigla do texto está em `artigo/siglas.md`, o primeiro uso traz o significado ao lado,
-  e a lista não tem sigla que o texto não usa;
-- pendências: os trechos marcados no texto, como [PENDENTE] e [CONFERIR], são avisos e, com
-  `--final`, erros.
+- Resumo e Abstract: de 150 a 250 palavras cada, contadas como o Word conta (número também é
+  palavra), seguidos das palavras-chave e das keywords, separadas por ponto e vírgula;
+- siglas: toda sigla do texto está em `artigo/siglas.md`, o primeiro uso no Resumo e o primeiro
+  uso no corpo trazem o significado ao lado, e a lista não tem sigla que o texto não usa. O
+  Abstract, em inglês, fica de fora, e título de seção não conta como primeiro uso;
+- citações: toda chave de `\\cite` e `\\citeonline` existe no `referencias.bib`, e a citação
+  escrita à mão, como "(NETO et al., 2023)", é aviso, porque não entra na lista de referências;
+- pendências: cada `\\pendente{...}` e cada CONFERIR de uma referência citada é aviso e, com
+  `--final`, erro.
 
-    python -m artigo.verificador                       # o .docx do repositório
-    python -m artigo.verificador outro.docx --final    # pendência vira erro
-    python -m artigo.verificador --sem-paginas         # sem o LibreOffice
+    python -m artigo.verificador                  # artigo/latex
+    python -m artigo.verificador --final          # pendência vira erro
+    python -m artigo.verificador outra/pasta      # outra cópia do artigo
 """
 
 import argparse
 import re
-import shutil
-import subprocess
 import sys
-import tempfile
 import unicodedata
-import xml.etree.ElementTree as ET
-import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
 PASTA = Path(__file__).resolve().parent
-ARTIGO = PASTA / "Artigo_TCC2_SentryIoT.docx"
+LATEX = PASTA / "latex"
 SIGLAS = PASTA / "siglas.md"
 
-MAX_PAGINAS = 20
 PALAVRAS_DO_RESUMO = (150, 250)
 # Distância, em caracteres, em que o significado precisa aparecer em volta do primeiro uso da sigla.
 VIZINHANCA = 200
+# Os arquivos do Resumo e do Abstract, pelo nome do \input; os demais são o corpo, na ordem do artigo.
+RESUMO, ABSTRACT = "resumo", "abstract"
 
-W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-PENDENCIA = re.compile(
-    r"\[(?:PENDENTE|CONFERIR|FIGURA|a implementar|a escrever|Se houver tempo)[^\]]*\]", re.IGNORECASE
+COMANDO = re.compile(r"\\([A-Za-z]+)\*?")
+# Comandos que somem com os argumentos: não imprimem texto corrido do artigo. Os de citação (\cite,
+# \citeonline, \apud e variantes) também somem.
+SEM_TEXTO = {
+    "pendente", "ref", "pageref", "eqref", "autoref", "label", "includegraphics", "input", "include", "vspace",
+    "hspace", "setlength", "url", "begin", "end", "graphicspath", "bibliography",
+}
+TITULOS = {"section", "subsection", "subsubsection", "paragraph"}
+CHAVES_CITADAS = re.compile(r"\\(?:[Cc]ite[a-z]*|[Aa]pud[a-z]*)\*?(?:\[[^\]]*\])*((?:\{[^{}]*\})+)")
+ENTRADA_DO_BIB = re.compile(r"@(\w+)\s*\{\s*([^,\s]+)\s*,")
+ANO = r"(?:1[5-9]|20)\d{2}[a-z]?"
+# Citação digitada no texto em vez de \cite: "(NETO et al., 2023)", "(KELLY; GLAVIN; BARRETT, 2021)",
+# "Neto et al. (2023)" ou "Darktrace (2024)".
+CITACAO_A_MAO = re.compile(
+    rf"\([^()]*?\b[A-ZÀ-Ý]{{2,}}\b[^()]*?,\s*{ANO}\b[^()]*\)"
+    rf"|\b[A-ZÀ-Ý][a-zà-ÿ'-]+(?:\s+et\s+al\.)?\s+\({ANO}(?:,\s*p\.[^()]*)?\)"
 )
-PALAVRA = re.compile(r"[^\W\d_]+(?:[-'][^\W\d_]+)*")
-ANO = r"\d{4}[a-z]?"
-ENTRE_PARENTESES = re.compile(rf"\(([^()]*?\b{ANO})\)")
-FIM_DE_OBRA = re.compile(rf",\s*({ANO})\s*$")
-NOME = r"[A-ZÀ-Ý][\wÀ-ÿ'-]*"
-EM_LINHA = re.compile(
-    rf"\b(?P<autores>{NOME}(?:\s+{NOME})?(?:,\s+{NOME})*(?:\s+e\s+{NOME})?(?:\s+et\s+al\.)?)\s+\((?P<ano>{ANO})\)"
-)
-# Palavras que abrem a frase antes do nome do autor, como em "Segundo Neto et al. (2023)".
-ABERTURAS = {"A", "O", "AS", "OS", "SEGUNDO", "CONFORME", "PARA", "COMO", "EM", "NA", "NO", "DE", "E"}
 # Palavra com pelo menos duas maiúsculas: IoT, MCP, DDoS, CoAP.
 CANDIDATA = re.compile(r"\b(?=[A-Za-z0-9]*[A-Z][A-Za-z0-9]*[A-Z])[A-Za-z][A-Za-z0-9]*\b")
 
@@ -71,23 +73,96 @@ class Relatorio:
         return "\n".join(linhas)
 
 
+@dataclass
+class Artigo:
+    """As fontes LaTeX do artigo: cada `\\input`, pelo nome, na ordem do `artigo.tex`."""
+
+    secoes: dict
+    principal: str = ""
+    bib: str = ""
+
+    @property
+    def corpo(self):
+        return [fonte for nome, fonte in self.secoes.items() if nome not in (RESUMO, ABSTRACT)]
+
+
 def normalizar(texto):
     """Sem acento e em maiúsculas, para comparar nomes e significados."""
     sem_acento = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
     return re.sub(r"\s+", " ", sem_acento).strip().upper()
 
 
-def ler_paragrafos(caminho):
-    """Texto de cada parágrafo do corpo, na ordem do documento, incluindo os das tabelas."""
-    with zipfile.ZipFile(caminho) as docx:
-        raiz = ET.fromstring(docx.read("word/document.xml"))
-    paragrafos = []
-    for p in raiz.iter(W + "p"):
-        partes = [no.text or "" if no.tag == W + "t" else " " for no in p.iter() if no.tag in (W + "t", W + "tab")]
-        texto = "".join(partes).strip()
-        if texto:
-            paragrafos.append(texto)
-    return paragrafos
+def sem_comentarios(fonte):
+    return re.sub(r"(?<!\\)%.*", "", fonte)
+
+
+def _fim_do_grupo(fonte, inicio):
+    """Posição depois do `}` ou `]` que fecha o grupo aberto em `fonte[inicio]`, ou None."""
+    abre = fonte[inicio]
+    fecha = "}" if abre == "{" else "]"
+    nivel, i = 0, inicio
+    while i < len(fonte):
+        if fonte[i] == "\\":
+            i += 2
+            continue
+        if fonte[i] == abre:
+            nivel += 1
+        elif fonte[i] == fecha:
+            nivel -= 1
+            if nivel == 0:
+                return i + 1
+        i += 1
+    return None
+
+
+def _fim_dos_argumentos(fonte, inicio):
+    """Posição depois dos argumentos `[...]` e `{...}` colados ao comando que termina em `inicio`."""
+    while inicio < len(fonte) and fonte[inicio] in "[{":
+        fim = _fim_do_grupo(fonte, inicio)
+        if fim is None:
+            break
+        inicio = fim
+    return inicio
+
+
+def argumentos_de(fonte, comando):
+    """O primeiro argumento de cada uso de `\\comando{...}` na fonte."""
+    achados = []
+    for achado in re.finditer(rf"\\{comando}(?![A-Za-z])", fonte):
+        if achado.end() < len(fonte) and fonte[achado.end()] == "{":
+            fim = _fim_do_grupo(fonte, achado.end())
+            if fim is not None:
+                achados.append(fonte[achado.end() + 1 : fim - 1])
+    return achados
+
+
+def texto_do_latex(fonte, sem_titulos=False):
+    """O texto corrido de um trecho LaTeX: sem comentários, pendências, citações, rótulos e comandos.
+
+    Os comandos de formatação (`\\textbf{...}`, `\\caption{...}`) ficam só com o texto; os de
+    `SEM_TEXTO` somem com os argumentos. Com `sem_titulos`, os títulos de seção também somem.
+    """
+    fonte = sem_comentarios(fonte).replace("\\\\", " ")
+    removidos = SEM_TEXTO | TITULOS if sem_titulos else SEM_TEXTO
+    partes, i = [], 0
+    while achado := COMANDO.search(fonte, i):
+        partes.append(fonte[i : achado.start()])
+        nome = achado.group(1)
+        some = nome in removidos or nome.lower().startswith(("cite", "apud"))
+        i = _fim_dos_argumentos(fonte, achado.end()) if some else achado.end()
+    partes.append(fonte[i:])
+    texto = "".join(partes)
+    texto = re.sub(r"(?<!\\)\$", "", texto)
+    texto = re.sub(r"(?<!\\)[&~]", " ", texto)
+    texto = re.sub(r"\\[,;:! ]", " ", texto).replace("\\-", "")
+    texto = re.sub(r"\\([%_&#$])", r"\1", texto)
+    texto = re.sub(r"[{}]", "", texto).replace("---", "—").replace("--", "–")
+    return re.sub(r"\s+", " ", texto).strip()
+
+
+def contar_palavras(texto):
+    """Palavras como o Word conta: o que fica entre espaços, número inclusive, sem pontuação solta."""
+    return sum(1 for termo in texto.split() if re.search(r"\w", termo))
 
 
 def ler_siglas(caminho=SIGLAS):
@@ -105,196 +180,137 @@ def ler_siglas(caminho=SIGLAS):
     return siglas, [nome for nome in nomes if nome]
 
 
-def _indice(paragrafos, padrao, inicio=0):
-    for i in range(inicio, len(paragrafos)):
-        if re.match(padrao, paragrafos[i], re.IGNORECASE):
-            return i
-    return None
+def ler_artigo(pasta=LATEX):
+    """As fontes do artigo em `pasta`: os `\\input` do `artigo.tex`, na ordem, e o `referencias.bib`."""
+    pasta = Path(pasta)
+    principal = (pasta / "artigo.tex").read_text(encoding="utf-8")
+    secoes = {}
+    for nome in re.findall(r"\\input\{([^}]+)\}", sem_comentarios(principal)):
+        caminho = pasta / (nome if nome.endswith(".tex") else nome + ".tex")
+        secoes[caminho.stem] = caminho.read_text(encoding="utf-8")
+    bib = pasta / "referencias.bib"
+    return Artigo(secoes, principal, bib.read_text(encoding="utf-8") if bib.exists() else "")
 
 
-def _secoes(paragrafos):
-    resumo = _indice(paragrafos, r"Resumo$")
-    abstract = _indice(paragrafos, r"Abstract$")
-    chave = _indice(paragrafos, r"Palavras-chave", resumo or 0)
-    keywords = _indice(paragrafos, r"Keywords", abstract or 0)
-    referencias = _indice(paragrafos, r"(\d+\.\s*)?Refer[eê]ncias")
-    return resumo, chave, abstract, keywords, referencias
-
-
-def contar_palavras(texto):
-    return len(PALAVRA.findall(PENDENCIA.sub(" ", texto)))
-
-
-def _conferir_resumos(paragrafos, relatorio):
-    resumo, chave, abstract, keywords, _ = _secoes(paragrafos)
-    minimo, maximo = PALAVRAS_DO_RESUMO
-    for nome, inicio, fim, rotulo in (("Resumo", resumo, chave, "Palavras-chave"), ("Abstract", abstract, keywords, "Keywords")):
-        if inicio is None:
-            relatorio.erros.append(f"{nome}: seção não encontrada.")
-            continue
-        if fim is None:
-            relatorio.erros.append(f"{nome}: falta a linha de {rotulo}.")
-            fim = inicio + 1
-        palavras = contar_palavras(" ".join(paragrafos[inicio + 1 : fim]))
-        if not minimo <= palavras <= maximo:
-            relatorio.erros.append(f"{nome}: {palavras} palavras; o template pede de {minimo} a {maximo}.")
-        if fim < len(paragrafos) and paragrafos[fim].lower().startswith(rotulo.lower()):
-            termos = [t for t in paragrafos[fim].split(":", 1)[-1].rstrip(".").split(";") if t.strip()]
-            if len(termos) < 2:
-                relatorio.avisos.append(f"{rotulo}: separe os termos por ponto e vírgula.")
-
-
-def _primeira_palavra(nome):
-    palavras = normalizar(nome.replace("et al.", "")).split()
-    return palavras[0] if palavras else ""
-
-
-def extrair_citacoes(texto):
-    """Pares (texto da citação, nomes candidatos, ano) das citações entre parênteses e em linha."""
-    citacoes = []
-    for trecho in ENTRE_PARENTESES.findall(texto):
-        autores = []
-        for parte in trecho.split(";"):
-            fim = FIM_DE_OBRA.search(parte)
-            nome = parte[: fim.start()] if fim else parte
-            autores.append(nome.strip())
-            if fim:
-                primeiro = autores[0].replace("et al.", "").strip()
-                if primeiro and primeiro == primeiro.upper() and re.search(r"[A-Z]{2}", primeiro):
-                    citacoes.append((f"({'; '.join(autores)}, {fim.group(1)})", [_primeira_palavra(primeiro)], fim.group(1)))
-                autores = []
-    for achado in EM_LINHA.finditer(texto):
-        autores = achado.group("autores")
-        primeira = autores.split()[0]
-        if normalizar(primeira) in ABERTURAS and len(autores.split()) > 1:
-            autores = autores[len(primeira):].strip()
-        candidatos = [normalizar(n) for n in re.findall(NOME, autores.replace("et al.", ""))]
-        citacoes.append((f"{autores} ({achado.group('ano')})", candidatos, achado.group("ano")))
-    return citacoes
-
-
-def extrair_referencias(paragrafos):
-    """(texto, primeira palavra do primeiro autor, ano) de cada referência."""
-    referencias = []
-    for texto in paragrafos:
-        if PENDENCIA.fullmatch(texto.strip()):
-            continue
-        corte = min((i for i in (texto.find(","), texto.find(".")) if i > 0), default=len(texto))
-        # O ano vem solto, depois de espaço, vírgula ou parêntese; o 2017 de "CIC-IDS-2017" é do título.
-        ano = re.search(r"(?<=[\s,(])(?:19|20)\d{2}[a-z]?(?=[.,;:\s)])", texto[corte:])
-        referencias.append((texto, _primeira_palavra(texto[:corte]), ano.group(0) if ano else None))
-    return referencias
-
-
-def _conferir_citacoes(paragrafos, relatorio):
-    _, _, _, keywords, referencias = _secoes(paragrafos)
-    if referencias is None:
-        relatorio.erros.append("Referências: seção não encontrada.")
+def _conferir_resumo(nome, fonte, rotulo, relatorio):
+    if fonte is None:
+        relatorio.erros.append(f"{nome}: arquivo não encontrado nos \\input do artigo.tex.")
         return
-    corpo = PENDENCIA.sub(" ", "\n".join(paragrafos[(keywords or 0) + 1 : referencias]))
-    lista = extrair_referencias(paragrafos[referencias + 1 :])
-    chaves = {(chave, ano) for _, chave, ano in lista}
-    citadas = set()
-    for texto, candidatos, ano in extrair_citacoes(corpo):
-        achadas = [(c, ano) for c in candidatos if (c, ano) in chaves]
-        if achadas:
-            citadas.update(achadas)
-        else:
-            relatorio.erros.append(f"Citação sem referência: {texto}.")
-    for texto, chave, ano in lista:
-        if (chave, ano) not in citadas:
-            relatorio.erros.append(f"Referência não citada no texto: {texto[:90]}…")
-    ordem = [normalizar(texto) for texto, _, _ in lista]
-    if ordem != sorted(ordem):
-        relatorio.avisos.append("Referências fora da ordem alfabética.")
+    texto = texto_do_latex(fonte)
+    partes = re.split(rf"\b{re.escape(rotulo)}\s*:", texto, maxsplit=1, flags=re.IGNORECASE)
+    minimo, maximo = PALAVRAS_DO_RESUMO
+    palavras = contar_palavras(partes[0])
+    if not minimo <= palavras <= maximo:
+        relatorio.erros.append(f"{nome}: {palavras} palavras; o template pede de {minimo} a {maximo}.")
+    if len(partes) == 1:
+        relatorio.erros.append(f"{nome}: falta a linha de {rotulo}.")
+    elif len([termo for termo in partes[1].rstrip(" .").split(";") if termo.strip()]) < 2:
+        relatorio.avisos.append(f"{rotulo}: separe os termos por ponto e vírgula.")
 
 
-def _conferir_siglas(paragrafos, siglas, nomes, relatorio):
-    _, _, abstract, keywords, referencias = _secoes(paragrafos)
-    # O título (primeiro parágrafo) não define sigla: o primeiro uso conta a partir dos autores.
-    trechos = paragrafos[1:abstract] + paragrafos[(keywords or 0) + 1 : referencias]
-    texto = PENDENCIA.sub(" ", "\n".join(trechos))
-    texto = ENTRE_PARENTESES.sub(lambda m: " " if re.search(r"[A-Z]{2}", m.group(1)) else m.group(0), texto)
-    # Os nomes saem só da busca de siglas, trocados por espaços do mesmo tamanho: as posições continuam as do
-    # texto, onde o significado é procurado ("JSON Lines" é nome, mas é o significado de JSONL).
-    busca = texto
-    for nome in sorted(nomes, key=len, reverse=True):
-        busca = busca.replace(nome, " " * len(nome))
-    usadas = {}
-    for achado in CANDIDATA.finditer(busca):
-        palavra = achado.group(0)
-        sigla = palavra if palavra in siglas else palavra[:-1] if palavra.endswith("s") and palavra[:-1] in siglas else None
-        if sigla is None:
-            if palavra not in usadas:
-                relatorio.erros.append(f"Sigla fora de artigo/siglas.md: {palavra}.")
-                usadas[palavra] = achado.start()
-            continue
-        usadas.setdefault(sigla, achado.start())
-    normal = normalizar(texto)
-    for sigla, inicio in usadas.items():
-        if sigla not in siglas:
-            continue
-        janela = normalizar(texto[max(0, inicio - VIZINHANCA) : inicio + len(sigla) + VIZINHANCA])
-        if normalizar(siglas[sigla]) not in janela:
-            relatorio.erros.append(f"Primeiro uso de {sigla} sem o significado ao lado ({siglas[sigla]}).")
+def _chaves_citadas(fontes):
+    chaves = []
+    for fonte in fontes:
+        for grupos in CHAVES_CITADAS.findall(sem_comentarios(fonte)):
+            chaves.extend(chave for chave in re.findall(r"[^{},\s]+", grupos) if chave not in chaves)
+    return chaves
+
+
+def _entradas_do_bib(bib):
+    """{chave: texto da entrada} do `referencias.bib`."""
+    entradas = {}
+    for trecho in re.split(r"(?m)^\s*(?=@)", bib):
+        achado = ENTRADA_DO_BIB.match(trecho)
+        if achado and achado.group(1).lower() not in ("comment", "string", "preamble"):
+            entradas[achado.group(2)] = trecho
+    return entradas
+
+
+def _conferir_citacoes(artigo, relatorio):
+    entradas = _entradas_do_bib(artigo.bib)
+    for chave in _chaves_citadas([artigo.principal, *artigo.secoes.values()]):
+        if chave not in entradas:
+            relatorio.erros.append(f"Citação sem entrada no referencias.bib: {chave}.")
+    for nome, fonte in artigo.secoes.items():
+        for achado in CITACAO_A_MAO.finditer(texto_do_latex(fonte)):
+            relatorio.avisos.append(
+                f"Citação escrita à mão em {nome}.tex, fora da lista de referências: {achado.group(0)}."
+            )
+
+
+def _mascarar(texto, padrao):
+    """Troca cada trecho por espaços do mesmo tamanho: as posições continuam as do texto."""
+    return re.sub(padrao, lambda achado: " " * len(achado.group(0)), texto)
+
+
+def _conferir_siglas(artigo, siglas, nomes, relatorio):
+    resumo = artigo.secoes.get(RESUMO, "")
+    blocos = [("no Resumo", texto_do_latex(resumo, sem_titulos=True))]
+    blocos.append(("no corpo", texto_do_latex("\n".join(artigo.corpo), sem_titulos=True)))
+    desconhecidas, usadas = set(), set()
+    for onde, texto in blocos:
+        # Os nomes saem só da busca de siglas, sem pedaço de palavra (MB não esconde o SMB), mas com o número
+        # de arquivo colado (BenignTraffic2). O significado é procurado no texto sem máscara: "JSON Lines" é
+        # nome, mas é o significado de JSONL.
+        busca = _mascarar(texto, CITACAO_A_MAO)
+        for nome in sorted(nomes, key=len, reverse=True):
+            busca = _mascarar(busca, rf"(?<!\w){re.escape(nome)}(?![A-Za-z_])")
+        primeiro_uso = {}
+        for achado in CANDIDATA.finditer(busca):
+            palavra = achado.group(0)
+            plural = palavra.endswith("s") and palavra[:-1] in siglas
+            sigla = palavra if palavra in siglas else palavra[:-1] if plural else None
+            if sigla is None:
+                if palavra not in desconhecidas:
+                    desconhecidas.add(palavra)
+                    relatorio.erros.append(f"Sigla fora de artigo/siglas.md: {palavra}.")
+                continue
+            primeiro_uso.setdefault(sigla, achado.start())
+        for sigla, inicio in primeiro_uso.items():
+            janela = normalizar(texto[max(0, inicio - VIZINHANCA) : inicio + len(sigla) + VIZINHANCA])
+            if normalizar(siglas[sigla]) not in janela:
+                relatorio.erros.append(f"Primeiro uso de {sigla} {onde} sem o significado ao lado ({siglas[sigla]}).")
+        usadas.update(primeiro_uso)
+    juntos = " ".join(texto for _, texto in blocos)
     for sigla in siglas:
-        if sigla not in usadas and not re.search(rf"\b{re.escape(normalizar(sigla))}S?\b", normal):
+        if sigla not in usadas and not re.search(rf"(?<![A-Za-z0-9]){re.escape(sigla)}s?(?![A-Za-z0-9])", juntos):
             relatorio.avisos.append(f"Sigla da lista que o texto não usa: {sigla}.")
 
 
-def _conferir_pendencias(paragrafos, final, relatorio):
+def _conferir_pendencias(artigo, final, relatorio):
     destino = relatorio.erros if final else relatorio.avisos
-    for paragrafo in paragrafos:
-        for achado in PENDENCIA.finditer(paragrafo):
-            trecho = achado.group(0)
-            destino.append("Pendência no texto: " + (trecho if len(trecho) <= 90 else trecho[:89] + "…]"))
+    fontes = [("artigo", artigo.principal), *artigo.secoes.items()]
+    for nome, fonte in fontes:
+        for pendencia in argumentos_de(sem_comentarios(fonte), "pendente"):
+            trecho = re.sub(r"\s+", " ", pendencia).strip()
+            destino.append(f"Pendência em {nome}.tex: " + (trecho if len(trecho) <= 90 else trecho[:89] + "…"))
+    entradas = _entradas_do_bib(artigo.bib)
+    for chave in _chaves_citadas([artigo.principal, *artigo.secoes.values()]):
+        if "CONFERIR" in entradas.get(chave, ""):
+            destino.append(f"Referência citada com CONFERIR no referencias.bib: {chave}.")
 
 
-def verificar(paragrafos, siglas, nomes, paginas=None, final=False):
+def verificar(artigo, siglas, nomes, final=False):
     relatorio = Relatorio()
-    if paginas is None:
-        relatorio.avisos.append("Páginas: não conferidas (sem o LibreOffice).")
-    elif paginas > MAX_PAGINAS:
-        relatorio.erros.append(f"Páginas: {paginas}; o template permite no máximo {MAX_PAGINAS}, com as referências.")
-    _conferir_resumos(paragrafos, relatorio)
-    _conferir_citacoes(paragrafos, relatorio)
-    _conferir_siglas(paragrafos, siglas, nomes, relatorio)
-    _conferir_pendencias(paragrafos, final, relatorio)
+    _conferir_resumo("Resumo", artigo.secoes.get(RESUMO), "Palavras-chave", relatorio)
+    _conferir_resumo("Abstract", artigo.secoes.get(ABSTRACT), "Keywords", relatorio)
+    _conferir_citacoes(artigo, relatorio)
+    _conferir_siglas(artigo, siglas, nomes, relatorio)
+    _conferir_pendencias(artigo, final, relatorio)
     return relatorio
 
 
-def libreoffice():
-    for candidato in ("soffice", "libreoffice", "/Applications/LibreOffice.app/Contents/MacOS/soffice"):
-        if shutil.which(candidato) or Path(candidato).exists():
-            return candidato
-    return None
-
-
-def contar_paginas(caminho):
-    """Páginas do PDF que o LibreOffice gera do .docx, ou None sem o LibreOffice."""
-    executavel = libreoffice()
-    if executavel is None:
-        return None
-    with tempfile.TemporaryDirectory() as pasta:
-        subprocess.run(
-            [executavel, "--headless", "--convert-to", "pdf", "--outdir", pasta, str(caminho)],
-            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
-        pdf = Path(pasta) / (Path(caminho).stem + ".pdf")
-        return len(re.findall(rb"/Type\s*/Page[^s]", pdf.read_bytes()))
-
-
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Confere o artigo contra as regras do template.")
-    parser.add_argument("docx", nargs="?", default=ARTIGO, type=Path)
-    parser.add_argument("--final", action="store_true", help="pendência marcada no texto vira erro")
-    parser.add_argument("--sem-paginas", action="store_true", help="não conta as páginas pelo LibreOffice")
+    parser = argparse.ArgumentParser(description="Confere o artigo em LaTeX no que o CI do artigo não confere.")
+    parser.add_argument(
+        "pasta", nargs="?", default=LATEX, type=Path, help="pasta do artigo.tex (padrão: artigo/latex)"
+    )
+    parser.add_argument("--final", action="store_true", help="pendência vira erro")
     args = parser.parse_args(argv)
     siglas, nomes = ler_siglas()
-    paginas = None if args.sem_paginas else contar_paginas(args.docx)
-    relatorio = verificar(ler_paragrafos(args.docx), siglas, nomes, paginas=paginas, final=args.final)
-    print(f"Artigo: {args.docx}")
-    print(f"Páginas: {paginas if paginas is not None else 'não conferidas'}\n")
+    relatorio = verificar(ler_artigo(args.pasta), siglas, nomes, final=args.final)
+    print(f"Artigo: {args.pasta}")
+    print("Páginas e palavras por arquivo: no workflow Artigo do CI.\n")
     print(relatorio.texto())
     return 1 if relatorio.erros else 0
 
