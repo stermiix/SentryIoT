@@ -3,18 +3,18 @@
 Mede o que o sistema faz com tráfego que não é o do dataset de treino, com a regra do sistema e com
 outras regras de janela e de janelas seguidas, para a decisão de 28/10/2026 (`ROADMAP.md`):
 
-- uma casa, 90 minutos de IoT real gravados com o Mac como gateway (26/10). Só os números agregados
-  saem daqui: o pcap e os endereços da casa ficam fora do repositório;
+- uma casa, 90 minutos de tráfego de IoT real, gravados com o Mac como gateway (26/10). Só os números
+  agregados saem daqui: o pcap e os endereços da casa ficam fora do repositório;
 - o IoT-23 (Stratosphere Laboratory, licença CC-BY): três aparelhos reais sem ataque (Philips Hue,
-  Amazon Echo e a fechadura Somfy, esta em seis dias) e malware real em Raspberry Pi;
-- o CICIoMT2024 (Canadian Institute for Cybersecurity): um laboratório de IoT médico, com o tráfego
+  Amazon Echo e a fechadura Somfy, esta com seis dias de captura) e malware real em Raspberry Pi;
+- o CICIoMT2024 (Canadian Institute for Cybersecurity): um laboratório de IoT médica, com o tráfego
   benigno e 18 ataques do conjunto de teste, entre eles 5 de MQTT, que o CICIoT2023 não tem;
 - o trecho de teste dos pcaps do CICIoT2023 (`inicio_do_teste`): o benigno e os 14 ataques que não
   são flood, para comparar com o resto.
 
 Em cada pcap, as janelas são extraídas uma vez e passam pela política de acionamento do reprodutor
 com cada regra: o extrator é trocado por um que devolve as janelas guardadas, e a política é
-exatamente a do sistema. Nos floods grandes só o começo é lido (`limite`): o alarme deles abre nas
+exatamente a do sistema. Nos floods grandes só o começo é lido (`limite`): o alarme deles dispara nas
 primeiras janelas com qualquer regra comparada. Uma captura sem rótulo por janela é medida por
 captura: alarme sim ou não, o atraso até o primeiro e a categoria dele; numa benigna, todo
 incidente é falso.
@@ -53,7 +53,8 @@ LIMITE_DO_MALWARE_GRANDE = 2_000_000
 
 @dataclasses.dataclass(frozen=True)
 class PontoPorCategoria:
-    """O argmax, mas a janela das categorias em `limiares` só é ataque se 1 − P(Benign) chega ao limiar dela."""
+    """O argmax, mas a janela cuja categoria está em `limiares` só é ataque se 1 − P(Benign) chega ao
+    limiar dessa categoria."""
 
     limiares: tuple  # ((categoria, limiar), ...)
     seguidas: int = SEGUIDAS
@@ -207,7 +208,7 @@ def avaliar_capturas(classificador, capturas=CAPTURAS, ao_medir=None):
             if a_partir is None:
                 continue
         saidas = extrair(captura.caminho, captura.limite)
-        # As janelas antes do trecho de teste só contam a posição: o reprodutor as pula sem ler.
+        # As janelas antes do trecho de teste só marcam a posição: o reprodutor as pula sem ler.
         saidas[:a_partir] = [(None, None, 0.0, 0.0, 0)] * min(a_partir, len(saidas))
         presentes.append(captura)
         for nome, cl in lista:
