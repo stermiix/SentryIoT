@@ -52,7 +52,7 @@ Botão quadrado de um ícone só, com o mesmo canto dos outros controles.
 
 Selo de categoria: um glifo na cor da categoria e o nome; legível em cinza pelo glifo e pela palavra.
 
-- **Você fornece:** `category` (uma das 8 do incidente ou das 7 do modelo), `model` (`true` para a saída crua do classificador: borda tracejada e prefixo "MODELO"), `size` (`sm` 22 · `md` 28 · `lg` 36 px).
+- **Você fornece:** `category` (uma das 8 do incidente ou das 7 do modelo), `model` (`true` para a saída crua do classificador: borda tracejada e prefixo "modelo"), `size` (`sm` 22 · `md` 28 · `lg` 36 px).
 - **Mostre as duas** quando diferirem: a categoria do incidente (sólida) e a do modelo (tracejada): "o modelo disse DDoS+DoS; com 37 origens, é um DDoS". `ClassifierVerdict` faz isso por extenso.
 - Benign é discreta de propósito (texto `ink-2`). Não use as cores de categoria em nenhum outro lugar.
 
@@ -108,14 +108,14 @@ Navegação lateral flutuante, nas versões larga e só com ícones. Só preto e
 
 ### PageHeader
 
-Bloco de título da tela: rótulo de caminho em mono, título `title-1`, linha de metadados e ações à direita.
+Bloco de título da tela: rótulo de caminho, título `title-1`, linha de metadados e ações à direita.
 
-- **Você fornece:** `eyebrow` ("INCIDENTES / INC-0001"), `title`, `meta` (selos, horário, contagens), `actions` (o `ModeIndicator` e os botões da tela).
+- **Você fornece:** `eyebrow` ("Incidentes / inc-0001"), `title`, `meta` (selos, horário, contagens), `actions` (o `ModeIndicator` e os botões da tela).
 - **Um por tela**, sem saudação. O `ModeIndicator` fica sempre nas ações, no mesmo lugar em todas as telas.
 
 ### ModeIndicator
 
-Diz em que modo a tela está: "REPLAY · EVENTO 23 DE 52 · 14:03:26" ou "AO VIVO" com ponto pulsante.
+Diz em que modo a tela está: "REPLAY · evento 23 de 52 · 14:03:26" ou "AO VIVO" com ponto pulsante.
 
 - **Você fornece:** `mode` (`replay` | `ao-vivo`), `position` e `total` no replay, `at` (hora do evento atual).
 - Sempre visível no cabeçalho da tela.
@@ -139,7 +139,7 @@ Abas sublinhadas para as seções de um mesmo objeto (Veredito · Agentes · Pro
 
 A superfície de todo bloco: `surface-1` chapada, fio `line-1` e cantos `radius-lg`.
 
-- **Você fornece:** `eyebrow` (rótulo mono), `title` (`title-3`), `actions` (à direita), `children`, `footer`, `flush` (tabelas de borda a borda), `tone="attention"` (fio âmbar duplo quando algo dentro espera uma pessoa).
+- **Você fornece:** `eyebrow` (rótulo), `title` (`title-3`), `actions` (à direita), `children`, `footer`, `flush` (tabelas de borda a borda), `tone="attention"` (fio âmbar duplo quando algo dentro espera uma pessoa).
 - **Use** um título curto que diga o que há dentro ("Veredito", "Ações propostas"). Prefira deixar o fio âmbar no item que aguarda, não no painel inteiro.
 
 ## Formulários
@@ -171,7 +171,7 @@ O argumento do trabalho de relance: **janelas classificadas → incidente → ch
 
 ### MetricCard
 
-Cartão com número grande e rótulo mono, o "340 Executions" das referências.
+Cartão com número grande e rótulo.
 
 - **Você fornece:** `label`, `value` (número já é formatado em pt-BR), `unit`, `context` (uma linha), `icon`, `delta` (`text`, `tone`), `spark` (valores da linha), `tone="attention"` (número que pede uma pessoa, ex.: propostas aguardando).
 - **Use** para tokens, latência, incidentes, aguardando aprovação. Os três contadores do argumento ficam no `AggregationFunnel`, não em cartões soltos.
@@ -414,6 +414,6 @@ O relatório do incidente: capa A4 no estilo da capa de referência e as página
 
 Login com a marca de vidro ao fundo, na mesma linguagem da capa do relatório.
 
-- Composição: `GlassBackdrop variant="login"` sobre o chão preto (`bg-0`); `Logo lg` e tagline em `eyebrow-wide`; barra de acento, "RESPOSTA AUTÔNOMA A INTRUSÃO", título "Entrar"; cartão com usuário, senha, "Entrar" (primário) e "Abrir o replay"; selo "ACESSO RESTRITO".
+- Composição: `GlassBackdrop variant="login"` sobre o chão preto (`bg-0`); `Logo lg` e tagline em `eyebrow-wide`; barra de acento, "Resposta autônoma a intrusão", título "Entrar"; cartão com usuário, senha, "Entrar" (primário) e "Abrir o replay"; selo "ACESSO RESTRITO".
 - Estados: erro de senha (`Alert danger` + campo com erro), carregando (botão com giro). Cabe em 1440 × 900.
 - Código: `src/telas/Entrar.tsx`. O login passa por `src/operacao.ts`, que hoje explica que ainda não há login.

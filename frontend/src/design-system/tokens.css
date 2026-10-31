@@ -193,18 +193,16 @@
   font-weight: 500;
 }
 .eyebrow {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 16px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
   font-weight: 400;
-  letter-spacing: 0.16em;
 }
 .eyebrow-wide {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 20px;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
   font-weight: 400;
-  letter-spacing: 0.32em;
 }
 .data {
   font-family: var(--font-mono);

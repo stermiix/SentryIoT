@@ -6,7 +6,7 @@ import { cx } from './util';
 
 /* ---------------- Panel ---------------- */
 export interface PanelProps {
-  /** Mono uppercase label above the title ("VEREDITO DO CLASSIFICADOR"). */
+  /** Label above the title ("Veredito do classificador"). */
   eyebrow?: React.ReactNode;
   title?: React.ReactNode;
   /** Right side of the header: buttons, segmented control, a count. */
