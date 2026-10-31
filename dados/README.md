@@ -525,6 +525,7 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `agente/registro.py` | O que o laço grava no log: um `llm_chamada` por chamada ao modelo e um `agente_concluido` por agente |
 | `agente/agentes.py` | O orquestrador em código: triagem, veredito sem endereço, decisão, espera da aprovação no log, execução e verificação do efeito, em três configurações (`local`, `nuvem`, `hibrida`). Roda com `python -m codigo.agente --incidente inc-0001 --log <log> --configuracao hibrida` |
 | `agente/aprovador.py` | O aprovador automático dos experimentos e a conferência de cada proposta contra o gabarito (`experimentos/gabarito_da_recomendacao.toml`): aprova a proposta de risco alto que o gabarito aceita, rejeita as demais, inclusive a ação nova, e grava a decisão no log como a de uma pessoa (`aprovador-automatico`). O papel do alvo vem dos IPs dos atacantes do dataset |
+| `agente/experimento.py` | O executor dos experimentos ponta a ponta: `preparar` reproduz os pcaps e monta o conjunto de incidentes, com a verdade de campo (os IPs dos atacantes do dataset e se o incidente é verdadeiro); `rodar` roda os agentes em cada configuração e repetição, com o aprovador automático, e retoma de onde parou; `consolidar` gera `avaliacao_agentes.csv` e `custo_latencia.csv`. Roda em Linux ou macOS (`preparar` usa o `resource`, que o Windows não tem) |
 | `agente/teste_tool_poisoning.py` | **(a criar)** O experimento de segurança do MCP: uma tool com descrição envenenada, para medir se o agente cai |
 
 **Frente do reprodutor de tráfego** (`codigo/reprodutor/`)
@@ -573,8 +574,8 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `resultados/regeracao_preenchido/`, `resultados/regeracao_preenchido_limitado/` | Os manifestos das regerações com o quadro completado até 60 bytes e com o quadro como no fio |
 | `resultados/reproducao_dos_pcaps.md` | Os 38 pcaps pelo reprodutor, com os incidentes conferidos com os MACs dos atacantes: janelas com atacante, origem e destino principais, categoria DDoS ou DoS, atraso de detecção, alarmes falsos nos pcaps benignos e o efeito de capturar os quadros como no fio. Tudo está em `manifesto_reproducao_dos_pcaps.json` |
 | `resultados/custo_do_modelo_do_sistema.md` | O custo do modelo do sistema na operação: latência de uma janela, lote, vazão do extrator e do reprodutor, tempo de leitura e memória, com a máquina da medida. Tudo está em `manifesto_custo_do_modelo_do_sistema.json` |
-| `resultados/avaliacao_agentes.csv` | **(a criar)** A qualidade das recomendações: por incidente, se a ação é aceitável no alvo certo pelo gabarito por categoria, com o acerto da triagem ao lado (decisão de 2026-10-25) |
-| `resultados/custo_latencia.csv` | **(a criar)** Tokens e tempo de resposta por alerta |
+| `resultados/avaliacao_agentes.csv` | **(a gerar)** A qualidade das recomendações: por rodada (incidente, configuração e repetição), se a ação é aceitável no alvo certo pelo gabarito por categoria, com o acerto da triagem ao lado (decisão de 2026-10-25). Sai de `python -m codigo.agente.experimento consolidar` |
+| `resultados/custo_latencia.csv` | **(a gerar)** Tokens, tempo das chamadas aos modelos e custo por agente e por rodada, com o tempo da detecção e o dos agentes na linha de total. Sai do mesmo comando |
 | `notebooks/` | Exploração livre. Nada que vá para o artigo nasce aqui sem virar script |
 
 **Raiz do repositório**

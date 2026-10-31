@@ -58,21 +58,31 @@ class _ComVerdade(R._ExtratorComContagens):
         return super()._fechar()
 
 
+def reproduzir_com_verdade(caminho, classificador, **opcoes):
+    """Reproduz o pcap e devolve com ele a verdade de campo: `(reproducao, verdade, ips_dos_atacantes)`.
+
+    `verdade` tem uma entrada por janela do pcap, na ordem, com os quadros dos atacantes, os IPs deles e o
+    instante da janela. `opcoes` vão para `reproduzir`, como `a_partir_da_janela`.
+    """
+    _ComVerdade.verdade = verdade = []
+    original = R._ExtratorComContagens
+    R._ExtratorComContagens = _ComVerdade
+    try:
+        reproducao = R.reproduzir(caminho, classificador, **opcoes)
+    finally:
+        R._ExtratorComContagens = original
+    ips_atacantes = set().union(*(v[1] for v in verdade)) if verdade else set()
+    return reproducao, verdade, ips_atacantes
+
+
 def avaliar_pcap(caminho, classificador, manifesto=MANIFESTO):
     """O resultado de um pcap, num dicionário pronto para gravar em JSON."""
     caminho = Path(caminho)
     registro = next(p for p in json.loads(Path(manifesto).read_text(encoding="utf-8"))["pcaps"] if p["arquivo"] == caminho.name)
-    _ComVerdade.verdade = verdade = []
-    original = R._ExtratorComContagens
-    R._ExtratorComContagens = _ComVerdade
     inicio = time.perf_counter()
-    try:
-        reproducao = R.reproduzir(caminho, classificador)
-    finally:
-        R._ExtratorComContagens = original
+    reproducao, verdade, ips_atacantes = reproduzir_com_verdade(caminho, classificador)
     cenarios = R.cenarios_da_reproducao(reproducao, classificador)
     corte = R.inicio_do_teste(caminho.name, manifesto)
-    ips_atacantes = set().union(*(v[1] for v in verdade)) if verdade else set()
     incidentes = []
     for cenario, incidente in zip(cenarios, reproducao.incidentes, strict=True):
         dados = cenario.incidente
