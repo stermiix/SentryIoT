@@ -1,8 +1,8 @@
 # Artigo em LaTeX: compila artigo/latex/artigo.tex no template da FCI, confere o limite de paginas
 # do template (no maximo 20, contando as referencias), mostra as palavras por secao e guarda o PDF
-# como artefato do job. Acima do limite, o job avisa e nao falha: enquanto o texto ainda cresce, o
-# artigo pode passar de 20 paginas, mas a versao submetida precisa voltar ao limite. So roda quando
-# o PR mexe no artigo, nas figuras ou neste arquivo.
+# como artefato do job. Acima do limite, o job so avisa ate 02/11: enquanto o texto ainda cresce, o
+# artigo pode passar de 20 paginas. A partir de 03/11, quando abre a submissao, volta a reprovar. So
+# roda quando o PR mexe no artigo, nas figuras ou neste arquivo.
 name: Artigo
 
 on:
@@ -30,6 +30,8 @@ concurrency:
 env:
   # Regra do template de artigo da FCI (2026).
   PAGINAS_MAXIMAS: "20"
+  # Primeiro dia da submissao no Oriente (edital): daqui em diante o limite volta a reprovar.
+  REPROVAR_A_PARTIR_DE: "20261103"
 
 jobs:
   pdf:
@@ -66,15 +68,20 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Acima do limite, aviso e nao erro: o numero fica no resumo e na anotacao do PR.
+      # Acima do limite, aviso ate 02/11 e erro a partir de 03/11: o numero fica no resumo e na
+      # anotacao do PR.
       - name: Conferir o limite de paginas
         working-directory: artigo/latex
         run: |
           paginas=$(pdfinfo artigo.pdf | awk '/^Pages:/ {print $2}')
           echo "### O artigo tem ${paginas} paginas (limite do template: ${PAGINAS_MAXIMAS})" >> "$GITHUB_STEP_SUMMARY"
           if [ "${paginas}" -gt "${PAGINAS_MAXIMAS}" ]; then
-            echo "::warning::O artigo tem ${paginas} paginas, acima do limite de ${PAGINAS_MAXIMAS} do template. A versao submetida precisa voltar ao limite."
-            echo "**Acima do limite:** a versao submetida precisa ter no maximo ${PAGINAS_MAXIMAS} paginas." >> "$GITHUB_STEP_SUMMARY"
+            if [ "$(date -u +%Y%m%d)" -ge "${REPROVAR_A_PARTIR_DE}" ]; then
+              echo "::error::O artigo tem ${paginas} paginas, acima do limite de ${PAGINAS_MAXIMAS} do template."
+              exit 1
+            fi
+            echo "::warning::O artigo tem ${paginas} paginas, acima do limite de ${PAGINAS_MAXIMAS} do template. A partir de 03/11 o job reprova."
+            echo "**Acima do limite:** a versao submetida precisa ter no maximo ${PAGINAS_MAXIMAS} paginas; a partir de 03/11 o job reprova." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       # O PDF fica no job em toda execucao concluida, para ver o que cortar.
