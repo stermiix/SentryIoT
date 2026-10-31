@@ -122,9 +122,9 @@ Quando umas classes têm muito mais exemplos que outras. No nosso caso é extrem
 linhas). Isso distorce as métricas (ver abaixo).
 
 **Divisão por tempo e por arquivo**
-Como separamos treino e teste sem sortear janela por janela, o que poria janelas vizinhas, quase
-iguais, dos dois lados. Num rótulo de um PCAP só, o começo do PCAP (70% das janelas) vai para o
-treino e o fim, para o teste. Num rótulo com mais de um PCAP, o último pela ordem do nome vai
+A forma de separar treino e teste sem sortear janela por janela, o que poria janelas vizinhas,
+quase iguais, dos dois lados. Num rótulo de um PCAP só, o começo do PCAP (70% das janelas) vai para
+o treino e o fim, para o teste. Num rótulo com mais de um PCAP, o último pela ordem do nome vai
 inteiro para o teste, e os outros, inteiros para o treino.
 
 **PCAP fora do treino**
@@ -135,8 +135,8 @@ mais de um PCAP; em Recon, fica em 24,9%, contra 55,0% no corte por tempo (Tabel
 **Ponto de operação**
 A regra que transforma as probabilidades do modelo numa decisão sobre a janela. Duas concorreram
 numa parte de validação, separada do teste: o argmax e um limiar sobre a probabilidade de ataque.
-Venceu o argmax, que deixava no máximo 1% do tráfego benigno como ataque com o maior recall de
-ataque. O incidente só abre com 4 janelas de ataque seguidas.
+Venceu o argmax, o de maior recall de ataque entre as regras que deixavam no máximo 1% do tráfego
+benigno como ataque. O incidente só abre com 4 janelas de ataque seguidas.
 
 **Argmax**
 "Fique com a categoria mais provável." Se o modelo diz 70% DDoS+DoS, 20% Recon e 10% Benign, o
@@ -173,7 +173,7 @@ em quais classes fomos mal, com o número de amostras ao lado.
 **Macro-F1**
 A média simples do F1 das categorias, com o mesmo peso para todas: uma categoria com 273 janelas
 de teste conta tanto quanto uma com 214.373. Mostra que existem categorias fracas, mas não onde o
-modelo erra; por isso, no artigo, o número principal é a tabela por categoria.
+modelo erra; por isso, no artigo, o resultado principal é a tabela por categoria.
 
 ---
 
@@ -322,7 +322,7 @@ A lista das ações do catálogo aceitáveis em cada categoria de ataque e do al
 (`experimentos/gabarito_da_recomendacao.toml`), que fica fixa antes da primeira rodada dos
 experimentos. A qualidade da recomendação é a porcentagem de incidentes com uma ação aceitável no
 alvo certo. O arquivo é um rascunho que a equipe ainda revisa; a conferência das rodadas contra ele
-é a implementar.
+não está implementada.
 
 **Aprovador automático**
 Nos experimentos, vai fazer o papel da pessoa que aprova as ações de risco alto: aprovar o que o
