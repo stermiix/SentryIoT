@@ -1,6 +1,6 @@
 ---
 name: coordenacao-do-incidente
-description: Coordena o incidente no agente de decisão: aceita ou descarta o veredito da triagem, decide se propõe uma ação e propõe outra quando o efeito verificado mostra que a anterior não resolveu. Usar em toda rodada de um incidente, antes da analise-por-categoria e da recomendacao-de-mitigacao.
+description: Coordena o incidente no agente de decisão, aceitando ou descartando o veredito da triagem, decidindo se propõe uma ação e propondo outra quando o efeito verificado mostra que a anterior não resolveu. Usar em toda rodada de um incidente, antes da analise-por-categoria e da recomendacao-de-mitigacao.
 ---
 
 # Coordenação do incidente
