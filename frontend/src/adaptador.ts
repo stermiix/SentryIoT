@@ -16,7 +16,17 @@ import {
 } from "./design-system/components/vocab";
 import { hora } from "./formato";
 import { agregar, type Agregado } from "./log";
-import type { Evento, EventoDeRecusa, IncidenteView, Livre, PropostaView, TipoDeEvento } from "./types";
+import type {
+  CategoriaDoModelo,
+  Evento,
+  EventoDeLLM,
+  EventoDeRecusa,
+  IncidenteView,
+  Livre,
+  PropostaView,
+  TipoDeEvento,
+  VereditoDaTriagem,
+} from "./types";
 
 // A ponte entre o log e o design system: o log é lido e conferido por `log.ts`, e aqui cada evento,
 // incidente e proposta vira o objeto que os componentes desenham (`design-system/components/modelos.ts`).
@@ -155,10 +165,20 @@ export function linhaDoEvento(evento: Evento, n: number): LogEvent {
           .join(" · "),
       };
     }
+    case "atacante_apontado":
+      // Só a triagem aponta o atacante (`apontar_atacante` é tool da linha dela). O endereço é um
+      // dos do incidente; a justificativa é texto do agente.
+      return { ...base, agent: "triagem", text: evento.dados.endereco, quote: evento.dados.justificativa };
+    case "analise_emitida": {
+      const dados = evento.dados;
+      return { ...base, agent: dados.agente, detail: dados.veredito ? `veredito ${VERDICT[dados.veredito]}` : undefined, quote: dados.texto };
+    }
     case "recomendacao_emitida": {
       const dados = evento.dados;
       return { ...base, agent: dados.agente, ref: dados.propostas.join(", ") || undefined, quote: dados.texto };
     }
+    case "sumario_emitido":
+      return { ...base, agent: evento.dados.agente, quote: evento.dados.texto };
     case "acao_proposta": {
       const dados = evento.dados;
       const duracao = prazo(dados.parametros);
@@ -368,6 +388,58 @@ export function featuresDoIncidente(view: IncidenteView): FeatureRow[] {
   return view.incidente.features_principais.map((feature) => ({ name: feature.nome, value: feature.valor, benign: feature.referencia_benigno }));
 }
 
+/** O rótulo neutro que o endereço recebeu no papel, ou undefined se ele não tem um. */
+function rotuloDoEndereco(view: IncidenteView, papel: "origem" | "destino", endereco: string): string | undefined {
+  for (const [rotulo, valor] of view.rotulos) {
+    if (valor === endereco && rotulo.startsWith(`${papel}-`)) {
+      return rotulo;
+    }
+  }
+  return undefined;
+}
+
+function janelasPorCategoria(view: IncidenteView): DetalheDoIncidente["janelasPorCategoria"] {
+  const contagem = view.incidente.janelas_por_categoria ?? {};
+  return (Object.entries(contagem) as [CategoriaDoModelo, number][])
+    .map(([category, value]) => ({ category, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function portasDoIncidente(view: IncidenteView): PortaDaTela[] | null {
+  const portas = view.incidente.portas;
+  return (
+    portas?.map((porta) => ({
+      port: porta.porta,
+      protocol: porta.protocolo,
+      destination: { address: porta.destino, label: rotuloDoEndereco(view, "destino", porta.destino) ?? porta.destino },
+      frames: porta.quadros,
+    })) ?? null
+  );
+}
+
+function candidatosDoIncidente(view: IncidenteView): CandidatoDaTela[] | null {
+  const candidatos = view.incidente.candidatos;
+  return (
+    candidatos?.map((candidato) => ({
+      address: candidato.endereco,
+      label: rotuloDoEndereco(view, "origem", candidato.endereco) ?? candidato.endereco,
+      windows: candidato.janelas,
+      normalShare: candidato.no_trafego_normal,
+      framesSent: candidato.quadros_enviados,
+      framesReceived: candidato.quadros_recebidos,
+      connectionsOpened: candidato.conexoes_abertas,
+      connectionsReceived: candidato.conexoes_recebidas,
+      destinations: candidato.destinos.map((destino) => ({
+        address: destino.endereco,
+        label: rotuloDoEndereco(view, "destino", destino.endereco),
+        frames: destino.quadros,
+      })),
+      ports: (candidato.portas ?? []).map((porta) => ({ port: porta.porta, protocol: porta.protocolo, frames: porta.quadros })),
+      pointed: view.atacante?.endereco === candidato.endereco,
+    })) ?? null
+  );
+}
+
 // --- O estado da tela num passo do replay ------------------------------------------------
 
 export interface EstadoDaTela {
@@ -486,13 +558,90 @@ export interface MarcacaoDaTela {
   reason?: string;
 }
 
+/** O modelo da última chamada à IA do agente antes do evento `id`, e onde ele roda. */
+function autoria(view: IncidenteView, id: string, agente: AgentName): { model?: string; location?: ProviderLocation } {
+  let ultima: EventoDeLLM | undefined;
+  for (const evento of view.eventos) {
+    if (evento.id === id) {
+      break;
+    }
+    if (evento.tipo === "llm_chamada" && evento.dados.agente === agente) {
+      ultima = evento;
+    }
+  }
+  return ultima ? { model: ultima.dados.modelo, location: ultima.dados.onde ?? ondeRoda(ultima.dados.modelo) } : {};
+}
+
+/** Um texto da triagem (a análise ou o sumário), com o modelo que o escreveu. */
+export interface TextoDaTriagem {
+  id: string;
+  at: string;
+  text: string;
+  model?: string;
+  location?: ProviderLocation;
+}
+
+/** O atacante que a triagem apontou: o endereço, o rótulo neutro dele e a justificativa, que é texto do agente. */
+export interface AtacanteDaTela {
+  id: string;
+  at: string;
+  address: string;
+  label: string;
+  justification: string;
+  /** Está entre as origens com mais quadros, que o detalhe lista. */
+  listed: boolean;
+  model?: string;
+  location?: ProviderLocation;
+}
+
+/** Um candidato a atacante com as medidas do incidente, já com os rótulos neutros. */
+export interface CandidatoDaTela {
+  address: string;
+  label: string;
+  windows: number;
+  /** Parcela das janelas benignas, fora de incidente, em que o endereço aparece como origem (0 a 1). */
+  normalShare: number;
+  framesSent: number;
+  framesReceived: number;
+  connectionsOpened: number;
+  connectionsReceived: number;
+  /** O rótulo só vem quando o destino está entre os do incidente. */
+  destinations: { address: string; label?: string; frames: number }[];
+  ports: { port: number; protocol: string; frames: number }[];
+  /** É o atacante que a triagem apontou. */
+  pointed: boolean;
+}
+
+export interface PortaDaTela {
+  port: number;
+  protocol: string;
+  destination: { address: string; label: string };
+  frames: number;
+}
+
 export interface DetalheDoIncidente {
   view: IncidenteView;
   incidente: Incident;
+  /** As que pedem uma pessoa primeiro, como a tela do incidente mostra. */
   propostas: Proposal[];
+  /** As mesmas, na ordem em que foram criadas, como o relatório mostra. */
+  propostasNaOrdem: Proposal[];
+  /** As propostas que uma pessoa decidiu, na ordem das decisões. */
+  decididas: Proposal[];
   origens: Address[];
   destinos: Address[];
   features: FeatureRow[];
+  /** O que o classificador disse de cada janela, da categoria com mais janelas para a com menos. Vazio quando o log não traz. */
+  janelasPorCategoria: { category: CategoriaDoModelo; value: number }[];
+  /** As portas mais atacadas; null quando o log é anterior às portas (contrato 0.4.0). */
+  portas: PortaDaTela[] | null;
+  /** Os candidatos a atacante; null quando o log é anterior a eles (contrato 0.6.0). */
+  candidatos: CandidatoDaTela[] | null;
+  /** O rótulo da triagem: o da análise, ou, sem análise no log, o da última conclusão da triagem. */
+  veredito: VereditoDaTriagem | null;
+  analise: TextoDaTriagem | null;
+  atacante: AtacanteDaTela | null;
+  sumario: TextoDaTriagem | null;
   recomendacoes: RecomendacaoDaTela[];
   /** Chamadas à IA e de tool deste incidente até o cursor. */
   rastro: LogEvent[];
@@ -518,13 +667,38 @@ export function detalheDoIncidente(estado: EstadoDaTela, final: Agregado, linhas
   const posicao = new Map(linhas.map((linha) => [linha.id, linha]));
   const linhaDe = (evento: Evento) => posicao.get(evento.id)!;
   const doLogInteiro = final.incidentes.find((item) => item.id === id) ?? view;
+  const propostasNaOrdem = view.propostas.map((proposta) => propostaDaTela(proposta, view.id));
+  const porId = new Map(propostasNaOrdem.map((proposta) => [proposta.id, proposta]));
+  const origens = enderecosDoIncidente(view, "origem");
+  const atacante = view.atacante && {
+    id: view.atacante.id,
+    at: hora(view.atacante.instante),
+    address: view.atacante.endereco,
+    label: rotuloDoEndereco(view, "origem", view.atacante.endereco) ?? view.atacante.endereco,
+    justification: view.atacante.justificativa,
+    listed: origens.some((origem) => origem.address === view.atacante!.endereco),
+    ...autoria(view, view.atacante.id, "triagem"),
+  };
+  const textoDaTriagem = (texto: { id: string; instante: string; texto: string } | null): TextoDaTriagem | null =>
+    texto && { id: texto.id, at: hora(texto.instante), text: texto.texto, ...autoria(view, texto.id, "triagem") };
   return {
     view,
     incidente: incidenteDaFila(view),
     propostas: propostasDaTela(view),
-    origens: enderecosDoIncidente(view, "origem"),
+    propostasNaOrdem,
+    decididas: view.eventos.flatMap((evento) =>
+      evento.tipo === "acao_aprovada" || evento.tipo === "acao_rejeitada" ? (porId.get(evento.dados.proposta) ?? []) : [],
+    ),
+    origens,
     destinos: enderecosDoIncidente(view, "destino"),
     features: featuresDoIncidente(view),
+    janelasPorCategoria: janelasPorCategoria(view),
+    portas: portasDoIncidente(view),
+    candidatos: candidatosDoIncidente(view),
+    veredito: view.analise ? view.analise.veredito : view.vereditoDaConclusao,
+    analise: textoDaTriagem(view.analise),
+    atacante,
+    sumario: textoDaTriagem(view.sumario),
     recomendacoes: recomendacoesDoIncidente(view),
     rastro: view.eventos.filter((evento) => evento.tipo === "llm_chamada" || evento.tipo === "tool_chamada").map(linhaDe),
     historico: doLogInteiro.eventos

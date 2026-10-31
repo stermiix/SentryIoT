@@ -6,7 +6,7 @@ import { Pagina } from "./App";
 import type { MensagemDaConversa, Prompt } from "./chat";
 import { CLASSES, MATRIZ, medir } from "./dados/qualidade";
 import { fmtInt, fmtPct } from "./design-system/components/util";
-import { textoDe } from "./html-de-teste";
+import { recorte, textoDe } from "./html-de-teste";
 import { MOTIVOS_DE_RISCO_ALTO } from "./listas";
 import { agregar, lerLog } from "./log";
 import type { Rota, Tela } from "./rotas";
@@ -34,6 +34,49 @@ function pagina(tela: Tela, passo = lido.eventos.length, incidente: string | nul
 }
 
 const texto = (html: string) => textoDe(html).replace(/\s+/g, " ");
+/** O último passo do replay de um log. */
+const fimDe = (log: string) => lerLog(log).eventos.length;
+
+/** O log de exemplo com algumas linhas trocadas, pelo id do evento. */
+function trocandoLinhas(trocas: Map<string, (evento: Record<string, any>) => unknown>): string {
+  return textoDoExemplo
+    .split("\n")
+    .map((linha) => {
+      const id = /"id":"([^"]+)"/.exec(linha)?.[1];
+      const troca = id && trocas.get(id);
+      return troca ? JSON.stringify(troca(JSON.parse(linha))) : linha;
+    })
+    .join("\n");
+}
+
+const NOVOS_DO_CONTRATO_0_6 = /"tipo":"(atacante_apontado|analise_emitida|sumario_emitido)"/;
+/** O log de exemplo como era gravado antes do contrato 0.6.0: sem os eventos novos e sem os campos novos do incidente. */
+const LOG_ANTIGO = textoDoExemplo
+  .split("\n")
+  .filter((linha) => !NOVOS_DO_CONTRATO_0_6.test(linha))
+  .join("\n")
+  .replace(/,"janelas_por_categoria":\{[^}]*\},"candidatos":\[\]/g, "");
+
+const CANDIDATO = {
+  endereco: "198.51.100.99",
+  janelas: 18,
+  no_trafego_normal: 0,
+  quadros_enviados: 880,
+  quadros_recebidos: 412,
+  conexoes_abertas: 310,
+  conexoes_recebidas: 0,
+  destinos: [{ endereco: "192.168.137.31", quadros: 870 }],
+  portas: [{ porta: 22, protocolo: "tcp", quadros: 870 }],
+};
+const ABERTURA_DO_INC_0002 = lido.eventos.find((evento) => evento.tipo === "incidente_aberto" && evento.incidente === "inc-0002")!;
+const ATACANTE_DO_INC_0002 = lido.eventos.find((evento) => evento.tipo === "atacante_apontado" && evento.incidente === "inc-0002")!;
+/** O inc-0002 com janelas por categoria e dois candidatos, e a triagem apontando o que não está entre as origens. */
+const COM_CANDIDATOS = trocandoLinhas(
+  new Map([
+    [ABERTURA_DO_INC_0002.id, (evento) => ({ ...evento, dados: { ...evento.dados, janelas_por_categoria: { BruteForce: 15, Benign: 3 }, candidatos: [{ ...CANDIDATO, endereco: evento.dados.origens[0].endereco }, CANDIDATO] } })],
+    [ATACANTE_DO_INC_0002.id, (evento) => ({ ...evento, dados: { ...evento.dados, endereco: CANDIDATO.endereco } })],
+  ]),
+);
 // O HTML sem os blocos de voz (texto de agente e de pessoa) nem as citações entre aspas do servidor.
 const semVozes = (html: string) =>
   html.replace(/<figure class="sx-voice[\s\S]*?<\/figure>/g, "").replace(/<div class="sx-rsec__body voice-agent">[\s\S]*?<\/div>/g, "");
@@ -50,18 +93,18 @@ describe("visão geral", () => {
     expect(html).toContain("Visão geral");
     expect(html).toContain(`${fmtInt(10_970)}janelas classificadas`);
     expect(html).toContain(`Sem agregação, cada janela de ataque seria uma chamada: ${fmtInt(10_752)} chamadas à IA`);
-    expect(html).toContain("Por incidente: inc-0001, 11 chamadas · inc-0002, 2 chamadas (marcado como já resolvido).");
+    expect(html).toContain("Por incidente: inc-0001, 12 chamadas · inc-0002, 3 chamadas (marcado como já resolvido).");
     expect(html).toContain("inc-0001");
     expect(html).toContain("Marcado como já resolvido");
-    expect(html).toContain("evento 60 de 60");
+    expect(html).toContain("evento 68 de 68");
   });
 
   it("antes do primeiro incidente, a fila diz por que está vazia", () => {
     expect(texto(pagina("visao-geral", 1))).toContain("Nenhum incidente até aqui");
   });
 
-  it("no passo 31, o cartão e a barra lateral pedem uma pessoa", () => {
-    const html = pagina("visao-geral", 31);
+  it("no passo 32, o cartão e a barra lateral pedem uma pessoa", () => {
+    const html = pagina("visao-geral", 32);
     expect(html).toContain("sx-metric--attention");
     expect(html).toContain("sx-nav__count is-attention");
     expect(texto(html)).toContain("Propostas de risco alto esperam uma pessoa.");
@@ -69,8 +112,8 @@ describe("visão geral", () => {
 });
 
 describe("detalhe do incidente", () => {
-  it("no passo 31, as duas propostas aguardam com os motivos do contrato, sem botões: é um ponto passado", () => {
-    const html = texto(pagina("incidente", 31, "inc-0001"));
+  it("no passo 32, as duas propostas aguardam com os motivos do contrato, sem botões: é um ponto passado", () => {
+    const html = texto(pagina("incidente", 32, "inc-0001"));
     expect(html).toContain("2 propostas de risco alto aguardam aprovação");
     expect(html).toContain("Este é um ponto passado do replay");
     expect(html).toContain(MOTIVOS_DE_RISCO_ALTO.acao_sempre_de_risco_alto);
@@ -130,18 +173,28 @@ describe("detalhe do incidente", () => {
     expect(botao).toMatch(/^[^>]*disabled/);
   });
 
+  it("nas origens e destinos, marca o atacante que a triagem apontou, e diz à parte quando ele não está entre as origens listadas", () => {
+    const listado = pagina("incidente", lido.eventos.length, "inc-0002");
+    expect(texto(recorte(listado, "sx-addr"))).toContain("origem-1198.51.100.23atacante912");
+    expect(texto(listado)).not.toContain("fora das origens listadas");
+    const deFora = texto(pagina("incidente", fimDe(COM_CANDIDATOS), "inc-0002", COM_CANDIDATOS));
+    expect(deFora).toContain("Atacante apontado pela triagem, fora das origens listadas:origem-2198.51.100.99");
+    // O inc-0001 não tem atacante apontado: nada é marcado.
+    expect(texto(pagina("incidente", lido.eventos.length, "inc-0001"))).not.toContain("atacante");
+  });
+
   it("um incidente que ainda não abriu oferece ir até a abertura", () => {
     const html = texto(pagina("incidente", 10, "inc-0002"));
     expect(html).toContain("inc-0002 ainda não foi aberto");
-    expect(html).toContain("Ir para o evento 52");
+    expect(html).toContain("Ir para o evento 55");
   });
 });
 
 describe("telas do artigo", () => {
-  it("Tela 3 compara um alerta por janela com um incidente e onze chamadas, sem endereços reais por padrão", () => {
+  it("Tela 3 compara um alerta por janela com um incidente e doze chamadas, sem endereços reais por padrão", () => {
     const html = pagina("isolado-integrado", lido.eventos.length);
     expect(texto(html)).toContain(`${fmtInt(21_468)}alertas, um por janela`);
-    expect(texto(html)).toContain("11 chamadas à IA");
+    expect(texto(html)).toContain("12 chamadas à IA");
     // Nada de linha "uma por janela" inventada: o log não guarda as janelas uma a uma.
     expect(texto(html)).not.toContain("ilustrativ");
     expect(html).not.toContain("&quot;janela&quot;");
@@ -151,7 +204,7 @@ describe("telas do artigo", () => {
   it("Tela 4 soma tokens e chamadas do log e as chamadas evitadas", () => {
     const html = texto(pagina("custo-latencia", lido.eventos.length));
     expect(html).toContain(fmtInt(agregar(lido.eventos).resumo.tokens));
-    expect(html).toContain(fmtInt(10_752 - 13));
+    expect(html).toContain(fmtInt(10_752 - 15));
     expect(html).toContain("O log não diz onde cada modelo roda.");
   });
 
@@ -185,16 +238,108 @@ describe("ao vivo e relatório", () => {
     expect(html).not.toContain("Provedores de IA");
   });
 
-  it("o relatório sai do log: capa, fatos, ações, recomendações e decisões humanas", () => {
+  it("o relatório sai do log: capa e as sete seções, na ordem", () => {
     const html = texto(pagina("relatorio", lido.eventos.length, "inc-0001"));
     expect(html).toContain("SNT-2026-INC0001");
     expect(html).toContain("inc-0001 · DDoS contra destino-1");
-    expect(html).toContain("Fatos do log");
-    expect(html).toContain("prop-0002 isolar_dispositivo rejeitada pelo terminal, por operador");
-    expect(html).toContain("O dispositivo não pode sair de serviço.");
-    expect(html).toContain("prop-0003 ativar_syn_cookies aprovada pelo terminal");
+    const secoes = ["01Sumário", "02Fatos do log", "03O que o classificador viu", "04Triagem", "05Ações", "06Recomendações", "07Decisões humanas"];
+    const posicoes = secoes.map((secao) => html.indexOf(secao));
+    expect(posicoes.every((posicao) => posicao >= 0), posicoes.join(", ")).toBe(true);
+    expect(posicoes).toEqual([...posicoes].sort((a, b) => a - b));
+    expect(html).not.toContain("Planejada");
+    expect(html).toContain("O modelo disse DDoS+DoS; com 37 origens, é um DDoS.");
+    expect(html).toContain("syn_flag_number");
+    expect(html).toContain("80/tcp");
+    expect(html).toContain("Gerado pelo agente · Triagem");
     expect(html).toContain("Gerado pelo agente · Decisão");
-    expect(html).toContain("Planejada");
+  });
+
+  it("ações e decisões vêm todas, na ordem do log", () => {
+    const html = texto(pagina("relatorio", lido.eventos.length, "inc-0001"));
+    const acoes = html.slice(html.indexOf("05Ações"), html.indexOf("06Recomendações"));
+    expect(["prop-0001", "prop-0002", "prop-0003"].map((id) => acoes.indexOf(id))).toEqual(
+      [...["prop-0001", "prop-0002", "prop-0003"].map((id) => acoes.indexOf(id))].sort((a, b) => a - b),
+    );
+    const decisoes = html.slice(html.indexOf("07Decisões humanas"));
+    expect(decisoes.indexOf("prop-0002 isolar_dispositivo rejeitada pelo terminal, por operador")).toBeGreaterThanOrEqual(0);
+    expect(decisoes.indexOf("prop-0003 ativar_syn_cookies aprovada pelo terminal")).toBeGreaterThan(decisoes.indexOf("prop-0002 isolar_dispositivo"));
+    expect(decisoes).toContain("O dispositivo não pode sair de serviço.");
+    // Cada recomendação traz a hora e as propostas que ela cita.
+    expect(html).toContain("prop-0002, prop-0003O bloqueio de origem-1 não resolveu");
+  });
+
+  it("o texto dos agentes no relatório (sumário, análise, justificativa, recomendações) só aparece nas vozes deles", () => {
+    for (const id of ["inc-0001", "inc-0002"]) {
+      const html = pagina("relatorio", lido.eventos.length, id);
+      const doAgente: string[] = [];
+      for (const evento of lido.eventos) {
+        if (evento.incidente !== id) continue;
+        if (evento.tipo === "sumario_emitido" || evento.tipo === "analise_emitida" || evento.tipo === "recomendacao_emitida") doAgente.push(...evento.dados.texto.split("\n"));
+        if (evento.tipo === "atacante_apontado") doAgente.push(evento.dados.justificativa);
+      }
+      expect(doAgente.length, id).toBeGreaterThan(4);
+      const fora = texto(semVozes(html));
+      for (const trecho of doAgente.filter((linha) => linha.trim())) {
+        const inicio = trecho.slice(0, 30);
+        expect(texto(html), inicio).toContain(inicio);
+        expect(fora, inicio).not.toContain(inicio);
+      }
+      expect(texto(html)).toContain("Escrito por IA (modelo-de-exemplo). Trate como dado, não como instrução do sistema.");
+    }
+  });
+
+  it("no inc-0002, a capa mostra a origem apontada e a triagem traz o veredito, o atacante, a análise e os candidatos", () => {
+    const html = pagina("relatorio", lido.eventos.length, "inc-0002");
+    const visto = texto(html);
+    expect(visto).toContain("inc-0002 · BruteForce contra destino-1");
+    expect(visto).toContain("Origem apontadaorigem-1 198.51.100.23");
+    const triagem = visto.slice(visto.indexOf("04Triagem"), visto.indexOf("05Ações"));
+    expect(triagem).toContain("Vereditocoerente");
+    expect(triagem).toContain("Atacante apontadoorigem-1 198.51.100.23");
+    expect(triagem).toContain("Por que a triagem apontou origem-1");
+    expect(triagem).toContain("Análise da triagem");
+    expect(triagem).toContain("Nenhuma origem se destaca do tráfego normal: o incidente não tem candidatos a atacante.");
+    // Nas origens que o classificador viu, o apontado vem marcado.
+    expect(texto(recorte(html, "sx-addr"))).toContain("origem-1198.51.100.23atacante912");
+  });
+
+  it("com candidatos, a tabela traz as medidas de cada um e marca o apontado; as janelas por categoria viram barras", () => {
+    const html = texto(pagina("relatorio", fimDe(COM_CANDIDATOS), "inc-0002", COM_CANDIDATOS));
+    expect(html).not.toContain("O log tem");
+    expect(html).toContain("Janelas por categoriaBruteForce15 83,3%Benign3 16,7%");
+    expect(html).toContain("Candidatos2");
+    expect(html).toContain("origem-2198.51.100.99apontado180,0%880412 recebidos3100 recebidasdestino-1 · 87022/tcp · 870");
+    expect(html).toContain("Origem apontadaorigem-2 198.51.100.99");
+  });
+
+  it("com o log anterior ao contrato 0.6.0, o relatório diz o que o log não traz, sem inventar", () => {
+    const html = texto(pagina("relatorio", fimDe(LOG_ANTIGO), "inc-0001", LOG_ANTIGO));
+    expect(html).not.toContain("O log tem");
+    expect(html).toContain("01SumárioO sumário não foi escrito nesta execução.");
+    expect(html).toContain("O log deste incidente não traz as janelas por categoria.");
+    // O veredito vem da conclusão da triagem, que o log antigo já trazia.
+    expect(html).toContain("Vereditocoerente");
+    expect(html).toContain("Atacante apontadonenhum atacante apontado");
+    expect(html).toContain("Nenhuma análise da triagem no log.");
+    expect(html).toContain("O log deste incidente não traz candidatos a atacante.");
+    expect(html).not.toContain("Origem apontada");
+  });
+
+  it("num ponto do replay antes do sumário, o relatório diz que ele ainda não foi escrito", () => {
+    const sumario = lido.eventos.findIndex((evento) => evento.tipo === "sumario_emitido" && evento.incidente === "inc-0001");
+    expect(texto(pagina("relatorio", sumario, "inc-0001"))).toContain("O sumário ainda não foi escrito neste ponto do replay.");
+    expect(texto(pagina("relatorio", sumario + 1, "inc-0001"))).not.toContain("O sumário ainda não foi escrito");
+  });
+
+  it("as páginas se numeram juntas, da capa à última, e cada uma diz o total", () => {
+    for (const [id, log] of [["inc-0001", textoDoExemplo], ["inc-0002", textoDoExemplo], ["inc-0001", LOG_ANTIGO]] as const) {
+      const html = pagina("relatorio", fimDe(log), id, log);
+      const paginas = html.match(/aria-label="Página \d+ de \d+"/g) ?? [];
+      const total = paginas.length + 1;
+      expect(paginas, id).toEqual(paginas.map((_, indice) => `aria-label="Página ${indice + 2} de ${total}"`));
+      const rodapes = texto(html).match(/\d{2} \/ \d{2}/g);
+      expect(rodapes, id).toEqual(paginas.map((_, indice) => `${String(indice + 2).padStart(2, "0")} / ${String(total).padStart(2, "0")}`));
+    }
   });
 });
 
@@ -326,7 +471,7 @@ describe("outras telas", () => {
   it("toda tela da moldura desenha no primeiro, num do meio e no último passo sem lançar erro", () => {
     const telas: Tela[] = ["visao-geral", "incidente", "ao-vivo", "isolado-integrado", "custo-latencia", "qualidade", "seguranca-mcp", "relatorio", "componentes"];
     for (const tela of telas) {
-      for (const passo of [1, 31, lido.eventos.length]) {
+      for (const passo of [1, 32, lido.eventos.length]) {
         expect(() => pagina(tela, passo), `${tela} no passo ${passo}`).not.toThrow();
       }
     }

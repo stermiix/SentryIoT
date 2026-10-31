@@ -34,11 +34,24 @@
 .app-dock-ao-vivo { justify-content: space-between; }
 
 /* Relatório: as páginas A4 lado a lado, quebrando a linha quando não cabem. */
-.app-relatorio { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: flex-start; }
+.app-relatorio { position: relative; display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: flex-start; }
 .app-relatorio > .sx-report { flex-shrink: 0; }
-.app-planejado { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); color: var(--ink-2); }
+/* A página escondida em que o relatório se mede antes de se dividir em páginas: fora do fluxo e da impressão. */
+.app-relatorio > .app-relatorio-medida { position: absolute; top: 0; left: 0; visibility: hidden; pointer-events: none; }
 .app-hora { margin-right: var(--space-2); }
 .app-celula { gap: 6px; }
+/* Seção feita de blocos (veredito, tabelas, citações), com um intervalo entre eles. */
+.app-blocos > .sx-rsec__body { display: flex; flex-direction: column; gap: var(--space-5); }
+/* O texto do agente em linhas: as do mesmo parágrafo ficam juntas, e cada texto novo se afasta do anterior. */
+.sx-rsec__body p.app-linha { margin-bottom: 0; }
+.sx-rsec__body p.app-novo-texto { margin-top: var(--space-6); }
+.sx-rsec__body p.app-novo-texto:first-child { margin-top: 0; }
+.app-empilhado { display: inline-flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.app-num > .app-empilhado { align-items: flex-end; }
+.app-quebra { overflow-wrap: anywhere; }
+.sx-rtable .app-num { text-align: right; }
+/* Na tabela de candidatos, a primeira coluna não cresce com um IPv6: ele quebra, e sobra largura para os destinos. */
+.sx-rtable .app-coluna-candidato { width: 7.75rem; }
 
 /* Catálogo de componentes. */
 .app-palco { height: 360px; min-height: 0; border-radius: var(--radius-md); }
@@ -71,6 +84,7 @@
   .sx-app__backdrop, .sx-app__side, .sx-app__dock, .sx-pagehead { display: none !important; }
   .sx-app__content { padding: 0; }
   .app-relatorio { display: block; overflow: visible; padding: 0; }
+  .app-relatorio > .app-relatorio-medida { display: none; }
 }
 
 /* Simulação com um pcap */

@@ -7,14 +7,17 @@ import {
   CategoryBadge,
   ClassifierVerdict,
   EmptyState,
+  EVENT,
   EventTimeline,
   FeatureTable,
+  Icon,
   ModeIndicator,
   PageHeader,
   Panel,
   ProposalCard,
   PROPOSAL_STATE,
   StatusBadge,
+  TargetLabel,
   VoiceQuote,
   fmtInt,
 } from "../design-system";
@@ -103,7 +106,7 @@ export function TelaIncidente({ replay, navegar, incidente: pedido }: PropsDaTel
     );
   }
 
-  const { incidente } = detalhe;
+  const { incidente, atacante } = detalhe;
   const rastro = rastroCompleto ? detalhe.rastro : detalhe.rastro.slice(-RASTRO_RESUMIDO);
   // Antes do fim do replay, a tela mostra um estado passado: o que vem depois no log já foi
   // decidido, e a interface não oferece decidir de novo.
@@ -212,7 +215,22 @@ export function TelaIncidente({ replay, navegar, incidente: pedido }: PropsDaTel
           )}
           <Panel eyebrow="Endereços" title="Origens e destinos">
             <div className="sx-stack sx-stack--sm">
-              <AddressList title="Origens" items={detalhe.origens} total={incidente.sources} />
+              <AddressList
+                title="Origens"
+                items={detalhe.origens}
+                total={incidente.sources}
+                mark={atacante ? { address: atacante.address, label: "atacante", icon: EVENT.atacante_apontado.icon } : undefined}
+              />
+              {/* A triagem pode apontar um candidato que não está entre as origens com mais quadros. */}
+              {atacante && !atacante.listed && (
+                <p className="body-sm sx-muted app-nota sx-row">
+                  <span className="app-linha-com-icone">
+                    <Icon name={EVENT.atacante_apontado.icon} size={14} />
+                    Atacante apontado pela triagem, fora das origens listadas:
+                  </span>
+                  <TargetLabel label={atacante.label} address={atacante.address} />
+                </p>
+              )}
               <hr className="sx-divider" />
               <AddressList title="Destinos" items={detalhe.destinos} total={incidente.destinations} />
             </div>
