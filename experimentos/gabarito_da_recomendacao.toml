@@ -8,6 +8,24 @@
 # dispositivo atacado. Uma recomendação está certa quando a ação proposta aparece na categoria do
 # incidente e o alvo, depois de trocado o rótulo pelo endereço, tem um dos papéis listados.
 #
+# Como o papel do alvo é conferido (`papel_do_alvo`, em `codigo/agente/aprovador.py`):
+#
+# - Conta só o papel do endereço que vem depois da arroba. Em revogar_credencial, o nome da conta não
+#   é conferido, porque o resumo que o agente lê não traz contas: admin@destino-1 e root@destino-1
+#   valem o mesmo, na métrica e no aprovador automático.
+# - O papel vem da verdade de campo, e não das listas do incidente. O IP de um atacante do dataset
+#   conta como origem mesmo quando o incidente também o lista entre os destinos. O endereço que não é
+#   atacante conta como destino quando o incidente o lista entre os destinos, ainda que apareça também
+#   entre as origens, como o dispositivo atacado que responde ao ataque. Para quem não é atacante, é a
+#   regra da política do servidor MCP (`codigo/mcp/politica.toml`, seção bloquear_ip), que não
+#   conhece os atacantes e trata como destino todo endereço que aparece nos dois papéis.
+# - Em Spoofing, o papel tem de ser conferido pelo MAC, nunca pelo IP, porque o atacante se passa pelo
+#   IP do gateway ou da vítima e repassa quadros com esses IPs. A conferência automática recebe os IPs
+#   que saem do MAC de um atacante, inclusive o anunciado no ARP, e por isso não serve para Spoofing,
+#   que fica fora dos três cenários do experimento.
+# - bloquear_ip só é aceito na origem, em todas as categorias: bloquear o destino tira do ar o
+#   dispositivo atacado, como diz a política (`codigo/agente/test_gabarito.py` confere).
+#
 # As ações aceitáveis saem do levantamento da equipe em `codigo/agente/recomendacoes/`: só entra
 # aqui a ação que a coluna "Ação do catálogo" liga a alguma medida da categoria
 # (`codigo/agente/test_gabarito.py` confere). A ação nova, fora do catálogo, não entra na conta

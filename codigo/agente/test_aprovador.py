@@ -83,6 +83,26 @@ def test_endereco_que_e_atacante_e_destino_conta_como_origem():
     assert papel_do_alvo(ATACANTE, {ATACANTE, VITIMA}, {ATACANTE}) == ORIGEM
 
 
+def test_endereco_que_nao_e_atacante_e_aparece_nas_origens_e_nos_destinos_conta_como_destino():
+    # A regra da política para o endereço nos dois papéis: o dispositivo atacado que responde continua destino.
+    ambos = [SimpleNamespace(endereco=VITIMA)]
+    no_incidente = SimpleNamespace(categoria="DDoS", origens=ambos, destinos=ambos)
+
+    conferencia = conferir_proposta(proposta("bloquear_ip", VITIMA), no_incidente, frozenset({ATACANTE}), GABARITO)
+
+    assert (conferencia.aceitavel, conferencia.papel) == (False, DESTINO)
+
+
+@pytest.mark.parametrize("conta", ["admin", "root", "conta_inventada"])
+def test_em_revogar_credencial_conta_so_o_papel_e_nao_o_nome_da_conta(conta):
+    # O resumo não traz contas: o agente escreve a que supõe, e a conferência não a julga.
+    no_atacado = conferir("revogar_credencial", f"{conta}@{VITIMA}")
+    no_atacante = conferir("revogar_credencial", f"{conta}@{ATACANTE}")
+
+    assert (no_atacado.aceitavel, no_atacado.papel) == (True, DESTINO)
+    assert (no_atacante.aceitavel, no_atacante.papel) == (False, ORIGEM)
+
+
 def test_o_endereco_ipv6_que_embute_um_ipv4_e_o_mesmo_dispositivo():
     assert papel_do_alvo(f"::ffff:{VITIMA}", {VITIMA}, set()) == DESTINO
 

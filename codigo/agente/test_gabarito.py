@@ -27,6 +27,13 @@ def test_gabarito_usa_so_acoes_do_catalogo_e_papeis_conhecidos():
             assert len(papeis) == len(set(papeis)), (categoria, acao)
 
 
+def test_bloquear_ip_so_e_aceito_na_origem():
+    # Bloquear o destino tira do ar o dispositivo atacado, que é o que o ataque quer (`politica.toml`).
+    aceitas = {categoria: acoes["bloquear_ip"] for categoria, acoes in ler().items() if "bloquear_ip" in acoes}
+    assert aceitas
+    assert all(papeis == ["origem"] for papeis in aceitas.values()), aceitas
+
+
 def test_toda_acao_aceitavel_vem_de_uma_medida_do_levantamento_da_categoria():
     ligadas = {}
     for secao in carregar():
