@@ -49,8 +49,8 @@ e não um agente, só chama a decisão depois dela.
    Com `persiste`, ela não ajudou, e vale trocar de abordagem. Se o catálogo de `consultar_mitigacoes`
    não tem mais o que sirva, usar `pesquisar_solucoes` para uma ação nova. Se nada serve, não propor e
    escrever que o caso precisa de uma pessoa.
-5. Depois de uma rejeição, ler o motivo antes de escolher. A mensagem não repete a proposta: se o
-   motivo não nomeia o alvo, o alvo rejeitado é o `atacante_apontado`.
+5. Depois de uma rejeição, ler o motivo antes de escolher. A mensagem traz a ação e o alvo de cada
+   proposta rejeitada.
    - Motivo sobre o alvo (não é o atacante, é o dispositivo atacado, está fora do incidente): nenhuma
      proposta nova nesse alvo, de ação nenhuma; `limitar_taxa` nele contorna a pessoa. O normal aqui é
      não propor. Outro alvo só se for uma origem com sinal de ataque ou o dispositivo atacado, nunca

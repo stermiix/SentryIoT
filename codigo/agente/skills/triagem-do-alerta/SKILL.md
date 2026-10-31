@@ -79,9 +79,10 @@ nada novo.
      resto.
 
    Chamar `apontar_atacante` com o endereço como ele vem no incidente e a justificativa em uma
-   frase, citando as medidas que decidiram. Num flood distribuído ou com origem forjada, nenhum
-   candidato se destaca (ou a lista vem vazia): não aponte, e diga isso na resposta. Nenhum apontado
-   é uma resposta certa quando as medidas não mostram o atacante.
+   frase, citando as medidas que decidiram. Num flood distribuído com vários emissores, aponte o que
+   mais manda e diga na resposta que há outros. Com origem forjada, nenhum candidato manda bem mais do
+   que recebe (ou a lista vem vazia): não aponte, e diga isso na resposta. Nenhum apontado é uma
+   resposta certa quando as medidas não mostram o atacante.
 3. Conferir coerência. Só em DDoS e DoS os dois campos de categoria diferem: o modelo do sistema
    não separa os dois (`categoria_do_modelo` vem como `DDoS+DoS`), e `categoria` sai da regra que
    conta as origens. Nas outras categorias os campos vêm iguais, e essa diferença não é motivo a
