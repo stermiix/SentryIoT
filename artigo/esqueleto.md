@@ -432,7 +432,7 @@ agente de decisão roda num modelo de fronteira, pela nuvem, e coordena o incide
 descarta o veredito da triagem, propõe a ação e propõe outra quando o efeito verificado mostra que
 a anterior não resolveu. O encadeamento dos agentes (chamar a triagem, esperar a aprovação no log
 e chamar a execução) fica em código, num orquestrador que não é um quarto agente
-`[a implementar]`. Os agentes de triagem e de execução, com a verificação do efeito, rodam no
+(`codigo/agente/agentes.py`). Os agentes de triagem e de execução, com a verificação do efeito, rodam no
 modelo local, uma variante sem censura do Qwen3.8 de 27 bilhões de parâmetros (`qwen3.8-27c`),
 chamada por uma API compatível com a da OpenAI. Ela foi escolhida numa comparação com o Qwen normal
 (`qwen3.8-27b`) na triagem e na decisão: o normal entrou em laço em metade das triagens, e a
@@ -456,7 +456,7 @@ pelo endereço e calcula o risco sobre o endereço real, e só o agente de execu
 com credenciais, recebe o endereço. Toda resposta à linha de decisão passa ainda por um filtro
 que troca por um marcador qualquer endereço que tenha sobrado em texto livre. O veredito da
 triagem, texto livre escrito pelo modelo local, precisa passar pelo mesmo filtro antes de chegar
-ao agente de decisão `[a implementar]`. O orquestrador aceitará três
+ao agente de decisão. O orquestrador aceita três
 configurações, tudo local, tudo na nuvem e híbrida, e a comparação entre elas em qualidade, custo
 e tempo é resultado do artigo. Isso responde ao ponto da banca sobre riscos de IA em nuvem e à
 alternativa on-premises.
@@ -516,7 +516,7 @@ dataset, identificados pelo MAC. O acerto da triagem vem ao lado, e uma rubrica 
 (adequação, alvo, proporcionalidade e justificativa) avalia uma amostra de 9 casos, um por cenário
 e configuração, para cobrir a justificativa, que a conferência automática não vê. Nos
 experimentos, as propostas de risco alto passam por um aprovador automático com regra fixa
-(decisão de 2026-10-25) `[a implementar]`: ele aprova a proposta que o gabarito aceita e rejeita as
+(decisão de 2026-10-25): ele aprova a proposta que o gabarito aceita e rejeita as
 demais, inclusive a ação nova, contada à parte. Isso inclui todo bloqueio de atacante, porque os
 atacantes do dataset estão numa rede que a política trata como local. O tempo até a remediação é
 relatado em duas partes, a detecção (da primeira janela do ataque à abertura do incidente) e os

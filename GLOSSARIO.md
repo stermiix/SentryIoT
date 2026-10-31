@@ -288,16 +288,15 @@ token e servido pela nuvem, pelo OpenRouter.
 **Arquitetura híbrida**
 A divisão do SentryIoT: triagem e execução no modelo local, e só o agente de decisão no modelo de
 fronteira, lendo o resumo do incidente com rótulos neutros no lugar dos endereços. O servidor MCP
-já entrega esse resumo (`obter_resumo`); quem vai chamar cada agente no seu modelo é o
-orquestrador, a implementar. As outras duas configurações, tudo local e tudo na nuvem, serão
+já entrega esse resumo (`obter_resumo`); quem chama cada agente no seu modelo é o
+orquestrador (`codigo/agente/agentes.py`). As outras duas configurações, tudo local e tudo na nuvem, serão
 comparadas com ela no artigo.
 
 **Orquestrador**
-O código que vai encadear os agentes: chamar a triagem, passar o veredito pelo filtro de
-endereços (`tipos.mascarar_enderecos`), esperar a aprovação no log e chamar a execução. Não é um
-quarto agente; quem coordena o incidente é o agente de decisão. A implementar: hoje
-`codigo/agente/pedidos.py` só monta os pedidos aos modelos, e o laço ReAct (`codigo/agente/laco.py`)
-roda um agente de cada vez.
+O código que encadeia os agentes: chama a triagem, passa o veredito pelo filtro de
+endereços (`tipos.mascarar_enderecos`), espera a aprovação no log e chama a execução. Não é um
+quarto agente; quem coordena o incidente é o agente de decisão. Está em `codigo/agente/agentes.py`
+(`python -m codigo.agente`), e o laço ReAct de cada agente, em `codigo/agente/laco.py`.
 
 **Stub do servidor MCP**
 O servidor MCP do repositório (`codigo/mcp/stub.py`). Nasceu como servidor de mentira, com
