@@ -246,6 +246,8 @@ _MEDIDAS = "medidas_de_risco_baixo_por_incidente"
 _MEDIDAS_NO_TOTAL = "medidas_de_risco_baixo_no_total"
 _PENDENTES = "propostas_aguardando_aprovacao_por_incidente"
 _LIBERADAS = "propostas_liberadas_por_incidente"
+_INCIDENTES = "incidentes"
+_CONFIANCA_MINIMA = "confianca_minima_para_propor"
 _REDE = "rede"
 _PROTEGIDOS = "enderecos_protegidos"
 _CRITICOS = "enderecos_criticos"
@@ -299,6 +301,9 @@ class Politica:
     # Máximo de propostas de um incidente liberadas e ainda não executadas. A seguinte de risco baixo é
     # recusada.
     propostas_liberadas_por_incidente: int
+    # Confiança do classificador abaixo da qual o incidente é duvidoso e não recebe proposta: quem decide é
+    # a pessoa, com a recomendação. Está aqui, e não só na skill, porque o modelo propôs mesmo assim.
+    confianca_minima_para_propor: float
     # Endereços em que qualquer ação é de risco alto, na forma canônica: o gateway e a captura.
     enderecos_protegidos: frozenset
     # Endereços dos serviços de que o sistema depende, tratados como protegidos.
@@ -340,8 +345,8 @@ def carregar_politica(caminho=POLITICA_PADRAO):
             raise invalida(f"{chave} precisa ser uma lista de textos, que pode ser vazia")
         return lista
 
-    faltando = [nome for nome in (*BASE, _LIMITES, _REDE) if nome not in lido]
-    sobrando = [nome for nome in lido if nome not in (*BASE, _LIMITES, _REDE)]
+    faltando = [nome for nome in (*BASE, _LIMITES, _INCIDENTES, _REDE) if nome not in lido]
+    sobrando = [nome for nome in lido if nome not in (*BASE, _LIMITES, _INCIDENTES, _REDE)]
     if faltando:
         raise invalida(
             "falta a " + ", ".join(f"{'ação' if nome in BASE else 'seção'} {nome}" for nome in faltando)
@@ -397,6 +402,9 @@ def carregar_politica(caminho=POLITICA_PADRAO):
     # Com zero, nenhuma proposta de risco baixo seria registrada.
     if type(liberadas) is not int or liberadas < 1:
         raise invalida(f"{_LIBERADAS} precisa ser um número inteiro, a partir de 1")
+    confianca_minima = secao(_INCIDENTES, (_CONFIANCA_MINIMA,)).get(_CONFIANCA_MINIMA)
+    if type(confianca_minima) is not float or not 0 <= confianca_minima <= 1:
+        raise invalida(f"{_CONFIANCA_MINIMA} precisa ser um número decimal entre 0 e 1")
 
     rede = secao(_REDE, (_PROTEGIDOS, _CRITICOS, _REDES_LOCAIS))
 
@@ -425,6 +433,7 @@ def carregar_politica(caminho=POLITICA_PADRAO):
         medidas_de_risco_baixo_no_total=no_total,
         propostas_aguardando_aprovacao_por_incidente=pendentes,
         propostas_liberadas_por_incidente=liberadas,
+        confianca_minima_para_propor=confianca_minima,
         enderecos_protegidos=protegidos,
         enderecos_criticos=criticos,
         redes_locais=tuple(redes),
@@ -1215,6 +1224,14 @@ def propor(estado, politica, incidente, acao, alvo, parametros, justificativa, s
             ) from None
         alvo = _alvo_livre(acao, alvo)
         parametros = _parametros_de_acao_nova(acao, parametros)
+
+    if estado.incidentes[incidente].confianca < politica.confianca_minima_para_propor:
+        raise PedidoRecusado(
+            "incidente_duvidoso",
+            f"O classificador deu confiança abaixo de {politica.confianca_minima_para_propor:.2f} a este incidente, e "
+            "nenhuma ação é proposta. Encerre com a recomendação: qual seria a ação, em que alvo e o que falta "
+            "confirmar. Quem decide é a pessoa.",
+        )
 
     # Registrada de novo, a proposta rejeitada voltaria à fila da pessoa, e a nova rodada da decisão
     # gastaria chamadas repetindo o que ela recusou. A conferência vem depois das outras: o pedido

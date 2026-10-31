@@ -144,6 +144,8 @@ MotivoDeRecusa = Literal[
     "limite_de_propostas_liberadas",
     # Desde a versão 0.7.0: a proposta igual a uma que a pessoa já rejeitou no incidente.
     "proposta_repetida",
+    # Desde a versão 0.7.0: o incidente com confiança abaixo do mínimo da política só recebe recomendação.
+    "incidente_duvidoso",
     "acao_nova_incompleta",
     "proposta_nao_liberada",
     "proposta_ja_executada",
@@ -849,7 +851,8 @@ TOOLS = (
         "pelo endereço e calcula o risco sobre ele. Ação nova é sempre de risco alto e precisa trazer em "
         "`parametros` a descrição, os passos, o efeito esperado e como desfazer. Incidente marcado como já "
         "resolvido não recebe proposta. Proposta igual a uma que a pessoa já rejeitou no incidente é recusada, "
-        "e qualquer outra sobre o mesmo alvo exige aprovação humana.",
+        "e qualquer outra sobre o mesmo alvo exige aprovação humana. Incidente com confiança abaixo de 0,6 não "
+        "recebe proposta: só a recomendação.",
         EntradaProporAcao, Proposta,
     ),
     Tool(

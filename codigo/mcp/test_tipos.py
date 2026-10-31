@@ -607,7 +607,8 @@ def test_motivos_de_recusa_do_contrato():
     assert motivos == [
         "identificador_desconhecido", "argumentos_invalidos", "alvo_malformado", "alvo_nao_permitido",
         "incidente_encerrado", "incidente_ja_resolvido", "limite_de_propostas_pendentes",
-        "limite_de_propostas_liberadas", "proposta_repetida", "acao_nova_incompleta", "proposta_nao_liberada",
+        "limite_de_propostas_liberadas", "proposta_repetida", "incidente_duvidoso", "acao_nova_incompleta",
+        "proposta_nao_liberada",
         "proposta_ja_executada", "acao_nao_aplicada", "tool_fora_da_linha",
     ]
     for motivo in motivos:

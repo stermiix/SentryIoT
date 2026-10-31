@@ -129,6 +129,7 @@ export const REFUSAL_REASON: Record<MotivoDeRecusa, string> = {
   limite_de_propostas_pendentes: 'limite de propostas aguardando aprovação',
   limite_de_propostas_liberadas: 'limite de propostas liberadas e não executadas',
   proposta_repetida: 'proposta igual a uma já rejeitada',
+  incidente_duvidoso: 'incidente duvidoso, só recomendação',
   acao_nova_incompleta: 'ação nova incompleta',
   proposta_nao_liberada: 'proposta não liberada',
   proposta_ja_executada: 'proposta já executada',

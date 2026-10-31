@@ -146,6 +146,7 @@ def gravar_politica(tmp_path, trocas=None):
             "medidas_de_risco_baixo_por_incidente = 5", "medidas_de_risco_baixo_no_total = 10",
             "propostas_aguardando_aprovacao_por_incidente = 10", "propostas_liberadas_por_incidente = 10",
         ],
+        "incidentes": ["confianca_minima_para_propor = 0.6"],
         "rede": [
             'enderecos_protegidos = ["192.168.137.1", "192.168.137.2"]',
             'enderecos_criticos = ["192.168.137.3", "192.168.137.4", "192.0.2.53"]',
@@ -178,6 +179,7 @@ def test_politica_padrao_e_a_tabela_da_especificacao():
         medidas_de_risco_baixo_no_total=10,
         propostas_aguardando_aprovacao_por_incidente=10,
         propostas_liberadas_por_incidente=10,
+        confianca_minima_para_propor=0.6,
         # O gateway e a máquina de captura, com valores de exemplo.
         enderecos_protegidos=frozenset({"192.168.137.1", "192.168.137.2"}),
         # O servidor MCP, o host do modelo local e o resolvedor DNS, com valores de exemplo.
@@ -2304,3 +2306,9 @@ def test_caractere_invisivel_nem_entra_no_log_e_por_isso_nao_chega_a_mensagem(mu
         mundo.aplicar([novo("acao_aprovada", APROVACAO | {"proposta": "prop\u200b-0007\u200d"}, "inc-0001")])
     mundo.aplicar([novo("acao_aprovada", APROVACAO | {"proposta": "prop-0007"}, "inc-0001")])
     assert violacao(mundo, "acao_aprovada", "prop-0007").isprintable()
+
+
+@pytest.mark.parametrize("valor", ["1.5", "-0.1", "1", '"0.6"'])
+def test_confianca_minima_fora_de_0_a_1_e_invalida(tmp_path, valor):
+    with pytest.raises(ValueError, match="confianca_minima_para_propor"):
+        carregar_politica(gravar_politica(tmp_path, {"incidentes": [f"confianca_minima_para_propor = {valor}"]}))

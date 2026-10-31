@@ -642,6 +642,7 @@ continua no ar. O campo `motivo` do evento traz um destes códigos:
 | `limite_de_propostas_pendentes` | Proposta de risco alto para incidente que já tem 10 propostas aguardando aprovação |
 | `limite_de_propostas_liberadas` | Proposta de risco baixo para incidente que já tem 10 propostas liberadas e não executadas |
 | `proposta_repetida` | Proposta igual (ação, alvo pelo endereço e parâmetros) a uma que a pessoa já rejeitou no incidente |
+| `incidente_duvidoso` | Proposta para incidente com confiança do classificador abaixo de `confianca_minima_para_propor`, na política (0,6): só recomendação |
 | `acao_nova_incompleta` | Ação nova sem descrição, passos, efeito esperado ou forma de desfazer, ou com texto fora dos limites |
 | `argumentos_invalidos` | Parâmetro de ação inválido, justificativa vazia ou fora dos limites, nome de ação nova inválido, parâmetro em ação promovida, consulta grande demais |
 | `proposta_nao_liberada` | Executar proposta que aguarda aprovação ou foi rejeitada, ou proposta de risco baixo que pelas regras de agora é de risco alto, como a do alvo rejeitado depois que ela foi registrada |
@@ -844,6 +845,8 @@ de exemplo direto daqui: depois de gerá-lo de novo, rode também o `npm test` e
 A versão fica em `contrato.json`, no campo `versao`, e sai de `VERSAO`, em `tipos.py`. A atual é
 a 0.7.0. O que mudou em relação à 0.6.0, para quem já usava o stub:
 
+- **Incidente duvidoso.** Motivo de recusa novo, `incidente_duvidoso`: com confiança abaixo de
+  `confianca_minima_para_propor`, na política, `propor_acao` é recusada, e a decisão só recomenda.
 - **Depois de uma rejeição.** Motivo de recusa novo, `proposta_repetida`: a proposta igual a uma
   que a pessoa já rejeitou no incidente não é registrada. Motivo de risco alto novo,
   `alvo_rejeitado`: toda ação de base sobre o endereço de um alvo rejeitado no incidente espera a

@@ -149,21 +149,23 @@ def test_cada_tool_devolve_dados_validos_pelo_contrato(stub, cenario):
     solucoes = chamar(stub, "pesquisar_solucoes", consulta="limitar taxa de pacotes")
     assert solucoes.fonte == "base_local" and solucoes.trechos
 
-    # A origem do falso positivo é a câmera, da rede local: bloqueá-la é de risco alto, e limitar a taxa não.
-    acao, grupo = (LIMITE, "limites") if cenario.nome == "falso_positivo" else (BLOQUEIO, "bloqueios")
-    proposta = chamar(stub, "propor_acao", id=identificador, alvo=incidente.origens[0].endereco, **acao)
+    # O falso positivo tem confiança abaixo do mínimo: a decisão só recomenda.
+    if cenario.nome == "falso_positivo":
+        recusado(stub, "incidente_duvidoso", "propor_acao", id=identificador, alvo=incidente.origens[0].endereco, **LIMITE)
+        return
+    proposta = chamar(stub, "propor_acao", id=identificador, alvo=incidente.origens[0].endereco, **BLOQUEIO)
     assert (proposta.incidente, proposta.risco, proposta.exige_aprovacao) == (identificador, "baixo", False)
 
     execucao = chamar(stub, "executar_acao", id_proposta=proposta.id)
     assert (execucao.proposta, execucao.estado) == (proposta.id, "aplicada")
-    assert getattr(chamar(stub, "consultar_estado"), grupo) == [execucao]
+    assert chamar(stub, "consultar_estado").bloqueios == [execucao]
 
     efeito = chamar(stub, "verificar_efeito", id_execucao=execucao.id)
     assert (efeito.execucao, efeito.incidente, efeito.resultado) == (execucao.id, identificador, cenario.efeitos[0])
 
     desfeita = chamar(stub, "desfazer_acao", id_execucao=execucao.id)
     assert desfeita.estado == "desfeita"
-    assert getattr(chamar(stub, "consultar_estado"), grupo) == []
+    assert chamar(stub, "consultar_estado").bloqueios == []
 
 
 def test_mitigacoes_recomendadas_vem_da_base_local_com_a_acao_do_catalogo(stub):
@@ -285,8 +287,7 @@ def test_acao_nova_sem_passos_ou_sem_como_desfazer_e_recusada(stub, faltando):
 
 @pytest.mark.parametrize("alvo", ["192.168.137.1", "192.168.137.20", "8.8.8.8", "::ffff:192.168.137.1"])
 def test_bloqueio_curto_de_alvo_fora_do_incidente_exige_aprovacao(stub, alvo):
-    # inc-0004 é o falso positivo: a origem é a câmera e o destino é o servidor de vídeo.
-    proposta = chamar(stub, "propor_acao", id="inc-0004", alvo=alvo, **BLOQUEIO)
+    proposta = chamar(stub, "propor_acao", id="inc-0002", alvo=alvo, **BLOQUEIO)
     assert (proposta.risco, proposta.exige_aprovacao, proposta.estado) == ("alto", True, "aguardando_aprovacao")
     recusado(stub, "proposta_nao_liberada", "executar_acao", id_proposta=proposta.id)
     assert chamar(stub, "consultar_estado").bloqueios == []

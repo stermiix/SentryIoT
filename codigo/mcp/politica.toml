@@ -65,6 +65,11 @@ propostas_aguardando_aprovacao_por_incidente = 10
 # este teto, um agente enganado em laço registraria propostas liberadas sem fim.
 propostas_liberadas_por_incidente = 10
 
+[incidentes]
+# Confiança do classificador abaixo da qual o incidente é duvidoso e propor_acao é recusada (motivo
+# incidente_duvidoso): a decisão só recomenda, e a pessoa decide. É o limiar da skill de triagem.
+confianca_minima_para_propor = 0.6
+
 [rede]
 # Endereços em que qualquer ação é de risco alto, mesmo que apareçam no incidente. Os valores são
 # de exemplo: o gateway e a máquina que faz a captura na rede dos cenários do stub. Troque pelos

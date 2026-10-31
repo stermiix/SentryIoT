@@ -61,6 +61,7 @@ export const MOTIVOS_DE_RECUSA = [
   "limite_de_propostas_liberadas",
   // Desde o contrato 0.7.0.
   "proposta_repetida",
+  "incidente_duvidoso",
   "acao_nova_incompleta",
   "proposta_nao_liberada",
   "proposta_ja_executada",
