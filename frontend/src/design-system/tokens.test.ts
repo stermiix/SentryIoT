@@ -45,6 +45,14 @@ describe("tokens do design system", () => {
     expect(faltando).toEqual([]);
   });
 
+  it("um diálogo mais alto que a janela rola, para os botões de decisão ficarem ao alcance", () => {
+    expect(ESTILOS.match(/\.sx-scrim \{[^}]*\}/)?.[0]).toContain("overflow-y: auto");
+  });
+
+  it("o nome da marca não confunde o I de IoT com um L minúsculo: a parte IoT usa a fonte com serifa no I", () => {
+    expect(ESTILOS.match(/\.sx-logo__iot \{[^}]*\}/)?.[0]).toContain("font-family: var(--font-mono)");
+  });
+
   it("o CSS das telas não escreve cor à mão", () => {
     expect(ESTILO_DO_APP.match(/#[0-9a-fA-F]{3,8}\b|rgba?\(/g)).toBeNull();
   });
