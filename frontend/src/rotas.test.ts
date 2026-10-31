@@ -19,7 +19,7 @@ describe("rota pela âncora", () => {
   });
 
   it("toda tela volta da âncora que ela mesma gera", () => {
-    const telas: Tela[] = ["visao-geral", "incidente", "ao-vivo", "simulacao", "isolado-integrado", "custo-latencia", "qualidade", "seguranca-mcp", "chat", "relatorio", "componentes", "entrar"];
+    const telas: Tela[] = ["visao-geral", "incidente", "ao-vivo", "simulacao", "isolado-integrado", "custo-latencia", "qualidade", "chat", "relatorio", "componentes", "entrar"];
     for (const tela of telas) {
       const incidente = tela === "incidente" || tela === "relatorio" ? "inc-0001" : null;
       expect(lerRota(ancoraDa({ tela, incidente }))).toEqual({ tela, incidente });

@@ -176,7 +176,6 @@ As telas ficam em `src/telas/`, montadas só com estes componentes e com os dado
 | Tela 3, Isolado × integrado | `IsoladoIntegrado.tsx` | contagens, veredito e propostas do log |
 | Tela 4, Custo e latência | `CustoLatencia.tsx` | funciona com o log; local × nuvem aparece quando `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM` dizem onde cada modelo roda |
 | Tela 5, Qualidade do modelo | `QualidadeModelo.tsx` | matriz real da configuração 5 (`src/dados/qualidade.ts`, conferida contra o CSV do experimento) |
-| Tela 6, Segurança do MCP | `SegurancaMcp.tsx` | planejada; vazia até o teste de tool poisoning rodar |
 | Chat com o modelo | `Chat.tsx` | funciona com o backend (`/api/chat`, `/api/modelos`, `/api/prompts`) |
 | Relatório | `Relatorio.tsx` | capa e páginas A4 com o sumário e a análise da triagem, os fatos, o que o classificador viu, os candidatos a atacante, as recomendações e as decisões do log |
 | Entrar | `Entrar.tsx` | visual pronto; o login passa por `src/operacao.ts`, que hoje explica que ainda não há login |

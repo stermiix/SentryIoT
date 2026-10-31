@@ -104,7 +104,7 @@ Navegação lateral flutuante em pílula, nas versões larga e só com ícones. 
 - O item ativo é a única área de gelo da barra: preenchimento `ice` com texto e ícone `on-ice`, sem brilho. Contagem âmbar (`attention`) quando há proposta aguardando; tela planejada leva um círculo tracejado e o rótulo esmaecido. No rodapé, o ponto do modelo no ar também é gelo.
 - Recolhida, cada item mostra o nome como dica e `aria-label`.
 - Ocupa sempre a altura da janela, do topo ao pé, em qualquer tela.
-- Seções do SentryIoT: Operação (Visão geral, Incidentes, Ao vivo), Telas do artigo (3 a 6), Equipe (Chat com o modelo, Relatórios).
+- Seções do SentryIoT: Operação (Visão geral, Incidentes, Ao vivo), Telas do artigo (3 a 5), Equipe (Chat com o modelo, Relatórios).
 
 ### PageHeader
 
@@ -395,12 +395,6 @@ Tela 4: tokens, tempo de resposta e chamadas por agente, calculados das chamadas
 Tela 5: matriz de confusão 7 × 7, precisão, recall e F1 por classe e o benigno classificado como ataque.
 
 - Usa a matriz real do ponto de operação da configuração 5 (`src/dados/qualidade.ts`, conferida contra o CSV do experimento por um teste).
-
-### TelaSegurancaMcp
-
-Tela 6 (planejada): o teste de *tool poisoning*: o que foi injetado e se o agente caiu.
-
-- Três desfechos: agente resistiu, recusada pelo servidor, agente caiu (contido pela aprovação humana). Conteúdo injetado em bloco hachurado "não confiável"; o que o agente fez na voz de agente. Até o teste rodar, os três cartões ficam em zero e a lista de testes, vazia.
 
 ### TelaChat
 
