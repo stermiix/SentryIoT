@@ -1,9 +1,11 @@
 """Testes do aprovador automático e da conferência das propostas contra o gabarito.
 
-Os cenários são os do stub: o `inc-0001` é um DDoS (origens 203.0.113.x, destino 192.168.137.20) e o
-`inc-0002` é uma força bruta (origem 198.51.100.23, destino 192.168.137.31).
+Os cenários são os do stub: o `inc-0001` é um DDoS (origens 203.0.113.x, destino 192.168.137.20), o
+`inc-0002` é uma força bruta (origem 198.51.100.23, destino 192.168.137.31) e o `inc-0003` é uma varredura
+(origem 192.0.2.45) que tem o gateway entre os destinos.
 """
 
+import dataclasses
 from types import SimpleNamespace
 
 import pytest
@@ -20,13 +22,16 @@ from codigo.agente.aprovador import (
 )
 from codigo.agente.test_agentes import decisao, eventos_de, execucao, triagem
 from codigo.agente.test_laco import ProvedorFalso
-from codigo.mcp.acoes import BASE, reconstruir
+from codigo.mcp.acoes import BASE, carregar_politica, reconstruir
 from codigo.mcp.eventos import Registro, ler
 from codigo.mcp.stub import Stub
 
 ATACANTE = "198.51.100.23"
 VITIMA = "192.168.137.31"
 OUTRO = "192.168.137.99"
+# Da política de exemplo (`codigo/mcp/politica.toml`): o gateway é protegido, e o servidor MCP, crítico.
+GATEWAY = "192.168.137.1"
+SERVIDOR_MCP = "192.168.137.3"
 GABARITO = carregar_gabarito()
 
 
@@ -45,8 +50,10 @@ def incidente(categoria, *destinos):
     return SimpleNamespace(categoria=categoria, destinos=[SimpleNamespace(endereco=d) for d in destinos])
 
 
-def conferir(acao, alvo, categoria="BruteForce", nova=False, destinos=(VITIMA,), atacantes=(ATACANTE,)):
-    return conferir_proposta(proposta(acao, alvo, nova), incidente(categoria, *destinos), frozenset(atacantes), GABARITO)
+def conferir(acao, alvo, categoria="BruteForce", nova=False, destinos=(VITIMA,), atacantes=(ATACANTE,), politica=None):
+    return conferir_proposta(
+        proposta(acao, alvo, nova), incidente(categoria, *destinos), frozenset(atacantes), GABARITO, politica
+    )
 
 
 # --- o gabarito ------------------------------------------------------------------------------
@@ -180,6 +187,70 @@ def test_a_conferencia_aceita_exatamente_o_que_o_gabarito_lista_em_todas_as_cate
     assert combinacoes == len(GABARITO) * len(BASE) * 2
 
 
+# --- o alvo protegido pela política ----------------------------------------------------------
+
+
+# Os casos do teste massivo de 31/10/2026: o gabarito aceita a ação e o papel, e o alvo é o gateway. No
+# Spoofing, o IP do gateway sai do MAC do atacante e conta como origem.
+CASOS_NO_GATEWAY = [
+    ("Spoofing", "isolar_dispositivo", GATEWAY, ORIGEM),
+    ("Recon", "fechar_porta", f"53/udp@{GATEWAY}", DESTINO),
+    ("DoS", "limitar_taxa", GATEWAY, DESTINO),
+    ("DDoS", "limitar_taxa", GATEWAY, DESTINO),
+]
+
+
+def no_papel(papel, endereco):
+    """Os destinos e os atacantes que dão ao endereço o papel pedido."""
+    if papel == ORIGEM:
+        return {"destinos": (VITIMA,), "atacantes": (ATACANTE, endereco)}
+    return {"destinos": (VITIMA, endereco), "atacantes": (ATACANTE,)}
+
+
+@pytest.mark.parametrize(("categoria", "acao", "alvo", "papel"), CASOS_NO_GATEWAY)
+def test_acao_no_gateway_nunca_e_aceitavel_mesmo_com_acao_e_papel_do_gabarito(categoria, acao, alvo, papel):
+    assert papel in GABARITO[categoria][acao]
+
+    conferencia = conferir(acao, alvo, categoria, **no_papel(papel, GATEWAY))
+
+    assert (conferencia.aceitavel, conferencia.papel) == (False, papel)
+    assert conferencia.motivo.startswith("Rejeitada: o alvo é um endereço protegido pela política")
+    assert GATEWAY not in conferencia.motivo
+
+
+@pytest.mark.parametrize(
+    "alvo",
+    [
+        SERVIDOR_MCP,  # Os endereços críticos da política contam como protegidos.
+        "64:ff9b::c0a8:8901",  # O gateway dentro de um IPv6 (NAT64) é o mesmo dispositivo.
+    ],
+)
+def test_endereco_critico_e_gateway_escrito_em_ipv6_tambem_sao_protegidos(alvo):
+    conferencia = conferir("limitar_taxa", alvo, "DDoS", **no_papel(DESTINO, alvo))
+
+    assert (conferencia.aceitavel, conferencia.papel) == (False, DESTINO)
+    assert "endereço protegido" in conferencia.motivo
+
+
+def test_nenhuma_acao_do_catalogo_no_gateway_e_aceitavel_em_nenhuma_categoria_e_em_nenhum_papel():
+    for categoria in GABARITO:
+        for acao in BASE:
+            for papel in (ORIGEM, DESTINO):
+                alvo = {"credencial": f"admin@{GATEWAY}", "porta": f"53/udp@{GATEWAY}"}.get(BASE[acao].tipo_de_alvo, GATEWAY)
+
+                assert not conferir(acao, alvo, categoria, **no_papel(papel, GATEWAY)).aceitavel, (categoria, acao, papel)
+
+
+def test_os_enderecos_protegidos_vem_da_politica_e_nao_de_uma_lista_do_aprovador():
+    sem_protegidos = dataclasses.replace(
+        carregar_politica(), enderecos_protegidos=frozenset(), enderecos_criticos=frozenset()
+    )
+    so_o_alvo = dataclasses.replace(sem_protegidos, enderecos_protegidos=frozenset({VITIMA}))
+
+    assert conferir("isolar_dispositivo", GATEWAY, "Spoofing", politica=sem_protegidos, **no_papel(ORIGEM, GATEWAY)).aceitavel
+    assert not conferir("revogar_credencial", f"admin@{VITIMA}", politica=so_o_alvo).aceitavel
+
+
 def test_acao_nova_nao_entra_na_conta_automatica():
     conferencia = conferir("ativar_syn_cookies", VITIMA, "BruteForce", nova=True)
 
@@ -274,6 +345,27 @@ def test_no_flood_a_primeira_acao_de_risco_baixo_executa_e_a_de_risco_alto_fora_
     assert [(d.proposta, d.acao) for d in aprovador.decisoes] == [("prop-0002", "isolar_dispositivo")]
     # Em DDoS a quarentena só vale sobre a origem; isolar o dispositivo atacado fica fora do gabarito.
     assert "isolar_dispositivo em DDoS só vale sobre origem" in eventos_de(log, "acao_rejeitada")[0].dados.motivo
+
+
+def test_rejeita_a_porta_fechada_no_gateway_que_o_servidor_marcou_como_alvo_protegido(log):
+    # No inc-0003 o gateway é o destino-4. Fechar a 53/udp nele derrubaria o DNS da rede, ainda que o gabarito
+    # aceite fechar_porta no destino de uma varredura.
+    resultado, aprovador = roda(
+        log, "inc-0003", *decisao("inc-0003", "fechar_porta", "53/udp@destino-4", {}), atacantes=("192.0.2.45",)
+    )
+
+    proposta_ = reconstruir(ler(log)).propostas["prop-0001"]
+    assert (proposta_.alvo, proposta_.estado) == (f"53/udp@{GATEWAY}", "rejeitada")
+    assert "alvo_protegido" in [m.codigo for m in proposta_.motivos_de_risco_alto]
+    assert resultado.desfecho == TODAS_REJEITADAS
+    [rejeitada] = eventos_de(log, "acao_rejeitada")
+    assert (rejeitada.dados.usuario, rejeitada.dados.motivo) == (
+        USUARIO, "Rejeitada: o alvo é um endereço protegido pela política, e nenhuma ação sobre ele é aceitável.",
+    )
+    assert [(d.acao, d.conferencia.aceitavel, d.conferencia.papel) for d in aprovador.decisoes] == [
+        ("fechar_porta", False, DESTINO),
+    ]
+    assert eventos_de(log, "acao_executada") == []
 
 
 def test_atacante_com_endereco_invalido_e_erro(log):
