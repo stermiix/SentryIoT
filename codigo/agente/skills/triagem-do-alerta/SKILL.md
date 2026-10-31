@@ -28,9 +28,8 @@ dele; a triagem segue igual.
 
 ## Quando usar
 
-- Um incidente novo abre no log (`estado: "aberto"`), antes de qualquer `propor_acao`.
-- Reavaliação: quando o agente de decisão pede uma segunda olhada (ex.: justificativa
-  insuficiente para a mitigação escolhida).
+- Um incidente novo abre no log (`estado: "aberto"`), antes de qualquer `propor_acao`. O
+  orquestrador roda a triagem uma vez por incidente: o agente de decisão não a chama de novo.
 
 ## O que a tool MCP devolve
 
