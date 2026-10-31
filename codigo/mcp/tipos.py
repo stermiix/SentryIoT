@@ -381,7 +381,7 @@ class PortaDoCandidato(Modelo):
 
 
 class CandidatoAAtacante(Modelo):
-    """Uma origem que pode ser o atacante, com as medidas que a separam do tráfego normal.
+    """Uma origem que pode ser o atacante, com as medidas para a triagem decidir.
 
     Quem escolhe entre os candidatos é o agente de triagem (decisão de 2026-10-31), com
     `apontar_atacante`. A regra fixa do reprodutor, que dá as `origens`, acerta o atacante em pouco
@@ -449,9 +449,9 @@ class Incidente(Modelo):
         default_factory=list,
         max_length=MAXIMO_DE_CANDIDATOS,
         description=(
-            "Até cinco origens que mais se destacam do tráfego normal, da que mais se destaca para a que menos, "
-            "com as medidas de cada uma, para a triagem apontar o atacante. Vem vazia quando nenhuma origem se "
-            "destaca, como num flood com origem forjada"
+            "Até cinco origens, entre as da regra fixa, as que mais se destacam do tráfego normal e as que mais mandam "
+            "do que recebem, da que mais se destaca para a que menos, com as medidas de cada uma, para a "
+            "triagem apontar o atacante. Vem vazia quando nenhuma origem serve, como num flood com origem forjada"
         ),
     )
 
@@ -813,7 +813,7 @@ TOOLS = (
         "apontar_atacante", ("triagem",),
         "Registra qual dos candidatos (ou das origens) do incidente é o atacante, com a justificativa. O agente "
         "de decisão recebe o rótulo dele no resumo, como alvo das ações sobre a origem. Chamada de novo, vale a "
-        "última. Não aponte quando nenhum candidato se destaca, como num flood com origem forjada.",
+        "última. Não aponte quando as medidas não mostram o atacante, como num flood com origem forjada.",
         EntradaApontarAtacante, AtacanteApontado,
     ),
     Tool(

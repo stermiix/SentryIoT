@@ -206,8 +206,8 @@ como num ARP spoofing ou num flood ICMP, e num log gravado antes da versão 0.4.
 
 `janelas_por_categoria` diz o que o classificador disse de todas as janelas do incidente, inclusive
 as benignas entre as de ataque: é a visão de todas as janelas que `obter_janelas`, com até 20, não dá.
-`candidatos` traz até 5 origens que se destacam do tráfego normal (`codigo/reprodutor/reprodutor.py`,
-"Candidatos"), cada uma com as janelas em que aparece, a parcela das janelas benignas em que aparece
+`candidatos` traz até 5 origens, entre as da regra fixa, as que se destacam do tráfego normal e os
+maiores emissores líquidos (`codigo/reprodutor/reprodutor.py`, "Candidatos"), cada uma com as janelas em que aparece, a parcela das janelas benignas em que aparece
 (`no_trafego_normal`), os quadros e as conexões TCP enviados e recebidos e os 3 destinos e as 3
 portas a que mais mandou quadros. As `origens` são o palpite de uma regra fixa, que erra o atacante
 em quase metade dos incidentes da avaliação; quem escolhe entre os candidatos é a triagem, com
