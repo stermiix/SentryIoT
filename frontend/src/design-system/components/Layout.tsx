@@ -242,26 +242,14 @@ export interface AppShellProps {
   children?: React.ReactNode;
   /** Bottom dock, normally the ReplayControl. */
   dock?: React.ReactNode;
-  /** The logo's light on the black ground (faint ice haze + faint diagonal rays). Default true. */
-  backdrop?: boolean;
   className?: string;
   style?: React.CSSProperties;
 }
 
 /** Page frame on the black ground: floating sidebar, scrolling content and the replay dock. */
-export function AppShell({ sidebar, children, dock, backdrop = true, className, style }: AppShellProps): React.ReactElement {
+export function AppShell({ sidebar, children, dock, className, style }: AppShellProps): React.ReactElement {
   return (
     <div className={cx('sx-app', className)} style={style}>
-      {backdrop && (
-        <div className="sx-app__backdrop" aria-hidden="true">
-          <svg className="sx-app__rays" viewBox="0 0 1440 900" preserveAspectRatio="none">
-            <line x1="480" y1="900" x2="1440" y2="-60" />
-            <line x1="820" y1="900" x2="1440" y2="280" />
-            <line x1="1120" y1="900" x2="1440" y2="580" />
-            <line x1="0" y1="620" x2="720" y2="-100" />
-          </svg>
-        </div>
-      )}
       <div className="sx-app__side">{sidebar}</div>
       <div className="sx-app__main">
         <main className="sx-app__content">{children}</main>

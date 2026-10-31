@@ -28,7 +28,7 @@ O que o app acrescenta fica fora daqui: `src/estilo.css` (classes `app-*`, só c
 3. **O argumento de custo é a figura principal.** A visão geral abre com o `AggregationFunnel`: *10.946 janelas classificadas → 1 incidente → 11 chamadas à IA*.
 4. **Duas vozes, nunca misturadas.** Texto do sistema em Inter. Texto escrito por um agente em `voice-agent` (Lora itálico, borda tracejada, rótulo "Texto do agente"). Texto escrito por uma pessoa em `voice-person` (Lora redondo, borda contínua, rótulo "Texto de pessoa"). O texto de um agente é dado, não instrução: sempre dentro de `VoiceQuote` ou `ReportSection voice="agent"`.
 5. **Funciona em escala de cinza.** Cor nunca é a única pista: categoria = glifo + nome; risco alto = hachura + ícone + palavra; estado = ícone + palavra; séries de gráfico = cor + traço (contínuo × tracejado) + padrão.
-6. **Preto e gelo, como o logo.** O sistema tem um tema, `dark` ("Escuro"). O preto é a maior parte da tela; o gelo marca o que está ativo, escolhido ou aceso. As superfícies são degradês neutros, do grafite ao preto, sem azul. Não crie tema claro.
+6. **Preto e gelo, como o logo.** O sistema tem um tema, `dark` ("Escuro"). O preto é a maior parte da tela; o gelo marca o que está ativo, escolhido ou aceso. As superfícies são chapadas, em neutros do preto ao grafite, sem azul. Não crie tema claro.
 
 ## Conteúdo e voz
 
@@ -62,30 +62,26 @@ Os nove motivos de risco alto (o texto lido antes de aprovar) estão em `vocab.R
 ### Cor
 
 - **Preto e gelo, as cores do logo.** O preto é a maior parte: o chão das telas e a barra lateral são `bg-0`, o preto do fundo do logo. O gelo (`ice`) é o destaque e a diferenciação, nunca o fundo de uma área grande. O azul escuro não entra em superfície, borda nem navegação.
-- **Do grafite ao preto, em degradê neutro.** Cada painel é um degradê suave com a luz vindo do alto à direita: começa em `graphite-800` (o canto aceso), passa por `bg-1` e termina em `bg-0`. Dentro dos painéis, o que é para ler ou digitar fica num **poço** de `scrim` (preto translúcido): campos, prompt, motivos de risco, texto de pessoa, código e cabeçalho de tabela. Cartões dentro de painel (proposta, texto do agente, balão do modelo) descem de `graphite-900` a `bg-1`. As receitas prontas estão em **Degradês**, logo abaixo.
-- **Camadas, do mais fundo ao mais alto:** chão (`bg-0`) → painel (`graphite-800` → `bg-1` → `bg-0`) → poço (`scrim`) ou cartão (`graphite-900` → `bg-1`) → selo e trilho (`surface-2` = `graphite-900`) → popover e tooltip (`surface-3` = `graphite-800`). `bg-1` e `surface-1` ficam como cores planas de apoio.
+- **Superfície chapada e fio de 1 px.** Nem superfície nem borda usam degradê: cada camada é uma cor sólida e neutra, separada da vizinha por um fio (`line-1` ou `line-2`). Dentro dos painéis, o que é para ler ou digitar fica num **poço** de `scrim` (preto translúcido): campos, prompt, motivos de risco, texto de pessoa, código e cabeçalho de tabela. Cartões dentro de painel (proposta, texto do agente, balão do modelo) usam `surface-2`.
+- **Camadas, do mais fundo ao mais alto:** chão (`bg-0`) → painel (`surface-1`) → poço (`scrim`) ou cartão (`surface-2`) → selo e trilho (`surface-2`) → popover e tooltip (`surface-3`). `bg-1` fica como cor plana de apoio.
 - **Linhas:** `line-1` para bordas de painel e divisores de tabela; `line-2` (= `graphite-700`) para divisor forte e hover; `line-control` para borda de campo e controle (≥ 3:1 em qualquer superfície).
 - **Texto:** `ink-1` principal; `ink-2` (= `slate-300`) secundário; `ink-3` para rótulos mono, horários e metadados, nunca abaixo de 12 px; `ink-4` (= `slate-600`) só para desabilitado.
-- **Gelo, o acento tirado do logo:** `ice` preenche o botão primário e marca o que está ativo (item da barra lateral, cursor do replay, número das chamadas à IA). Texto sobre gelo é sempre `on-ice`. A borda acesa dos painéis, a seleção e os fios do funil também são gelo, em transparência. `glacier` é o gelo saturado e fica para dados e foco: anel de foco, links, série principal de gráfico, barras de comparação, estado informativo. `glacier-deep` só para preenchimentos de gráfico. `ice-tint-1` (hover) e `ice-tint-2` (selecionado) são véus de gelo; `ice-glow` é o brilho atrás do logo; `ice-haze` é a luz fraca nos cantos do chão.
+- **Gelo, o acento tirado do logo:** `ice` preenche o botão primário e marca o que está ativo (item da barra lateral, cursor do replay, número das chamadas à IA). Texto sobre gelo é sempre `on-ice`. A seleção e os fios do funil também são gelo, em transparência. `glacier` é o gelo saturado e fica para dados e foco: anel de foco, links, série principal de gráfico, barras de comparação, estado informativo. `glacier-deep` só para preenchimentos de gráfico. `ice-tint-1` (hover) e `ice-tint-2` (selecionado) são véus de gelo; `ice-edge` é o fio da barra lateral; `ice-glow` é só o disco em volta do nó do funil.
 - **Sinais:** `attention` (âmbar, pede uma pessoa), `danger` (coral: risco alto, erro, rejeitar/desfazer), `success` (menta: executada, aplicada, cessou), `info` (= `glacier`: aberto, diminuiu), `neutral` (estados finais sem juízo). Cada um tem `-tint` para fundo de selo e `-line` para borda; sobre preenchimento sólido use `on-attention`, `on-danger`, `on-success`. Sinal sempre acompanha ícone e palavra; nunca pinte uma área inteira de coral.
 - **Categorias:** `cat-ddos`, `cat-dos`, `cat-flood` (DDoS+DoS), `cat-mirai`, `cat-recon`, `cat-spoofing`, `cat-web`, `cat-bruteforce`, `cat-benign`. Use só em `CategoryBadge`, `CategoryBars` e legendas, nunca em botões, painéis ou navegação. Benign é cinza de propósito.
 - **Gráficos:** `chart-1` (série principal, contínua), `chart-2` (segunda série, sempre tracejada), `chart-grid`, `chart-axis`; mapa de calor da matriz de confusão em `heat-1` → `heat-5` (texto `ink-1` até `heat-3`, `on-ice` em `heat-4` e `heat-5`).
 
 ### Degradês
 
-Receitas em `components/bundle.css` (variáveis CSS feitas só de tokens). Use-as em vez de uma cor plana:
+Superfície e borda não usam degradê. Os que restam em `styles.css` carregam significado:
 
-| Variável | Feita de | Onde |
-|---|---|---|
-| `--sx-ground` | `bg-1` → `bg-0` → `bg-0` → `bg-1` (155°) | Chão de todas as telas, login, mesa do relatório |
-| `--sx-surface` | `graphite-800` → `bg-1` → `bg-0` (200°) | Painel, cartão de métrica |
-| `--sx-surface-lit` | `graphite-800` → `graphite-900` → `bg-1` → `bg-0` (200°) | Funil da visão geral, modal |
-| `--sx-rail` | `bg-1` → `bg-0` (de cima para baixo) | Barra lateral, preta |
-| `--sx-card` | `graphite-900` → `bg-1` (de cima para baixo) | Proposta, texto do agente, balão do modelo |
-| `--sx-edge` · `--sx-edge-strong` | `ice` translúcido no canto aceso → `line-1` (ou `line-2`) | Borda de painel; borda de modal, dock e cartão do login |
-| `--sx-select` | `ice` 12 % → 3 %, da esquerda para a direita | Linha selecionada da fila, evento atual |
-
-A borda acesa usa a técnica de duas camadas: `background: var(--sx-surface) padding-box, var(--sx-edge) border-box; border: 1px solid transparent`. Uma variante que precisa de borda de sinal (aguardando aprovação) só troca `border-color`. Uma cor (como `scrim`) só pode ser a última camada de um `background`; antes dela, escreva `linear-gradient(var(--scrim), var(--scrim))`.
+| Onde | Para quê |
+|---|---|
+| Hachura de `RiskBadge` alto e de `.sx-untrusted` | risco e conteúdo não confiável reconhecíveis em cinza (princípio 5) |
+| Barras tracejadas de `FeatureTable` e `.sx-compare`, legenda tracejada dos gráficos | valor abaixo do benigno e segunda série, em cinza |
+| Padrões `.sx-pattern--*` de `CategoryBars` | barras distintas na impressão |
+| Trilha do replay, com `--pct` | a parte já percorrida |
+| `Skeleton` | carregamento, só enquanto dura |
 
 ### Tipografia
 
@@ -101,16 +97,16 @@ A borda acesa usa a técnica de duas camadas: `background: var(--sx-surface) pad
 
 - Base de 4 px: `space-1` 4 · `space-2` 8 · `space-3` 12 · `space-4` 16 · `space-5` 20 · `space-6` 24 · `space-8` 32 · `space-10` 40 · `space-12` 48 · `space-16` 64. Painel com padding `space-6`; cartão de proposta `space-5`; gap entre painéis `space-6`.
 - Cantos contidos, com hierarquia por papel e teto de 8 px: `radius-xl` (8) na barra lateral, no dock do replay, no modal e no cartão do login; `radius-lg` (6) em painéis e cartões; `radius-md` (4) em blocos internos (citação, motivos, aviso) e em grupos de controles (segmentos, barra de provedores, cartão do operador); `radius-pill` (3) em botões, selos, itens de segmento e de navegação; `radius-sm` (3) em campos, para alinharem com os botões; `radius-xs` (2) no glifo de categoria, nas células do mapa de calor e nos trilhos e barras de dados. O nome `radius-pill` é histórico: nenhum controle é pílula. Círculo só no que é redondo de verdade: ponto de estado, polegar do slider e avatar.
-- **Moldura do app (`AppShell`):** sobre o chão preto (`--sx-ground`) com a luz do logo: névoa `ice-haze` em dois cantos e raios diagonais finos na faixa do cabeçalho (`backdrop`, ligado por padrão, decorativo); barra lateral flutuante (`sidebar-wide` 264 px, `sidebar-rail` 76 px recolhida), conteúdo em grade de 12 colunas (`.sx-grid`, `.sx-span-4/6/8/12`, gap `space-6`) e o dock do replay (`dock-height` 72 px) preso ao pé. Desenhe para 1440 × 900 e confira em 1920 × 1080.
+- **Moldura do app (`AppShell`):** sobre o chão preto (`bg-0`), sem fundo decorativo: barra lateral flutuante (`sidebar-wide` 264 px, `sidebar-rail` 76 px recolhida), conteúdo em grade de 12 colunas (`.sx-grid`, `.sx-span-4/6/8/12`, gap `space-6`) e o dock do replay (`dock-height` 72 px) preso ao pé. Desenhe para 1440 × 900 e confira em 1920 × 1080.
 - **Controles:** `control-sm` 32 px (tabela, dock), `control-md` 40 px, `control-lg` 48 px (login, modal). Ícones `icon-sm` 16, `icon-md` 20, `icon-lg` 24.
 
-### Vidro, sombra e elevação
+### Sombra e elevação
 
-- Painel = degradê `--sx-surface` + borda acesa `--sx-edge` + `shadow-1`. Cartão de métrica igual; funil e modal com `--sx-surface-lit`; barra lateral preta (`--sx-rail`), com borda, textos e ícones em gelo de força menor e a grade de pontos, também em gelo, no vão vazio acima do rodapé.
-- Botão secundário e redondo = vidro: véu `ice-tint-2` → `ice-tint-1` sobre `surface-2`, borda `line-2`, `shadow-glass` (reflexo interno no topo, como o "SOURCE BTN").
-- Popover, tooltip e dock = `shadow-2`. Modal = `shadow-3` sobre `scrim` com 6 px de desfoque. O dock do replay é vidro preto (`scrim` + 16 px de desfoque) e o cartão do login também (12 px): são os únicos desfoques atrás de conteúdo.
-- `shadow-attention` (halo âmbar) só no que aguarda aprovação: cartão de proposta, cartão de métrica.
-- Nunca desfoque atrás de texto de painel: o projetor e a impressão perdem legibilidade.
+- Painel = `surface-1` + fio `line-1`, sem sombra. Cartão de métrica igual; funil com fio `line-2`, por ser a figura principal; barra lateral em `bg-0`, com borda, textos e ícones em gelo de força menor. Modal, dock e cartão do login levam fio `line-2`.
+- Botão secundário e `IconButton` = `surface-2` + fio `line-2`, sem relevo.
+- Sombra só onde há sobreposição real, e curta: `shadow-2` em popover, tooltip, menu e dock; `shadow-3` no modal, sobre `scrim`.
+- `shadow-attention` (segundo fio âmbar, sem brilho) só no que aguarda aprovação: cartão de proposta, cartão de métrica.
+- Nenhum `backdrop-filter`: dock e modal são opacos, o que também favorece o projetor e a impressão.
 
 ### Movimento
 
@@ -118,7 +114,7 @@ A borda acesa usa a técnica de duas camadas: `background: var(--sx-surface) pad
 
 ### Estados
 
-- **Hover:** `ice-tint-1`. **Selecionado:** na barra lateral, o item ativo é preenchido de `ice` com texto `on-ice`; na linha da fila (com a barra de gelo à esquerda) e no evento atual da linha do tempo, `--sx-select` (véu de gelo); em controles (segmento, opção, provedor), `ice-tint-2`. **Desabilitado:** `opacity-disabled`.
+- **Hover:** `ice-tint-1`. **Selecionado:** na barra lateral, o item ativo é preenchido de `ice` com texto `on-ice`; na linha da fila (com a barra de gelo à esquerda) e em controles (segmento, opção, provedor), `ice-tint-2`; no evento atual da linha do tempo, `ice-tint-1` com fio de gelo. **Desabilitado:** `opacity-disabled`.
 - **Foco do teclado:** sempre visível, com `focus-ring` (2 px de `bg-1` + 2 px de `glacier`), ≥ 3:1 em todas as superfícies. Replay, modal, segmentos e gráficos funcionam pelo teclado.
 - **Replay:** eventos depois do cursor ficam em `opacity-future`; o evento do cursor ganha o selo "agora". Todas as telas mostram o estado até o evento do cursor.
 - **Carregando:** `Skeleton`. **Vazio:** `EmptyState`. **Aviso de leitura:** `Alert` com `line` ou `event`.
@@ -128,11 +124,11 @@ A borda acesa usa a técnica de duas camadas: `background: var(--sx-surface) pad
 - A marca é a escultura de vidro (`logos/sentryiot-mark.png`, fundo transparente). O nome é composto em Inter Display: "Sentry" em 600 e "IoT" em 300 na cor `ice`, seguido do descritor `NIDR` em mono. Use sempre o componente `Logo` (`sm` 24 px na barra recolhida, `md` 32 px na barra lateral, `lg` 52 px no login e no relatório, `xl` 76 px).
 - Só sobre chão escuro (`bg-0` a `surface-2`). Não recolora, não contorne, não achate e não ponha sobre fundo claro: o vidro é transparente e some. Deixe em volta pelo menos metade da altura da marca.
 - Tamanhos: `sentryiot-mark-128.png` para interface, `sentryiot-mark-512.png` e `sentryiot-mark.png` para telas grandes, `sentryiot-mark-64.png` como favicon. O arquivo recebido, com fundo preto, fica só no design system publicado. Nas telas, as imagens vêm de `ASSETS` (`assets.ts`).
-- A marca grande e acesa (`GlassBackdrop`) aparece só no login e na capa do relatório: logo à direita, sangrando a borda, com `ice-glow`, placas de vidro translúcidas, luz diagonal e grade de pontos no canto inferior esquerdo. É decorativa (`aria-hidden`). As outras telas herdam só a luz (névoa de gelo e raios diagonais do `AppShell`), nunca a marca grande atrás de dados.
+- A marca grande (`GlassBackdrop`) aparece só no login e na capa do relatório: logo à direita, sangrando a borda, sobre o preto, sem mais nada em volta. É decorativa (`aria-hidden`). As outras telas nunca levam a marca grande atrás de dados.
 
 ### Login
 
-Chão `--sx-ground` com luz `ice-haze` atrás da marca e `GlassBackdrop variant="login"`. Coluna esquerda: `Logo lg` e a linha `eyebrow-wide` "DETECÇÃO E RESPOSTA / A INTRUSÕES EM REDES IOT"; barra de acento (`.sx-accent-bar`), `eyebrow-wide` "RESPOSTA AUTÔNOMA A INTRUSÃO", título `display-lg` "Entrar"; cartão de vidro preto (`scrim`, canto aceso em `graphite-800`, borda `--sx-edge-strong`) com `TextField size="lg"` para usuário e senha, `Button variant="primary" size="lg"` "Entrar" e `Button variant="secondary"` "Abrir o replay". Canto superior direito: "ACESSO DO OPERADOR ——" e "DETECTA. / RESPONDE."; inferior direito: o selo "ACESSO RESTRITO". Cabe em 1440 × 900.
+Chão `bg-0` e `GlassBackdrop variant="login"`. Coluna esquerda: `Logo lg` e a linha `eyebrow-wide` "DETECÇÃO E RESPOSTA / A INTRUSÕES EM REDES IOT"; barra de acento (`.sx-accent-bar`), `eyebrow-wide` "RESPOSTA AUTÔNOMA A INTRUSÃO", título `display-lg` "Entrar"; cartão `surface-1` com fio `line-2`, `TextField size="lg"` para usuário e senha, `Button variant="primary" size="lg"` "Entrar" e `Button variant="secondary"` "Abrir o replay". Canto superior direito: "ACESSO DO OPERADOR ——" e "DETECTA. / RESPONDE."; inferior direito: o selo "ACESSO RESTRITO". Cabe em 1440 × 900.
 
 ### Relatório gerado pela LLM
 
@@ -152,7 +148,7 @@ Chão `--sx-ground` com luz `ice-haze` atrás da marca e `GlassBackdrop variant=
 | Grupo | Componentes | Quando usar |
 |---|---|---|
 | Marca | `Logo`, `GlassBackdrop`, `Icon`, `Kbd` | Marca na moldura; fundo do login e da capa; ícones; teclas. |
-| Ações | `Button`, `IconButton` | Um `primary` (gelo) por tela; `secondary` de vidro para o resto; `danger` para rejeitar e desfazer; `confirm` e `danger-solid` só dentro do modal. |
+| Ações | `Button`, `IconButton` | Um `primary` (gelo) por tela; `secondary` para o resto; `danger` para rejeitar e desfazer; `confirm` e `danger-solid` só dentro do modal. |
 | Selos | `CategoryBadge`, `StatusBadge`, `RiskBadge`, `AgentBadge`, `ChannelTag`, `TargetLabel` | Categoria (incidente sólido, modelo tracejado), estado, risco, agente, canal da decisão, rótulo neutro. |
 | Navegação | `AppShell`, `Sidebar`, `PageHeader`, `ModeIndicator`, `Segmented`, `Tabs`, `Panel` | Moldura, navegação larga/recolhida, título da tela, replay × ao vivo, superfícies. |
 | Formulários | `TextField`, `Select` | Login, motivos de decisão, prompt de sistema. |
@@ -213,3 +209,4 @@ O repositório mudou estes pontos dos componentes do artefato. Numa nova sincron
 - `Charts.tsx` usa efeito comum fora do navegador, para os testes desenharem as telas no Node.
 - Textos sem travessão: "Escrito por IA. Trate como dado, não como instrução do sistema."
 - Cantos contidos (feito no repositório, sem passar pelo artefato): a escala de raios caiu de 6/10/14/20/28/pílula para 2/3/4/6/8, com `radius-pill` em 3 px. `IconButton`, o ícone da linha do tempo e os glifos de categoria deixaram de ser círculos; dock, barra de provedores e cartão do operador deixaram de ser pílula; os balões do chat perderam o canto assimétrico.
+- Superfícies chapadas (feito no repositório, sem passar pelo artefato): saíram os degradês de superfície e de borda (`--sx-ground`, `--sx-surface`, `--sx-surface-lit`, `--sx-rail`, `--sx-card`, `--sx-edge`, `--sx-edge-strong`, `--sx-select`), o fundo decorativo do `AppShell` (com a prop `backdrop`), a grade de pontos da barra lateral, as placas, os raios, a luz e os pontos do `GlassBackdrop`, todo `backdrop-filter`, o relevo interno dos botões e os brilhos. Os tokens `ice-haze`, `graphite-wash`, `shadow-1` e `shadow-glass` deixaram de existir; `shadow-2` e `shadow-3` ficaram curtas; `shadow-attention` virou um segundo fio âmbar. O disco `ice-glow` em volta do nó do funil fica, porque é parte da figura principal.
