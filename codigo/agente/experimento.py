@@ -4,8 +4,9 @@ Para cada incidente do conjunto, em cada configuração (tudo local, tudo na nuv
 repetição, roda o orquestrador (`codigo/agente/agentes.py`) com o aprovador automático
 (`codigo/agente/aprovador.py`) e mede o que a decisão de 25/10/2026 pede:
 
-- a qualidade da recomendação: se a ação proposta é aceitável no alvo certo pelo gabarito. Cada proposta é
-  conferida com `conferir_proposta`, inclusive as de risco baixo, que não passam pelo aprovador;
+- a qualidade da recomendação: se a ação proposta é aceitável no alvo certo pelo gabarito, fora dos endereços
+  protegidos pela política do servidor MCP. Cada proposta é conferida com `conferir_proposta`, inclusive as de
+  risco baixo, que não passam pelo aprovador;
 - o acerto da triagem, ao lado: `coerente` num incidente verdadeiro, `duvidoso` ou `ruido` num falso. Um
   incidente é verdadeiro pela mesma regra de `codigo/reprodutor/limiar.py`: o pcap não é benigno, alguma
   janela do incidente tem quadro de um atacante do dataset e a categoria do incidente é a do pcap;
@@ -262,7 +263,9 @@ def medir(item, configuracao, repeticao, identificador, log, aprovador, gabarito
         elif evento.tipo == "agente_concluido" and evento.dados.agente == "triagem":
             rotulo = evento.dados.veredito
     propostas = [p for p in estado.propostas.values() if p.incidente == item.incidente]
-    conferencias = [conferir_proposta(p, estado.incidentes[item.incidente], atacantes, gabarito) for p in propostas]
+    conferencias = [
+        conferir_proposta(p, estado.incidentes[item.incidente], atacantes, gabarito, aprovador.politica) for p in propostas
+    ]
     decisoes = [d for d in aprovador.decisoes if d.incidente == item.incidente]
     primeira = conferencias[0] if conferencias else None
     # Quem a triagem apontou, contra a regra fixa do reprodutor (a primeira origem do incidente), nos
