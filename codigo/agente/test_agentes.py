@@ -25,6 +25,7 @@ from codigo.agente.agentes import (
 )
 from codigo.agente.pedidos import prompt_da_skill
 from codigo.agente.test_laco import ProvedorFalso, pedido, resposta
+from codigo.api import provedor
 from codigo.mcp.acoes import reconstruir
 from codigo.mcp.eventos import Registro, ler
 from codigo.mcp.stub import Stub
@@ -396,6 +397,8 @@ def test_main_num_log_novo_abre_os_incidentes_de_exemplo_antes_de_orquestrar(tmp
     # processo filho e, sem o resto do ambiente (no Windows, o SYSTEMROOT), nem sobe.
     for variavel, valor in {**LOCAL, "LLM_BASE_URL": "http://127.0.0.1:1/v1"}.items():
         monkeypatch.setenv(variavel, valor)
+    # A conexão recusada é tentada de novo; sem as esperas de verdade entre as tentativas.
+    monkeypatch.setattr(provedor, "ESPERAS_ENTRE_TENTATIVAS_S", (0, 0))
     caminho = tmp_path / "novo.jsonl"
 
     codigo = main(["--incidente", "inc-0001", "--log", str(caminho), "--configuracao", "local", "--env", str(tmp_path / "nao.env")])

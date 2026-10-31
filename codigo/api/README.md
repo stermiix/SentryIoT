@@ -18,7 +18,7 @@ Copie `.env.example` para `.env` na raiz (o `.env` é ignorado pelo git) e preen
 | `LLM_MODEL` | Modelo padrão | obrigatória |
 | `LLM_MODELOS_PERMITIDOS` | Modelos que a tela pode escolher, separados por vírgula; o padrão entra sempre na frente | só o `LLM_MODEL` |
 | `LLM_CA_BUNDLE` | PEM da CA do provedor, quando o certificado é interno | cadeia do sistema |
-| `LLM_TIMEOUT_S` | Prazo de cada chamada ao provedor, em segundos | 300 |
+| `LLM_TIMEOUT_S` | Prazo de cada tentativa de chamada ao provedor, em segundos | 300 |
 | `LLM_RACIOCINIO` | `ligado` ou `desligado`; vai em `chat_template_kwargs.enable_thinking` | o do provedor |
 | `LLM_TEMPERATURA` | Temperatura, de 0 a 2 | o do provedor |
 | `LLM_SEMENTE` | Semente, inteiro a partir de 0 | o do provedor |
@@ -67,7 +67,9 @@ pasta, só a API responde.
 Os erros do chat vêm como `{"erro": "..."}`, com o nome do campo na mensagem: 400 para corpo
 que não é JSON, campo ausente ou com tipo errado, modelo fora da lista permitida ou conversa fora
 dos limites; 502 quando o provedor recusa ou não responde (com `codigo`, o status dele, ou nulo);
-503 quando falta variável obrigatória (com `faltando`).
+503 quando falta variável obrigatória (com `faltando`). Antes do 502, uma falha passageira (conexão
+caída ou recusada, prazo estourado, ou 502, 503 e 504 do provedor) ganha mais duas tentativas, depois
+de 3 s e de 6 s.
 
 ## Simulação com um pcap
 

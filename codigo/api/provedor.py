@@ -7,12 +7,18 @@ da interface, só monta a chamada a `chat/completions`, lê a resposta e traduz 
 import json
 import math
 import ssl
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
 TAMANHO_DA_MENSAGEM_DE_ERRO = 500
 PAPEIS = {"usuario": "user", "assistente": "assistant"}
+# Uma falha passageira (conexão caída ou recusada, prazo estourado, gateway sem o modelo atrás dele)
+# é tentada de novo depois de cada uma destas esperas, em segundos; a última falha sobe como erro. No
+# teste de 31/10, um "Connection reset by peer" perdeu uma rodada inteira dos agentes.
+ESPERAS_ENTRE_TENTATIVAS_S = (3, 6)
+CODIGOS_PASSAGEIROS = frozenset({502, 503, 504})
 
 
 @dataclass(frozen=True)
@@ -46,18 +52,26 @@ class RespostaDaConversa:
 
 
 class ErroDoProvedor(Exception):
-    """O provedor recusou ou não respondeu. `codigo` é o status HTTP dele, ou nulo sem resposta."""
+    """O provedor recusou ou não respondeu. `codigo` é o status HTTP dele, ou nulo sem resposta.
 
-    def __init__(self, mensagem, codigo=None):
+    `passageiro` diz se a falha costuma passar sozinha, como uma conexão que caiu. A falha passageira
+    que chega a quem chamou já esgotou as novas tentativas.
+    """
+
+    def __init__(self, mensagem, codigo=None, passageiro=False):
         super().__init__(mensagem)
         self.mensagem = mensagem
         self.codigo = codigo
+        self.passageiro = passageiro
 
 
 class Provedor:
-    def __init__(self, config, abrir=urllib.request.urlopen):
+    def __init__(self, config, abrir=urllib.request.urlopen, esperar=time.sleep, esperas_s=None):
         self.config = config
         self._abrir = abrir
+        self._esperar = esperar
+        # Lido aqui, e não na assinatura, para o teste que sobe o comando inteiro poder zerar as esperas.
+        self._esperas_s = ESPERAS_ENTRE_TENTATIVAS_S if esperas_s is None else tuple(esperas_s)
         self._contexto = ssl.create_default_context(cafile=config.ca) if config.ca else None
 
     def chat(self, modelo, sistema, mensagens):
@@ -116,22 +130,38 @@ class Provedor:
         dados = json.dumps(corpo).encode("utf-8")
         cabecalhos = {"Content-Type": "application/json", "Authorization": f"Bearer {self.config.chave}"}
         pedido = urllib.request.Request(self.config.url_base + caminho, data=dados, headers=cabecalhos)
-        try:
-            with self._abrir(pedido, timeout=self.config.prazo_s, context=self._contexto) as resposta:
-                bruto = resposta.read()
-        except urllib.error.HTTPError as erro:
-            detalhe = erro.read().decode("utf-8", "replace")[:TAMANHO_DA_MENSAGEM_DE_ERRO]
-            raise ErroDoProvedor(detalhe or erro.reason, codigo=erro.code) from erro
-        except OSError as erro:
-            # Na abertura da conexão, o estouro do prazo chega embrulhado num URLError.
-            motivo = getattr(erro, "reason", erro)
-            if isinstance(erro, TimeoutError) or isinstance(motivo, TimeoutError):
-                raise ErroDoProvedor(f"prazo de {self.config.prazo_s:g} s estourado esperando o provedor") from erro
-            raise ErroDoProvedor(f"falha ao falar com o provedor: {motivo}") from erro
+        # Só a falha passageira volta a ser tentada. Recusa do provedor (4xx), resposta que não é JSON
+        # e content_filter, que chega numa resposta normal, não mudariam com outra tentativa.
+        for espera in (*self._esperas_s, None):
+            try:
+                bruto = self._enviar(pedido)
+                break
+            except ErroDoProvedor as erro:
+                if not erro.passageiro or espera is None:
+                    raise
+            self._esperar(espera)
         try:
             return json.loads(bruto.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as erro:
             raise ErroDoProvedor("o provedor respondeu algo que não é JSON") from erro
+
+    def _enviar(self, pedido):
+        try:
+            with self._abrir(pedido, timeout=self.config.prazo_s, context=self._contexto) as resposta:
+                return resposta.read()
+        except urllib.error.HTTPError as erro:
+            detalhe = erro.read().decode("utf-8", "replace")[:TAMANHO_DA_MENSAGEM_DE_ERRO]
+            passageiro = erro.code in CODIGOS_PASSAGEIROS
+            raise ErroDoProvedor(detalhe or erro.reason, codigo=erro.code, passageiro=passageiro) from erro
+        except OSError as erro:
+            # Na abertura da conexão, o estouro do prazo chega embrulhado num URLError.
+            motivo = getattr(erro, "reason", erro)
+            if isinstance(erro, TimeoutError) or isinstance(motivo, TimeoutError):
+                mensagem = f"prazo de {self.config.prazo_s:g} s estourado esperando o provedor"
+                raise ErroDoProvedor(mensagem, passageiro=True) from erro
+            # Conexão recusada, caída ou fechada no meio da resposta; nome que não resolve, não.
+            passageiro = isinstance(motivo, ConnectionError)
+            raise ErroDoProvedor(f"falha ao falar com o provedor: {motivo}", passageiro=passageiro) from erro
 
 
 def _inteiro(valor):
