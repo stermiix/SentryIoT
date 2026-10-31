@@ -524,6 +524,7 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | `agente/cliente_mcp.py` | O cliente do servidor MCP de um agente: abre o stub por stdio só com as tools da linha dele |
 | `agente/registro.py` | O que o laço grava no log: um `llm_chamada` por chamada ao modelo e um `agente_concluido` por agente |
 | `agente/agentes.py` | O orquestrador em código: triagem, veredito sem endereço, decisão, espera da aprovação no log, execução e verificação do efeito, em três configurações (`local`, `nuvem`, `hibrida`). Roda com `python -m codigo.agente --incidente inc-0001 --log <log> --configuracao hibrida` |
+| `agente/aprovador.py` | O aprovador automático dos experimentos e a conferência de cada proposta contra o gabarito (`experimentos/gabarito_da_recomendacao.toml`): aprova a proposta de risco alto que o gabarito aceita, rejeita as demais, inclusive a ação nova, e grava a decisão no log como a de uma pessoa (`aprovador-automatico`). O papel do alvo vem dos IPs dos atacantes do dataset |
 | `agente/teste_tool_poisoning.py` | **(a criar)** O experimento de segurança do MCP: uma tool com descrição envenenada, para medir se o agente cai |
 
 **Frente do reprodutor de tráfego** (`codigo/reprodutor/`)

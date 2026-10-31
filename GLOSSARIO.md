@@ -321,11 +321,14 @@ resto segue só pelo modelo local (a implementar).
 A lista das ações do catálogo aceitáveis em cada categoria de ataque e do alvo de cada uma
 (`experimentos/gabarito_da_recomendacao.toml`), que fica fixa antes da primeira rodada dos
 experimentos. A qualidade da recomendação é a porcentagem de incidentes com uma ação aceitável no
-alvo certo. O arquivo é um rascunho que a equipe ainda revisa; a conferência das rodadas contra ele
-não está implementada.
+alvo certo. O arquivo é um rascunho que a equipe ainda revisa. A conferência de cada proposta contra ele
+está em `codigo/agente/aprovador.py` (`conferir_proposta`); a das rodadas, somando os incidentes, ainda não
+está implementada.
 
 **Aprovador automático**
-Nos experimentos, vai fazer o papel da pessoa que aprova as ações de risco alto: aprovar o que o
-gabarito aceita, rejeitar o resto, inclusive a ação nova, e gravar a decisão no log como a de uma
-pessoa. Assim o tempo até a remediação não depende de alguém estar olhando. A implementar: hoje a
-aprovação só entra pelo comando da pessoa (`python -m codigo.mcp.aprovar`).
+Nos experimentos, faz o papel da pessoa que aprova as ações de risco alto: aprova o que o
+gabarito aceita, rejeita o resto, inclusive a ação nova, e grava a decisão no log como a de uma
+pessoa, com o usuário `aprovador-automatico`. Assim o tempo até a remediação não depende de alguém
+estar olhando. O papel do alvo (origem ou destino) vem dos IPs dos atacantes do dataset, que quem chama
+entrega. Está em `codigo/agente/aprovador.py` (`AprovadorPorGabarito`); na demonstração à banca, a
+aprovação continua sendo da pessoa, pelo comando `python -m codigo.mcp.aprovar`.
