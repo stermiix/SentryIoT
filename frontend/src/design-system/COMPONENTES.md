@@ -6,7 +6,7 @@ As regras de uso de cada componente e de cada tela, agrupadas como no catálogo 
 
 ### Logo
 
-Lockup da marca: a escultura de vidro com o nome "Sentry**IoT**" composto em Barlow e o descritor `NIDR`.
+Lockup da marca: a escultura de vidro com o nome "Sentry**IoT**" composto em Inter Display e o descritor `NIDR`.
 
 - **Você fornece:** `src` (PNG transparente: `sentryiot-mark-128.png` na interface, `sentryiot-mark-512.png` ou maior em `xl`), `size` (`sm` 24 · `md` 32 · `lg` 52 · `xl` 76 px de marca), `wordmark` (padrão `true`), `descriptor` (padrão `"NIDR"`; `false` esconde).
 - **Use** `md` na barra lateral, `sm` na barra recolhida e no cabeçalho do relatório, `lg` no login e na capa.
@@ -14,7 +14,7 @@ Lockup da marca: a escultura de vidro com o nome "Sentry**IoT**" composto em Bar
 
 ### GlassBackdrop
 
-Fundo do login e da capa do relatório: a marca de vidro grande, sobre o preto.
+Fundo decorativo do login e da capa do relatório: a marca de vidro grande, acesa em gelo, com placas translúcidas, luz diagonal e grade de pontos.
 
 - **Você fornece:** `src` (a maior versão transparente, `sentryiot-mark.png`) e `variant` (`login`: marca na metade direita; `report`: marca sangrando a borda direita do A4).
 - **Coloque** dentro de um contêiner com `position: relative` e `overflow: hidden`; o conteúdo vem depois, com `position: relative`. É `aria-hidden`.
@@ -32,16 +32,16 @@ Fundo do login e da capa do relatório: a marca de vidro grande, sobre o preto.
 
 ### Button
 
-Botão de canto contido (`radius-pill`, 3 px); o primário (gelo) aparece no máximo uma vez por tela.
+Botão de cantos macios; o primário (gelo) aparece no máximo uma vez por tela.
 
 - **Você fornece:** o texto (verbo primeiro, caixa de frase: "Gerar relatório"), `variant`, `size` (`sm` 32 · `md` 40 · `lg` 48), `icon`/`iconRight`, `loading`, `block` e os atributos de `<button>`.
-- **Variantes:** `primary` (gelo, a ação da tela), `secondary` (padrão), `ghost` (ações leves, "Histórico →"), `danger` (Rejeitar, Desfazer), e só dentro do modal: `confirm` (menta, "Aprovar e executar") e `danger-solid` (coral, confirmar uma rejeição).
+- **Variantes:** `primary` (gelo, a ação da tela), `secondary` (vidro, padrão), `ghost` (ações leves, "Histórico →"), `danger` (Rejeitar, Desfazer), e só dentro do modal: `confirm` (menta, "Aprovar e executar") e `danger-solid` (coral, confirmar uma rejeição).
 - **Estados:** foco com anel `glacier`; `disabled` em `opacity-disabled`; `loading` troca o ícone por um giro e mantém a largura.
 - **Não** use `danger` para cancelar; cancelar é `ghost`.
 
 ### IconButton
 
-Botão quadrado de um ícone só, com o mesmo canto dos outros controles.
+Botão redondo de um ícone só, o "SOURCE BTN" de vidro das referências.
 
 - **Você fornece:** `icon`, `label` (obrigatório: vira `aria-label` e dica nativa), `variant` (`glass` padrão, `ghost`, `primary`), `size` (`sm` 32 · `md` 40 · `lg` 48), `pressed` para alternâncias (reproduzir/pausar, recolher).
 - **Use** `primary` só no play do replay e no enviar do chat. `ghost` para fechar e recolher.
@@ -52,13 +52,13 @@ Botão quadrado de um ícone só, com o mesmo canto dos outros controles.
 
 Selo de categoria: um glifo na cor da categoria e o nome; legível em cinza pelo glifo e pela palavra.
 
-- **Você fornece:** `category` (uma das 8 do incidente ou das 7 do modelo), `model` (`true` para a saída crua do classificador: borda tracejada e prefixo "modelo"), `size` (`sm` 22 · `md` 28 · `lg` 36 px).
+- **Você fornece:** `category` (uma das 8 do incidente ou das 7 do modelo), `model` (`true` para a saída crua do classificador: borda tracejada e prefixo "MODELO"), `size` (`sm` 22 · `md` 28 · `lg` 36 px).
 - **Mostre as duas** quando diferirem: a categoria do incidente (sólida) e a do modelo (tracejada): "o modelo disse DDoS+DoS; com 37 origens, é um DDoS". `ClassifierVerdict` faz isso por extenso.
 - Benign é discreta de propósito (texto `ink-2`). Não use as cores de categoria em nenhum outro lugar.
 
 ### StatusBadge
 
-Estado de incidente, proposta, execução ou efeito verificado: selo tingido com ícone e o rótulo oficial.
+Estado de incidente, proposta, execução ou efeito verificado: pílula tingida com ícone e o rótulo oficial.
 
 - **Você fornece:** `kind` (`incident` · `proposal` · `execution` · `effect`) e `value` (ex.: `aguardando_aprovacao`, `executada`, `cessou`), `size` (`sm` | `md`), `emphasis` para cabeçalhos de cartão.
 - "Aguardando aprovação" é o único estado que pede uma pessoa: âmbar, com ponto pulsante e borda. Os outros: `info` (aberto, liberada, diminuiu), `success` (executada, aplicada, cessou), `danger` (rejeitada), `neutral` (encerrado, desfeita, já resolvido).
@@ -98,7 +98,7 @@ Rótulo neutro de um endereço (`origem-1`, `destino-1`) com o IP real ao lado, 
 
 ### Sidebar
 
-Navegação lateral flutuante, nas versões larga e só com ícones. Só preto e gelo: fundo preto (`bg-0`), borda, textos, ícones e divisores em gelo de força menor.
+Navegação lateral flutuante, nas versões larga e só com ícones. Só preto e gelo: fundo preto (`bg-1` → `bg-0`), borda, textos, ícones e divisores em gelo de força menor, e o logo sem brilho; o vão vazio acima do rodapé recebe a grade de pontos da capa do relatório, também em gelo.
 
 - **Você fornece:** `logoSrc`, `sections` (rótulo + itens com `id`, `label`, `icon`, `count`, `attention`, `planned`), `activeId`, `onNavigate`, `collapsed`, `onToggle`, `footer` (provedor local e operador).
 - O item ativo é a única área de gelo da barra: preenchimento `ice` com texto e ícone `on-ice`, sem brilho. Contagem âmbar (`attention`) quando há proposta aguardando; tela planejada leva um círculo tracejado e o rótulo esmaecido. No rodapé, o ponto do modelo no ar também é gelo.
@@ -108,14 +108,14 @@ Navegação lateral flutuante, nas versões larga e só com ícones. Só preto e
 
 ### PageHeader
 
-Bloco de título da tela: rótulo de caminho, título `title-1`, linha de metadados e ações à direita.
+Bloco de título da tela: rótulo de caminho em mono, título `title-1`, linha de metadados e ações à direita.
 
-- **Você fornece:** `eyebrow` ("Incidentes / inc-0001"), `title`, `meta` (selos, horário, contagens), `actions` (o `ModeIndicator` e os botões da tela).
+- **Você fornece:** `eyebrow` ("INCIDENTES / INC-0001"), `title`, `meta` (selos, horário, contagens), `actions` (o `ModeIndicator` e os botões da tela).
 - **Um por tela**, sem saudação. O `ModeIndicator` fica sempre nas ações, no mesmo lugar em todas as telas.
 
 ### ModeIndicator
 
-Diz em que modo a tela está: "REPLAY · evento 23 de 52 · 14:03:26" ou "AO VIVO" com ponto pulsante.
+Diz em que modo a tela está: "REPLAY · EVENTO 23 DE 52 · 14:03:26" ou "AO VIVO" com ponto pulsante.
 
 - **Você fornece:** `mode` (`replay` | `ao-vivo`), `position` e `total` no replay, `at` (hora do evento atual).
 - Sempre visível no cabeçalho da tela.
@@ -137,10 +137,10 @@ Abas sublinhadas para as seções de um mesmo objeto (Veredito · Agentes · Pro
 
 ### Panel
 
-A superfície de todo bloco: `surface-1` chapada, fio `line-1` e cantos `radius-lg`.
+A superfície de todo bloco: degradê suave do grafite ao preto (`graphite-800` → `bg-1` → `bg-0`, luz no alto à direita), borda que clareia para gelo no canto aceso, cantos `radius-lg`.
 
-- **Você fornece:** `eyebrow` (rótulo), `title` (`title-3`), `actions` (à direita), `children`, `footer`, `flush` (tabelas de borda a borda), `tone="attention"` (fio âmbar duplo quando algo dentro espera uma pessoa).
-- **Use** um título curto que diga o que há dentro ("Veredito", "Ações propostas"). Prefira deixar o fio âmbar no item que aguarda, não no painel inteiro.
+- **Você fornece:** `eyebrow` (rótulo mono), `title` (`title-3`), `actions` (à direita), `children`, `footer`, `flush` (tabelas de borda a borda), `tone="attention"` (halo âmbar quando algo dentro espera uma pessoa).
+- **Use** um título curto que diga o que há dentro ("Veredito", "Ações propostas"). Prefira deixar o halo âmbar no item que aguarda, não no painel inteiro.
 
 ## Formulários
 
@@ -171,7 +171,7 @@ O argumento do trabalho de relance: **janelas classificadas → incidente → ch
 
 ### MetricCard
 
-Cartão com número grande e rótulo.
+Cartão com número grande e rótulo mono, o "340 Executions" das referências.
 
 - **Você fornece:** `label`, `value` (número já é formatado em pt-BR), `unit`, `context` (uma linha), `icon`, `delta` (`text`, `tone`), `spark` (valores da linha), `tone="attention"` (número que pede uma pessoa, ex.: propostas aguardando).
 - **Use** para tokens, latência, incidentes, aguardando aprovação. Os três contadores do argumento ficam no `AggregationFunnel`, não em cartões soltos.
@@ -227,7 +227,7 @@ Linha do tempo do log: hora, ícone do tipo, agente, texto e id em todas as linh
 Proposta de ação com o estado em destaque, alvo neutro, prazo, risco, a justificativa do agente (voz de agente), motivos do risco alto, decisão humana, execuções e efeito.
 
 - **Você fornece:** `proposal` (`Proposal`), `onApprove`/`onReject` (os botões só aparecem enquanto "Aguardando aprovação"), `showAddress`.
-- Aguardando: fio âmbar duplo e a frase "Uma pessoa precisa decidir antes de qualquer execução." Ação fora do catálogo leva o selo "ação nova"; a que entrou no catálogo, "promovida ao catálogo".
+- Aguardando: borda e halo âmbar e a frase "Uma pessoa precisa decidir antes de qualquer execução." Ação fora do catálogo leva o selo "ação nova"; a que entrou no catálogo, "promovida ao catálogo".
 - A decisão humana aparece sempre como "Aprovada" ou "Rejeitada" com o canal, e o motivo, quando há, vem embaixo na voz de pessoa. No replay, as telas só passam `onApprove`/`onReject` no fim do log: num ponto passado, a decisão já está adiante.
 - Aprovar e rejeitar sempre abrem o `ConfirmDialog`; nada é executado direto do cartão.
 
@@ -341,7 +341,7 @@ Barra de provedores de IA: modelos locais (online/offline) e de nuvem; o escolhi
 
 ### ReportCover
 
-Capa A4 (794 × 1123 px) do relatório do incidente, na composição da capa de referência.
+Capa A4 (794 × 1123 px) do relatório do incidente, na composição da capa de referência, acesa em gelo.
 
 - **Você fornece:** `logoSrc`, `heroSrc`, `eyebrow`, `title`, `meta` (ícone, rótulo, valor: Incidente, Categoria, ID do relatório, Alvo), `date` (ISO), `mode` ("Modo replay"), e opcionalmente `kicker`, `motto`, `tagline`, `confidential`, `footer`.
 - Os valores da capa vêm do log (voz do sistema); a LLM não escreve na capa.
@@ -406,7 +406,7 @@ Chat com o modelo: ferramenta da equipe para testar prompts e as skills dos agen
 
 O relatório do incidente: capa A4 no estilo da capa de referência e as páginas internas, com o que está no log.
 
-- Capa: marca de vidro sangrando a borda, título do incidente, metadados com caixas de ícone (com a origem apontada pela triagem, quando há), data e modo, selo "CONFIDENCIAL".
+- Capa: marca de vidro acesa sangrando a borda, título do incidente, metadados com caixas de ícone (com a origem apontada pela triagem, quando há), data e modo, selo "CONFIDENCIAL".
 - Seções: 01 sumário (escrito pela triagem no fim, voz de agente), 02 fatos do log, 03 o que o classificador viu (`ClassifierVerdict`, `CategoryBars` das janelas por categoria, `FeatureTable`, `AddressList` e as portas), 04 triagem (veredito, atacante apontado, a justificativa e a análise em `VoiceQuote`, e a tabela dos candidatos), 05 ações, 06 recomendações (voz de agente, selo "Gerado pelo agente") e 07 decisões humanas.
 - O número de páginas varia com o texto: cada seção é medida numa página escondida e as páginas quebram entre os blocos, com "(continuação)" no título da seção que segue na página seguinte.
 
@@ -414,6 +414,6 @@ O relatório do incidente: capa A4 no estilo da capa de referência e as página
 
 Login com a marca de vidro ao fundo, na mesma linguagem da capa do relatório.
 
-- Composição: `GlassBackdrop variant="login"` sobre o chão preto (`bg-0`); `Logo lg` e tagline em `eyebrow-wide`; barra de acento, "Resposta autônoma a intrusão", título "Entrar"; cartão com usuário, senha, "Entrar" (primário) e "Abrir o replay"; selo "ACESSO RESTRITO".
+- Composição: `GlassBackdrop variant="login"` sobre o chão preto (`bg-1` → `bg-0`); `Logo lg` e tagline em `eyebrow-wide`; barra de acento, "RESPOSTA AUTÔNOMA A INTRUSÃO", título "Entrar"; cartão de vidro com usuário, senha, "Entrar" (primário) e "Abrir o replay"; selo "ACESSO RESTRITO".
 - Estados: erro de senha (`Alert danger` + campo com erro), carregando (botão com giro). Cabe em 1440 × 900.
 - Código: `src/telas/Entrar.tsx`. O login passa por `src/operacao.ts`, que hoje explica que ainda não há login.

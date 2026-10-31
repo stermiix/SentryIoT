@@ -189,7 +189,7 @@ export function TelaComponentes({ replay }: PropsDaTela) {
             <Button variant="primary" loading>Entrando</Button>
             <Button variant="primary" size="lg" iconRight="arrow-right">Grande 48</Button>
           </Linha>
-          <Linha rotulo="Só ícone">
+          <Linha rotulo="Redondos">
             <IconButton icon="chevron-left" label="Anterior" size="sm" />
             <IconButton icon="download" label="Baixar" />
             <IconButton icon="play" label="Reproduzir" variant="primary" />

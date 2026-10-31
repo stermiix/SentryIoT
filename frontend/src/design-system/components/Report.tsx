@@ -8,7 +8,7 @@ import { AGENT, type AgentName } from './vocab';
 export interface ReportCoverProps {
   /** Small mark for the lockup (sentryiot-mark-128.png). */
   logoSrc: string;
-  /** Large mark behind the title (sentryiot-mark.png). */
+  /** Large mark lit behind the title (sentryiot-mark.png). */
   heroSrc: string;
   /** Top-right kicker. Default "Relatório de incidente". */
   kicker?: string;
@@ -16,10 +16,10 @@ export interface ReportCoverProps {
   motto?: [string, string];
   /** Two lines under the logo. */
   tagline?: [string, string];
-  /** Line above the title: "Resposta autônoma a intrusão". */
+  /** Wide mono line above the title: "Resposta autônoma a intrusão". */
   eyebrow: string;
   title: React.ReactNode;
-  /** Rows with an icon box, a label and a value (incidente, categoria, id, alvo). */
+  /** Rows with an icon box, a mono label and a value (incidente, categoria, id, alvo). */
   meta: { icon: IconName; label: string; value: React.ReactNode }[];
   /** ISO date of generation, shown as "14 OUT 2026". */
   date: string;
@@ -32,7 +32,7 @@ export interface ReportCoverProps {
   className?: string;
 }
 
-/** A4 cover (794 × 1123 px) of the report the language model writes at the end, in the composition of the reference cover. */
+/** A4 cover (794 × 1123 px) of the report the language model writes at the end, in the composition of the reference cover, lit in ice. */
 export function ReportCover({ logoSrc, heroSrc, kicker = 'Relatório de incidente', motto = ['Detecta.', 'Responde.'], tagline = ['Detecção e resposta', 'a intrusões em redes IoT'], eyebrow, title, meta, date, mode, confidential = true, footer = '© 2026 SentryIoT · TCC · Mackenzie', className }: ReportCoverProps): React.ReactElement {
   return (
     <article className={cx('sx-report', 'sx-cover', className)} aria-label="Capa do relatório">
@@ -143,7 +143,7 @@ export function ReportSection({ n, title, voice = 'system', agent, children, cla
 /* ---------------- ReportFacts ---------------- */
 export interface ReportFactsProps { items: { label: string; value: React.ReactNode }[]; columns?: 2 | 3 | 4; className?: string }
 
-/** Key facts from the log in a grid of label + mono value. */
+/** Key facts from the log in a grid of mono label + value. */
 export function ReportFacts({ items, columns = 3, className }: ReportFactsProps): React.ReactElement {
   return (
     <dl className={cx('sx-rfacts', className)} style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>

@@ -130,7 +130,7 @@ no build: depois de mudar uma, gere o `dist/` de novo.
   `src/design-system/index.ts`. O CSS das telas (`src/estilo.css`, classes `app-*`) usa só tokens.
 - A origem é o design system publicado pela equipe. Os ajustes que o repositório fez sobre ele
   estão no fim de `src/design-system/README.md` e valem para qualquer nova sincronização.
-- Fontes: Barlow, Lora e Source Code Pro (SIL OFL 1.1, textos em `src/design-system/fonts/`).
+- Fontes: Inter, Lora e Source Code Pro (SIL OFL 1.1, textos em `src/design-system/fonts/`).
   Ícones: Lucide (ISC, texto em `src/design-system/components/LICENCA-LUCIDE.txt`).
 
 ## Testes
