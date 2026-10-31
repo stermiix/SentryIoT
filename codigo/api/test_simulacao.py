@@ -474,6 +474,29 @@ def test_decisao_sem_simulacao_em_andamento_e_recusada(tmp_path):
         simulador.decidir("aprovar", "prop-0001")
 
 
+def test_marcar_como_ja_resolvido_pela_interface_grava_no_log_e_vale_para_o_servidor(tmp_path):
+    entrou = threading.Event()
+
+    def espera_a_pessoa(opcoes):
+        entrou.set()
+        opcoes["esperar"](3600)
+
+    simulador = simulador_com(tmp_path, orquestrador=OrquestradorFalso({"inc-0001": espera_a_pessoa}))
+    simulador.simular(pcap_com_dois_incidentes(tmp_path), "a.pcap")
+    assert entrou.wait(10)
+
+    simulador.decidir("resolvido", "inc-0001", "bloqueei no roteador")
+
+    log = next((tmp_path / "simulacoes").iterdir()) / "eventos.jsonl"
+    marca = next(evento for evento in ler(log) if evento.tipo == "incidente_marcado_resolvido")
+    assert (marca.incidente, marca.dados.canal, marca.dados.motivo) == ("inc-0001", "interface", "bloqueei no roteador")
+    assert "inc-0001" in reconstruir(ler(log)).resolvidos
+    with pytest.raises(PedidoRecusado):
+        simulador.decidir("resolvido", "inc-0001")
+    simulador.parar()
+    esperar_os_agentes(simulador)
+
+
 def do_pcap_ao_sumario(incidente="inc-0001"):
     """As respostas do modelo num incidente que pede a aprovação de uma pessoa."""
     return [
