@@ -36,37 +36,12 @@ export interface GlassBackdropProps {
   className?: string;
 }
 
-/** Decorative background of the login and the report cover: the glass mark lit in ice,
- *  translucent slabs, diagonal light and a dot grid. Fills its positioned parent; aria-hidden. */
+/** Background of the login and the report cover: the large glass mark on the black ground.
+ *  Fills its positioned parent; aria-hidden. */
 export function GlassBackdrop({ src, variant = 'login', className }: GlassBackdropProps): React.ReactElement {
   return (
     <div className={cx('sx-backdrop', 'sx-backdrop--' + variant, className)} aria-hidden="true">
-      <svg className="sx-backdrop__rays" viewBox="0 0 1000 1000" preserveAspectRatio="none">
-        <line x1="80" y1="1000" x2="1000" y2="80" />
-        <line x1="300" y1="1000" x2="1000" y2="300" />
-        <line x1="0" y1="760" x2="760" y2="0" />
-        <line x1="520" y1="1000" x2="1000" y2="520" />
-      </svg>
-      <div className="sx-backdrop__glow" />
-      <svg className="sx-backdrop__slabs" viewBox="0 0 600 1000" preserveAspectRatio="xMaxYMid slice">
-        <defs>
-          <linearGradient id="sx-slab-fill" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" style={{ stopColor: 'var(--ice)', stopOpacity: 0.07 }} />
-            <stop offset="1" style={{ stopColor: 'var(--ice)', stopOpacity: 0 }} />
-          </linearGradient>
-          <linearGradient id="sx-slab-edge" gradientUnits="userSpaceOnUse" x1="0" y1="1000" x2="0" y2="80">
-            <stop offset="0" style={{ stopColor: 'var(--glacier)', stopOpacity: 0.85 }} />
-            <stop offset="0.55" style={{ stopColor: 'var(--ice)', stopOpacity: 0.18 }} />
-            <stop offset="1" style={{ stopColor: 'var(--ice)', stopOpacity: 0 }} />
-          </linearGradient>
-        </defs>
-        <polygon className="sx-backdrop__slab" points="180,120 600,380 600,760 180,500" />
-        <polygon className="sx-backdrop__slab" points="300,470 600,660 600,1000 300,810" />
-        <line className="sx-backdrop__edge" x1="180" y1="500" x2="600" y2="760" />
-        <line className="sx-backdrop__edge" x1="300" y1="810" x2="600" y2="1000" />
-      </svg>
       <img className="sx-backdrop__logo" src={src} alt="" draggable={false} />
-      <div className="sx-backdrop__dots" />
     </div>
   );
 }

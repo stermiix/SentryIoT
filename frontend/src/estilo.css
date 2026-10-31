@@ -81,7 +81,7 @@
 /* Impressão: só o conteúdo da tela (o relatório em A4, as figuras do artigo), sem moldura. */
 @media print {
   .sx-app { display: block; padding: 0; background: var(--bg-0); }
-  .sx-app__backdrop, .sx-app__side, .sx-app__dock, .sx-pagehead { display: none !important; }
+  .sx-app__side, .sx-app__dock, .sx-pagehead { display: none !important; }
   .sx-app__content { padding: 0; }
   .app-relatorio { display: block; overflow: visible; padding: 0; }
   .app-relatorio > .app-relatorio-medida { display: none; }
