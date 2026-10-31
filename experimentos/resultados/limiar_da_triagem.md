@@ -4,21 +4,21 @@ Gerado por `python -m codigo.reprodutor.limiar`, a partir dos resultados da aval
 
 A regra testada é a da skill de triagem: o incidente com confiança do classificador abaixo do limiar recebe o veredito "duvidoso". Um incidente é verdadeiro quando o pcap não é benigno, quando alguma janela dele tem quadro de um atacante do dataset e quando a categoria do incidente é a do pcap. Os outros são falsos.
 
-São 235 incidentes: 178 verdadeiros e 57 falsos. 126 ficam inteiros fora do trecho de teste do modelo, e 109 têm janela no teste.
+São 212 incidentes: 171 verdadeiros e 41 falsos. 117 ficam inteiros fora do trecho de teste do modelo, e 95 têm janela no teste.
 
-Dos 57 falsos, 4 são alarmes em pcap benigno e 53 são incidentes de um pcap de ataque com a categoria errada. Para a triagem, os dois pedem o veredito duvidoso: no segundo caso o ataque existe, mas a categoria que guia a resposta está errada.
+Dos 41 falsos, 1 são alarmes em pcap benigno e 40 são incidentes de um pcap de ataque com a categoria errada. Para a triagem, os dois pedem o veredito duvidoso: no segundo caso o ataque existe, mas a categoria que guia a resposta está errada.
 
 Cada par de colunas diz quantos incidentes ficam abaixo do limiar: falsos pegos e verdadeiros marcados.
 
 | Limiar | Falsos, todos | Verdadeiros, todos | Falsos, fora do teste | Verdadeiros, fora do teste | Falsos, no teste | Verdadeiros, no teste |
 | --- | --- | --- | --- | --- | --- | --- |
-| 0,50 | 15 de 57 | 2 de 178 | 1 de 16 | 0 de 110 | 14 de 41 | 2 de 68 |
-| 0,55 | 19 de 57 | 2 de 178 | 1 de 16 | 0 de 110 | 18 de 41 | 2 de 68 |
-| 0,60 (escolhido) | 24 de 57 | 4 de 178 | 3 de 16 | 0 de 110 | 21 de 41 | 4 de 68 |
-| 0,65 | 27 de 57 | 15 de 178 | 3 de 16 | 0 de 110 | 24 de 41 | 15 de 68 |
-| 0,70 | 28 de 57 | 20 de 178 | 3 de 16 | 2 de 110 | 25 de 41 | 18 de 68 |
-| 0,75 | 31 de 57 | 31 de 178 | 4 de 16 | 8 de 110 | 27 de 41 | 23 de 68 |
-| 0,80 | 32 de 57 | 44 de 178 | 4 de 16 | 17 de 110 | 28 de 41 | 27 de 68 |
+| 0,50 | 8 de 41 | 1 de 171 | 0 de 12 | 0 de 105 | 8 de 29 | 1 de 66 |
+| 0,55 | 10 de 41 | 1 de 171 | 0 de 12 | 0 de 105 | 10 de 29 | 1 de 66 |
+| 0,60 (escolhido) | 14 de 41 | 5 de 171 | 1 de 12 | 0 de 105 | 13 de 29 | 5 de 66 |
+| 0,65 | 15 de 41 | 12 de 171 | 1 de 12 | 0 de 105 | 14 de 29 | 12 de 66 |
+| 0,70 | 16 de 41 | 19 de 171 | 1 de 12 | 2 de 105 | 15 de 29 | 17 de 66 |
+| 0,75 | 17 de 41 | 26 de 171 | 1 de 12 | 5 de 105 | 16 de 29 | 21 de 66 |
+| 0,80 | 18 de 41 | 39 de 171 | 1 de 12 | 14 de 105 | 17 de 29 | 25 de 66 |
 
 ## A escolha
 
@@ -28,12 +28,12 @@ Exigir também poucas janelas troca falsos pegos por verdadeiros poupados. Com t
 
 | Limiar | Condição de janelas | Falsos pegos | Verdadeiros marcados |
 | --- | --- | --- | --- |
-| 0,60 | nenhuma | 24 de 57 | 4 de 178 |
-| 0,60 | menos de 10 | 13 de 57 | 2 de 178 |
-| 0,60 | menos de 5 | 8 de 57 | 0 de 178 |
-| 0,65 | nenhuma | 27 de 57 | 15 de 178 |
-| 0,65 | menos de 10 | 15 de 57 | 2 de 178 |
-| 0,65 | menos de 5 | 10 de 57 | 0 de 178 |
+| 0,60 | nenhuma | 14 de 41 | 5 de 171 |
+| 0,60 | menos de 10 | 6 de 41 | 2 de 171 |
+| 0,60 | menos de 5 | 3 de 41 | 0 de 171 |
+| 0,65 | nenhuma | 15 de 41 | 12 de 171 |
+| 0,65 | menos de 10 | 6 de 41 | 4 de 171 |
+| 0,65 | menos de 5 | 3 de 41 | 0 de 171 |
 
 A skill fica sem a condição de janelas: ela poupa poucos verdadeiros e deixa passar boa parte dos falsos que o limiar pegaria.
 
@@ -41,11 +41,12 @@ Verdadeiros abaixo de 0,60, que a triagem passa a marcar como duvidosos:
 
 | Pcap | Categoria | Confiança | Janelas |
 | --- | --- | --- | --- |
-| `Mirai-udpplain.pcap` | Mirai | 0,46 | 27 |
-| `VulnerabilityScan.pcap` | Recon | 0,47 | 7 |
-| `VulnerabilityScan.pcap` | Recon | 0,55 | 7 |
+| `Mirai-udpplain.pcap` | Mirai | 0,46 | 30 |
 | `DoS-HTTP_Flood1.pcap` | DoS | 0,59 | 142 |
+| `VulnerabilityScan.pcap` | Recon | 0,59 | 8 |
+| `VulnerabilityScan.pcap` | Recon | 0,59 | 9 |
+| `VulnerabilityScan.pcap` | Recon | 0,59 | 20 |
 
 ## O que o limiar não pega
 
-25 dos 57 falsos têm confiança de 0,80 ou mais, e nenhum limiar de confiança os separa dos verdadeiros sem marcar boa parte dos ataques. Desses, 24 são de pcap de ataque com a categoria errada, com mediana de 3298 janelas.
+23 dos 41 falsos têm confiança de 0,80 ou mais, e nenhum limiar de confiança os separa dos verdadeiros sem marcar boa parte dos ataques. Desses, 22 são de pcap de ataque com a categoria errada, com mediana de 3038 janelas.

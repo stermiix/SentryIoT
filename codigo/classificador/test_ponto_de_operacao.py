@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from codigo.classificador.operacao import (
+    SEGUIDAS,
     PontoDeOperacao,
     ao_lado_do_modelo,
     escolher_limiar,
@@ -224,8 +225,8 @@ def test_o_treino_do_sistema_e_o_de_referencia_sao_os_das_configuracoes_5_e_0(ca
     for nome, salvo in salvos.items():
         unidade = m["resultados"]["configuracoes"][nome]["resultados"]["0"]["42"]
         assert salvo["confere"]
-        assert salvo["ponto_gravado"] == {"regra": unidade["regra"], "limiar": unidade["limiar"], "seguidas": 3}
-        assert ler(caso / "modelos" / salvo["arquivo"]) == PontoDeOperacao(unidade["limiar"], 3)
+        assert salvo["ponto_gravado"] == {"regra": unidade["regra"], "limiar": unidade["limiar"], "seguidas": SEGUIDAS}
+        assert ler(caso / "modelos" / salvo["arquivo"]) == PontoDeOperacao(unidade["limiar"], SEGUIDAS)
         conteudo = json.loads(ao_lado_do_modelo(caso / "modelos" / salvo["arquivo"]).read_text(encoding="utf-8"))
         assert conteudo["configuracao"] == nome and conteudo["semente"] == 42
     with open(caso / "resultados" / "ponto_de_operacao_limiar.csv", encoding="utf-8", newline="") as arquivo:

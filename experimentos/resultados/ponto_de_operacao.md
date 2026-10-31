@@ -1,8 +1,8 @@
 # Ponto de operação: regra e alarme escolhidos na validação
 
-Gerado por `python -m codigo.classificador.ponto_de_operacao` em 13/10/2026, com Python 3.11.2, scikit-learn 1.9.1, pandas 3.0.6 e numpy 2.4.6.
+Gerado por `python -m codigo.classificador.ponto_de_operacao` em 29/10/2026, com Python 3.11.2, scikit-learn 1.9.1, pandas 3.0.6 e numpy 2.4.6.
 
-A decisão da equipe: a regra de decisão da janela é escolhida numa parte de validação, nunca no teste. Concorrem a categoria mais provável (argmax) e o limiar, em que a janela é ataque se 1 − P(Benign) ≥ t, na categoria de ataque mais provável, e senão é Benign. Um incidente só abre com 3 janelas de ataque seguidas, na ordem do pcap. Os pontos candidatos de `rodadas_de_teste.md` (rodada g) saíram do próprio teste e não são usados aqui.
+A decisão da equipe: a regra de decisão da janela é escolhida numa parte de validação, nunca no teste. Concorrem a categoria mais provável (argmax) e o limiar, em que a janela é ataque se 1 − P(Benign) ≥ t, na categoria de ataque mais provável, e senão é Benign. Um incidente só abre com 4 janelas de ataque seguidas, na ordem do pcap. Os pontos candidatos de `rodadas_de_teste.md` (rodada g) saíram do próprio teste e não são usados aqui.
 
 **Validação.** Dentro da parte de treino de cada pcap (os primeiros 70% das janelas), as últimas 15% dessas janelas, por tempo, são a validação, e o resto é o treino reduzido. Nos rótulos com um pcap inteiro no teste, a validação são as últimas 15% de cada pcap de treino. O teste é o mesmo das rodadas. Na configuração com o fundo no treino, o fundo da validação também fica fora do treino reduzido.
 
@@ -14,8 +14,8 @@ Cada configuração foi medida com as sementes 42, 1 e 2, que definem o teto e o
 
 ## Resumo
 
-- Configuração 5: na validação da semente 42 venceu o argmax (rotação 0: argmax nas 3 sementes; melhor limiar 0,61; 0,59; 0,61), com N = 3. No ponto de operação, no corte por tempo, macro-F1 75,6% (75,4% a 75,7%) e benigno como ataque 0,85% (0,80% a 0,94%) por janela; no `BenignTraffic2.pcap` inteiro, 0,91% (0,89% a 0,93%) das janelas como ataque, e alarmes com 3 janelas seguidas, 4,3 (4 a 5) (0,5 (0,5 a 0,6) por hora); pior pcap benigno de fora (`BenignTraffic.pcap`), 6,0% (5,8% a 6,3%); fundo virando ataque, 13,3% (13,2% a 13,3%); pcaps de ataque com alarme no trecho de teste, 32 (31 a 32) de 33.
-- Configuração 0: na validação da semente 42 venceu o limiar t = 0,68 (rotação 0: limiar 0,68; limiar 0,67; limiar 0,68; melhor limiar 0,68; 0,67; 0,68), com N = 3. No ponto de operação, no corte por tempo, macro-F1 81,3% (81,1% a 81,4%) e benigno como ataque 1,14% (1,04% a 1,21%) por janela; no `BenignTraffic2.pcap` inteiro, 1,14% (1,07% a 1,19%) das janelas como ataque, e alarmes com 3 janelas seguidas, 12,7 (11 a 15) (1,6 (1,4 a 1,9) por hora); pior pcap benigno de fora (`BenignTraffic.pcap`), 36,1% (36,0% a 36,1%); fundo virando ataque, 65,9% (65,7% a 66,2%); pcaps de ataque com alarme no trecho de teste, 33 de 33.
+- Configuração 5: na validação da semente 42 venceu o argmax (rotação 0: argmax nas 3 sementes; melhor limiar 0,61; 0,59; 0,61), com N = 4. No ponto de operação, no corte por tempo, macro-F1 75,6% (75,4% a 75,7%) e benigno como ataque 0,85% (0,80% a 0,94%) por janela; no `BenignTraffic2.pcap` inteiro, 0,91% (0,89% a 0,93%) das janelas como ataque, e alarmes com 4 janelas seguidas, 1,3 (1 a 2) (0,2 (0,1 a 0,3) por hora); pior pcap benigno de fora (`BenignTraffic.pcap`), 6,0% (5,8% a 6,3%); fundo virando ataque, 13,3% (13,2% a 13,3%); pcaps de ataque com alarme no trecho de teste, 32 (31 a 32) de 33.
+- Configuração 0: na validação da semente 42 venceu o limiar t = 0,68 (rotação 0: limiar 0,68; limiar 0,67; limiar 0,68; melhor limiar 0,68; 0,67; 0,68), com N = 4. No ponto de operação, no corte por tempo, macro-F1 81,3% (81,1% a 81,4%) e benigno como ataque 1,14% (1,04% a 1,21%) por janela; no `BenignTraffic2.pcap` inteiro, 1,14% (1,07% a 1,19%) das janelas como ataque, e alarmes com 4 janelas seguidas, 6,7 (5 a 8) (0,8 (0,6 a 1,0) por hora); pior pcap benigno de fora (`BenignTraffic.pcap`), 36,1% (36,0% a 36,1%); fundo virando ataque, 65,9% (65,7% a 66,2%); pcaps de ataque com alarme no trecho de teste, 33 de 33.
 
 ## A regra escolhida na validação
 
@@ -30,10 +30,10 @@ Em cada configuração, rotação e semente: as janelas da validação, o que o 
 | 0 | 1 (`BenignTraffic.pcap` de fora) | 9.087 | 321.841 | 1,25% (1,22% a 1,27%) | 99,88% (99,87% a 99,88%) | 0,67; 0,68; 0,67 | 0,95% (0,94% a 0,98%) | 99,86% (99,86% a 99,86%) | limiar 0,67; limiar 0,68; limiar 0,67 |
 | 0 | 2 (`BenignTraffic1.pcap` de fora) | 10.089 | 321.428 | 1,38% (1,34% a 1,43%) | 99,83% (99,82% a 99,83%) | 0,68; 0,69; 0,69 | 0,95% (0,91% a 0,98%) | 99,78% (99,77% a 99,79%) | limiar 0,68; limiar 0,69; limiar 0,69 |
 
-Na validação da rotação 0, a regra escolhida e as 3 janelas seguidas no resto da validação:
+Na validação da rotação 0, a regra escolhida e as 4 janelas seguidas no resto da validação:
 
-- Configuração 5, rotação 0, na regra escolhida em cada semente: recall na validação DDoS+DoS 99,8% (99,8% a 99,8%); Mirai 100,0%; Recon 80,4% (80,0% a 80,9%); Spoofing 78,4% (78,2% a 78,5%); Web 42,2% (41,5% a 42,6%); BruteForce 72,3% (71,4% a 73,1%); fundo da validação como ataque 12,4% (12,3% a 12,6%); alarmes com 3 janelas seguidas nos trechos benignos da validação (2,5 h), 1; pcaps de ataque com alarme no trecho de validação, 32 de 33 (sem alarme em alguma semente: `SqlInjection.pcap`).
-- Configuração 0, rotação 0, na regra escolhida em cada semente: recall na validação DDoS+DoS 99,8% (99,8% a 99,8%); Mirai 100,0%; Recon 86,5% (86,2% a 86,7%); Spoofing 99,9% (99,9% a 100,0%); Web 46,5% (46,2% a 47,2%); BruteForce 76,2% (75,6% a 76,5%); fundo da validação como ataque 61,4% (61,1% a 61,8%); alarmes com 3 janelas seguidas nos trechos benignos da validação (2,5 h), 0,7 (0 a 1); pcaps de ataque com alarme no trecho de validação, 33 de 33.
+- Configuração 5, rotação 0, na regra escolhida em cada semente: recall na validação DDoS+DoS 99,8% (99,8% a 99,8%); Mirai 100,0%; Recon 80,4% (80,0% a 80,9%); Spoofing 78,4% (78,2% a 78,5%); Web 42,2% (41,5% a 42,6%); BruteForce 72,3% (71,4% a 73,1%); fundo da validação como ataque 12,4% (12,3% a 12,6%); alarmes com 4 janelas seguidas nos trechos benignos da validação (2,5 h), 0; pcaps de ataque com alarme no trecho de validação, 31 de 33 (sem alarme em alguma semente: `Recon-PingSweep.pcap` e `SqlInjection.pcap`).
+- Configuração 0, rotação 0, na regra escolhida em cada semente: recall na validação DDoS+DoS 99,8% (99,8% a 99,8%); Mirai 100,0%; Recon 86,5% (86,2% a 86,7%); Spoofing 99,9% (99,9% a 100,0%); Web 46,5% (46,2% a 47,2%); BruteForce 76,2% (75,6% a 76,5%); fundo da validação como ataque 61,4% (61,1% a 61,8%); alarmes com 4 janelas seguidas nos trechos benignos da validação (2,5 h), 0; pcaps de ataque com alarme no trecho de validação, 32 de 33 (sem alarme em alguma semente: `Recon-PingSweep.pcap`).
 
 ## No teste: corte por tempo
 
@@ -69,16 +69,16 @@ As janelas de teste da divisão publicada (o fim de cada pcap e o pcap inteiro d
 
 ## Benigno de fora: por janela e por alarme
 
-Cada pcap benigno inteiro, com o modelo da rotação que o deixa fora do treino e a regra escolhida na validação dessa rotação: a fração das janelas classificada como ataque e os alarmes com 3 janelas de ataque seguidas, na ordem do pcap, com o argmax, com o melhor limiar e no ponto de operação. A hora é a soma da duração das janelas do pcap.
+Cada pcap benigno inteiro, com o modelo da rotação que o deixa fora do treino e a regra escolhida na validação dessa rotação: a fração das janelas classificada como ataque e os alarmes com 4 janelas de ataque seguidas, na ordem do pcap, com o argmax, com o melhor limiar e no ponto de operação. A hora é a soma da duração das janelas do pcap.
 
 | Configuração | Pcap de fora | Janelas | Regra escolhida | Como ataque, argmax | Como ataque, melhor limiar | Como ataque, ponto de operação | Alarmes, argmax | Alarmes, melhor limiar | Alarmes, ponto de operação | Alarmes por hora, ponto de operação |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 5 | `BenignTraffic2.pcap` | 31.032 | argmax nas 3 sementes | 0,9% (0,9% a 0,9%) | 1,1% (1,0% a 1,1%) † | 0,9% (0,9% a 0,9%) * | 4,3 (4 a 5) | 8,7 (7 a 12) | 4,3 (4 a 5) | 0,5 (0,5 a 0,6) |
-| 5 | `BenignTraffic.pcap` | 36.228 | limiar 0,53; limiar 0,52; limiar 0,53 | 5,4% (5,3% a 5,4%) | 6,0% (5,8% a 6,3%) † | 6,0% (5,8% a 6,3%) * | 120,7 (118 a 125) | 124,0 (116 a 139) | 124,0 (116 a 139) | 13,5 (12,7 a 15,2) |
-| 5 | `BenignTraffic1.pcap` | 29.549 | argmax nas 3 sementes | 0,8% (0,8% a 0,8%) | 0,9% (0,9% a 1,0%) † | 0,8% (0,8% a 0,8%) * | 6,0 (4 a 7) | 7,0 (5 a 9) | 6,0 (4 a 7) | 0,8 (0,6 a 1,0) |
-| 0 | `BenignTraffic2.pcap` | 31.032 | limiar 0,68; limiar 0,67; limiar 0,68 | 1,7% (1,7% a 1,9%) | 1,1% (1,1% a 1,2%) † | 1,1% (1,1% a 1,2%) | 15,0 (14 a 16) | 12,7 (11 a 15) | 12,7 (11 a 15) | 1,6 (1,4 a 1,9) |
-| 0 | `BenignTraffic.pcap` | 36.228 | limiar 0,67; limiar 0,68; limiar 0,67 | 38,5% (38,2% a 38,8%) | 36,1% (36,0% a 36,1%) † | 36,1% (36,0% a 36,1%) | 789,3 (787 a 793) | 712,0 (698 a 737) | 712,0 (698 a 737) | 77,7 (76,2 a 80,4) |
-| 0 | `BenignTraffic1.pcap` | 29.549 | limiar 0,68; limiar 0,69; limiar 0,69 | 1,5% (1,4% a 1,6%) | 1,0% (0,9% a 1,2%) † | 1,0% (0,9% a 1,2%) | 21,0 (19 a 24) | 14,0 (12 a 17) | 14,0 (12 a 17) | 2,0 (1,7 a 2,4) |
+| 5 | `BenignTraffic2.pcap` | 31.032 | argmax nas 3 sementes | 0,9% (0,9% a 0,9%) | 1,1% (1,0% a 1,1%) † | 0,9% (0,9% a 0,9%) * | 1,3 (1 a 2) | 3,3 (3 a 4) | 1,3 (1 a 2) | 0,2 (0,1 a 0,3) |
+| 5 | `BenignTraffic.pcap` | 36.228 | limiar 0,53; limiar 0,52; limiar 0,53 | 5,4% (5,3% a 5,4%) | 6,0% (5,8% a 6,3%) † | 6,0% (5,8% a 6,3%) * | 40,7 (37 a 45) | 41,7 (39 a 44) | 41,7 (39 a 44) | 4,5 (4,3 a 4,8) |
+| 5 | `BenignTraffic1.pcap` | 29.549 | argmax nas 3 sementes | 0,8% (0,8% a 0,8%) | 0,9% (0,9% a 1,0%) † | 0,8% (0,8% a 0,8%) * | 1,3 (1 a 2) | 2,7 (2 a 3) | 1,3 (1 a 2) | 0,2 (0,1 a 0,3) |
+| 0 | `BenignTraffic2.pcap` | 31.032 | limiar 0,68; limiar 0,67; limiar 0,68 | 1,7% (1,7% a 1,9%) | 1,1% (1,1% a 1,2%) † | 1,1% (1,1% a 1,2%) | 7,3 (6 a 9) | 6,7 (5 a 8) | 6,7 (5 a 8) | 0,8 (0,6 a 1,0) |
+| 0 | `BenignTraffic.pcap` | 36.228 | limiar 0,67; limiar 0,68; limiar 0,67 | 38,5% (38,2% a 38,8%) | 36,1% (36,0% a 36,1%) † | 36,1% (36,0% a 36,1%) | 486,7 (484 a 491) | 467,0 (456 a 478) | 467,0 (456 a 478) | 51,0 (49,8 a 52,2) |
+| 0 | `BenignTraffic1.pcap` | 29.549 | limiar 0,68; limiar 0,69; limiar 0,69 | 1,5% (1,4% a 1,6%) | 1,0% (0,9% a 1,2%) † | 1,0% (0,9% a 1,2%) | 7,3 (6 a 9) | 5,3 (5 a 6) | 5,3 (5 a 6) | 0,7 (0,7 a 0,8) |
 
 Pior pcap benigno de fora, no ponto de operação: configuração 5, `BenignTraffic.pcap` com 6,0% (5,8% a 6,3%); configuração 0, `BenignTraffic.pcap` com 36,1% (36,0% a 36,1%).
 
@@ -93,16 +93,16 @@ As janelas sem nenhum quadro do atacante na parte de teste dos pcaps de ataque, 
 
 ## Pcaps de ataque no trecho de teste
 
-Em cada pcap de ataque com parte de teste, a sequência de todas as janelas do trecho de teste, com e sem o atacante, na ordem do arquivo, como o extrator as entregaria. O tempo até o alarme conta do começo do trecho, pela soma da duração das janelas. O alarme é o de 3 janelas de ataque seguidas.
+Em cada pcap de ataque com parte de teste, a sequência de todas as janelas do trecho de teste, com e sem o atacante, na ordem do arquivo, como o extrator as entregaria. O tempo até o alarme conta do começo do trecho, pela soma da duração das janelas. O alarme é o de 4 janelas de ataque seguidas.
 
 | Configuração | Regra | Pcaps com alarme | Janelas até o primeiro alarme (mediana) | Segundos até o primeiro alarme (mediana) | Segundos até o primeiro alarme (maior) |
 |---|---|---|---|---|---|
-| 5 | argmax | 32 (31 a 32) de 33 | 3 | 0,15 (0,11 a 0,16) | 150,7 |
-| 5 | melhor limiar | 32 de 33 | 3 | 0,16 | 150,7 |
-| 5 | ponto de operação | 32 (31 a 32) de 33 | 3 | 0,15 (0,11 a 0,16) | 150,7 |
-| 0 | argmax | 33 de 33 | 3 | 0,21 | 49,2 (30,8 a 86,0) |
-| 0 | melhor limiar | 33 de 33 | 3 | 0,21 | 30,8 |
-| 0 | ponto de operação | 33 de 33 | 3 | 0,21 | 30,8 |
+| 5 | argmax | 32 (31 a 32) de 33 | 4 | 0,20 (0,18 a 0,20) | 150,7 |
+| 5 | melhor limiar | 32 de 33 | 4 | 0,20 | 1.730,6 (150,7 a 2.961,5) |
+| 5 | ponto de operação | 32 (31 a 32) de 33 | 4 | 0,20 (0,18 a 0,20) | 150,7 |
+| 0 | argmax | 33 de 33 | 4 | 0,23 | 91,6 (90,2 a 92,3) |
+| 0 | melhor limiar | 33 de 33 | 4 | 0,23 | 92,3 |
+| 0 | ponto de operação | 33 de 33 | 4 | 0,23 | 92,3 |
 
 Pcaps sem alarme no ponto de operação em alguma semente: configuração 5: `BrowserHijacking.pcap` e `Recon-PingSweep.pcap`.
 
@@ -125,18 +125,18 @@ Os modelos que `codigo.classificador.treinar_regerado` salva, com o ponto de ope
 
 | Configuração | Modelo | SHA-256 | Predições diferentes do retreino (argmax, melhor limiar e ponto) | Regra escolhida aqui | Regra no JSON | Confere |
 |---|---|---|---|---|---|---|
-| 5 | `rf_regerado_janela_100.joblib` | `422fb3b4ca198039…` | 0 e 0 e 0 | argmax, N = 3 | argmax, N = 3 | sim |
-| 0 | `rf_regerado_janela_100_sem_fundo.joblib` | `44b0b970599a0062…` | 0 e 0 e 0 | limiar 0,68, N = 3 | limiar 0,68, N = 3 | sim |
+| 5 | `rf_regerado_janela_100.joblib` | `422fb3b4ca198039…` | 0 e 0 e 0 | argmax, N = 4 | argmax, N = 4 | sim |
+| 0 | `rf_regerado_janela_100_sem_fundo.joblib` | `44b0b970599a0062…` | 0 e 0 e 0 | limiar 0,68, N = 4 | limiar 0,68, N = 4 | sim |
 
 ## Como os números foram obtidos
 
 - Comando: `python -m codigo.classificador.ponto_de_operacao --nucleos 4`, a partir da raiz do repositório.
 - Dados: `dados/processed/regerado/janela_100/`, 72 arquivos, com o SHA-256 de cada um em `manifesto_ponto_de_operacao.json`; manifesto da regeração `experimentos/resultados/manifesto_regeracao.json`, SHA-256 `2d8ed9c489f21f2e8ed0b8f1e312e974c820013ae020eaaf6b7ff4996dfbf7c3`.
-- Regra de adoção lida de `experimentos/resultados/manifesto_rodadas_normalizadas.json`, SHA-256 `570f6f17ca3ffb023c4dd08824eb39c6176101f03721766cef49682a877a12bf`.
+- Regra de adoção lida de `experimentos/resultados/manifesto_rodadas_normalizadas.json`, SHA-256 `0f467f05ca65f9f1de07f73d1733dc49e9733cf4989f366a97a0f089566523c9`.
 - Treinos: `RandomForestClassifier` com 100 árvores e os demais parâmetros padrão, teto de 50.000 linhas por rótulo, as funções de `rodadas` e `treinar_regerado`; dois treinos por semente e rotação, o reduzido e o inteiro. Predição com um núcleo, em ordem fixa.
 - As tabelas em CSV começam com `ponto_de_operacao_`; os valores completos, com as contagens, estão no manifesto.
-- Tempo desta execução, na máquina em que rodou: 535,5 s. Os treinos já guardados em `dados/processed/ponto_de_operacao/` são reaproveitados e não entram nessa conta; somados, os treinos de que os números saem levaram 406,6 s.
-- Código: o SHA-256 de cada módulo de que os números saem (`rodadas.py`, `preparar.py`, `treinar.py`, `avaliar.py`, `treinar_regerado.py`, `regerar.py`, `mapeamento.py`, `extrator.py`, `ponto_de_operacao.py` e `operacao.py`) está no manifesto e entra na chave dos treinos guardados; commit `29ee1e90f6f4`, com alterações ainda fora dele.
-- Memória: pico de 2,6 GB no processo, o necessário para reproduzir com a mesma quantidade de núcleos.
+- Tempo desta execução, na máquina em que rodou: 29,1 s. Os treinos já guardados em `dados/processed/ponto_de_operacao/` são reaproveitados e não entram nessa conta; somados, os treinos de que os números saem levaram 499,1 s.
+- Código: o SHA-256 de cada módulo de que os números saem (`rodadas.py`, `preparar.py`, `treinar.py`, `avaliar.py`, `treinar_regerado.py`, `regerar.py`, `mapeamento.py`, `extrator.py`, `ponto_de_operacao.py` e `operacao.py`) está no manifesto e entra na chave dos treinos guardados; commit `e0fe37c72e0b`.
+- Memória: pico de 2,3 GB no processo, o necessário para reproduzir com a mesma quantidade de núcleos.
 - Com as mesmas entradas, o mesmo código e as mesmas sementes, os números saem iguais. Só mudam a data e os
   tempos.

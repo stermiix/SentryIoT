@@ -1,0 +1,1676 @@
+{
+ "gerado_por": "python -m codigo.reprodutor.regras",
+ "gerado_em": "2026-10-29T12:59:56-03:00",
+ "modelo": "rf_regerado_janela_100.joblib",
+ "modelo_sha256": "422fb3b4ca19803926a81dcb9e3466dc7863f2da70494528956e7cf51464dd15",
+ "seguidas_do_sistema": 4,
+ "duracao_maxima_s": 60.0,
+ "regras": [
+  "sistema: argmax e 4 seguidas",
+  "argmax e 3 seguidas",
+  "argmax e 5 seguidas",
+  "limiar de 0,60 e 3 seguidas",
+  "limiar de 0,65 e 3 seguidas",
+  "limiar de 0,70 e 3 seguidas",
+  "limiar de 0,75 e 3 seguidas",
+  "limiar de 0,80 e 3 seguidas",
+  "limiar de 0,65 e 4 seguidas",
+  "limiar de 0,70 e 4 seguidas",
+  "Spoofing com 0,80, demais argmax e 3 seguidas",
+  "Spoofing e DDoS+DoS com 0,80, demais argmax e 3 seguidas"
+ ],
+ "pcaps": [
+  {
+   "grupo": "Casa",
+   "arquivo": "iot_normal_90min.pcap",
+   "bytes": 11689984,
+   "sha256": "63d775bc4d75b0763dadcb5dac7283d478e989b1cc29000f9e59d2a276fc99f2",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 benigno (teste)",
+   "arquivo": "BenignTraffic2.pcap",
+   "bytes": 2048001991,
+   "sha256": "ddafc1c1d3432bdde55340423196ceee79bba47b48b14179ae48d561cca341b8",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 benigno",
+   "arquivo": "hue_4-1.pcap",
+   "bytes": 4594492,
+   "sha256": "3fb775c0391b6ad313a3f7845e634a277b07c3f6377346c2486ba63e1c22e90c",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 benigno",
+   "arquivo": "echo_5-1.pcap",
+   "bytes": 381382656,
+   "sha256": "f6c2a4808a3fc3d7c01ae7656f1b341a1c7338bcd4d5a371f96280035efcbf79",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 benigno",
+   "arquivo": "somfy_7-1_01.pcap",
+   "bytes": 2094105,
+   "sha256": "0ec756ff0e26fc6c7d985178a35206bd7bc5b8a33cc5c7a23d6bb0b103db2a2a",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 benigno",
+   "arquivo": "somfy_7-1_02.pcap",
+   "bytes": 33104424,
+   "sha256": "2a32158374fce6635272ff8fc0ff39b88e1e759100a6384b9a2c8b14ad5dc7b6",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 benigno",
+   "arquivo": "somfy_7-1_03.pcap",
+   "bytes": 17182720,
+   "sha256": "1096e452a9749eb915503a58f23d997649563b6d36a2184367467a77239ba247",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 benigno",
+   "arquivo": "somfy_7-1_04.pcap",
+   "bytes": 33213386,
+   "sha256": "b7e06c6dbd9cc731b13c741cb6244a36de0f181eeb884c409704f1d5bb991738",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 benigno",
+   "arquivo": "somfy_7-1_05.pcap",
+   "bytes": 33358852,
+   "sha256": "34727a2ce14ed4b842dd14d7aa89373f5aad6f100decc4ab11b445663087ab98",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 benigno",
+   "arquivo": "somfy_7-1_06.pcap",
+   "bytes": 32964494,
+   "sha256": "c2ff3ec3b1c6865b225479de3aeb6017af273ce65160664bcd61a149c301534c",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoMT2024 benigno",
+   "arquivo": "Benign_test.pcap",
+   "bytes": 98059593,
+   "sha256": "711da100d96633d18d3d94aec074026bde88a3773e27b291ec81960c0b4aa99a",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "DNS_Spoofing.pcap",
+   "bytes": 971824063,
+   "sha256": "edf47246de6b7e43bd27252ddf6716957952a736fafaa1b0060ca62f78d8c323",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "MITM-ArpSpoofing.pcap",
+   "bytes": 2046238529,
+   "sha256": "da097ba27f5690cf4fe47b916c825735af8a829074a71202624740bf4b7cc196",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "Recon-PortScan.pcap",
+   "bytes": 200950957,
+   "sha256": "e13368bdc571a6ec53f8dd9e5491137dd0656c9d997bd62b323e957722bd4fc1",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "Recon-OSScan.pcap",
+   "bytes": 323891580,
+   "sha256": "8e99115ca67ea6c34fd68bd713c5ba5ae671a0a90a327568f732279494f804f0",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "Recon-HostDiscovery.pcap",
+   "bytes": 227658836,
+   "sha256": "34035ba8a3e6d9db4e2d03e8f78c350980e1cedaa8c1e30a9d7abb080c93e9d3",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "Recon-PingSweep.pcap",
+   "bytes": 7853566,
+   "sha256": "1aaf410fcc6dbfefa48b680b401344f0fa7b6e04c2acc9af427b5b7728b0ee89",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "VulnerabilityScan.pcap",
+   "bytes": 1026603272,
+   "sha256": "92321b9a016264f09a1f0bc487a91c88364dc41f2e67e73b10883c3fa3128439",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "DictionaryBruteForce.pcap",
+   "bytes": 39130622,
+   "sha256": "09ad3cfabd139b950da3078fec0f0fd196fe36cd82237d898035437f4c69161b",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "SqlInjection.pcap",
+   "bytes": 9823016,
+   "sha256": "712750bd64f8250861bd8a76bd1c33a44a4fe8d3dc2f34e2043c208edc19bde7",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "XSS.pcap",
+   "bytes": 12571710,
+   "sha256": "62a9d0ca316f3e5eb9c910fc8c21dc169ef76033bafa22d17f85f53e64809bf0",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "CommandInjection.pcap",
+   "bytes": 28585606,
+   "sha256": "151c761536d530d8432589e35ed09f2162e51c78a28995fc2a7dbeae32082b13",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "BrowserHijacking.pcap",
+   "bytes": 35038616,
+   "sha256": "aeac45ba4fdb14575af2e8193d3ef99783e15760eea76696a9155655f5c99138",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "Backdoor_Malware.pcap",
+   "bytes": 10544806,
+   "sha256": "7b0a7cb3a9c569939526e3bc97e29ddfd1599e2c7af099b0e04d50ca8a4e3bd8",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoT2023 ataque (teste)",
+   "arquivo": "Uploading_Attack.pcap",
+   "bytes": 3326177,
+   "sha256": "13eb2c9478cb3d54921766436808cc89623f25179565241ece3c20a95ca71ee8",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "ARP_Spoofing_test.pcap",
+   "bytes": 7949717,
+   "sha256": "cc467cb9db60e3e8625ccf8ceeadb57611532f7dfda6a5d2e91916c0b78b3a32",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "Recon-OS_Scan_test.pcap",
+   "bytes": 3455426,
+   "sha256": "7c348690c8b157b13c2fa75fa469984ffa24425b0102e23b4df6f1fb3201a79e",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "Recon-Ping_Sweep_test.pcap",
+   "bytes": 161541,
+   "sha256": "9d5de5dfb8008afc787f652a6d57261eec9ab6dbe141f2e9f06db98c74f131cb",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "Recon-Port_Scan_test.pcap",
+   "bytes": 20947253,
+   "sha256": "083132b31cf996703576c350ef1788ecf7bb9e4cfde8bc4e27ca7107a59a6aff",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "Recon-VulScan_test.pcap",
+   "bytes": 1216962,
+   "sha256": "0c0f44610c8ab396e601080a0772c7d9c91482c1af5d14e8c7ddba41a2b75d1a",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "MQTT-Malformed_Data_test.pcap",
+   "bytes": 8570468,
+   "sha256": "ebecc76e100a6cb12d7598f89de35c7f897933d77ecd7dd259c0c848b5f8e61e",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "MQTT-DDoS-Connect_Flood_test.pcap",
+   "bytes": 354547102,
+   "sha256": "e63d2de7ca115e603b1ffbe3355d316f6ae264628fdd57ac0abff104ea2efc8e",
+   "limite_de_quadros": 300000
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "MQTT-DDoS-Publish_Flood_test.pcap",
+   "bytes": 331111229,
+   "sha256": "721f84cf7da056b33f2c2a38de66cd663a5e1b4858847951d557beeebf60190a",
+   "limite_de_quadros": 300000
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "MQTT-DoS-Connect_Flood_test.pcap",
+   "bytes": 27166717,
+   "sha256": "cec023570e6f41f65589310335b9eab7589ff0d46676e6b9a6ee0980be41de51",
+   "limite_de_quadros": 300000
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "MQTT-DoS-Publish_Flood_test.pcap",
+   "bytes": 236949368,
+   "sha256": "ee2ad6aeb76cc98e35b151c9e55ea078287eaf473dde31f0589c5833cd306987",
+   "limite_de_quadros": 300000
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "TCP_IP-DoS-SYN_test.pcap",
+   "bytes": 749546727,
+   "sha256": "170b043ffa7a7a6fa2001f367911b2cc9131401c848d4d3694ee5af59304fefa",
+   "limite_de_quadros": 300000
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "TCP_IP-DoS-TCP_test.pcap",
+   "bytes": 647511014,
+   "sha256": "fec9b342fe9cc8c63c9c90b8e024477d715545ebc37e6044248c913ebce63159",
+   "limite_de_quadros": 300000
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "TCP_IP-DoS-UDP_test.pcap",
+   "bytes": 1049509322,
+   "sha256": "fc3067ac229c9a1f11a22efb528b4aaa6c1781fc6424cdd15f1d5dbbea6a5948",
+   "limite_de_quadros": 300000
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "TCP_IP-DoS-ICMP_test.pcap",
+   "bytes": 773170088,
+   "sha256": "a4a6d11f2f428ca76ffc41b9ce1b3243ec251afe8d6fdb588d0dce03bb2ee532",
+   "limite_de_quadros": 300000
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "TCP_IP-DDoS-SYN_test.pcap",
+   "bytes": 1349298819,
+   "sha256": "2e67630ddedf2ae9dc3f48d95ec0181423872e72f79e2356d937768acdfb5be8",
+   "limite_de_quadros": 300000
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "TCP_IP-DDoS-TCP_test.pcap",
+   "bytes": 1399714892,
+   "sha256": "a31be2b2f0dea9cf55f2922317129f30b45647ebb144faba00e24c7c46db3a80",
+   "limite_de_quadros": 300000
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "TCP_IP-DDoS-UDP1_test.pcap",
+   "bytes": 1576000024,
+   "sha256": "f98573546ba6fa7d2004b6fad3530888f14f15f31136e4e155c79bb2a87fcf98",
+   "limite_de_quadros": 300000
+  },
+  {
+   "grupo": "CICIoMT2024 ataque",
+   "arquivo": "TCP_IP-DDoS-ICMP1_test.pcap",
+   "bytes": 1186157315,
+   "sha256": "6f48d35ba14024913fd6402d463049b1217a08cd27805c919704cc7e73188239",
+   "limite_de_quadros": 300000
+  },
+  {
+   "grupo": "IoT-23 malware ativo",
+   "arquivo": "malware_34-1.pcap",
+   "bytes": 126317980,
+   "sha256": "92ec7e2f6658ee4b007d0b816986c46cc0338bc5e2bec6ceaaca566c695e4699",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 malware ativo",
+   "arquivo": "malware_42-1.pcap",
+   "bytes": 2908160,
+   "sha256": "7573797f17aae96e3804a3cfb22d531b74c17bbae740de1e14048f89130fba37",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 malware ativo",
+   "arquivo": "malware_3-1.pcap",
+   "bytes": 57919772,
+   "sha256": "c674dc0c8d584fa66e6f00c60df973c5fbacad551c850a76d75ec9952641d00b",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 malware ativo",
+   "arquivo": "malware_9-1.pcap",
+   "bytes": 551929,
+   "sha256": "a761dcd52ede71a0f9a60272964e7392c25d9b6805f29735de7852b85bcb6ab6",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 malware ativo",
+   "arquivo": "malware_1-1.pcap",
+   "bytes": 145928231,
+   "sha256": "8ebcd17af4e2d20b1cf7ad564760756f457a80b791a0757a2b1a624b2724969c",
+   "limite_de_quadros": 2000000
+  },
+  {
+   "grupo": "IoT-23 malware ativo",
+   "arquivo": "malware_7-1.pcap",
+   "bytes": 940133712,
+   "sha256": "722944176f45d7634e9b482141c02d3ebc0e6d0438c03979e0b3d00c9bbca212",
+   "limite_de_quadros": 2000000
+  },
+  {
+   "grupo": "IoT-23 malware ativo",
+   "arquivo": "malware_36-1.pcap",
+   "bytes": 1039545119,
+   "sha256": "f58eeae6db19b8e4d8c5c0cb624f44ae23fd94e62fc16a86b26dd0d63fb87ed9",
+   "limite_de_quadros": 2000000
+  },
+  {
+   "grupo": "IoT-23 malware ativo",
+   "arquivo": "malware_48-1.pcap",
+   "bytes": 1222967296,
+   "sha256": "538cd72e9583bf7be30501f6d9de6694498118e9300f7835e63c7f6ce693ad3c",
+   "limite_de_quadros": 2000000
+  },
+  {
+   "grupo": "IoT-23 malware silencioso",
+   "arquivo": "malware_20-1.pcap",
+   "bytes": 4057401,
+   "sha256": "4d0a00c33a4bf11228158baddd47c38f702731ea8d75ef1201061fc8bbd878b9",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 malware silencioso",
+   "arquivo": "malware_21-1.pcap",
+   "bytes": 4063997,
+   "sha256": "40b6928cedcda03fe5ded8a9994ec007a6d784028f37cbc00bbe3a26a7893023",
+   "limite_de_quadros": null
+  },
+  {
+   "grupo": "IoT-23 malware silencioso",
+   "arquivo": "malware_8-1.pcap",
+   "bytes": 2098362,
+   "sha256": "80dcc2602519479ddcde889fa902fee19a76696630811452f8df38888af894f2",
+   "limite_de_quadros": null
+  }
+ ],
+ "versoes": {
+  "python": "3.11.2",
+  "scikit-learn": "1.9.1",
+  "numpy": "2.4.6"
+ },
+ "duracao_segundos": 332.4902815409878,
+ "resumo": {
+  "sistema: argmax e 4 seguidas": {
+   "grupos": {
+    "Casa": {
+     "capturas": 1,
+     "horas": 1.495,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 214,
+     "como_ataque": 62,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 benigno (teste)": {
+     "capturas": 1,
+     "horas": 8.033,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 31031,
+     "como_ataque": 288,
+     "atraso_mediano_s": 20395.5,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 benigno": {
+     "capturas": 8,
+     "horas": 136.966,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 4066,
+     "como_ataque": 34,
+     "atraso_mediano_s": 2781.2,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoMT2024 benigno": {
+     "capturas": 1,
+     "horas": 3.946,
+     "incidentes": 4,
+     "com_alarme": 1,
+     "julgadas": 3760,
+     "como_ataque": 2845,
+     "atraso_mediano_s": 22.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 ataque (teste)": {
+     "capturas": 14,
+     "horas": 24.756,
+     "incidentes": 72,
+     "com_alarme": 13,
+     "julgadas": 34565,
+     "como_ataque": 14478,
+     "atraso_mediano_s": 16.3,
+     "categoria_certa": 11,
+     "com_familia": 14
+    },
+    "CICIoMT2024 ataque": {
+     "capturas": 18,
+     "horas": 0.4580000000000001,
+     "incidentes": 20,
+     "com_alarme": 18,
+     "julgadas": 39105,
+     "como_ataque": 38890,
+     "atraso_mediano_s": 0.0,
+     "categoria_certa": 16,
+     "com_familia": 17
+    },
+    "IoT-23 malware ativo": {
+     "capturas": 8,
+     "horas": 193.35900000000004,
+     "incidentes": 50,
+     "com_alarme": 8,
+     "julgadas": 83726,
+     "como_ataque": 82335,
+     "atraso_mediano_s": 69.75,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 malware silencioso": {
+     "capturas": 3,
+     "horas": 71.90299999999999,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 0,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    }
+   },
+   "falsos": 6,
+   "horas_benignas": 150.44,
+   "detectadas": 39,
+   "de_ataque": 40
+  },
+  "argmax e 3 seguidas": {
+   "grupos": {
+    "Casa": {
+     "capturas": 1,
+     "horas": 1.495,
+     "incidentes": 4,
+     "com_alarme": 1,
+     "julgadas": 214,
+     "como_ataque": 62,
+     "atraso_mediano_s": 574.6,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 benigno (teste)": {
+     "capturas": 1,
+     "horas": 8.033,
+     "incidentes": 4,
+     "com_alarme": 1,
+     "julgadas": 31031,
+     "como_ataque": 288,
+     "atraso_mediano_s": 698.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 benigno": {
+     "capturas": 8,
+     "horas": 136.966,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 4066,
+     "como_ataque": 34,
+     "atraso_mediano_s": 2780.1,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoMT2024 benigno": {
+     "capturas": 1,
+     "horas": 3.946,
+     "incidentes": 5,
+     "com_alarme": 1,
+     "julgadas": 3760,
+     "como_ataque": 2845,
+     "atraso_mediano_s": 17.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 ataque (teste)": {
+     "capturas": 14,
+     "horas": 24.756,
+     "incidentes": 85,
+     "com_alarme": 13,
+     "julgadas": 34565,
+     "como_ataque": 14478,
+     "atraso_mediano_s": 11.9,
+     "categoria_certa": 10,
+     "com_familia": 14
+    },
+    "CICIoMT2024 ataque": {
+     "capturas": 18,
+     "horas": 0.4580000000000001,
+     "incidentes": 20,
+     "com_alarme": 18,
+     "julgadas": 39105,
+     "como_ataque": 38890,
+     "atraso_mediano_s": 0.0,
+     "categoria_certa": 16,
+     "com_familia": 17
+    },
+    "IoT-23 malware ativo": {
+     "capturas": 8,
+     "horas": 193.35900000000004,
+     "incidentes": 58,
+     "com_alarme": 8,
+     "julgadas": 83726,
+     "como_ataque": 82335,
+     "atraso_mediano_s": 57.0,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 malware silencioso": {
+     "capturas": 3,
+     "horas": 71.90299999999999,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 0,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    }
+   },
+   "falsos": 14,
+   "horas_benignas": 150.44,
+   "detectadas": 39,
+   "de_ataque": 40
+  },
+  "argmax e 5 seguidas": {
+   "grupos": {
+    "Casa": {
+     "capturas": 1,
+     "horas": 1.495,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 214,
+     "como_ataque": 62,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 benigno (teste)": {
+     "capturas": 1,
+     "horas": 8.033,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 31031,
+     "como_ataque": 288,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 benigno": {
+     "capturas": 8,
+     "horas": 136.966,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 4066,
+     "como_ataque": 34,
+     "atraso_mediano_s": 2782.3,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoMT2024 benigno": {
+     "capturas": 1,
+     "horas": 3.946,
+     "incidentes": 3,
+     "com_alarme": 1,
+     "julgadas": 3760,
+     "como_ataque": 2845,
+     "atraso_mediano_s": 27.3,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 ataque (teste)": {
+     "capturas": 14,
+     "horas": 24.756,
+     "incidentes": 63,
+     "com_alarme": 12,
+     "julgadas": 34565,
+     "como_ataque": 14478,
+     "atraso_mediano_s": 24.9,
+     "categoria_certa": 11,
+     "com_familia": 14
+    },
+    "CICIoMT2024 ataque": {
+     "capturas": 18,
+     "horas": 0.4580000000000001,
+     "incidentes": 20,
+     "com_alarme": 18,
+     "julgadas": 39105,
+     "como_ataque": 38890,
+     "atraso_mediano_s": 0.0,
+     "categoria_certa": 16,
+     "com_familia": 17
+    },
+    "IoT-23 malware ativo": {
+     "capturas": 8,
+     "horas": 193.35900000000004,
+     "incidentes": 39,
+     "com_alarme": 8,
+     "julgadas": 83726,
+     "como_ataque": 82335,
+     "atraso_mediano_s": 82.6,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 malware silencioso": {
+     "capturas": 3,
+     "horas": 71.90299999999999,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 0,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    }
+   },
+   "falsos": 4,
+   "horas_benignas": 150.44,
+   "detectadas": 38,
+   "de_ataque": 40
+  },
+  "limiar de 0,60 e 3 seguidas": {
+   "grupos": {
+    "Casa": {
+     "capturas": 1,
+     "horas": 1.495,
+     "incidentes": 2,
+     "com_alarme": 1,
+     "julgadas": 214,
+     "como_ataque": 49,
+     "atraso_mediano_s": 2912.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 benigno (teste)": {
+     "capturas": 1,
+     "horas": 8.033,
+     "incidentes": 8,
+     "com_alarme": 1,
+     "julgadas": 31031,
+     "como_ataque": 352,
+     "atraso_mediano_s": 698.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 benigno": {
+     "capturas": 8,
+     "horas": 136.966,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 4066,
+     "como_ataque": 19,
+     "atraso_mediano_s": 2780.1,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoMT2024 benigno": {
+     "capturas": 1,
+     "horas": 3.946,
+     "incidentes": 6,
+     "com_alarme": 1,
+     "julgadas": 3760,
+     "como_ataque": 2912,
+     "atraso_mediano_s": 17.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 ataque (teste)": {
+     "capturas": 14,
+     "horas": 24.756,
+     "incidentes": 105,
+     "com_alarme": 13,
+     "julgadas": 34565,
+     "como_ataque": 13085,
+     "atraso_mediano_s": 11.9,
+     "categoria_certa": 11,
+     "com_familia": 14
+    },
+    "CICIoMT2024 ataque": {
+     "capturas": 18,
+     "horas": 0.4580000000000001,
+     "incidentes": 19,
+     "com_alarme": 18,
+     "julgadas": 39105,
+     "como_ataque": 38913,
+     "atraso_mediano_s": 0.0,
+     "categoria_certa": 16,
+     "com_familia": 17
+    },
+    "IoT-23 malware ativo": {
+     "capturas": 8,
+     "horas": 193.35900000000004,
+     "incidentes": 43,
+     "com_alarme": 8,
+     "julgadas": 83726,
+     "como_ataque": 83695,
+     "atraso_mediano_s": 57.0,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 malware silencioso": {
+     "capturas": 3,
+     "horas": 71.90299999999999,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 0,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    }
+   },
+   "falsos": 17,
+   "horas_benignas": 150.44,
+   "detectadas": 39,
+   "de_ataque": 40
+  },
+  "limiar de 0,65 e 3 seguidas": {
+   "grupos": {
+    "Casa": {
+     "capturas": 1,
+     "horas": 1.495,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 214,
+     "como_ataque": 25,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 benigno (teste)": {
+     "capturas": 1,
+     "horas": 8.033,
+     "incidentes": 5,
+     "com_alarme": 1,
+     "julgadas": 31031,
+     "como_ataque": 258,
+     "atraso_mediano_s": 698.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 benigno": {
+     "capturas": 8,
+     "horas": 136.966,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 4066,
+     "como_ataque": 12,
+     "atraso_mediano_s": 2780.1,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoMT2024 benigno": {
+     "capturas": 1,
+     "horas": 3.946,
+     "incidentes": 5,
+     "com_alarme": 1,
+     "julgadas": 3760,
+     "como_ataque": 2860,
+     "atraso_mediano_s": 17.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 ataque (teste)": {
+     "capturas": 14,
+     "horas": 24.756,
+     "incidentes": 79,
+     "com_alarme": 13,
+     "julgadas": 34565,
+     "como_ataque": 11879,
+     "atraso_mediano_s": 11.9,
+     "categoria_certa": 10,
+     "com_familia": 14
+    },
+    "CICIoMT2024 ataque": {
+     "capturas": 18,
+     "horas": 0.4580000000000001,
+     "incidentes": 19,
+     "com_alarme": 18,
+     "julgadas": 39105,
+     "como_ataque": 38871,
+     "atraso_mediano_s": 0.0,
+     "categoria_certa": 16,
+     "com_familia": 17
+    },
+    "IoT-23 malware ativo": {
+     "capturas": 8,
+     "horas": 193.35900000000004,
+     "incidentes": 43,
+     "com_alarme": 8,
+     "julgadas": 83726,
+     "como_ataque": 83127,
+     "atraso_mediano_s": 57.0,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 malware silencioso": {
+     "capturas": 3,
+     "horas": 71.90299999999999,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 0,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    }
+   },
+   "falsos": 11,
+   "horas_benignas": 150.44,
+   "detectadas": 39,
+   "de_ataque": 40
+  },
+  "limiar de 0,70 e 3 seguidas": {
+   "grupos": {
+    "Casa": {
+     "capturas": 1,
+     "horas": 1.495,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 214,
+     "como_ataque": 9,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 benigno (teste)": {
+     "capturas": 1,
+     "horas": 8.033,
+     "incidentes": 2,
+     "com_alarme": 1,
+     "julgadas": 31031,
+     "como_ataque": 169,
+     "atraso_mediano_s": 698.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 benigno": {
+     "capturas": 8,
+     "horas": 136.966,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 4066,
+     "como_ataque": 7,
+     "atraso_mediano_s": 2781.2,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoMT2024 benigno": {
+     "capturas": 1,
+     "horas": 3.946,
+     "incidentes": 2,
+     "com_alarme": 1,
+     "julgadas": 3760,
+     "como_ataque": 2714,
+     "atraso_mediano_s": 17.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 ataque (teste)": {
+     "capturas": 14,
+     "horas": 24.756,
+     "incidentes": 78,
+     "com_alarme": 12,
+     "julgadas": 34565,
+     "como_ataque": 10582,
+     "atraso_mediano_s": 13.15,
+     "categoria_certa": 10,
+     "com_familia": 14
+    },
+    "CICIoMT2024 ataque": {
+     "capturas": 18,
+     "horas": 0.4580000000000001,
+     "incidentes": 20,
+     "com_alarme": 18,
+     "julgadas": 39105,
+     "como_ataque": 38804,
+     "atraso_mediano_s": 0.0,
+     "categoria_certa": 15,
+     "com_familia": 17
+    },
+    "IoT-23 malware ativo": {
+     "capturas": 8,
+     "horas": 193.35900000000004,
+     "incidentes": 41,
+     "com_alarme": 8,
+     "julgadas": 83726,
+     "como_ataque": 82823,
+     "atraso_mediano_s": 57.0,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 malware silencioso": {
+     "capturas": 3,
+     "horas": 71.90299999999999,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 0,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    }
+   },
+   "falsos": 5,
+   "horas_benignas": 150.44,
+   "detectadas": 38,
+   "de_ataque": 40
+  },
+  "limiar de 0,75 e 3 seguidas": {
+   "grupos": {
+    "Casa": {
+     "capturas": 1,
+     "horas": 1.495,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 214,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 benigno (teste)": {
+     "capturas": 1,
+     "horas": 8.033,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 31031,
+     "como_ataque": 114,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 benigno": {
+     "capturas": 8,
+     "horas": 136.966,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 4066,
+     "como_ataque": 7,
+     "atraso_mediano_s": 2781.2,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoMT2024 benigno": {
+     "capturas": 1,
+     "horas": 3.946,
+     "incidentes": 2,
+     "com_alarme": 1,
+     "julgadas": 3760,
+     "como_ataque": 2347,
+     "atraso_mediano_s": 17.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 ataque (teste)": {
+     "capturas": 14,
+     "horas": 24.756,
+     "incidentes": 55,
+     "com_alarme": 12,
+     "julgadas": 34565,
+     "como_ataque": 9264,
+     "atraso_mediano_s": 18.1,
+     "categoria_certa": 10,
+     "com_familia": 14
+    },
+    "CICIoMT2024 ataque": {
+     "capturas": 18,
+     "horas": 0.4580000000000001,
+     "incidentes": 20,
+     "com_alarme": 18,
+     "julgadas": 39105,
+     "como_ataque": 38709,
+     "atraso_mediano_s": 0.0,
+     "categoria_certa": 15,
+     "com_familia": 17
+    },
+    "IoT-23 malware ativo": {
+     "capturas": 8,
+     "horas": 193.35900000000004,
+     "incidentes": 41,
+     "com_alarme": 8,
+     "julgadas": 83726,
+     "como_ataque": 82339,
+     "atraso_mediano_s": 58.2,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 malware silencioso": {
+     "capturas": 3,
+     "horas": 71.90299999999999,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 0,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    }
+   },
+   "falsos": 3,
+   "horas_benignas": 150.44,
+   "detectadas": 38,
+   "de_ataque": 40
+  },
+  "limiar de 0,80 e 3 seguidas": {
+   "grupos": {
+    "Casa": {
+     "capturas": 1,
+     "horas": 1.495,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 214,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 benigno (teste)": {
+     "capturas": 1,
+     "horas": 8.033,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 31031,
+     "como_ataque": 71,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 benigno": {
+     "capturas": 8,
+     "horas": 136.966,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 4066,
+     "como_ataque": 6,
+     "atraso_mediano_s": 2784.6,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoMT2024 benigno": {
+     "capturas": 1,
+     "horas": 3.946,
+     "incidentes": 2,
+     "com_alarme": 1,
+     "julgadas": 3760,
+     "como_ataque": 1961,
+     "atraso_mediano_s": 17.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 ataque (teste)": {
+     "capturas": 14,
+     "horas": 24.756,
+     "incidentes": 47,
+     "com_alarme": 12,
+     "julgadas": 34565,
+     "como_ataque": 7928,
+     "atraso_mediano_s": 24.85,
+     "categoria_certa": 10,
+     "com_familia": 14
+    },
+    "CICIoMT2024 ataque": {
+     "capturas": 18,
+     "horas": 0.4580000000000001,
+     "incidentes": 18,
+     "com_alarme": 18,
+     "julgadas": 39105,
+     "como_ataque": 38560,
+     "atraso_mediano_s": 0.0,
+     "categoria_certa": 16,
+     "com_familia": 17
+    },
+    "IoT-23 malware ativo": {
+     "capturas": 8,
+     "horas": 193.35900000000004,
+     "incidentes": 43,
+     "com_alarme": 8,
+     "julgadas": 83726,
+     "como_ataque": 81574,
+     "atraso_mediano_s": 58.2,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 malware silencioso": {
+     "capturas": 3,
+     "horas": 71.90299999999999,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 0,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    }
+   },
+   "falsos": 3,
+   "horas_benignas": 150.44,
+   "detectadas": 38,
+   "de_ataque": 40
+  },
+  "limiar de 0,65 e 4 seguidas": {
+   "grupos": {
+    "Casa": {
+     "capturas": 1,
+     "horas": 1.495,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 214,
+     "como_ataque": 25,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 benigno (teste)": {
+     "capturas": 1,
+     "horas": 8.033,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 31031,
+     "como_ataque": 258,
+     "atraso_mediano_s": 4842.2,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 benigno": {
+     "capturas": 8,
+     "horas": 136.966,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 4066,
+     "como_ataque": 12,
+     "atraso_mediano_s": 2781.2,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoMT2024 benigno": {
+     "capturas": 1,
+     "horas": 3.946,
+     "incidentes": 3,
+     "com_alarme": 1,
+     "julgadas": 3760,
+     "como_ataque": 2860,
+     "atraso_mediano_s": 22.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 ataque (teste)": {
+     "capturas": 14,
+     "horas": 24.756,
+     "incidentes": 55,
+     "com_alarme": 13,
+     "julgadas": 34565,
+     "como_ataque": 11879,
+     "atraso_mediano_s": 16.3,
+     "categoria_certa": 11,
+     "com_familia": 14
+    },
+    "CICIoMT2024 ataque": {
+     "capturas": 18,
+     "horas": 0.4580000000000001,
+     "incidentes": 19,
+     "com_alarme": 18,
+     "julgadas": 39105,
+     "como_ataque": 38871,
+     "atraso_mediano_s": 0.0,
+     "categoria_certa": 16,
+     "com_familia": 17
+    },
+    "IoT-23 malware ativo": {
+     "capturas": 8,
+     "horas": 193.35900000000004,
+     "incidentes": 40,
+     "com_alarme": 8,
+     "julgadas": 83726,
+     "como_ataque": 83127,
+     "atraso_mediano_s": 69.75,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 malware silencioso": {
+     "capturas": 3,
+     "horas": 71.90299999999999,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 0,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    }
+   },
+   "falsos": 5,
+   "horas_benignas": 150.44,
+   "detectadas": 39,
+   "de_ataque": 40
+  },
+  "limiar de 0,70 e 4 seguidas": {
+   "grupos": {
+    "Casa": {
+     "capturas": 1,
+     "horas": 1.495,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 214,
+     "como_ataque": 9,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 benigno (teste)": {
+     "capturas": 1,
+     "horas": 8.033,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 31031,
+     "como_ataque": 169,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 benigno": {
+     "capturas": 8,
+     "horas": 136.966,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 4066,
+     "como_ataque": 7,
+     "atraso_mediano_s": 2782.3,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoMT2024 benigno": {
+     "capturas": 1,
+     "horas": 3.946,
+     "incidentes": 2,
+     "com_alarme": 1,
+     "julgadas": 3760,
+     "como_ataque": 2714,
+     "atraso_mediano_s": 22.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 ataque (teste)": {
+     "capturas": 14,
+     "horas": 24.756,
+     "incidentes": 55,
+     "com_alarme": 12,
+     "julgadas": 34565,
+     "como_ataque": 10582,
+     "atraso_mediano_s": 16.4,
+     "categoria_certa": 10,
+     "com_familia": 14
+    },
+    "CICIoMT2024 ataque": {
+     "capturas": 18,
+     "horas": 0.4580000000000001,
+     "incidentes": 20,
+     "com_alarme": 18,
+     "julgadas": 39105,
+     "como_ataque": 38804,
+     "atraso_mediano_s": 0.0,
+     "categoria_certa": 15,
+     "com_familia": 17
+    },
+    "IoT-23 malware ativo": {
+     "capturas": 8,
+     "horas": 193.35900000000004,
+     "incidentes": 38,
+     "com_alarme": 8,
+     "julgadas": 83726,
+     "como_ataque": 82823,
+     "atraso_mediano_s": 69.75,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 malware silencioso": {
+     "capturas": 3,
+     "horas": 71.90299999999999,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 0,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    }
+   },
+   "falsos": 3,
+   "horas_benignas": 150.44,
+   "detectadas": 38,
+   "de_ataque": 40
+  },
+  "Spoofing com 0,80, demais argmax e 3 seguidas": {
+   "grupos": {
+    "Casa": {
+     "capturas": 1,
+     "horas": 1.495,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 214,
+     "como_ataque": 4,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 benigno (teste)": {
+     "capturas": 1,
+     "horas": 8.033,
+     "incidentes": 4,
+     "com_alarme": 1,
+     "julgadas": 31031,
+     "como_ataque": 288,
+     "atraso_mediano_s": 698.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 benigno": {
+     "capturas": 8,
+     "horas": 136.966,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 4066,
+     "como_ataque": 7,
+     "atraso_mediano_s": 2784.6,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoMT2024 benigno": {
+     "capturas": 1,
+     "horas": 3.946,
+     "incidentes": 2,
+     "com_alarme": 1,
+     "julgadas": 3760,
+     "como_ataque": 2604,
+     "atraso_mediano_s": 17.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 ataque (teste)": {
+     "capturas": 14,
+     "horas": 24.756,
+     "incidentes": 76,
+     "com_alarme": 13,
+     "julgadas": 34565,
+     "como_ataque": 10099,
+     "atraso_mediano_s": 13.5,
+     "categoria_certa": 10,
+     "com_familia": 14
+    },
+    "CICIoMT2024 ataque": {
+     "capturas": 18,
+     "horas": 0.4580000000000001,
+     "incidentes": 19,
+     "com_alarme": 18,
+     "julgadas": 39105,
+     "como_ataque": 38735,
+     "atraso_mediano_s": 0.0,
+     "categoria_certa": 15,
+     "com_familia": 17
+    },
+    "IoT-23 malware ativo": {
+     "capturas": 8,
+     "horas": 193.35900000000004,
+     "incidentes": 58,
+     "com_alarme": 8,
+     "julgadas": 83726,
+     "como_ataque": 82324,
+     "atraso_mediano_s": 57.0,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 malware silencioso": {
+     "capturas": 3,
+     "horas": 71.90299999999999,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 0,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    }
+   },
+   "falsos": 7,
+   "horas_benignas": 150.44,
+   "detectadas": 39,
+   "de_ataque": 40
+  },
+  "Spoofing e DDoS+DoS com 0,80, demais argmax e 3 seguidas": {
+   "grupos": {
+    "Casa": {
+     "capturas": 1,
+     "horas": 1.495,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 214,
+     "como_ataque": 3,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 benigno (teste)": {
+     "capturas": 1,
+     "horas": 8.033,
+     "incidentes": 2,
+     "com_alarme": 1,
+     "julgadas": 31031,
+     "como_ataque": 194,
+     "atraso_mediano_s": 698.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 benigno": {
+     "capturas": 8,
+     "horas": 136.966,
+     "incidentes": 1,
+     "com_alarme": 1,
+     "julgadas": 4066,
+     "como_ataque": 6,
+     "atraso_mediano_s": 2784.6,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoMT2024 benigno": {
+     "capturas": 1,
+     "horas": 3.946,
+     "incidentes": 2,
+     "com_alarme": 1,
+     "julgadas": 3760,
+     "como_ataque": 1969,
+     "atraso_mediano_s": 17.9,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "CICIoT2023 ataque (teste)": {
+     "capturas": 14,
+     "horas": 24.756,
+     "incidentes": 71,
+     "com_alarme": 13,
+     "julgadas": 34565,
+     "como_ataque": 9917,
+     "atraso_mediano_s": 13.5,
+     "categoria_certa": 10,
+     "com_familia": 14
+    },
+    "CICIoMT2024 ataque": {
+     "capturas": 18,
+     "horas": 0.4580000000000001,
+     "incidentes": 18,
+     "com_alarme": 18,
+     "julgadas": 39105,
+     "como_ataque": 38568,
+     "atraso_mediano_s": 0.0,
+     "categoria_certa": 16,
+     "com_familia": 17
+    },
+    "IoT-23 malware ativo": {
+     "capturas": 8,
+     "horas": 193.35900000000004,
+     "incidentes": 61,
+     "com_alarme": 8,
+     "julgadas": 83726,
+     "como_ataque": 81766,
+     "atraso_mediano_s": 58.2,
+     "categoria_certa": 0,
+     "com_familia": 0
+    },
+    "IoT-23 malware silencioso": {
+     "capturas": 3,
+     "horas": 71.90299999999999,
+     "incidentes": 0,
+     "com_alarme": 0,
+     "julgadas": 0,
+     "como_ataque": 0,
+     "atraso_mediano_s": null,
+     "categoria_certa": 0,
+     "com_familia": 0
+    }
+   },
+   "falsos": 5,
+   "horas_benignas": 150.44,
+   "detectadas": 39,
+   "de_ataque": 40
+  }
+ },
+ "por_janela": {
+  "argmax": {
+   "benigno_como_ataque": 0.009370314842578711,
+   "ataque_como_benigno": 0.03519207324175525,
+   "macro_f1": 0.757110445150681,
+   "recall": {
+    "Benign": 0.9906296851574213,
+    "BruteForce": 0.34798534798534797,
+    "DDoS+DoS": 0.9842284242885064,
+    "Mirai": 0.9921906942513697,
+    "Recon": 0.5491713713349117,
+    "Spoofing": 0.8010560867703724,
+    "Web": 0.35698924731182796
+   }
+  },
+  "limiar de 0,60": {
+   "benigno_como_ataque": 0.011056971514242878,
+   "ataque_como_benigno": 0.03801473842784926,
+   "macro_f1": 0.7435355430485656,
+   "recall": {
+    "Benign": 0.9889430284857571,
+    "BruteForce": 0.3516483516483517,
+    "DDoS+DoS": 0.9845549579471295,
+    "Mirai": 0.9922315806689018,
+    "Recon": 0.5069204152249135,
+    "Spoofing": 0.7378335949764521,
+    "Web": 0.3763440860215054
+   }
+  },
+  "limiar de 0,65": {
+   "benigno_como_ataque": 0.00843328335832084,
+   "ataque_como_benigno": 0.043104854052291135,
+   "macro_f1": 0.7285517517481586,
+   "recall": {
+    "Benign": 0.9915667166416792,
+    "BruteForce": 0.34065934065934067,
+    "DDoS+DoS": 0.9827636875912545,
+    "Mirai": 0.9922315806689018,
+    "Recon": 0.48215261336732834,
+    "Spoofing": 0.6691879549022406,
+    "Web": 0.35268817204301073
+   }
+  },
+  "limiar de 0,70": {
+   "benigno_como_ataque": 0.00537231384307846,
+   "ataque_como_benigno": 0.049309281792838895,
+   "macro_f1": 0.7066469118282047,
+   "recall": {
+    "Benign": 0.9946276861569215,
+    "BruteForce": 0.31868131868131866,
+    "DDoS+DoS": 0.9802820317857193,
+    "Mirai": 0.9921906942513697,
+    "Recon": 0.46330358768894553,
+    "Spoofing": 0.5789924361352933,
+    "Web": 0.3139784946236559
+   }
+  },
+  "limiar de 0,75": {
+   "benigno_como_ataque": 0.00356071964017991,
+   "ataque_como_benigno": 0.057008518469626256,
+   "macro_f1": 0.6807562175231672,
+   "recall": {
+    "Benign": 0.9964392803598201,
+    "BruteForce": 0.3076923076923077,
+    "DDoS+DoS": 0.9766948263074174,
+    "Mirai": 0.9920680349987734,
+    "Recon": 0.4450919686760153,
+    "Spoofing": 0.4691023262451834,
+    "Web": 0.2752688172043011
+   }
+  },
+  "limiar de 0,80": {
+   "benigno_como_ataque": 0.0022488755622188904,
+   "ataque_como_benigno": 0.0652396741704781,
+   "macro_f1": 0.6501720076358429,
+   "recall": {
+    "Benign": 0.9977511244377811,
+    "BruteForce": 0.29304029304029305,
+    "DDoS+DoS": 0.9728977063342865,
+    "Mirai": 0.9920271485812413,
+    "Recon": 0.4245128391914041,
+    "Spoofing": 0.3490794919366348,
+    "Web": 0.23870967741935484
+   }
+  },
+  "Spoofing com 0,80, demais argmax": {
+   "benigno_como_ataque": 0.009370314842578711,
+   "ataque_como_benigno": 0.047503863207510544,
+   "macro_f1": 0.6960481488616252,
+   "recall": {
+    "Benign": 0.9906296851574213,
+    "BruteForce": 0.34798534798534797,
+    "DDoS+DoS": 0.9842284242885064,
+    "Mirai": 0.9921906942513697,
+    "Recon": 0.5491713713349117,
+    "Spoofing": 0.3490794919366348,
+    "Web": 0.35698924731182796
+   }
+  },
+  "Spoofing e DDoS+DoS com 0,80, demais argmax": {
+   "benigno_como_ataque": 0.006309345327336332,
+   "ataque_como_benigno": 0.05737348480730554,
+   "macro_f1": 0.6898738492363473,
+   "recall": {
+    "Benign": 0.9936906546726637,
+    "BruteForce": 0.34798534798534797,
+    "DDoS+DoS": 0.9728977063342865,
+    "Mirai": 0.9921906942513697,
+    "Recon": 0.5491713713349117,
+    "Spoofing": 0.3490794919366348,
+    "Web": 0.35698924731182796
+   }
+  }
+ }
+}

@@ -30,6 +30,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from codigo.classificador.atacantes import ATACANTES
+from codigo.classificador.operacao import SEGUIDAS
 from codigo.reprodutor import reprodutor as R
 
 PASTA_DOS_PCAPS = Path("CICIoT2023")
@@ -205,7 +206,7 @@ def relatorio(resultados, artefato=None):
             f"O modelo do sistema aplicado às janelas do `{PCAP_DO_ARTEFATO}`, que ficou fora do treino, com os tamanhos",
             "de quadro como o dataset gravou e como passariam no fio, num enlace Ethernet sem agregação de",
             "segmentos (`rodadas_de_teste.md`, rodada f). Janela de ataque pela regra do ponto de operação; alarme",
-            "com 3 janelas de ataque seguidas.",
+            f"com {SEGUIDAS} janelas de ataque seguidas.",
             "",
             "| Tamanhos de quadro | Janelas | Como ataque | Alarmes | Por hora |",
             "|---|---|---|---|---|",

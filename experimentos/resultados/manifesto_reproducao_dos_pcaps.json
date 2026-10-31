@@ -1,6 +1,6 @@
 {
  "gerado_por": "python -m codigo.reprodutor.avaliar",
- "gerado_em": "2026-10-19T21:58:06-03:00",
+ "gerado_em": "2026-10-29T12:54:30-03:00",
  "versoes": {
   "python": "3.11.2"
  },
@@ -9,13 +9,13 @@
   "sha256": "422fb3b4ca19803926a81dcb9e3466dc7863f2da70494528956e7cf51464dd15"
  },
  "ponto_de_operacao": {
-  "sha256": "ae7ebfbc137118ff6e9892d5a6493c892279288cbceec9a342494f5d9ab2c4e5"
+  "sha256": "e3d6e207d5c17354dfc0d314c46372eed7c46dd922a7a37e85f8becb50fa1ab9"
  },
  "codigo": {
-  "reprodutor/reprodutor.py": "0ea919f875f17b53468d650a804ee5388c7874b226106d52c04c5751fdfe61fb",
-  "reprodutor/avaliar.py": "58139aaa46996648dd4acfd4d30b14c7df1400387397bf92f1b593d73a0c8082",
-  "captura/extrator.py": "0039ccfebfb23cb337e8439d6db8f55983a422e5d5f966f191d5100a1af78506",
-  "classificador/operacao.py": "88f596a317adfdad606ebeaf2575b860023d13438bac5ed68a88f35f851efd37"
+  "reprodutor/reprodutor.py": "68622f5d417aba4e3b8ddc2d780a1387c9b0f622ed4715a026b8b54560907361",
+  "reprodutor/avaliar.py": "affa4cccfe6cc8e1320f27031f967e13b323559daddfa5c54853c069bf56d6f1",
+  "captura/extrator.py": "3afb779121c71c952676a87b511392aae5c53ce666581a817f3bc3a2c90cd8f7",
+  "classificador/operacao.py": "d1a4ad1b061c7705f23298a2157700366b3b072602a00613392b7e0fd8ba3b83"
  },
  "politica": {
   "fecha_apos": 10,
@@ -47,31 +47,31 @@
    "arquivo": "BenignTraffic2.pcap",
    "quadros": 3138002,
    "janelas": 31031,
-   "incidentes": 4
+   "incidentes": 1
   },
   {
    "arquivo": "BrowserHijacking.pcap",
    "quadros": 59821,
    "janelas": 585,
-   "incidentes": 4
+   "incidentes": 3
   },
   {
    "arquivo": "CommandInjection.pcap",
    "quadros": 55741,
    "janelas": 540,
-   "incidentes": 2
+   "incidentes": 1
   },
   {
    "arquivo": "DDoS-ACK_Fragmentation.pcap",
    "quadros": 2503835,
    "janelas": 24983,
-   "incidentes": 5
+   "incidentes": 4
   },
   {
    "arquivo": "DDoS-HTTP_Flood-.pcap",
    "quadros": 2881005,
    "janelas": 28755,
-   "incidentes": 11
+   "incidentes": 10
   },
   {
    "arquivo": "DDoS-ICMP_Flood.pcap",
@@ -95,49 +95,49 @@
    "arquivo": "DDoS-RSTFINFlood.pcap",
    "quadros": 26686473,
    "janelas": 266831,
-   "incidentes": 4
+   "incidentes": 3
   },
   {
    "arquivo": "DDoS-SYN_Flood.pcap",
    "quadros": 26597011,
    "janelas": 265924,
-   "incidentes": 5
+   "incidentes": 4
   },
   {
    "arquivo": "DDoS-SYN_Flood1.pcap",
    "quadros": 26715334,
    "janelas": 267096,
-   "incidentes": 6
+   "incidentes": 5
   },
   {
    "arquivo": "DDoS-SlowLoris.pcap",
    "quadros": 2351454,
    "janelas": 23390,
-   "incidentes": 13
+   "incidentes": 12
   },
   {
    "arquivo": "DDoS-SynonymousIP_Flood.pcap",
    "quadros": 26855630,
    "janelas": 268524,
-   "incidentes": 4
+   "incidentes": 3
   },
   {
    "arquivo": "DDoS-TCP_Flood.pcap",
    "quadros": 26570958,
    "janelas": 265670,
-   "incidentes": 6
+   "incidentes": 4
   },
   {
    "arquivo": "DDoS-UDP_Flood.pcap",
    "quadros": 26653551,
    "janelas": 266502,
-   "incidentes": 5
+   "incidentes": 4
   },
   {
    "arquivo": "DDoS-UDP_Fragmentation.pcap",
    "quadros": 2248843,
    "janelas": 22438,
-   "incidentes": 5
+   "incidentes": 3
   },
   {
    "arquivo": "DNS_Spoofing.pcap",
@@ -155,7 +155,7 @@
    "arquivo": "DoS-HTTP_Flood1.pcap",
    "quadros": 3114983,
    "janelas": 31098,
-   "incidentes": 8
+   "incidentes": 7
   },
   {
    "arquivo": "DoS-SYN_Flood.pcap",
@@ -203,19 +203,19 @@
    "arquivo": "Mirai-udpplain.pcap",
    "quadros": 3642269,
    "janelas": 36388,
-   "incidentes": 6
+   "incidentes": 5
   },
   {
    "arquivo": "Recon-HostDiscovery.pcap",
    "quadros": 1371112,
    "janelas": 13436,
-   "incidentes": 5
+   "incidentes": 4
   },
   {
    "arquivo": "Recon-OSScan.pcap",
    "quadros": 992241,
    "janelas": 9824,
-   "incidentes": 19
+   "incidentes": 16
   },
   {
    "arquivo": "Recon-PingSweep.pcap",
@@ -258,12 +258,12 @@
   "como gravado": {
    "janelas": 31032,
    "como_ataque": 288,
-   "alarmes": 4
+   "alarmes": 1
   },
   "como no fio (preenchido até 60 e limitado a 1.514 bytes)": {
    "janelas": 31032,
    "como_ataque": 474,
-   "alarmes": 26
+   "alarmes": 18
   }
  }
 }

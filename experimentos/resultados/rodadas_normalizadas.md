@@ -1,6 +1,6 @@
 # Captura normalizada: comparação de configurações
 
-Gerado por `python -m codigo.classificador.rodadas` em 13/10/2026, com Python 3.11.2, scikit-learn 1.9.1, pandas 3.0.6 e numpy 2.4.6.
+Gerado por `python -m codigo.classificador.rodadas` em 29/10/2026, com Python 3.11.2, scikit-learn 1.9.1, pandas 3.0.6 e numpy 2.4.6.
 
 Os pcaps do CICIoT2023 não têm os tamanhos de quadro distribuídos do mesmo jeito: os de spoofing têm quadros menores que 60 bytes, e os benignos, quadros maiores que 1.514 bytes (`rodadas_de_teste.md`, rodada f). Quadro menor que 60 bytes não sai assim no fio: a placa de rede o completa antes de transmitir, e ele aparece no pcap quando a captura é feita na própria máquina que envia. Quadro maior que 1.514 bytes também não passa num enlace Ethernet de MTU 1.500: ele aparece quando a placa da máquina que captura junta segmentos TCP antes de entregá-los (offload de segmentação), ou numa rede com jumbo frames. Os pcaps não dizem qual foi o caso, e as duas medidas são compatíveis com capturas gravadas de jeitos diferentes. Elas também não separam a forma de gravar do ataque: um quadro ARP, que o spoofing usa, tem 42 bytes antes do preenchimento. O extrator tem duas opções, desligadas por padrão, que mudam só o tamanho medido: o preenchimento conta como 60 bytes o quadro menor que isso, e o teto conta como 1.514 o quadro maior. As duas aproximam o tamanho do quadro no fio, sem reproduzi-lo: no fio, um quadro agregado de 64 KB seria várias dezenas de quadros, e não um de 1.514 bytes, e a contagem de quadros, o `IAT` e o `Rate` da janela continuam os da captura.
 
@@ -195,8 +195,8 @@ A condição (c) foi medida no trecho de teste do `Recon-PortScan.pcap` (850 jan
   - `dados/processed/regerado_preenchido_limitado`: manifesto `experimentos/resultados/regeracao_preenchido_limitado/manifesto_regeracao.json` (SHA-256 `23e1b2a92e03dd76e1949d8725a248e0671119c4e15f25b9f1d731b2dfba5243`), extrator com SHA-256 `8bd38fb392d5bec5a318699b2cef4a67a7c0c43461ecd01ce20be5b7db0b4a65` e opções {'limitar': True, 'preencher': True}; 72 arquivos lidos, com o SHA-256 de cada um em `manifesto_rodadas_normalizadas.json`.
 - Treinos: `RandomForestClassifier` com 100 árvores e os demais parâmetros padrão, teto de 50.000 linhas por rótulo, corte de 70% das janelas de cada pcap, as mesmas funções de `treinar_regerado`; a configuração 0 é o mesmo treino de `rodadas_de_teste.md`.
 - As tabelas em CSV começam com `rodadas_normalizadas_`; os valores completos, com as contagens, estão no manifesto.
-- Tempo desta execução, na máquina em que rodou: 1.226,8 s. Os treinos já guardados em `dados/processed/rodadas/` são reaproveitados e não entram nessa conta; somados, os treinos de que os números saem levaram 4.862,9 s.
-- Código: o SHA-256 de cada módulo de que os números saem (`rodadas.py`, `preparar.py`, `treinar.py`, `avaliar.py`, `treinar_regerado.py`, `regerar.py`, `mapeamento.py` e `extrator.py`) está no manifesto e entra na chave dos treinos guardados; commit `024d14e161eb`.
-- Memória: pico de 5,1 GB no processo, o necessário para reproduzir com a mesma quantidade de núcleos.
+- Tempo desta execução, na máquina em que rodou: 100,6 s. Os treinos já guardados em `dados/processed/rodadas/` são reaproveitados e não entram nessa conta; somados, os treinos de que os números saem levaram 4.760,1 s.
+- Código: o SHA-256 de cada módulo de que os números saem (`rodadas.py`, `preparar.py`, `treinar.py`, `avaliar.py`, `treinar_regerado.py`, `regerar.py`, `mapeamento.py` e `extrator.py`) está no manifesto e entra na chave dos treinos guardados; commit `e0fe37c72e0b`.
+- Memória: pico de 2,2 GB no processo, o necessário para reproduzir com a mesma quantidade de núcleos.
 - Com as mesmas entradas, o mesmo código e as mesmas sementes, os números saem iguais. Só mudam a data e os
   tempos.

@@ -2,7 +2,8 @@
 
 A decisão da equipe: o limiar e a regra de janelas seguidas são escolhidos numa parte de validação,
 nunca no teste. A regra é a de `operacao`: a janela é ataque se 1 − P(Benign) ≥ t, na categoria de
-ataque mais provável, e um incidente só abre com 3 janelas de ataque seguidas, na ordem do pcap.
+ataque mais provável, e um incidente só abre com `operacao.SEGUIDAS` janelas de ataque seguidas, na
+ordem do pcap.
 
 O que este módulo faz, em cada configuração pedida (das de `rodadas.CONFIGURACOES`), com as três
 sementes de controle das rodadas:

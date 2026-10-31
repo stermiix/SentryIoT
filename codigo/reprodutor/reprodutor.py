@@ -24,8 +24,8 @@ aos modelos:
   principal em comum; se nenhum aberto combina, ela conta para uma sequência nova. Ataques
   diferentes ao mesmo tempo ficam em incidentes diferentes;
 - o incidente abre quando a sequência chega às `seguidas` janelas de ataque do ponto de operação
-  (hoje 3); entram nele as janelas da categoria mais frequente da sequência e as que têm endereço
-  em comum com elas, e as outras ficam na sequência;
+  (4 desde 28/10/2026; eram 3); entram nele as janelas da categoria mais frequente da sequência e
+  as que têm endereço em comum com elas, e as outras ficam na sequência;
 - um incidente aberto se encerra depois de `fecha_apos` janelas seguidas que não são dele;
 - a categoria do incidente é a mais frequente entre as suas janelas de ataque, e a confiança é a
   média da probabilidade dessa categoria nessas janelas;

@@ -1,7 +1,7 @@
 {
   "descricao": "Random Forest de 7 categorias treinado nos dados regerados dos pcaps do CICIoT2023, com janela de 100 quadros, divisão por tempo e teto de linhas por rótulo, com o fundo da parte de treino dos pcaps de ataque como Benign",
   "gerado_por": "python -m codigo.classificador.treinar_regerado",
-  "gerado_em": "2026-10-13",
+  "gerado_em": "2026-10-29",
   "fundo_como_benigno": true,
   "configuracao": "5",
   "semente": 42,
@@ -1930,7 +1930,7 @@
         "treino_sha256": "dc996d950d86294c413a89a4de6c7872770fe8e31a0fab986d847b8b57bad346",
         "teste_sha256": "73cc74fd4f94dade7a5c8c4ebcb2ba3a7676dc5c61fb0bd2f4f3aa0dec51e635"
       },
-      "treino_segundos": 14.481809875011095,
+      "treino_segundos": 15.567500167002436,
       "ponto_de_operacao": {
         "regra": "argmax",
         "limiar": null,
@@ -1941,7 +1941,7 @@
           "benigno_como_ataque": 78,
           "ataque_reconhecido": 319985
         },
-        "seguidas": 3,
+        "seguidas": 4,
         "validacao": {
           "Backdoor_Malware.pcap": [
             191,
@@ -2085,7 +2085,7 @@
           ]
         },
         "linhas_do_treino_reduzido": 517271,
-        "treino_reduzido_segundos": 11.924134542001411,
+        "treino_reduzido_segundos": 12.875378040975193,
         "curva": {
           "0.01": {
             "benigno_como_ataque": 8993,
@@ -4664,8 +4664,8 @@
       }
     }
   ],
-  "duracao_segundos": 55.96433575000265,
-  "memoria_pico_bytes": 2241953792,
+  "duracao_segundos": 58.74095274999854,
+  "memoria_pico_bytes": 1701068800,
   "rodadas_anteriores": [],
   "modelo_anterior": {
     "gerado_em": "2026-10-11",
