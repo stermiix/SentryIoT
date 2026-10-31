@@ -1,6 +1,6 @@
 """Servidor MCP de mentira (stub) do SentryIoT.
 
-Responde às dez tools do contrato com os incidentes de `cenarios.py`, sem classificador
+Responde às onze tools do contrato com os incidentes de `cenarios.py`, sem classificador
 treinado e sem rede. Serve para a frente dos agentes trabalhar em paralelo: quem escreve as
 skills chama as tools, percorre um incidente do começo ao fim e obtém o log de eventos que a
 interface web vai ler.
@@ -164,6 +164,7 @@ _RESUMOS = {
         "ja_resolvido": r.ja_resolvido,
     },
     "obter_janelas": lambda r: {"janelas": len(r.janelas), "total": r.total},
+    "apontar_atacante": lambda r: {"endereco": r.endereco},
     "consultar_mitigacoes": lambda r: {"mitigacoes": len(r.mitigacoes), "acoes": len(r.acoes)},
     "pesquisar_solucoes": lambda r: {"trechos": [f"{trecho.origem}: {trecho.titulo}" for trecho in r.trechos]},
     "propor_acao": lambda r: {
@@ -316,6 +317,10 @@ class Stub:
         incidente = self._incidente(estado, id)
         fatia = janelas(self._cenarios[id], incidente, min(limite, LIMITE_DE_JANELAS))
         return FatiaDeJanelas(incidente=id, total=incidente.janelas, janelas=fatia), []
+
+    def _apontar_atacante(self, estado, _inicio, id, endereco, justificativa):
+        self._incidente(estado, id)
+        return acoes.apontar_atacante(estado, id, endereco, justificativa)
 
     def _obter_resumo(self, estado, _inicio, id):
         self._incidente(estado, id)

@@ -38,10 +38,14 @@ from typing_extensions import TypedDict
 from codigo.captura.extrator import COLUNAS
 from codigo.classificador.mapeamento import CATEGORIAS
 
-VERSAO = "0.5.0"
+VERSAO = "0.6.0"
 # Máximo de janelas que o agente recebe por chamada. Um flood tem milhares de janelas, e mandar
 # todas para a LLM custaria tokens demais.
 LIMITE_DE_JANELAS = 20
+# Candidatos a atacante que o incidente traz, para a triagem escolher, e destinos citados de cada um.
+MAXIMO_DE_CANDIDATOS = 5
+DESTINOS_DO_CANDIDATO = 3
+PORTAS_DO_CANDIDATO = 3
 # Máximo de trechos da base por resposta: em consultar_mitigacoes e em pesquisar_solucoes. Numa base
 # grande, a resposta sem teto viraria milhões de caracteres para o modelo.
 LIMITE_DE_MITIGACOES = 10
@@ -366,6 +370,39 @@ class FeaturePrincipal(Modelo):
     referencia_benigno: float = Field(description="Valor típico da mesma feature no tráfego benigno")
 
 
+class PortaDoCandidato(Modelo):
+    porta: Porta = Field(description="Porta de destino do TCP ou do UDP")
+    protocolo: Transporte
+    quadros: Contagem = Field(description="Quadros que o candidato mandou a essa porta, em qualquer destino")
+
+
+class CandidatoAAtacante(Modelo):
+    """Uma origem que pode ser o atacante, com as medidas que a separam do tráfego normal.
+
+    Quem escolhe entre os candidatos é o agente de triagem (decisão de 2026-10-31), com
+    `apontar_atacante`. A regra fixa do reprodutor, que dá as `origens`, acerta o atacante em pouco
+    mais da metade dos incidentes da avaliação.
+    """
+
+    endereco: EnderecoIP = Field(description="Endereço IP, sem zona")
+    janelas: Contagem = Field(description="Janelas do incidente em que o endereço aparece como origem")
+    no_trafego_normal: Proporcao = Field(
+        description="Parcela das janelas benignas, fora de incidente, em que o endereço aparece como origem"
+    )
+    quadros_enviados: Contagem = Field(description="Quadros que o endereço mandou no incidente")
+    quadros_recebidos: Contagem = Field(description="Quadros que o endereço recebeu no incidente")
+    conexoes_abertas: Contagem = Field(description="Conexões TCP que o endereço abriu no incidente (SYN sem ACK)")
+    conexoes_recebidas: Contagem = Field(description="Conexões TCP que outros abriram com o endereço no incidente")
+    destinos: list[EnderecoContado] = Field(
+        max_length=DESTINOS_DO_CANDIDATO, description="Destinos a que o endereço mais mandou quadros, do maior para o menor"
+    )
+    portas: list[PortaDoCandidato] = Field(
+        default_factory=list,
+        max_length=PORTAS_DO_CANDIDATO,
+        description="Portas de destino a que o endereço mais mandou quadros, da maior para a menor",
+    )
+
+
 class Incidente(Modelo):
     """Resumo de um ataque: as janelas do mesmo ataque, reunidas pela política de acionamento."""
 
@@ -396,6 +433,23 @@ class Incidente(Modelo):
             "vazia sem TCP nem UDP, como num ARP spoofing ou num flood ICMP"
         ),
     )
+    # Os dois abaixo entraram na versão 0.6.0, com valor padrão para o log anterior continuar legível.
+    janelas_por_categoria: dict[CategoriaDoModelo, Contagem] = Field(
+        default_factory=dict,
+        description=(
+            "O que o classificador disse de cada janela do incidente, contando as benignas que ficaram entre as "
+            "de ataque. Cobre todas as janelas, e não só as que obter_janelas devolve"
+        ),
+    )
+    candidatos: list[CandidatoAAtacante] = Field(
+        default_factory=list,
+        max_length=MAXIMO_DE_CANDIDATOS,
+        description=(
+            "Até cinco origens que mais se destacam do tráfego normal, da que mais se destaca para a que menos, "
+            "com as medidas de cada uma, para a triagem apontar o atacante. Vem vazia quando nenhuma origem se "
+            "destaca, como num flood com origem forjada"
+        ),
+    )
 
     @model_validator(mode="after")
     def _portas_sao_de_destinos_listados(self):
@@ -414,6 +468,20 @@ class Incidente(Modelo):
                 f"a categoria {self.categoria} não sai do que o modelo disse ({self.categoria_do_modelo})"
             )
         return self
+
+
+class AtacanteApontado(Modelo):
+    """O atacante que a triagem apontou entre os candidatos e as origens do incidente."""
+
+    endereco: EnderecoIP = Field(description="Endereço do atacante, um dos candidatos ou das origens do incidente")
+    justificativa: TextoLongo = Field(description="Por que este é o atacante, com as medidas que pesaram")
+
+
+class AtacanteRotulado(Modelo):
+    rotulo: Rotulo = Field(description="Rótulo neutro do atacante apontado, como origem-3")
+    justificativa: TextoLongo = Field(
+        description="A justificativa da triagem, com cada endereço do incidente trocado pelo rótulo dele"
+    )
 
 
 class EnderecoRotulado(Modelo):
@@ -615,6 +683,13 @@ class ResumoDoIncidente(Modelo):
     ultimo_efeito: Efeito | None = Field(
         description="O último efeito verificado no incidente, depois de uma ação aplicada, ou nulo"
     )
+    atacante_apontado: AtacanteRotulado | None = Field(
+        default=None,
+        description=(
+            "O atacante que a triagem apontou, pelo rótulo, ou nulo quando ela não apontou. É o alvo das ações "
+            "sobre a origem do ataque, mesmo quando não é a origem com mais quadros"
+        ),
+    )
 
 
 class Ambiente(Modelo):
@@ -637,6 +712,16 @@ class EntradaObterIncidente(Modelo):
 
 class EntradaObterResumo(Modelo):
     id: str = Field(description="Identificador do incidente, como inc-0001")
+
+
+class EntradaApontarAtacante(Modelo):
+    """O limite de texto vale aqui, mas quem o confere é o servidor, para que a recusa fique no log."""
+
+    id: str = Field(description="Identificador do incidente, como inc-0001")
+    endereco: str = Field(description="Endereço do atacante: um dos candidatos ou das origens do incidente")
+    justificativa: str = Field(
+        description=f"Por que este é o atacante, citando as medidas. Texto de uma linha, com até {TEXTO_LONGO} caracteres"
+    )
 
 
 class EntradaObterJanelas(Modelo):
@@ -716,8 +801,16 @@ TOOLS = (
     Tool(
         "obter_incidente", ("triagem",),
         "Devolve o incidente: categoria, confiança do classificador, período, quantidade de janelas, "
-        "origens, destinos e as features que mais pesaram.",
+        "o que o classificador disse de cada janela, origens, destinos, portas, as features que mais pesaram "
+        "e os candidatos a atacante, com as medidas de cada um.",
         EntradaObterIncidente, Incidente,
+    ),
+    Tool(
+        "apontar_atacante", ("triagem",),
+        "Registra qual dos candidatos (ou das origens) do incidente é o atacante, com a justificativa. O agente "
+        "de decisão recebe o rótulo dele no resumo, como alvo das ações sobre a origem. Chamada de novo, vale a "
+        "última. Não aponte quando nenhum candidato se destaca, como num flood com origem forjada.",
+        EntradaApontarAtacante, AtacanteApontado,
     ),
     Tool(
         "obter_janelas", ("triagem",),
@@ -840,6 +933,21 @@ class ChamadaDeTool(Modelo):
     duracao_ms: float = Field(ge=0)
 
 
+class AnaliseDaTriagem(Modelo):
+    """A resposta final da triagem, gravada pelo orquestrador: é o que o relatório mostra dela."""
+
+    agente: Literal["triagem"]
+    texto: Paragrafos
+    veredito: VereditoDaTriagem | None = Field(description="Rótulo da triagem, lido do texto; nulo quando não vem")
+
+
+class Sumario(Modelo):
+    """O sumário do incidente, escrito pelo agente de triagem a partir do log quando o orquestrador termina."""
+
+    agente: Literal["triagem"]
+    texto: Paragrafos
+
+
 class Recomendacao(Modelo):
     agente: Agente
     texto: Paragrafos
@@ -892,7 +1000,10 @@ EVENTOS = (
     ("EventoDeLLM", ("llm_chamada",), ChamadaDeLLM),
     ("EventoDeTool", ("tool_chamada",), ChamadaDeTool),
     ("EventoDeConclusao", ("agente_concluido",), ConclusaoDoAgente),
+    ("EventoDeAtacante", ("atacante_apontado",), AtacanteApontado),
+    ("EventoDeAnalise", ("analise_emitida",), AnaliseDaTriagem),
     ("EventoDeRecomendacao", ("recomendacao_emitida",), Recomendacao),
+    ("EventoDeSumario", ("sumario_emitido",), Sumario),
     ("EventoDeProposta", ("acao_proposta",), Proposta),
     ("EventoDeDecisao", ("acao_aprovada", "acao_rejeitada"), Decisao),
     ("EventoDeExecucao", ("acao_executada", "acao_desfeita"), Execucao),
@@ -940,7 +1051,7 @@ class _SemTituloDeCampo(GenerateJsonSchema):
 
 
 def contrato():
-    """O contrato em JSON Schema: as dez tools, o evento do log e as definições dos tipos.
+    """O contrato em JSON Schema: as onze tools, o evento do log e as definições dos tipos.
 
     Traz também a tabela dos motivos de risco alto, com a frase de cada código.
     """

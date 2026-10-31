@@ -506,14 +506,14 @@ As linhas marcadas com **(a criar)** ainda não existem.
 | Arquivo | O que faz |
 |---|---|
 | `mcp/README.md` | Por onde começar na frente de agentes: como subir o stub, ligar um cliente MCP, chamar cada tool, aprovar pelo terminal e ler o log de eventos |
-| `mcp/tipos.py` | Os tipos do contrato, numa fonte só: o que cada uma das dez tools recebe e devolve e o formato de cada linha do log de eventos |
+| `mcp/tipos.py` | Os tipos do contrato, numa fonte só: o que cada uma das onze tools recebe e devolve e o formato de cada linha do log de eventos |
 | `mcp/contrato.json` | O mesmo contrato em JSON Schema, gerado de `tipos.py`. Um teste falha se os dois divergirem. É ele que destrava as duas frentes em paralelo |
 | `mcp/acoes.py` | O catálogo de ações, as ações novas, a política de risco, os rótulos neutros, o resumo do incidente e o ambiente simulado, com desfazer |
 | `mcp/politica.toml` | Os limites da política de risco, que a equipe ajusta sem mexer no código |
 | `mcp/base.py` | A leitura da base de mitigações e a busca usada por `pesquisar_solucoes`. A base é o levantamento da equipe em `agente/recomendacoes/`, com a ação do catálogo e a fonte de cada medida |
 | `mcp/eventos.py` | Gravação e leitura do log de eventos, que a interface web lê |
 | `mcp/cenarios.py` | Os quatro incidentes de exemplo do stub, com números ilustrativos: flood, força bruta, varredura de portas e falso positivo |
-| `mcp/stub.py` | O servidor MCP: responde às dez tools com os quatro cenários de exemplo ou, com `--cenarios`, com os incidentes reais de um pcap gravados pelo reprodutor. Nesse modo de reprodução, é o servidor da PoC (decisão de 2026-10-25) |
+| `mcp/stub.py` | O servidor MCP: responde às onze tools com os quatro cenários de exemplo ou, com `--cenarios`, com os incidentes reais de um pcap gravados pelo reprodutor. Nesse modo de reprodução, é o servidor da PoC (decisão de 2026-10-25) |
 | `mcp/aprovar.py` | O comando de terminal com que a pessoa aprova, rejeita ou promove uma proposta de ação, e marca um incidente como já resolvido |
 | `mcp/roteiro.py` | Gera `mcp/exemplos/incidente_flood.jsonl`, o log de exemplo de um incidente inteiro, usado nos testes do MCP e da interface web |
 | `mcp/exemplos/` | O log de exemplo e o seu README, que explica o incidente passo a passo |

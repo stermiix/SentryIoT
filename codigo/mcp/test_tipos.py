@@ -65,6 +65,13 @@ INCIDENTE_DA_ESPECIFICACAO = {
         {"nome": "syn_flag_number", "valor": 1.0, "referencia_benigno": 0.06},
     ],
     "portas": [{"destino": "192.168.137.20", "porta": 80, "protocolo": "tcp", "quadros": 41200}],
+    "janelas_por_categoria": {"DDoS+DoS": 412, "Benign": 3},
+    "candidatos": [{
+        "endereco": "203.0.113.7", "janelas": 412, "no_trafego_normal": 0.0, "quadros_enviados": 9120,
+        "quadros_recebidos": 0, "conexoes_abertas": 0, "conexoes_recebidas": 0,
+        "destinos": [{"endereco": "192.168.137.20", "quadros": 9120}],
+        "portas": [{"porta": 80, "protocolo": "tcp", "quadros": 9120}],
+    }],
 }
 INSTANTE = "2026-10-20T14:03:41.250Z"
 
@@ -150,7 +157,12 @@ DADOS_POR_TIPO = {
     "incidente_marcado_resolvido": {
         "incidente": "inc-0001", "canal": "interface", "usuario": "maria", "motivo": "Bloqueei a origem no roteador.",
     },
+    "atacante_apontado": {
+        "endereco": "203.0.113.7", "justificativa": "Aparece em todas as janelas e abre as conexões ao destino.",
+    },
+    "analise_emitida": {"agente": "triagem", "texto": "Rótulo da triagem: coerente.", "veredito": "coerente"},
     "recomendacao_emitida": {"agente": "decisao", "texto": "Bloquear a origem.", "propostas": ["prop-0001"]},
+    "sumario_emitido": {"agente": "triagem", "texto": "O classificador abriu um DDoS, e a origem foi bloqueada."},
     "acao_proposta": PROPOSTA,
     "acao_aprovada": {"proposta": "prop-0001", "canal": "terminal", "usuario": "maria", "motivo": None},
     "acao_rejeitada": {"proposta": "prop-0001", "canal": "terminal", "usuario": "maria", "motivo": "Dispositivo crítico."},
@@ -184,7 +196,7 @@ def test_contrato_versionado_e_igual_ao_gerado_de_tipos():
 
 
 def test_a_documentacao_do_contrato_conta_as_tools_que_existem():
-    assert len(TOOLS) == 10 and "as dez tools" in contrato.__doc__ and "nove" not in contrato.__doc__
+    assert len(TOOLS) == 11 and "as onze tools" in contrato.__doc__ and "dez" not in contrato.__doc__
 
 
 def test_texto_do_contrato_e_json_com_as_chaves_do_contrato():
@@ -199,9 +211,9 @@ def test_texto_do_contrato_e_json_com_as_chaves_do_contrato():
     assert list(documento["motivos_de_risco_alto"]) == list(MOTIVOS_DE_RISCO_ALTO)
 
 
-def test_sao_as_dez_tools_da_especificacao_na_ordem_da_tabela():
+def test_sao_as_onze_tools_da_especificacao_na_ordem_da_tabela():
     assert [tool.nome for tool in TOOLS] == [
-        "obter_incidente", "obter_janelas", "obter_resumo", "consultar_mitigacoes", "pesquisar_solucoes",
+        "obter_incidente", "apontar_atacante", "obter_janelas", "obter_resumo", "consultar_mitigacoes", "pesquisar_solucoes",
         "propor_acao", "verificar_efeito", "executar_acao", "desfazer_acao", "consultar_estado",
     ]
     assert all(tool.descricao.strip() for tool in TOOLS)
@@ -209,7 +221,8 @@ def test_sao_as_dez_tools_da_especificacao_na_ordem_da_tabela():
 
 def test_cada_agente_so_enxerga_as_tools_da_sua_linha():
     assert AGENTES == ("triagem", "decisao", "execucao")
-    assert tools_do_agente("triagem") == ("obter_incidente", "obter_janelas")
+    # A triagem vê os endereços e aponta o atacante entre os candidatos (decisão de 2026-10-31).
+    assert tools_do_agente("triagem") == ("obter_incidente", "apontar_atacante", "obter_janelas")
     # O agente de decisão pode estar num modelo de nuvem: lê o resumo montado pelo servidor, sem endereço,
     # e não tem verificar_efeito, que muda o incidente.
     assert tools_do_agente("decisao") == ("obter_resumo", "consultar_mitigacoes", "pesquisar_solucoes", "propor_acao")
@@ -226,6 +239,7 @@ def test_argumentos_das_tools_sao_os_da_especificacao():
     argumentos = {tool.nome: tuple(tool.entrada.model_fields) for tool in TOOLS}
     assert argumentos == {
         "obter_incidente": ("id",),
+        "apontar_atacante": ("id", "endereco", "justificativa"),
         "obter_janelas": ("id", "limite"),
         "obter_resumo": ("id",),
         "consultar_mitigacoes": ("categoria",),
@@ -281,8 +295,11 @@ def test_resumo_traz_rotulos_e_nao_enderecos():
         "features_principais": INCIDENTE_DA_ESPECIFICACAO["features_principais"],
         "portas": [{"destino": "destino-1", "porta": 80, "protocolo": "tcp", "quadros": 41200}],
         "ultimo_efeito": None,
+        "atacante_apontado": {"rotulo": "origem-1", "justificativa": "A origem-1 aparece em todas as janelas."},
     }
     assert ResumoDoIncidente.model_validate(resumo).model_dump(mode="json") == resumo
+    for rotulo in ("203.0.113.7", "origem"):
+        recusado_pelo_contrato(ResumoDoIncidente, resumo | {"atacante_apontado": {"rotulo": rotulo, "justificativa": "x"}})
     for rotulo in ("203.0.113.7", "origem", "origem-0", "origem-01", "vitima-1", "destino-1 e mais", "Origem-1"):
         recusado_pelo_contrato(
             ResumoDoIncidente, resumo | {"origens": [{"rotulo": rotulo, "quadros": 1, "protegido": False}]}
@@ -542,8 +559,8 @@ def test_ambiente_separa_as_medidas_ativas_por_tipo():
 def test_tipos_de_evento_sao_os_da_especificacao():
     assert TIPOS_DE_EVENTO == (
         "janelas_classificadas", "incidente_aberto", "incidente_atualizado", "incidente_encerrado",
-        "incidente_marcado_resolvido", "llm_chamada", "tool_chamada", "agente_concluido", "recomendacao_emitida",
-        "acao_proposta", "acao_aprovada", "acao_rejeitada", "acao_executada", "acao_desfeita", "efeito_verificado",
+        "incidente_marcado_resolvido", "llm_chamada", "tool_chamada", "agente_concluido", "atacante_apontado",
+        "analise_emitida", "recomendacao_emitida", "sumario_emitido", "acao_proposta", "acao_aprovada", "acao_rejeitada", "acao_executada", "acao_desfeita", "efeito_verificado",
         "catalogo_ampliado", "recusa",
     )
     assert set(DADOS_POR_TIPO) == set(TIPOS_DE_EVENTO)
