@@ -1,4 +1,9 @@
-"""Configuração do provedor de LLM, lida do ambiente e de um arquivo `.env`."""
+"""Configuração do provedor de LLM, lida do ambiente e de um arquivo `.env`.
+
+Há dois conjuntos de variáveis, para a arquitetura híbrida: o do modelo local, com o prefixo `LLM_`, e o
+do modelo de nuvem, com `LLM_NUVEM_` (`LLM_NUVEM_BASE_URL`, `LLM_NUVEM_API_KEY`, `LLM_NUVEM_MODEL` e as
+demais, com os mesmos sufixos).
+"""
 
 import os
 from collections.abc import Mapping
@@ -7,8 +12,10 @@ from dataclasses import dataclass
 PRAZO_PADRAO_S = 300
 # Valores de LLM_RACIOCINIO e o que cada um manda em `chat_template_kwargs.enable_thinking`.
 RACIOCINIO = {"ligado": True, "desligado": False}
-# Variável obrigatória do ambiente e o atributo que a guarda, na ordem em que `faltando` relata.
-OBRIGATORIAS = (("LLM_BASE_URL", "url_base"), ("LLM_API_KEY", "chave"), ("LLM_MODEL", "modelo"))
+PREFIXO_LOCAL = "LLM_"
+PREFIXO_DA_NUVEM = "LLM_NUVEM_"
+# Sufixo obrigatório da variável do ambiente e o atributo que a guarda, na ordem em que `faltando` relata.
+OBRIGATORIAS = (("BASE_URL", "url_base"), ("API_KEY", "chave"), ("MODEL", "modelo"))
 
 
 def carregar_env(caminho):
@@ -45,24 +52,34 @@ class Configuracao:
     semente: int | None = None
     max_tokens: int | None = None
     raciocinio: bool | None = None
+    # Os provedores que o OpenRouter pode usar (`provider.only`), como `anthropic`. Vazio não restringe.
+    somente_provedores: tuple[str, ...] = ()
+    # O prefixo das variáveis de onde a configuração veio, só para `faltando` dizer os nomes certos.
+    prefixo: str = PREFIXO_LOCAL
 
     @classmethod
-    def do_ambiente(cls, ambiente: Mapping[str, str]):
-        prazo = ambiente.get("LLM_TIMEOUT_S", "").strip()
-        modelo = ambiente.get("LLM_MODEL", "").strip()
-        listados = [nome.strip() for nome in ambiente.get("LLM_MODELOS_PERMITIDOS", "").split(",")]
+    def do_ambiente(cls, ambiente: Mapping[str, str], prefixo: str = PREFIXO_LOCAL):
+        def valor(sufixo):
+            return ambiente.get(prefixo + sufixo, "")
+
+        prazo = valor("TIMEOUT_S").strip()
+        modelo = valor("MODEL").strip()
+        listados = [nome.strip() for nome in valor("MODELOS_PERMITIDOS").split(",")]
         permitidos = tuple(dict.fromkeys([modelo, *listados]))
+        provedores = tuple(nome.strip() for nome in valor("PROVEDORES").split(",") if nome.strip())
         return cls(
-            url_base=ambiente.get("LLM_BASE_URL", "").strip().rstrip("/"),
-            chave=ambiente.get("LLM_API_KEY", "").strip(),
+            url_base=valor("BASE_URL").strip().rstrip("/"),
+            chave=valor("API_KEY").strip(),
             modelo=modelo,
-            ca=ambiente.get("LLM_CA_BUNDLE", "").strip() or None,
+            ca=valor("CA_BUNDLE").strip() or None,
             prazo_s=float(prazo) if prazo else PRAZO_PADRAO_S,
             modelos_permitidos=tuple(nome for nome in permitidos if nome),
-            temperatura=_numero(ambiente, "LLM_TEMPERATURA", float, 0, 2),
-            semente=_numero(ambiente, "LLM_SEMENTE", int, 0, None),
-            max_tokens=_numero(ambiente, "LLM_MAX_TOKENS", int, 1, None),
-            raciocinio=_raciocinio(ambiente),
+            temperatura=_numero(ambiente, prefixo + "TEMPERATURA", float, 0, 2),
+            semente=_numero(ambiente, prefixo + "SEMENTE", int, 0, None),
+            max_tokens=_numero(ambiente, prefixo + "MAX_TOKENS", int, 1, None),
+            raciocinio=_raciocinio(ambiente, prefixo + "RACIOCINIO"),
+            somente_provedores=provedores,
+            prefixo=prefixo,
         )
 
     def parametros(self):
@@ -76,6 +93,8 @@ class Configuracao:
             corpo["max_tokens"] = self.max_tokens
         if self.raciocinio is not None:
             corpo["chat_template_kwargs"] = {"enable_thinking": self.raciocinio}
+        if self.somente_provedores:
+            corpo["provider"] = {"only": list(self.somente_provedores)}
         return corpo
 
     def modelos(self):
@@ -84,7 +103,7 @@ class Configuracao:
 
     def faltando(self):
         """Os nomes das variáveis obrigatórias que estão em branco."""
-        return [variavel for variavel, atributo in OBRIGATORIAS if not getattr(self, atributo)]
+        return [self.prefixo + sufixo for sufixo, atributo in OBRIGATORIAS if not getattr(self, atributo)]
 
 
 def _numero(ambiente, variavel, tipo, minimo, maximo):
@@ -102,10 +121,10 @@ def _numero(ambiente, variavel, tipo, minimo, maximo):
     return valor
 
 
-def _raciocinio(ambiente):
-    texto = ambiente.get("LLM_RACIOCINIO", "").strip().lower()
+def _raciocinio(ambiente, variavel="LLM_RACIOCINIO"):
+    texto = ambiente.get(variavel, "").strip().lower()
     if not texto:
         return None
     if texto not in RACIOCINIO:
-        raise ValueError(f"LLM_RACIOCINIO precisa ser ligado ou desligado, e veio {texto!r}")
+        raise ValueError(f"{variavel} precisa ser ligado ou desligado, e veio {texto!r}")
     return RACIOCINIO[texto]
