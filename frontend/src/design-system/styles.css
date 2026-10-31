@@ -639,7 +639,7 @@ button, input, select, textarea { font: inherit; color: inherit; letter-spacing:
 .sx-tip:hover .sx-tip__bubble, .sx-tip:focus-within .sx-tip__bubble { opacity: 1; transform: translate(-50%, 0); }
 
 /* ================= dialog ================= */
-.sx-scrim { position: fixed; inset: 0; z-index: var(--z-modal); display: grid; place-items: center; padding: var(--space-6); background: var(--scrim); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.sx-scrim { position: fixed; inset: 0; z-index: var(--z-modal); display: grid; place-items: center; padding: var(--space-6); overflow-y: auto; background: var(--scrim); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .sx-dialog {
   position: relative; display: flex; flex-direction: column; gap: var(--space-5); width: min(560px, 100%); padding: var(--space-6) var(--space-6) var(--space-5);
   background: var(--sx-surface-lit) padding-box, var(--sx-edge-strong) border-box;

@@ -45,6 +45,10 @@ describe("tokens do design system", () => {
     expect(faltando).toEqual([]);
   });
 
+  it("um diálogo mais alto que a janela rola, para os botões de decisão ficarem ao alcance", () => {
+    expect(ESTILOS.match(/\.sx-scrim \{[^}]*\}/)?.[0]).toContain("overflow-y: auto");
+  });
+
   it("o CSS das telas não escreve cor à mão", () => {
     expect(ESTILO_DO_APP.match(/#[0-9a-fA-F]{3,8}\b|rgba?\(/g)).toBeNull();
   });

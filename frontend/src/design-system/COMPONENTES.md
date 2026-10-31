@@ -32,7 +32,7 @@ Fundo decorativo do login e da capa do relatório: a marca de vidro grande, aces
 
 ### Button
 
-Botão em pílula; o primário (gelo) aparece no máximo uma vez por tela.
+Botão de cantos macios; o primário (gelo) aparece no máximo uma vez por tela.
 
 - **Você fornece:** o texto (verbo primeiro, caixa de frase: "Gerar relatório"), `variant`, `size` (`sm` 32 · `md` 40 · `lg` 48), `icon`/`iconRight`, `loading`, `block` e os atributos de `<button>`.
 - **Variantes:** `primary` (gelo, a ação da tela), `secondary` (vidro, padrão), `ghost` (ações leves, "Histórico →"), `danger` (Rejeitar, Desfazer), e só dentro do modal: `confirm` (menta, "Aprovar e executar") e `danger-solid` (coral, confirmar uma rejeição).
@@ -98,7 +98,7 @@ Rótulo neutro de um endereço (`origem-1`, `destino-1`) com o IP real ao lado, 
 
 ### Sidebar
 
-Navegação lateral flutuante em pílula, nas versões larga e só com ícones. Só preto e gelo: fundo preto (`bg-1` → `bg-0`), borda, textos, ícones e divisores em gelo de força menor, e o logo sem brilho; o vão vazio acima do rodapé recebe a grade de pontos da capa do relatório, também em gelo.
+Navegação lateral flutuante, nas versões larga e só com ícones. Só preto e gelo: fundo preto (`bg-1` → `bg-0`), borda, textos, ícones e divisores em gelo de força menor, e o logo sem brilho; o vão vazio acima do rodapé recebe a grade de pontos da capa do relatório, também em gelo.
 
 - **Você fornece:** `logoSrc`, `sections` (rótulo + itens com `id`, `label`, `icon`, `count`, `attention`, `planned`), `activeId`, `onNavigate`, `collapsed`, `onToggle`, `footer` (provedor local e operador).
 - O item ativo é a única área de gelo da barra: preenchimento `ice` com texto e ícone `on-ice`, sem brilho. Contagem âmbar (`attention`) quando há proposta aguardando; tela planejada leva um círculo tracejado e o rótulo esmaecido. No rodapé, o ponto do modelo no ar também é gelo.
@@ -122,7 +122,7 @@ Diz em que modo a tela está: "REPLAY · EVENTO 23 DE 52 · 14:03:26" ou "AO VIV
 
 ### Segmented
 
-Controle em pílula para alternar entre poucas opções ("Replay | Ao vivo", "Rótulos neutros | Com IPs").
+Controle para alternar entre poucas opções ("Replay | Ao vivo", "Rótulos neutros | Com IPs").
 
 - **Você fornece:** `options` (`value`, `label`, `icon`, `disabled`, `hint`), `value`, `onChange`, `label` (nome acessível), `size`, `block` (ocupa a largura, segmentos iguais).
 - Setas ← → mudam a seleção. Opção planejada fica `disabled` com `hint="Planejado"`.
