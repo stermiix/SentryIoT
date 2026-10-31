@@ -13,7 +13,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  font-feature-settings: "cv05", "cv08";
+  letter-spacing: 0.01em;
 }
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -232,7 +232,7 @@ button, input, select, textarea { font: inherit; color: inherit; letter-spacing:
 /* ================= logo ================= */
 .sx-logo { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
 .sx-logo__mark { display: block; width: 32px; height: 32px; object-fit: contain; }
-.sx-logo__word { font-family: var(--font-display); font-size: 20px; line-height: 24px; letter-spacing: -0.01em; color: var(--ink-1); }
+.sx-logo__word { font-family: var(--font-display); font-size: 20px; line-height: 24px; letter-spacing: 0; color: var(--ink-1); }
 .sx-logo__sentry { font-weight: 600; }
 .sx-logo__iot { font-weight: 300; color: var(--ice); }
 .sx-logo__tag { margin-left: 2px; padding: 2px 6px; border: 1px solid var(--line-2); border-radius: var(--radius-xs); font-family: var(--font-mono); font-size: 12px; line-height: 14px; letter-spacing: 0.04em; color: var(--ink-3); }
@@ -320,7 +320,7 @@ button, input, select, textarea { font: inherit; color: inherit; letter-spacing:
 .sx-field.is-disabled { opacity: var(--opacity-disabled); }
 .sx-field.is-disabled .sx-field__box { cursor: not-allowed; }
 /* ================= badge text ================= */
-.sx-cat, .sx-status, .sx-risk, .sx-agent, .sx-delta { font-family: var(--font-sans); font-size: 13px; font-weight: 500; line-height: 18px; letter-spacing: 0; }
+.sx-cat, .sx-status, .sx-risk, .sx-agent, .sx-delta { font-family: var(--font-sans); font-size: 13px; font-weight: 500; line-height: 18px; }
 .sx-risk--alto { font-weight: 600; }
 .sx-channel { font-size: 13px; line-height: 18px; }
 

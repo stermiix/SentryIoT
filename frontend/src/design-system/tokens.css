@@ -108,8 +108,8 @@
   --z-modal: 50;
   --opacity-disabled: 0.45;
   --opacity-future: 0.38;
-  --font-display: "Inter Display", "Inter", system-ui, sans-serif;
-  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Barlow", system-ui, sans-serif;
+  --font-sans: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Source Code Pro", ui-monospace, "SF Mono", Menlo, monospace;
   --font-voice: "Lora", Georgia, "Times New Roman", serif;
 }
@@ -119,42 +119,42 @@
   font-size: 88px;
   line-height: 88px;
   font-weight: 300;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.01em;
 }
 .display-lg {
   font-family: var(--font-display);
   font-size: 64px;
   line-height: 68px;
   font-weight: 300;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.01em;
 }
 .display-md {
   font-family: var(--font-display);
   font-size: 44px;
   line-height: 50px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 .metric {
   font-family: var(--font-display);
   font-size: 40px;
   line-height: 44px;
   font-weight: 300;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.005em;
 }
 .title-1 {
   font-family: var(--font-display);
   font-size: 32px;
   line-height: 40px;
   font-weight: 500;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
 }
 .title-2 {
   font-family: var(--font-display);
   font-size: 24px;
   line-height: 32px;
   font-weight: 500;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 .title-3 {
   font-family: var(--font-sans);
@@ -209,24 +209,28 @@
   font-size: 14px;
   line-height: 20px;
   font-weight: 400;
+  letter-spacing: 0;
 }
 .data-sm {
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 16px;
   font-weight: 400;
+  letter-spacing: 0;
 }
 .code {
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 20px;
   font-weight: 400;
+  letter-spacing: 0;
 }
 .voice-agent {
   font-family: var(--font-voice);
   font-size: 17px;
   line-height: 27px;
   font-weight: 400;
+  letter-spacing: 0;
   font-style: italic;
 }
 .voice-person {
@@ -234,54 +238,34 @@
   font-size: 17px;
   line-height: 27px;
   font-weight: 400;
+  letter-spacing: 0;
   font-style: normal;
 }
 
 @font-face {
-  font-family: "Inter Display";
-  src: url("./fonts/InterDisplay-Light.woff2") format("woff2");
+  font-family: "Barlow";
+  src: url("./fonts/Barlow-Light.woff2") format("woff2");
   font-weight: 300;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: "Inter Display";
-  src: url("./fonts/InterDisplay-Regular.woff2") format("woff2");
+  font-family: "Barlow";
+  src: url("./fonts/Barlow-Regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: "Inter Display";
-  src: url("./fonts/InterDisplay-Medium.woff2") format("woff2");
+  font-family: "Barlow";
+  src: url("./fonts/Barlow-Medium.woff2") format("woff2");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: "Inter Display";
-  src: url("./fonts/InterDisplay-SemiBold.woff2") format("woff2");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Inter";
-  src: url("./fonts/Inter-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Inter";
-  src: url("./fonts/Inter-Medium.woff2") format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Inter";
-  src: url("./fonts/Inter-SemiBold.woff2") format("woff2");
+  font-family: "Barlow";
+  src: url("./fonts/Barlow-SemiBold.woff2") format("woff2");
   font-weight: 600;
   font-style: normal;
   font-display: swap;

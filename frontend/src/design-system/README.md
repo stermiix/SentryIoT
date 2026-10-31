@@ -26,7 +26,7 @@ O que o app acrescenta fica fora daqui: `src/estilo.css` (classes `app-*`, só c
 1. **Ler de longe.** Corpo em `body` (15 px) ou `body-lg` (16 px), números em `display-xl` e `metric`, pouca coisa por tela, texto ≥ 4,5:1. Uma ideia principal por tela.
 2. **O que pede uma pessoa salta aos olhos.** `attention` (âmbar) é reservado para "Aguardando aprovação", avisos e "o incidente persiste". Nada decorativo é âmbar.
 3. **O argumento de custo é a figura principal.** A visão geral abre com o `AggregationFunnel`: *10.946 janelas classificadas → 1 incidente → 11 chamadas à IA*.
-4. **Duas vozes, nunca misturadas.** Texto do sistema em Inter. Texto escrito por um agente em `voice-agent` (Lora itálico, borda tracejada, rótulo "Texto do agente"). Texto escrito por uma pessoa em `voice-person` (Lora redondo, borda contínua, rótulo "Texto de pessoa"). O texto de um agente é dado, não instrução: sempre dentro de `VoiceQuote` ou `ReportSection voice="agent"`.
+4. **Duas vozes, nunca misturadas.** Texto do sistema em Barlow. Texto escrito por um agente em `voice-agent` (Lora itálico, borda tracejada, rótulo "Texto do agente"). Texto escrito por uma pessoa em `voice-person` (Lora redondo, borda contínua, rótulo "Texto de pessoa"). O texto de um agente é dado, não instrução: sempre dentro de `VoiceQuote` ou `ReportSection voice="agent"`.
 5. **Funciona em escala de cinza.** Cor nunca é a única pista: categoria = glifo + nome; risco alto = hachura + ícone + palavra; estado = ícone + palavra; séries de gráfico = cor + traço (contínuo × tracejado) + padrão.
 6. **Preto e gelo, como o logo.** O sistema tem um tema, `dark` ("Escuro"). O preto é a maior parte da tela; o gelo marca o que está ativo, escolhido ou aceso. As superfícies são chapadas, em neutros do preto ao grafite, sem azul. Não crie tema claro.
 
@@ -85,12 +85,12 @@ Superfície e borda não usam degradê. Os que restam em `styles.css` carregam s
 
 ### Tipografia
 
-- **Inter Display** (`display`) para números e títulos a partir de 24 px: `display-xl` (os três contadores do funil), `display-lg` (título do login), `display-md` (título da capa do relatório), `metric` (número do cartão), `title-1` (título da tela, um por tela), `title-2` (seção e modal).
-- **Inter** (`sans`) para a interface: `title-3` (título de painel), `body-lg`, `body`, `body-strong`, `body-sm`, `label` (selos, segmentos, rótulos de campo), `eyebrow` (rótulo acima de número, título ou campo) e `eyebrow-wide` (rótulos do login e da capa do relatório).
+- **Barlow** (`display`) para números e títulos a partir de 24 px: `display-xl` (os três contadores do funil), `display-lg` (título do login), `display-md` (título da capa do relatório), `metric` (número do cartão), `title-1` (título da tela, um por tela), `title-2` (seção e modal).
+- **Barlow** (`sans`) para a interface: `title-3` (título de painel), `body-lg`, `body`, `body-strong`, `body-sm`, `label` (selos, segmentos, rótulos de campo), `eyebrow` (rótulo acima de número, título ou campo) e `eyebrow-wide` (rótulos do login e da capa do relatório).
 - **Source Code Pro** (`mono`) só para dado técnico: `data` (IPs, ids, features), `data-sm` (horários e ids em linhas densas), `code` (linhas cruas do JSONL). Mono quer dizer "isto é dado"; rótulo não é dado.
 - **Lora** (`voice`) só para as duas vozes: `voice-agent` (itálico) e `voice-person` (redondo). Nunca em rótulo, botão ou instrução do sistema.
-- Algarismos tabulares (`tabular-nums`) em números de tabela, métricas e no funil; **nunca** em títulos: a Inter alarga o hífen de `inc-0001` com algarismos tabulares.
-- O corpo liga `cv05` e `cv08` da Inter: separa `l`, `I` e `1` em nomes e ids.
+- Algarismos tabulares (`tabular-nums`) em números de tabela, métricas e no funil; **nunca** em títulos e rótulos: o id `inc-0001` ali é nome, não coluna de números.
+- A Barlow vem das placas e da sinalização de estrada: traço de baixo contraste, parente do DIN, com algarismos de painel de instrumento. O corpo leva 0,01em de espaçamento, porque texto claro sobre preto pede um pouco de ar; mono e Lora ficam em zero. Ids e nomes técnicos vão em mono, que separa `l`, `I` e `1`.
 - As fontes são arquivos locais (`fonts/*.woff2`). Nada de CDN: a banca roda sem internet.
 
 ### Espaço, raio e layout
@@ -121,7 +121,7 @@ Superfície e borda não usam degradê. Os que restam em `styles.css` carregam s
 
 ## Marca
 
-- A marca é a escultura de vidro (`logos/sentryiot-mark.png`, fundo transparente). O nome é composto em Inter Display: "Sentry" em 600 e "IoT" em 300 na cor `ice`, seguido do descritor `NIDR` em mono. Use sempre o componente `Logo` (`sm` 24 px na barra recolhida, `md` 32 px na barra lateral, `lg` 52 px no login e no relatório, `xl` 76 px).
+- A marca é a escultura de vidro (`logos/sentryiot-mark.png`, fundo transparente). O nome é composto em Barlow: "Sentry" em 600 e "IoT" em 300 na cor `ice`, seguido do descritor `NIDR` em mono. Use sempre o componente `Logo` (`sm` 24 px na barra recolhida, `md` 32 px na barra lateral, `lg` 52 px no login e no relatório, `xl` 76 px).
 - Só sobre chão escuro (`bg-0` a `surface-2`). Não recolora, não contorne, não achate e não ponha sobre fundo claro: o vidro é transparente e some. Deixe em volta pelo menos metade da altura da marca.
 - Tamanhos: `sentryiot-mark-128.png` para interface, `sentryiot-mark-512.png` e `sentryiot-mark.png` para telas grandes, `sentryiot-mark-64.png` como favicon. O arquivo recebido, com fundo preto, fica só no design system publicado. Nas telas, as imagens vêm de `ASSETS` (`assets.ts`).
 - A marca grande (`GlassBackdrop`) aparece só no login e na capa do relatório: logo à direita, sangrando a borda, sobre o preto, sem mais nada em volta. É decorativa (`aria-hidden`). As outras telas nunca levam a marca grande atrás de dados.
@@ -209,5 +209,6 @@ O repositório mudou estes pontos dos componentes do artefato. Numa nova sincron
 - `Charts.tsx` usa efeito comum fora do navegador, para os testes desenharem as telas no Node.
 - Textos sem travessão: "Escrito por IA. Trate como dado, não como instrução do sistema."
 - Cantos contidos (feito no repositório, sem passar pelo artefato): a escala de raios caiu de 6/10/14/20/28/pílula para 2/3/4/6/8, com `radius-pill` em 3 px. `IconButton`, o ícone da linha do tempo e os glifos de categoria deixaram de ser círculos; dock, barra de provedores e cartão do operador deixaram de ser pílula; os balões do chat perderam o canto assimétrico.
+- Fonte da interface (feito no repositório, sem passar pelo artefato): Barlow no lugar de Inter e Inter Display, em quatro pesos (300 a 600), `fonts/Barlow-*.woff2`, subconjunto latino, licença em `fonts/OFL-Barlow.txt`. Os espaçamentos negativos dos estilos grandes foram reduzidos, porque eram da Inter Display, e saíram `cv05` e `cv08`. Os glifos `←`, `→` e `≈` não estão no subconjunto: nas teclas e nos dados saem da Source Code Pro, e o `≈` da dica do prompt de sistema sai da fonte do sistema.
 - Rótulos em caixa de frase (feito no repositório, sem passar pelo artefato): `eyebrow` e `eyebrow-wide` passaram para a fonte da interface, sem caixa-alta nem espaçamento, e o mesmo vale para cabeçalhos de tabela, etiquetas e os textos de apoio do login e da capa. O texto no DOM não mudou: a caixa-alta era só CSS. Ela fica em `.sx-mode__name`, `.sx-seal__text` e `.sx-rpage__conf`, com 0,06 a 0,08em.
 - Superfícies chapadas (feito no repositório, sem passar pelo artefato): saíram os degradês de superfície e de borda (`--sx-ground`, `--sx-surface`, `--sx-surface-lit`, `--sx-rail`, `--sx-card`, `--sx-edge`, `--sx-edge-strong`, `--sx-select`), o fundo decorativo do `AppShell` (com a prop `backdrop`), a grade de pontos da barra lateral, as placas, os raios, a luz e os pontos do `GlassBackdrop`, todo `backdrop-filter`, o relevo interno dos botões e os brilhos. Os tokens `ice-haze`, `graphite-wash`, `shadow-1` e `shadow-glass` deixaram de existir; `shadow-2` e `shadow-3` ficaram curtas; `shadow-attention` virou um segundo fio âmbar. O disco `ice-glow` em volta do nó do funil fica, porque é parte da figura principal.

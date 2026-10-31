@@ -6,7 +6,7 @@ As regras de uso de cada componente e de cada tela, agrupadas como no catálogo 
 
 ### Logo
 
-Lockup da marca: a escultura de vidro com o nome "Sentry**IoT**" composto em Inter Display e o descritor `NIDR`.
+Lockup da marca: a escultura de vidro com o nome "Sentry**IoT**" composto em Barlow e o descritor `NIDR`.
 
 - **Você fornece:** `src` (PNG transparente: `sentryiot-mark-128.png` na interface, `sentryiot-mark-512.png` ou maior em `xl`), `size` (`sm` 24 · `md` 32 · `lg` 52 · `xl` 76 px de marca), `wordmark` (padrão `true`), `descriptor` (padrão `"NIDR"`; `false` esconde).
 - **Use** `md` na barra lateral, `sm` na barra recolhida e no cabeçalho do relatório, `lg` no login e na capa.
