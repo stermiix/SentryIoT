@@ -32,10 +32,10 @@ inclusive a de uma proposta já aprovada (`incidente_ja_resolvido`).
 - De novo, no mesmo incidente, quando `ultimo_efeito` (no resumo) vier com `persiste` ou
   `diminuiu`. Ver o roteiro do cenário `inc-0001` em `codigo/mcp/README.md`, em que a primeira
   ação não resolve e o agente precisa propor outra.
-- Em incidente marcado **duvidoso** pela triagem, a preferência é por ação de risco baixo ou por
-  nenhuma ação. Se a única saída for de risco alto (isolar dispositivo, revogar credencial,
-  fechar porta, qualquer ação nova), ela pode ser proposta, porque quem decide é a pessoa, mas a justificativa
-  precisa começar dizendo que a triagem marcou o caso como duvidoso e por quê.
+- Em incidente **duvidoso** (ou com o veredito descartado), nenhuma ação de risco alto: no máximo
+  uma de risco baixo, com prazo, ou nenhuma. Se a única saída for de risco alto (isolar
+  dispositivo, revogar credencial, fechar porta, bloquear uma origem da rede local, qualquer ação
+  nova), não propor: a recomendação diz qual seria a ação e por quê, e a pessoa decide.
 
 ## O que a tool MCP devolve
 
@@ -59,28 +59,34 @@ inclusive a de uma proposta já aprovada (`incidente_ja_resolvido`).
 3. Escolher, entre as mitigações devolvidas, a que mais combina com o padrão observado (ex.:
    `bloquear_ip` quando o padrão é concentrado em poucas origens; não faz sentido para DDoS com
    dezenas de origens distintas). O alvo é um rótulo do resumo, como `origem-1`; para a origem do
-   ataque, o rótulo de `atacante_apontado`.
+   ataque, o rótulo de `atacante_apontado`. Rótulo com `protegido` verdadeiro fica de fora, em
+   qualquer ação: limitar, bloquear, isolar ou fechar a porta do gateway ou do DNS atinge a rede
+   inteira. Ser protegido é motivo para descartar o alvo, nunca para escolhê-lo.
    `fechar_porta` serve quando o ataque mira um serviço que o dispositivo não precisa expor, como
    o Telnet que o Mirai usa para entrar: o alvo é a porta, o protocolo e o rótulo do destino, como
    `23/tcp@destino-1`, tirados de `portas` no resumo. Porta que não aparece ali não é proposta,
    e numa varredura, em que cada porta recebe poucos quadros, a porta escolhida precisa ser
    justificada pelo serviço, e não pela contagem.
 4. Se nenhuma mitigação do catálogo servir para o padrão, chamar `pesquisar_solucoes` com uma
-   descrição curta do padrão (até 2.000 caracteres) e avaliar os trechos devolvidos.
+   consulta só, de poucas palavras, que descreva o ataque (ex.: "varredura de portas UDP"), nunca
+   uma lista ou enumeração de termos, e avaliar os trechos devolvidos.
 5. Montar a `justificativa` da proposta citando o dado concreto que motivou a escolha (ex.:
    "atacante apontado pela triagem, que abre as conexões à porta 22 do destino", não "parece
    suspeito" nem só "origem com mais quadros").
-6. Chamar `propor_acao`. Se a ação é nova (fora do catálogo), incluir `descricao`, `passos`,
+6. Chamar `propor_acao`. Ação que aceita `duracao` (`limitar_taxa`, `bloquear_ip`) vai sempre com
+   ela, em minutos, no prazo que a medida precisa: sem prazo, ela fica ativa até alguém desfazer.
+   Se a ação é nova (fora do catálogo), incluir `descricao`, `passos`,
    `efeito_esperado` e `como_desfazer` nos parâmetros; sem isso a proposta é recusada. O alvo de
    uma ação nova é o rótulo (`destino-1`) ou um texto sem endereço ("o dispositivo atacado").
 7. Ler a resposta: `risco` e `exige_aprovacao` já vêm calculados pelo servidor; a skill não
-   recalcula risco, só decide o que propor. Bloquear um destino, um endereço protegido ou uma
-   origem da rede local é de risco alto, e os motivos dizem por quê. Fechar uma porta é sempre de
-   risco alto: corta um serviço do dispositivo.
+   recalcula risco, só decide o que propor. Bloquear um destino ou uma origem da rede local é de
+   risco alto, e os motivos dizem por quê. Fechar uma porta é sempre de risco alto: corta um serviço
+   do dispositivo.
 8. Depois que o agente de execução aplica a ação e verifica o efeito, o resultado aparece em
    `ultimo_efeito` no próximo `obter_resumo`. O agente de decisão não chama `verificar_efeito`,
    que muda o incidente. Se `persiste`, repetir a partir do passo 3 com os dados do que já foi
-   tentado, para não propor a mesma ação de novo.
+   tentado, para não propor a mesma ação de novo. Depois de uma rejeição, seguir o passo 5 da
+   `coordenacao-do-incidente`.
 
 ## Formato da resposta
 
@@ -91,6 +97,8 @@ Justificativa: <uma frase, com o dado concreto>
 Risco (devolvido pela tool): baixo | alto  |  Exige aprovação: sim/não
 Se exige aprovação: <os motivos_de_risco_alto, em português simples>
 ```
+
+Números com vírgula decimal, como em português (0,74; 115,14).
 
 ## Explicação, quando o incidente está marcado como já resolvido
 
