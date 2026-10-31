@@ -171,7 +171,7 @@ As telas ficam em `src/telas/`, montadas só com estes componentes e com os dado
 | Tela | Arquivo | Estado |
 |---|---|---|
 | Visão geral (funil, cartões, fila) | `VisaoGeral.tsx` | funciona com o log |
-| Detalhe do incidente | `Incidente.tsx` | funciona com o log; no fim do replay, aprovar, rejeitar e "já resolvido" abrem o diálogo, que explica que a interface ainda não grava e mostra o comando do terminal |
+| Detalhe do incidente | `Incidente.tsx` | funciona com o log; no fim do replay, aprovar, rejeitar e "já resolvido" abrem o diálogo; com os agentes de uma simulação rodando, a decisão é gravada, e fora disso ele mostra o comando do terminal |
 | Ao vivo | `AoVivo.tsx` | planejada; lê o log que está sendo gravado quando `VITE_LOG_AO_VIVO` aponta para ele; sem a variável, fica vazia |
 | Tela 3, Isolado × integrado | `IsoladoIntegrado.tsx` | contagens, veredito e propostas do log |
 | Tela 4, Custo e latência | `CustoLatencia.tsx` | funciona com o log; local × nuvem aparece quando `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM` dizem onde cada modelo roda |

@@ -16,8 +16,8 @@ classificador nem com os agentes. Ela só lê esse log, o que dá dois modos com
   na hora. Sem a variável, nenhum log é carregado e as telas abrem vazias.
 - **Ao vivo:** acompanha o log enquanto o sistema roda (planejado; ver "Ao vivo" abaixo).
 
-A tela Simulação é a exceção: ela manda um pcap ao backend, que roda o reprodutor e devolve o log
-gravado, e a interface passa a mostrar esse log nas outras telas.
+A tela Simulação é a exceção: ela manda um pcap ao backend, que roda o reprodutor e os agentes, e a
+interface acompanha o log enquanto ele é gravado, em todas as telas.
 
 O formato do log é o contrato da tool MCP, em `codigo/mcp/contrato.json`. A interface não traz
 dado simulado: nenhum log vai no build, e o log de exemplo do stub (`codigo/mcp/exemplos/`) só
@@ -30,7 +30,7 @@ entra nos testes.
 | Visão geral: funil janelas → incidentes → chamadas à IA, cartões e fila | `#/visao-geral` | funciona com o log |
 | Detalhe do incidente: veredito, features, propostas, endereços, rastro dos agentes, recomendações, histórico | `#/incidentes/<id>` | funciona com o log; as decisões só são oferecidas no fim do replay |
 | Ao vivo | `#/ao-vivo` | planejada; liga com `VITE_LOG_AO_VIVO`, e sem ela fica vazia |
-| Simulação: anexa um pcap, que passa pelo extrator, pelo classificador e pela política de acionamento até a porta do modelo da triagem, sem chamá-lo | `#/simulacao` | funciona com o backend (`POST /api/simulacao`, com o cabeçalho `X-SentryIoT: interface`) e o modelo do sistema em `modelos/`; por padrão classifica só o trecho do pcap que ficou fora do treino; o log da simulação passa a ser o das outras telas |
+| Simulação: anexa um pcap, que passa pelo extrator, pelo classificador e pela política de acionamento, e cada incidente segue para os agentes, com a aprovação de uma pessoa na própria tela | `#/simulacao` | funciona com o backend (`/api/simulacao`, com o cabeçalho `X-SentryIoT: interface`), o modelo do sistema em `modelos/` e o modelo local no `.env`; por padrão classifica só o trecho do pcap que ficou fora do treino; o log da simulação passa a ser o das outras telas |
 | Tela 3, isolado × integrado | `#/isolado-integrado` | funciona com o log |
 | Tela 4, custo e latência | `#/custo-latencia` | funciona com o log; local × nuvem depende de `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM` |
 | Tela 5, qualidade do modelo | `#/qualidade-do-modelo` | matriz real da configuração 5 |
@@ -46,11 +46,12 @@ visão geral fica em zero e cada tela diz que nenhum log foi carregado.
 
 ### O que ainda não funciona, e onde ligar
 
-- **Decisões pela interface** (aprovar, rejeitar, marcar como já resolvido) e **login** passam
-  por `src/operacao.ts`. Hoje o backend não tem essas rotas: os botões abrem o diálogo de
-  confirmação, e ele mostra que a decisão não foi gravada e o comando de terminal que faz a mesma
-  coisa (`python -m codigo.mcp.aprovar …`). Para ligar, escreva em `operacao.ts` uma `Operacao`
-  que chame as rotas novas e troque a constante `operacao`; as telas não mudam.
+- **Decisões pela interface** (aprovar, rejeitar, marcar como já resolvido) passam por
+  `src/operacao.ts` e chegam ao backend enquanto os agentes de uma simulação rodam. Num log só de
+  leitura, não há agente para agir: os botões abrem o diálogo de confirmação, e ele mostra que a
+  decisão não foi gravada e o comando de terminal que faz a mesma coisa
+  (`python -m codigo.mcp.aprovar …`).
+- **Login:** ainda não existe; passa pela mesma `src/operacao.ts`.
 - **Log do replay:** a interface lê o log que `VITE_LOG_DE_EVENTOS` indica, uma vez, ao abrir.
   Hoje o backend não serve o log que o sistema grava (`dados/eventos/eventos.jsonl`): para ver um
   log, ponha o arquivo em `public/dados/` (ignorada pelo git, porque o log pode ter endereços

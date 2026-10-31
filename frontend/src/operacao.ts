@@ -1,10 +1,11 @@
 // O que a pessoa decide pela interface: aprovar ou rejeitar uma proposta, marcar um incidente como já
-// resolvido e entrar com usuário e senha. O backend ainda não tem rotas para isso: hoje as decisões
-// são tomadas pelo terminal (`python -m codigo.mcp.aprovar`), e a interface só lê o log.
+// resolvido e entrar com usuário e senha.
 //
-// As telas chamam sempre `operacao`, e nunca `fetch`. Para ligar a interface ao servidor, basta
-// escrever uma `Operacao` que chame as rotas novas e trocar a constante `operacao` no fim do arquivo:
-// as telas, os diálogos de confirmação e as mensagens de erro já estão prontos.
+// As decisões chegam ao backend enquanto os agentes rodam numa simulação (`ligarSimulacao`). Fora
+// disso, num log só de leitura, elas são tomadas pelo terminal (`python -m codigo.mcp.aprovar`), e a
+// operação devolve o comando. As telas chamam sempre `operacao`, e nunca `fetch`.
+
+import { decidirNaSimulacao, ErroDaSimulacao, type DecisaoNaSimulacao } from "./simulacao";
 
 export type TipoDeErroDaOperacao = "indisponivel" | "recusada" | "rede";
 
@@ -39,7 +40,7 @@ function comMotivo(motivo: string): string {
 
 const SEM_ROTA = "A interface ainda não grava decisões: o log é só leitura. Para decidir agora, use o terminal.";
 
-/** A operação de hoje: nada chega ao servidor, e cada erro traz o comando equivalente do terminal. */
+/** Sem agentes rodando: nada chega ao servidor, e cada erro traz o comando equivalente do terminal. */
 export const operacaoPeloTerminal: Operacao = {
   gravaDecisoes: false,
   temLogin: false,
@@ -60,4 +61,41 @@ export const operacaoPeloTerminal: Operacao = {
   },
 };
 
-export const operacao: Operacao = operacaoPeloTerminal;
+async function decidir(decisao: DecisaoNaSimulacao): Promise<void> {
+  try {
+    await decidirNaSimulacao(decisao);
+  } catch (falha) {
+    const pelaRede = falha instanceof ErroDaSimulacao && falha.tipo === "rede";
+    throw new ErroDaOperacao(pelaRede ? "rede" : "recusada", falha instanceof Error ? falha.message : "Falha inesperada ao gravar a decisão.");
+  }
+}
+
+/** Com agentes rodando numa simulação: a decisão vai ao log dela, com o canal da interface. */
+export const operacaoNaSimulacao: Operacao = {
+  gravaDecisoes: true,
+  temLogin: false,
+  aprovar: (proposta) => decidir({ tipo: "aprovar", id: proposta }),
+  rejeitar: (proposta, motivo) => decidir({ tipo: "rejeitar", id: proposta, motivo }),
+  marcarResolvido: (incidente, motivo) => decidir({ tipo: "resolvido", id: incidente, motivo }),
+  entrar: operacaoPeloTerminal.entrar,
+};
+
+let atual: Operacao = operacaoPeloTerminal;
+
+/** O app chama com verdadeiro enquanto os agentes de uma simulação rodam. */
+export function ligarSimulacao(ativa: boolean): void {
+  atual = ativa ? operacaoNaSimulacao : operacaoPeloTerminal;
+}
+
+export const operacao: Operacao = {
+  get gravaDecisoes() {
+    return atual.gravaDecisoes;
+  },
+  get temLogin() {
+    return atual.temLogin;
+  },
+  aprovar: (proposta) => atual.aprovar(proposta),
+  rejeitar: (proposta, motivo) => atual.rejeitar(proposta, motivo),
+  marcarResolvido: (incidente, motivo) => atual.marcarResolvido(incidente, motivo),
+  entrar: (usuario, senha) => atual.entrar(usuario, senha),
+};
