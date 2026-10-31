@@ -38,7 +38,7 @@ from typing_extensions import TypedDict
 from codigo.captura.extrator import COLUNAS
 from codigo.classificador.mapeamento import CATEGORIAS
 
-VERSAO = "0.6.0"
+VERSAO = "0.7.0"
 # Máximo de janelas que o agente recebe por chamada. Um flood tem milhares de janelas, e mandar
 # todas para a LLM custaria tokens demais.
 LIMITE_DE_JANELAS = 20
@@ -105,6 +105,8 @@ MOTIVOS_DE_RISCO_ALTO = {
         "O alvo é um endereço da rede local, e bloqueá-lo equivale a isolar um dispositivo interno."
     ),
     "alvo_protegido": "O alvo é um endereço protegido pela política.",
+    # Desde a versão 0.7.0: depois de uma rejeição, nenhuma ação no mesmo alvo sai sem a pessoa.
+    "alvo_rejeitado": "A pessoa já rejeitou uma ação neste alvo neste incidente.",
     "orcamento_de_risco_baixo_esgotado": "O incidente já tem o máximo de medidas de risco baixo ativas.",
     "orcamento_global_de_risco_baixo_esgotado": (
         "O sistema já tem o máximo de medidas de risco baixo ativas, somando todos os incidentes."
@@ -140,6 +142,10 @@ MotivoDeRecusa = Literal[
     "incidente_ja_resolvido",
     "limite_de_propostas_pendentes",
     "limite_de_propostas_liberadas",
+    # Desde a versão 0.7.0: a proposta igual a uma que a pessoa já rejeitou no incidente.
+    "proposta_repetida",
+    # Desde a versão 0.7.0: o incidente com confiança abaixo do mínimo da política só recebe recomendação.
+    "incidente_duvidoso",
     "acao_nova_incompleta",
     "proposta_nao_liberada",
     "proposta_ja_executada",
@@ -377,7 +383,7 @@ class PortaDoCandidato(Modelo):
 
 
 class CandidatoAAtacante(Modelo):
-    """Uma origem que pode ser o atacante, com as medidas que a separam do tráfego normal.
+    """Uma origem que pode ser o atacante, com as medidas para a triagem decidir.
 
     Quem escolhe entre os candidatos é o agente de triagem (decisão de 2026-10-31), com
     `apontar_atacante`. A regra fixa do reprodutor, que dá as `origens`, acerta o atacante em pouco
@@ -445,9 +451,9 @@ class Incidente(Modelo):
         default_factory=list,
         max_length=MAXIMO_DE_CANDIDATOS,
         description=(
-            "Até cinco origens que mais se destacam do tráfego normal, da que mais se destaca para a que menos, "
-            "com as medidas de cada uma, para a triagem apontar o atacante. Vem vazia quando nenhuma origem se "
-            "destaca, como num flood com origem forjada"
+            "Até cinco origens, entre as da regra fixa, as que mais se destacam do tráfego normal e as que mais mandam "
+            "do que recebem, da que mais se destaca para a que menos, com as medidas de cada uma, para a "
+            "triagem apontar o atacante. Vem vazia quando nenhuma origem serve, como num flood com origem forjada"
         ),
     )
 
@@ -809,7 +815,7 @@ TOOLS = (
         "apontar_atacante", ("triagem",),
         "Registra qual dos candidatos (ou das origens) do incidente é o atacante, com a justificativa. O agente "
         "de decisão recebe o rótulo dele no resumo, como alvo das ações sobre a origem. Chamada de novo, vale a "
-        "última. Não aponte quando nenhum candidato se destaca, como num flood com origem forjada.",
+        "última. Não aponte quando as medidas não mostram o atacante, como num flood com origem forjada.",
         EntradaApontarAtacante, AtacanteApontado,
     ),
     Tool(
@@ -844,7 +850,9 @@ TOOLS = (
         "ela exige aprovação humana. O alvo usa o rótulo neutro do resumo, como origem-1: o servidor o troca "
         "pelo endereço e calcula o risco sobre ele. Ação nova é sempre de risco alto e precisa trazer em "
         "`parametros` a descrição, os passos, o efeito esperado e como desfazer. Incidente marcado como já "
-        "resolvido não recebe proposta.",
+        "resolvido não recebe proposta. Proposta igual a uma que a pessoa já rejeitou no incidente é recusada, "
+        "e qualquer outra sobre o mesmo alvo exige aprovação humana. Incidente com confiança abaixo de 0,6 não "
+        "recebe proposta: só a recomendação.",
         EntradaProporAcao, Proposta,
     ),
     Tool(

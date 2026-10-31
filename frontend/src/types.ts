@@ -17,7 +17,7 @@ import type {
   VEREDITOS_DA_TRIAGEM,
 } from "./listas";
 
-// Tipos do log de eventos, escritos a partir de `codigo/mcp/contrato.json` (contrato 0.6.0, que
+// Tipos do log de eventos, escritos a partir de `codigo/mcp/contrato.json` (contrato 0.7.0, que
 // sai de `codigo/mcp/tipos.py`). Cada linha do log é um `Evento`, e o campo `tipo` diz o formato de
 // `dados`: a união abaixo é discriminada por ele. Os valores fixos vêm de `listas.ts`, que um teste
 // confere contra o `contrato.json`, e a conferência em tempo de execução fica em `contrato.ts`.

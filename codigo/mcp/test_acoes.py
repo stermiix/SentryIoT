@@ -146,6 +146,7 @@ def gravar_politica(tmp_path, trocas=None):
             "medidas_de_risco_baixo_por_incidente = 5", "medidas_de_risco_baixo_no_total = 10",
             "propostas_aguardando_aprovacao_por_incidente = 10", "propostas_liberadas_por_incidente = 10",
         ],
+        "incidentes": ["confianca_minima_para_propor = 0.6"],
         "rede": [
             'enderecos_protegidos = ["192.168.137.1", "192.168.137.2"]',
             'enderecos_criticos = ["192.168.137.3", "192.168.137.4", "192.0.2.53"]',
@@ -178,6 +179,7 @@ def test_politica_padrao_e_a_tabela_da_especificacao():
         medidas_de_risco_baixo_no_total=10,
         propostas_aguardando_aprovacao_por_incidente=10,
         propostas_liberadas_por_incidente=10,
+        confianca_minima_para_propor=0.6,
         # O gateway e a máquina de captura, com valores de exemplo.
         enderecos_protegidos=frozenset({"192.168.137.1", "192.168.137.2"}),
         # O servidor MCP, o host do modelo local e o resolvedor DNS, com valores de exemplo.
@@ -240,7 +242,8 @@ def test_a_equipe_ajusta_os_limites_no_arquivo_de_politica(tmp_path):
     # Com uma medida ativa, a seguinte é de risco alto. Seria a quarta proposta à espera da pessoa, e o
     # teto do arquivo é de três: ela só entra depois que uma das pendentes é decidida.
     recusado("limite_de_propostas_pendentes", mundo.propor, "bloquear_ip", parametros={"duracao": 10})
-    mundo.decidir("prop-0002", aprovar=False)
+    # A rejeitada é a do outro alvo: a rejeição no mesmo alvo também seria motivo de risco alto.
+    mundo.decidir("prop-0004", aprovar=False)
     assert motivos(mundo.propor("bloquear_ip", parametros={"duracao": 10})) == ["orcamento_de_risco_baixo_esgotado"]
 
 
@@ -1583,13 +1586,14 @@ def test_sao_no_maximo_10_propostas_aguardando_aprovacao_por_incidente():
     baixa = mundo.propor("bloquear_ip", ORIGENS[0], {"duracao": 10})
     assert (baixa.id, baixa.estado) == ("prop-0011", "liberada")
 
-    # Cada decisão da pessoa, de rejeitar ou de aprovar, abre uma vaga.
+    # Cada decisão da pessoa, de rejeitar ou de aprovar, abre uma vaga. Depois da rejeição, a proposta
+    # igual à rejeitada é recusada por isso: a vaga é de outra.
     mundo.decidir("prop-0001", aprovar=False)
-    assert mundo.propor("isolar_dispositivo", "192.168.137.20").id == "prop-0012"
-    recusado("limite_de_propostas_pendentes", mundo.propor, "isolar_dispositivo", "192.168.137.20")
+    assert mundo.propor("isolar_dispositivo", ORIGENS[0]).id == "prop-0012"
+    recusado("limite_de_propostas_pendentes", mundo.propor, "isolar_dispositivo", ORIGENS[1])
     mundo.decidir("prop-0002")
     assert mundo.propor("ativar_syn_cookies", "192.168.137.20", ACAO_NOVA).estado == "aguardando_aprovacao"
-    recusado("limite_de_propostas_pendentes", mundo.propor, "isolar_dispositivo", "192.168.137.20")
+    recusado("limite_de_propostas_pendentes", mundo.propor, "isolar_dispositivo", ORIGENS[1])
 
 
 def test_o_teto_de_propostas_pendentes_e_por_incidente_e_sai_da_politica(mundo):
@@ -1729,6 +1733,172 @@ def test_acao_promovida_e_acao_que_a_politica_marca_como_alta_sao_sempre_de_risc
     assert motivos(marcada.propor("limitar_taxa", "8.8.8.8", {"duracao": 600})) == [
         "acao_sempre_de_risco_alto", "alvo_fora_do_incidente",
     ]
+
+
+# --- depois da rejeição: a proposta repetida e o alvo rejeitado ------------------------------
+
+# O incidente em que o dispositivo atacado também aparece entre as origens: o mesmo endereço tem dois
+# rótulos, origem-2 e destino-1.
+INCIDENTE_COM_A_VITIMA_NAS_ORIGENS = INCIDENTE_DA_ESPECIFICACAO | {
+    "origens": [{"endereco": "203.0.113.7", "quadros": 9120}, {"endereco": "192.168.137.20", "quadros": 4000}],
+}
+
+
+def rejeitar(mundo, proposta):
+    return mundo.decidir(proposta.id, aprovar=False, motivo="Não é este o atacante.")
+
+
+def test_proposta_igual_a_rejeitada_e_recusada_e_diz_ao_agente_o_que_fazer(mundo):
+    rejeitar(mundo, mundo.propor("bloquear_ip", "origem-1", so_rotulos=True))
+    antes = len(mundo.eventos)
+    mensagem = recusado("proposta_repetida", mundo.propor, "bloquear_ip", "origem-1", so_rotulos=True)
+    assert "prop-0001" in mensagem and "rejeitou" in mensagem
+    assert "Troque a ação ou o alvo" in mensagem and "recomendação" in mensagem
+    # A mensagem volta à linha de decisão: nem o endereço do rótulo, nem a entrada inteira.
+    assert "203.0.113.7" not in mensagem
+    assert len(mundo.eventos) == antes and list(mundo.estado.propostas) == ["prop-0001"]
+    # A recusa é um evento válido do contrato.
+    Recusa(agente="decisao", tool="propor_acao", argumentos={}, motivo="proposta_repetida", mensagem=mensagem)
+
+
+def test_proposta_igual_a_rejeitada_e_recusada_mesmo_com_a_fila_cheia(mundo):
+    rejeitar(mundo, mundo.propor("isolar_dispositivo", "192.168.137.20"))
+    for _ in range(10):
+        mundo.propor("isolar_dispositivo", "203.0.113.7")
+    # A pessoa já respondeu a esta: a recusa diz isso, e não que falta vaga na fila.
+    recusado("proposta_repetida", mundo.propor, "isolar_dispositivo", "192.168.137.20")
+    recusado("limite_de_propostas_pendentes", mundo.propor, "revogar_credencial", "admin@192.168.137.20")
+
+
+def test_proposta_repetida_compara_o_alvo_pelo_endereco_e_nao_pelo_rotulo():
+    mundo = Mundo(incidente=INCIDENTE_COM_A_VITIMA_NAS_ORIGENS)
+    assert mundo.estado.rotulos["inc-0001"]["origem-2"] == mundo.estado.rotulos["inc-0001"]["destino-1"]
+    rejeitar(mundo, mundo.propor("isolar_dispositivo", "destino-1", so_rotulos=True))
+    # Outro rótulo do mesmo endereço, o endereço escrito direto e o IPv4 escrito como IPv6 são o mesmo alvo.
+    recusado("proposta_repetida", mundo.propor, "isolar_dispositivo", "origem-2", so_rotulos=True)
+    recusado("proposta_repetida", mundo.propor, "isolar_dispositivo", "192.168.137.20")
+    recusado("proposta_repetida", mundo.propor, "isolar_dispositivo", "::ffff:192.168.137.20")
+    # A justificativa não faz a proposta ser outra.
+    recusado("proposta_repetida", mundo.propor, "isolar_dispositivo", "destino-1", justificativa="Outra razão.")
+    assert list(mundo.estado.propostas) == ["prop-0001"]
+
+
+def test_outra_acao_ou_outro_parametro_no_alvo_rejeitado_vai_para_a_pessoa(mundo):
+    rejeitar(mundo, mundo.propor("bloquear_ip", "203.0.113.7"))
+    # Com prazo, o bloqueio da origem externa seria de risco baixo; com o alvo rejeitado, não é.
+    com_prazo = mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})
+    assert (motivos(com_prazo), com_prazo.estado) == (["alvo_rejeitado"], "aguardando_aprovacao")
+    assert com_prazo.motivos_de_risco_alto[0].descricao == MOTIVOS_DE_RISCO_ALTO["alvo_rejeitado"]
+    assert motivos(mundo.propor("isolar_dispositivo", "203.0.113.7")) == ["acao_sempre_de_risco_alto", "alvo_rejeitado"]
+    # Todos os motivos que valem saem, na ordem da tabela do contrato.
+    assert motivos(mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 600})) == [
+        "prazo_acima_do_limite", "alvo_rejeitado",
+    ]
+
+
+def test_limitar_taxa_no_alvo_rejeitado_nao_e_aplicada_sem_a_pessoa():
+    # O caso do teste de 31/10 (Mirai-udpplain, inc-0002): rejeitado o bloqueio, a decisão propôs limitar a
+    # taxa do mesmo alvo por 60 minutos, de risco baixo, e a execução a aplicou sem ninguém.
+    mundo = Mundo(incidente=INCIDENTE_COM_VARIAS_ORIGENS)
+    rejeitar(mundo, mundo.propor("bloquear_ip", "origem-2", so_rotulos=True))
+    limite = mundo.propor("limitar_taxa", "origem-2", {"duracao": 60}, so_rotulos=True)
+    assert (limite.risco, limite.exige_aprovacao, motivos(limite)) == ("alto", True, ["alvo_rejeitado"])
+    assert "aprovação" in recusado("proposta_nao_liberada", mundo.executar, limite.id)
+    assert ambiente(mundo.estado).limites == []
+    # Com a aprovação da pessoa, ela é aplicada.
+    mundo.decidir(limite.id)
+    assert mundo.executar(limite.id).alvo == ORIGENS[1]
+
+
+def test_outra_acao_em_outro_alvo_nao_muda_depois_da_rejeicao():
+    mundo = Mundo(incidente=INCIDENTE_COM_VARIAS_ORIGENS)
+    mundo.aplicar([novo("incidente_aberto", INCIDENTE_COM_VARIAS_ORIGENS | {"id": "inc-0002"}, "inc-0002")])
+    rejeitar(mundo, mundo.propor("bloquear_ip", ORIGENS[0], {"duracao": 10 * 60}))
+    # Outra ação em outro alvo continua de risco baixo e é aplicada sem aprovação.
+    limite = mundo.propor("limitar_taxa", "192.168.137.20", {"duracao": 10})
+    bloqueio = mundo.propor("bloquear_ip", ORIGENS[1], {"duracao": 10})
+    assert [(proposta.risco, motivos(proposta)) for proposta in (limite, bloqueio)] == [("baixo", []), ("baixo", [])]
+    assert mundo.executar(limite.id).estado == mundo.executar(bloqueio.id).estado == "aplicada"
+    # A rejeição é do incidente: no outro, a mesma proposta e o mesmo alvo não mudam.
+    assert motivos(mundo.propor("bloquear_ip", ORIGENS[0], {"duracao": 10}, incidente="inc-0002")) == []
+    outra = mundo.propor("bloquear_ip", ORIGENS[0], {"duracao": 10 * 60}, incidente="inc-0002")
+    assert motivos(outra) == ["prazo_acima_do_limite"]
+
+
+@pytest.mark.parametrize("acao,alvo,parametros", [
+    ("revogar_credencial", "admin@192.168.137.20", {}),
+    ("fechar_porta", "80/tcp@192.168.137.20", {}),
+    ("isolar_dispositivo", "192.168.137.20", {}),
+    ("ativar_syn_cookies", "destino-1", ACAO_NOVA),
+])
+def test_o_alvo_rejeitado_e_o_endereco_do_alvo_em_qualquer_formato(mundo, acao, alvo, parametros):
+    # A conta e a porta ficam de fora: a pessoa disse não a uma ação naquele dispositivo.
+    rejeitar(mundo, mundo.propor(acao, alvo, parametros))
+    assert motivos(mundo.propor("limitar_taxa", "destino-1", {"duracao": 10})) == ["alvo_rejeitado"]
+    assert motivos(mundo.propor("limitar_taxa", "192.168.137.20", {"duracao": 10})) == ["alvo_rejeitado"]
+    # A origem continua livre.
+    assert motivos(mundo.propor("bloquear_ip", "203.0.113.7", {"duracao": 10})) == []
+
+
+def test_o_alvo_rejeitado_vale_pelo_endereco_que_um_ipv6_leva_dentro(mundo):
+    rejeitar(mundo, mundo.propor("bloquear_ip", "203.0.113.7"))
+    assert motivos(mundo.propor("limitar_taxa", "64:ff9b::203.0.113.7", {"duracao": 10})) == [
+        "alvo_fora_do_incidente", "alvo_rejeitado",
+    ]
+    rejeitar(mundo, mundo.propor("isolar_dispositivo", "::192.168.137.20"))
+    assert motivos(mundo.propor("limitar_taxa", "192.168.137.20", {"duracao": 10})) == ["alvo_rejeitado"]
+
+
+def test_alvo_em_texto_livre_rejeitado_nao_marca_endereco_nenhum(mundo):
+    nova = mundo.propor("ativar_syn_cookies", "o roteador da sala 3", ACAO_NOVA)
+    rejeitar(mundo, nova)
+    recusado("proposta_repetida", mundo.propor, "ativar_syn_cookies", "o roteador da sala 3", ACAO_NOVA)
+    # Com outro passo, é outra proposta: vai de novo para a pessoa, como toda ação nova.
+    outra = mundo.propor("ativar_syn_cookies", "o roteador da sala 3", ACAO_NOVA | {"passos": ["Ativar SYN cookies."]})
+    assert motivos(outra) == ["acao_nova"]
+    assert motivos(mundo.propor("limitar_taxa", "192.168.137.20", {"duracao": 10})) == []
+
+
+def test_proposta_liberada_antes_da_rejeicao_no_mesmo_alvo_nao_executa_sem_a_pessoa(mundo):
+    limite = mundo.propor("limitar_taxa", "203.0.113.7", {"duracao": 10})
+    assert limite.estado == "liberada"
+    rejeitar(mundo, mundo.propor("bloquear_ip", "203.0.113.7"))
+    mensagem = recusado("proposta_nao_liberada", mundo.executar, limite.id)
+    assert "rejeitou uma ação no mesmo alvo" in mensagem
+    assert mundo.estado.execucoes == {}
+
+
+def test_a_regra_do_catalogo_diz_que_o_alvo_rejeitado_vai_para_a_pessoa(mundo):
+    regras = {acao.nome: acao.regra for acao in catalogo(mundo.estado, mundo.politica)}
+    for nome in ("limitar_taxa", "bloquear_ip"):
+        assert "alvo em que a pessoa já rejeitou uma ação no incidente" in regras[nome]
+
+
+def test_log_anterior_a_versao_0_7_0_com_a_rejeitada_repetida_continua_legivel(mundo):
+    # O servidor de antes registrava a proposta igual à rejeitada e a medida de risco baixo no alvo
+    # rejeitado, aplicada sem a pessoa. A leitura do log não refaz essas contas: os logs do teste de 31/10
+    # continuam legíveis.
+    rejeitada = mundo.propor("bloquear_ip", "origem-1", so_rotulos=True)
+    rejeitar(mundo, rejeitada)
+    for numero in (2, 3):
+        mundo.aplicar([novo("acao_proposta", rejeitada.model_copy(update={"id": f"prop-{numero:04d}"}), "inc-0001")])
+        rejeitar(mundo, mundo.estado.propostas[f"prop-{numero:04d}"])
+    baixa = rejeitada.model_copy(update={
+        "id": "prop-0004", "acao": "limitar_taxa", "parametros": {"duracao": 60}, "risco": "baixo",
+        "motivos_de_risco_alto": [], "exige_aprovacao": False, "estado": "liberada",
+    })
+    aplicada = {
+        "id": "exec-0001", "proposta": "prop-0004", "incidente": "inc-0001", "acao": "limitar_taxa",
+        "alvo": "203.0.113.7", "parametros": {"duracao": 60}, "estado": "aplicada", "aplicada_em": INSTANTE,
+        "desfeita_em": None,
+    }
+    mundo.aplicar([novo("acao_proposta", baixa, "inc-0001"), novo("acao_executada", aplicada, "inc-0001")])
+    estado = mundo.estado
+    assert [proposta.estado for proposta in estado.propostas.values()] == ["rejeitada"] * 3 + ["executada"]
+    assert [execucao.alvo for execucao in ambiente(estado).limites] == ["203.0.113.7"]
+    # Daqui em diante, a regra nova vale para o que for proposto.
+    recusado("proposta_repetida", mundo.propor, "bloquear_ip", "origem-1", so_rotulos=True)
+    assert motivos(mundo.propor("limitar_taxa", "origem-1", {"duracao": 10}, so_rotulos=True)) == ["alvo_rejeitado"]
 
 
 # --- executar: exige o evento de aprovação e calcula o risco de novo -------------------------
@@ -2136,3 +2306,9 @@ def test_caractere_invisivel_nem_entra_no_log_e_por_isso_nao_chega_a_mensagem(mu
         mundo.aplicar([novo("acao_aprovada", APROVACAO | {"proposta": "prop\u200b-0007\u200d"}, "inc-0001")])
     mundo.aplicar([novo("acao_aprovada", APROVACAO | {"proposta": "prop-0007"}, "inc-0001")])
     assert violacao(mundo, "acao_aprovada", "prop-0007").isprintable()
+
+
+@pytest.mark.parametrize("valor", ["1.5", "-0.1", "1", '"0.6"'])
+def test_confianca_minima_fora_de_0_a_1_e_invalida(tmp_path, valor):
+    with pytest.raises(ValueError, match="confianca_minima_para_propor"):
+        carregar_politica(gravar_politica(tmp_path, {"incidentes": [f"confianca_minima_para_propor = {valor}"]}))
