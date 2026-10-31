@@ -4,9 +4,10 @@ Relatório escrito à mão, sem script: os números publicados vêm do artigo, e
 relatórios gerados que cada linha cita. As poucas contas feitas aqui sobre tabelas do artigo podem
 ser refeitas com o que está na seção 6, "Como conferir".
 
-**Fonte dos números publicados.** NETO, E. C. P. et al. CICIoT2023: a real-time dataset and
-benchmark for large-scale attacks in IoT environment. *Sensors*, v. 23, n. 13, 5941, 2023. DOI
-10.3390/s23135941. Lido em 27/10/2026 e conferido de novo em 30/10/2026 na versão do PubMed Central
+**Fonte dos números publicados.** NETO, E. C. P.; DADKHAH, S.; FERREIRA, R.; ZOHOURIAN, A.; LU,
+R.; GHORBANI, A. A. CICIoT2023: a real-time dataset and benchmark for large-scale attacks in IoT
+environment. **Sensors**, v. 23, n. 13, 5941, 2023. DOI: 10.3390/s23135941. Lido em 27/10/2026 e
+conferido de novo em 30/10/2026 na versão do PubMed Central
 (<https://pmc.ncbi.nlm.nih.gov/articles/PMC10346235/>): Tabela 3 (linhas por categoria), Tabela 4
 (features), Tabela 5 (estatísticas de cada feature), Tabela 6 (resultados dos modelos), Tabela 8
 (matriz de confusão do Random Forest em 8 classes) e seções 4 e 5 (janelas e protocolo). O notebook
@@ -26,7 +27,7 @@ traz com o nome impresso e o que de fato medem (ver adiante).
 
 Nos três cenários, o Random Forest tem a maior acurácia e o maior F1 dos cinco modelos da Tabela 6.
 
-O protocolo, nas palavras do artigo:
+O protocolo, segundo o artigo:
 - a divisão é de 80% para o treino e 20% para o teste, com os dados normalizados pelo
   `StandardScaler` antes do treino (seção 5);
 - a única feature retirada é o timestamp, "since it does not illustrate the network behavior"
@@ -91,8 +92,8 @@ dados é a do par DDoS e DoS.
   aparece na descrição de `Protocol Type`. Daí 46 − 8 + 1 = 39.
 - **Duas das oito quase não trazem informação nova.** Na Tabela 5 do artigo, `Srate` tem as mesmas
   estatísticas de `Rate` (média, desvio, mínimo, quartis e máximo), e `Drate` é zero até o percentil
-  75, com máximo de 29,7. `Magnitude`, `Radius` e `Covariance` separam o tráfego que entra do que
-  sai do fluxo, e `Weight` multiplica as duas contagens.
+  75, com máximo de 29,7. `Magnitude`, `Radius` e `Covariance` separam, no fluxo, o tráfego que
+  entra do que sai, e `Weight` multiplica as contagens das duas direções.
 - **Colunas de mesmo nome em outra escala.** A Tabela 5 do artigo e a faixa de valores dos arquivos
   públicos (`exploracao.md`, seções 6 e 7) não descrevem os mesmos dados:
 
@@ -113,7 +114,7 @@ mediu, que não estão disponíveis.
 
 **Com as 39 colunas, o acerto em 8 categorias no conjunto completo tem teto de 92,87%.** No
 `MERGED_CSV`, 29,49% das linhas têm o vetor das 39 features igual ao de uma linha de outra
-categoria. Quem só vê essas colunas dá a mesma resposta a todas essas linhas, e no conjunto
+categoria. Quem só vê essas colunas dá a mesma resposta a linhas de vetor igual, e no conjunto
 completo, na proporção natural, o acerto não passa de 92,87% (`exploracao.md`, seção 8). O teto vale
 para o conjunto em que é calculado e fica mais alto num conjunto menor: reponderado para a proporção
 natural, é 96,22% na amostra de 1.288.479 linhas e 98,27% nas 257.696 linhas de teste de
@@ -161,16 +162,17 @@ separação.
   `RandomForestClassifier` é importado nas células 15 e 20 e nunca instanciado, e só a regressão
   logística é treinada. Não há código do artigo para repetir.
 
-## 4. Como o artigo usa isto
+## 4. Como o artigo do TCC usa isto
 
-O artigo não compara os números do sistema com os da Tabela 6. A seção 3.4
+O artigo do TCC não compara os números do sistema com os da Tabela 6. A seção 3.4
 (`artigo/latex/secoes/3-metodologia.tex`) cita o benchmark dos autores e explica, com os números
-deste relatório, por que eles não se comparam: as colunas públicas, os 29,49% de linhas que repetem
-o vetor de outra categoria e o teto de 92,87%, contra os 99,44% publicados.
+deste relatório, por que os resultados dele não se comparam com os do sistema: as colunas
+públicas, os 29,49% de linhas que repetem o vetor de outra categoria e o teto de 92,87%, contra os
+99,44% publicados.
 
 ## 5. As outras partes da tarefa
 
-- **Importância das features:** já medida, por Bernardo.
+- **Importância das features:** já medida por Bernardo.
   - Por redução média de impureza no treino exploratório: `importancia_features.csv` e
     `treino_exploratorio.md`, "Importância das features".
   - No modelo de janela de 100 dos dados regerados: `regeracao.md`, em que as três primeiras são
@@ -178,8 +180,9 @@ o vetor de outra categoria e o teto de 92,87%, contra os 99,44% publicados.
   - Por permutação, no modelo de 10/10: `rodadas_de_teste.md`, "Importância por permutação".
 - **Ajuste enxuto de hiperparâmetros para reduzir o modelo do sistema (365,6 MB):** não feito. O
   treino precisa dos dados regerados (`dados/processed/regerado`), que ficam fora do git e não
-  estão na máquina de quem escreveu este relatório. Fica pendente para quem tem os dados rodar,
-  medindo tamanho em disco, tempo por janela e a Tabela 1 do artigo antes e depois.
+  estão na máquina de quem escreveu este relatório. Fica pendente para quem tem os dados rodar o
+  ajuste, medindo antes e depois o tamanho em disco, o tempo por janela e os números da Tabela 1
+  do artigo do TCC.
 
 ## 6. Como conferir
 

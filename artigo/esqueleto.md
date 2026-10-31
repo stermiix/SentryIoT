@@ -396,10 +396,10 @@ decisão, como o TreeSHAP, citar o método.]` O protocolo dos autores não é re
 notebook publicado não treina o Random Forest, e os nossos dados de treino são regerados dos
 pcaps, então os números não se comparam diretamente com os do artigo do dataset. A diferença começa
 nos dados: o modelo do artigo usou 46 features, e os arquivos públicos, outra versão dos dados,
-trazem 39, sem oito delas, como `flow duration`, `Magnitude` e `Covariance`. Com as 39, 29,49% das
-linhas do `MERGED_CSV` repetem o vetor de uma linha de outra categoria, e o acerto em 8 categorias
-no conjunto completo não passa de 92,87%, abaixo dos 99,44% publicados para o Random Forest
-(`experimentos/resultados/baseline_neto.md`).
+trazem 39, sem oito delas, como `flow duration`, `Magnitude` e `Covariance`. Com as 39 features,
+29,49% das linhas do `MERGED_CSV` repetem o vetor de uma linha de outra categoria, e o acerto em 8
+categorias no conjunto completo não passa de 92,87%, abaixo dos 99,44% publicados para o Random
+Forest (`experimentos/resultados/baseline_neto.md`).
 
 ### 3.5 Servidor MCP e sistema multiagente
 
