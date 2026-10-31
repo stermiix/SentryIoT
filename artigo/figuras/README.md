@@ -6,8 +6,8 @@ número escrito à mão; os diagramas são fontes Mermaid (`.mmd`). Todos os com
 partir da raiz do repositório, com o ambiente do `requirements.txt` e do `requirements-figuras.txt`
 ativo (`pip install -r requirements.txt -r requirements-figuras.txt`).
 
-Um comando só regera as figuras que o artigo em LaTeX (`artigo/latex/`) inclui, os gráficos e os
-diagramas:
+Um único comando regera as figuras que o artigo em LaTeX (`artigo/latex/`) inclui, tanto os
+gráficos quanto os diagramas:
 
     python -m artigo.figuras                        # tudo
     python -m artigo.figuras graficos               # ou só uma parte: graficos, diagramas
@@ -43,9 +43,9 @@ codigo.classificador.treinar_regerado` regravar o CSV, basta rodar `matriz_confu
 ## Dependências
 
 - Gráficos: `matplotlib` e `pillow`, fixados no `requirements-figuras.txt`, à parte do
-  `requirements.txt` para não entrar no CI nem no `pip-audit` dos testes. `estilo.py` guarda o que os gráficos
-  têm em comum: fonte serifada (Times New Roman, ou DejaVu Serif onde ela não existir), 16 cm de
-  largura, tons de cinza e hachuras para a leitura em preto e branco.
+  `requirements.txt` para não entrar no CI nem no `pip-audit` dos testes. `estilo.py` guarda o que
+  os gráficos têm em comum: fonte serifada (Times New Roman, ou DejaVu Serif onde ela não existir),
+  16 cm de largura, tons de cinza e hachuras para a leitura em preto e branco.
 - Diagramas: Node.js, para o `npx` rodar o mermaid-cli, com a versão fixada em `diagramas.py`.
   Na primeira execução, o `npx` baixa o mermaid-cli e o navegador que ele usa para desenhar.
   `python -m artigo.figuras.diagramas`, sem nome, exporta todos os `.mmd` da pasta.
@@ -59,8 +59,8 @@ treino (corte por tempo, hachurada) e com o pcap inteiro fora do treino. As duas
 mais provável, que é o ponto de operação do modelo do sistema. Somadas as janelas dos pcaps de cada
 categoria, as barras hachuradas reproduzem a coluna de recall da Tabela 1 do artigo, menos em
 DDoS+DoS, em que só 4 pcaps foram retirados (93,2% contra 98,4%); o título de cada painel, com o
-pcap fora, reproduz a última coluna. O gráfico não está no artigo nem no `python -m artigo.figuras`, e o PNG e o PDF não
-são versionados (`.gitignore`): `python -m artigo.figuras.pcap_fora_do_treino` grava os dois nesta
-pasta quando for preciso.
+pcap fora, reproduz a última coluna. O gráfico não está no artigo nem no `python -m
+artigo.figuras`, e o PNG e o PDF não são versionados (`.gitignore`): `python -m
+artigo.figuras.pcap_fora_do_treino` grava os dois nesta pasta quando for preciso.
 
 O PDF dos gráficos sai sem data de criação, e por isso os mesmos dados geram o mesmo arquivo.

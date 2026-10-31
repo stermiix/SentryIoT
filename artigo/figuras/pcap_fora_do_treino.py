@@ -3,8 +3,8 @@ inteiro fora do treino.
 
 Lê `experimentos/resultados/rodadas_normalizadas_pcap_fora.csv`, nas linhas do modelo do sistema
 (a configuração 5 de `rodadas_normalizadas.md`, com o fundo da parte de treino como benigno). Para
-cada pcap retirado nas rodadas, compara o recall no trecho de teste com o corte por tempo (o começo
-do pcap no treino) e com o pcap inteiro fora do treino, com a categoria mais provável, que é o ponto
+cada pcap retirado nas rodadas, compara o recall no trecho de teste entre o corte por tempo (o começo
+do pcap no treino) e o pcap inteiro fora do treino, com a categoria mais provável, que é o ponto
 de operação do modelo do sistema, na média das sementes 42, 1 e 2. Ao lado do nome de cada pcap
 vai o número de janelas de teste da semente 42. Um painel por categoria, na ordem da Tabela 1 do
 artigo; o título de cada painel traz o recall da categoria com o pcap fora, somando as janelas dos

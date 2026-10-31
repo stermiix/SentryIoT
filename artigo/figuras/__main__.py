@@ -35,7 +35,7 @@ def main(pedidas=None):
     pedidas = pedidas or list(PARTES)
     desconhecidas = [parte for parte in pedidas if parte not in PARTES]
     if desconhecidas:
-        sys.exit(f"Parte desconhecida: {', '.join(desconhecidas)}. Use {', '.join(PARTES)}.")
+        sys.exit(f"Parte desconhecida: {', '.join(desconhecidas)} (as partes são {', '.join(PARTES)}).")
     for parte in pedidas:
         PARTES[parte]()
 
