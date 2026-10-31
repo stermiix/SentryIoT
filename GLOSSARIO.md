@@ -58,24 +58,27 @@ peso conhecido — se marca certo no peso conhecido, dá para confiar nela em qu
 
 **tcpdump**
 O programa que grava o tráfego da rede num arquivo PCAP. Foi o que os autores do CICIoT2023
-usaram, e é o que o SentryIoT usa no gateway: grava o quadro inteiro (`-s 0`) e abre um arquivo
-novo a cada intervalo (`-G`). O Wireshark serve para olhar uma captura, não para gravar a do
-sistema; o pcapng que ele grava por padrão se converte com `editcap -F pcap`.
+usaram, e é o que o SentryIoT prevê no gateway: gravar o quadro inteiro (`-s 0`) e abrir um
+arquivo novo a cada intervalo (`-G`). A PoC lê arquivos já gravados; a captura ao vivo fica para
+depois. O Wireshark serve para olhar uma captura, não para gravar a do sistema; o pcapng que ele
+grava por padrão se converte com `editcap -F pcap`.
 
 **dpkt**
 A biblioteca Python que lê o PCAP quadro a quadro. É a mesma do código dos autores do dataset, e
-por isso o nosso extrator reproduz as 39 features deles. O Scapy, previsto no TCC I, ficou de fora.
+o nosso extrator, calibrado contra o deles, reproduz as 39 features. O Scapy, previsto no TCC I,
+ficou de fora.
 
 **Regeração dos dados**
 Refazer as linhas de treino a partir dos PCAPs, com o nosso extrator, em vez de usar o CSV
 oficial. Corrige dois problemas do CSV: a janela muda com a classe (10 ou 100 quadros) e o rótulo é
-do arquivo inteiro. Na regeração, toda janela tem 100 quadros, e a janela de um PCAP de ataque só
-leva o rótulo do ataque se tiver um quadro de um dos sete atacantes.
+do arquivo inteiro. Na regeração, toda janela tem o mesmo tamanho (100 quadros, no modelo do
+sistema), e a janela de um PCAP de ataque só leva o rótulo do ataque se tiver um quadro de um dos
+sete atacantes.
 
 **Tráfego de fundo**
 As janelas de um PCAP de ataque sem nenhum quadro do atacante: o tráfego normal da rede, que
 continuou durante a gravação. No CSV oficial elas levam o rótulo do ataque; no SentryIoT, as da
-parte de treino entram como benignas (40.966 janelas).
+parte de treino entram como benignas (40.966 janelas), e as da parte de teste ficam fora do teste.
 
 ---
 
@@ -119,20 +122,21 @@ Quando umas classes têm muito mais exemplos que outras. No nosso caso é extrem
 linhas). Isso distorce as métricas (ver abaixo).
 
 **Divisão por tempo e por arquivo**
-Como separamos treino e teste sem deixar janelas vizinhas dos dois lados: o começo de cada PCAP
-(70% das janelas) vai para o treino e o fim, para o teste. Quando o rótulo tem mais de um PCAP, o
-último fica inteiro no teste.
+Como separamos treino e teste sem sortear janela por janela, o que poria janelas vizinhas, quase
+iguais, dos dois lados. Num rótulo de um PCAP só, o começo do PCAP (70% das janelas) vai para o
+treino e o fim, para o teste. Num rótulo com mais de um PCAP, o último pela ordem do nome vai
+inteiro para o teste, e os outros, inteiros para o treino.
 
 **PCAP fora do treino**
-O controle mais duro do classificador: um PCAP sai inteiro do treino, e o modelo é medido nele,
-como se fosse uma captura nova. O recall cai em todas as categorias com mais de um PCAP; em Recon,
-fica em 24,9%, contra 55,0% no corte por tempo (Tabela 1 do artigo).
+O controle mais duro do classificador: um PCAP sai inteiro do treino, e o modelo é medido nas
+janelas de teste dele, como se fosse uma captura nova. O recall cai em todas as categorias com
+mais de um PCAP; em Recon, fica em 24,9%, contra 55,0% no corte por tempo (Tabela 1 do artigo).
 
 **Ponto de operação**
 A regra que transforma as probabilidades do modelo numa decisão sobre a janela. Duas concorreram
 numa parte de validação, separada do teste: o argmax e um limiar sobre a probabilidade de ataque.
 Venceu o argmax, que deixava no máximo 1% do tráfego benigno como ataque com o maior recall de
-ataque. O incidente só abre com 3 janelas de ataque seguidas.
+ataque. O incidente só abre com 4 janelas de ataque seguidas.
 
 **Argmax**
 "Fique com a categoria mais provável." Se o modelo diz 70% DDoS+DoS, 20% Recon e 10% Benign, o
@@ -275,19 +279,25 @@ LLM em nuvem significa mandar telemetria da rede para fora. A banca do TCC I cob
 discussão.
 
 **Modelo local e modelo de fronteira**
-O modelo local roda dentro da rede atendida, e o dado não sai dela; no SentryIoT, é o
-`qwen3.8-27c`. O de fronteira é um dos modelos mais capazes, pago por token e servido pela nuvem,
-pelo OpenRouter.
+O modelo local roda num servidor interno, sem custo por token e sem mandar o dado a um fornecedor
+de nuvem. No SentryIoT, é o `OBLITERATUS/Qwen3.8-27B-OBLITERATED`, o Qwen3.8-27B com a recusa
+removida dos pesos, servido com o nome `qwen3.8-27c` por um gateway de modelos interno; a versão e
+a quantização servidas não são conhecidas. O de fronteira é um dos modelos mais capazes, pago por
+token e servido pela nuvem, pelo OpenRouter.
 
 **Arquitetura híbrida**
 A divisão do SentryIoT: triagem e execução no modelo local, e só o agente de decisão no modelo de
-fronteira, lendo o resumo do incidente com rótulos neutros no lugar dos endereços. As outras duas
-configurações, tudo local e tudo na nuvem, servem de comparação no artigo.
+fronteira, lendo o resumo do incidente com rótulos neutros no lugar dos endereços. O servidor MCP
+já entrega esse resumo (`obter_resumo`); quem vai chamar cada agente no seu modelo é o
+orquestrador, a implementar. As outras duas configurações, tudo local e tudo na nuvem, serão
+comparadas com ela no artigo.
 
 **Orquestrador**
-O código que encadeia os agentes: chama a triagem, filtra os endereços do veredito, espera a
-aprovação no log e chama a execução. Não é um quarto agente; quem coordena o incidente é o agente
-de decisão.
+O código que vai encadear os agentes: chamar a triagem, passar o veredito pelo filtro de
+endereços (`tipos.mascarar_enderecos`), esperar a aprovação no log e chamar a execução. Não é um
+quarto agente; quem coordena o incidente é o agente de decisão. A implementar: hoje
+`codigo/agente/pedidos.py` só monta os pedidos aos modelos, e o laço ReAct (`codigo/agente/laco.py`)
+roda um agente de cada vez.
 
 **Stub do servidor MCP**
 O servidor MCP do repositório (`codigo/mcp/stub.py`). Nasceu como servidor de mentira, com
@@ -299,16 +309,23 @@ O comando que lê um PCAP (`python -m codigo.reprodutor`), extrai as janelas, cl
 abre os incidentes no log do servidor MCP. Na PoC, faz o papel da captura ao vivo.
 
 **Política de acionamento**
-A regra que decide quando as janelas de ataque viram incidente e chamam os agentes: 3 janelas
-seguidas abrem o incidente, e as janelas do mesmo ataque se juntam num incidente só. Um flood de
-264 mil janelas vira 4 incidentes. É a defesa contra o Denial of Wallet.
+A regra que decide quando as janelas de ataque viram incidente, e portanto quantas vezes os
+agentes são chamados: 4 janelas de ataque seguidas abrem o incidente, e as janelas do mesmo ataque
+se juntam num incidente só. Um flood de 264 mil janelas vira 4 incidentes, um por sessão de
+captura. É a defesa contra o Denial of Wallet. A primeira versão está no reprodutor de tráfego, com
+um teto de 20 incidentes por PCAP, que vale nos experimentos. No modo contínuo, sem PCAP para
+contar, o teto passa a ser por hora: até 10 incidentes por hora vão ao modelo de fronteira, e o
+resto segue só pelo modelo local (a implementar).
 
 **Gabarito da recomendação**
-A lista, fixada antes dos experimentos, das ações do catálogo aceitáveis em cada categoria de
-ataque e do alvo de cada uma. A qualidade da recomendação é a porcentagem de incidentes com uma
-ação aceitável no alvo certo.
+A lista das ações do catálogo aceitáveis em cada categoria de ataque e do alvo de cada uma
+(`experimentos/gabarito_da_recomendacao.toml`), que fica fixa antes da primeira rodada dos
+experimentos. A qualidade da recomendação é a porcentagem de incidentes com uma ação aceitável no
+alvo certo. O arquivo é um rascunho que a equipe ainda revisa; a conferência das rodadas contra ele
+é a implementar.
 
 **Aprovador automático**
-Nos experimentos, faz o papel da pessoa que aprova as ações de risco alto: aprova o que o gabarito
-aceita, rejeita o resto e grava a decisão no log. Assim o tempo até a remediação não depende de
-alguém estar olhando.
+Nos experimentos, vai fazer o papel da pessoa que aprova as ações de risco alto: aprovar o que o
+gabarito aceita, rejeitar o resto, inclusive a ação nova, e gravar a decisão no log como a de uma
+pessoa. Assim o tempo até a remediação não depende de alguém estar olhando. A implementar: hoje a
+aprovação só entra pelo comando da pessoa (`python -m codigo.mcp.aprovar`).
