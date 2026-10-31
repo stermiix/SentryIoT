@@ -63,7 +63,29 @@ Em relação ao modelo de 10/10, cada um no seu ponto de operação, o modelo do
 \subsection{Tráfego fora do CICIoT2023}
 \label{sec:fora}
 
-\pendente{a casa, o IoT-23 e o CICIoMT2024 numa tabela só (tarefas 93 e 95)}
+A Tabela~\ref{tab:fora} mostra o modelo do sistema, sem retreino, fora do conjunto de treino. As 18 capturas de ataque do CICIoMT2024 abriram incidente, inclusive as 5 de MQTT, protocolo que não aparece no treino, e os 8 malwares ativos do IoT-23 também. No total, com 4 janelas de ataque seguidas, 39 das 40 capturas de ataque alarmaram, e houve 6 incidentes falsos em cerca de 150 h de tráfego benigno. A captura sem alarme é o Recon-PingSweep do CICIoT2023, que também não alarma no corte por tempo (seção~\ref{sec:classificador}). Na casa, foram 0 incidentes falsos em 90 minutos, contra 4 com a regra anterior, de 3 janelas seguidas.
+
+A regra de 4 janelas foi escolhida depois desses testes, entre 12 regras comparadas, e por isso a tabela é uma análise de sensibilidade, e não uma validação independente. Com ela, os incidentes falsos caem de 14 para 6 sem perder nenhuma captura de ataque, a classificação de cada janela não muda, e a mediana do primeiro alarme nos ataques do CICIoT2023 vai de 11,9~s para 16,3~s. Nos ataques do CICIoT2023, a categoria do primeiro alarme é a certa em 11 de 14 capturas.
+
+\begin{table}[htbp]
+	\centering
+	\caption{Modelo do sistema fora do conjunto de treino, sem retreino: horas de tráfego benigno, incidentes falsos com 4 e com 3 janelas de ataque seguidas e capturas de ataque com alarme, com 4 janelas seguidas. No CICIoT2023, só o trecho de teste dos pcaps.}
+	\label{tab:fora}
+	\small
+	\begin{tabular}{lrrrr}
+		\hline
+		\textbf{Captura} & \begin{tabular}[b]{@{}r@{}}\textbf{Benigno}\\\textbf{(h)}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Falsos,}\\\textbf{4 seguidas}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Falsos,}\\\textbf{3 seguidas}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Ataques}\\\textbf{com alarme}\end{tabular} \\
+		\hline
+		Casa & 1,5 & 0 & 4 & -- \\
+		CICIoT2023 (teste) & 8,0 & 1 & 4 & 13 de 14 \\
+		CICIoMT2024 & 3,9 & 4 & 5 & 18 de 18 \\
+		IoT-23 & 137,0 & 1 & 1 & 8 de 8 \\
+		\hline
+		Total & 150,4 & 6 & 14 & 39 de 40 \\
+		\hline
+	\end{tabular}
+	\legend{Fonte: os autores.}
+\end{table}
 
 \subsection{Agentes}
 \label{sec:agentes}
@@ -79,8 +101,9 @@ Em relação ao modelo de 10/10, cada um no seu ponto de operação, o modelo do
 	\item \textbf{A regra que adotou o fundo no treino:} a condição sobre o Recon-PortScan.pcap foi atendida pela média, com queda de 3,53 pontos no trecho de teste do pcap, mas o intervalo de 95\% da queda vai de 1,77 a 5,29 pontos e não exclui uma queda acima do limite de 5. No pcap inteiro, a queda é de 6,26 pontos, e por ele a condição falharia.
 	\item \textbf{Web e BruteForce:} recall de 35,1\% e de 34,4\% no corte por tempo, no ponto de operação, confundidos com Recon e com tráfego benigno. Os intervalos são largos: no modelo de 10/10, por blocos, de 19,2\% a 52,0\% em BruteForce, que tem um tamanho efetivo de 15 janelas de teste. Com o fundo no treino, essas categorias são menos reconhecidas como ataque numa captura nova: com o pcap fora do treino, Web visto como algum ataque cai de 77,1\% para 51,8\% e BruteForce, de 76,4\% para 56,9\%, em relação ao modelo de 10/10 (o intervalo de 95\% da diferença não inclui zero), embora o recall de Web na categoria certa não mude. Os pcaps dessas classes são curtos, e o grupo não tem captura própria.
 	\item \textbf{Outra captura da mesma categoria:} com o pcap inteiro fora do treino, o recall de Recon fica em 24,9\%, o de Spoofing em 63,0\%, o de Mirai em 55,3\% e o de Web em 29,4\% (Tabela~\ref{tab:classificador}). Cada pcap de Recon e de Web é uma técnica diferente, e tirar o pcap tira também a técnica do treino. BruteForce tem um pcap só.
-	\item \textbf{Uma rede diferente da do dataset:} o classificador foi treinado e testado só com o tráfego do laboratório do CICIoT2023, com os mesmos dispositivos, os mesmos sete atacantes e o mesmo tráfego normal; mesmo as medidas com o pcap inteiro fora do treino vêm dessa rede. O desempenho numa rede real, com outros dispositivos e outro tráfego normal, não foi medido, e o recall e o alarme falso podem ser outros. O TTL (Time To Live) e o tamanho dos quadros, que pesam nas decisões do modelo, dependem dos dispositivos e de como o tráfego é capturado (itens abaixo).
-	\item \textbf{Tráfego que não é de IoT:} o tráfego benigno do treino é só de dispositivos IoT. No teste de captura de 25/10 (seção~\ref{sec:captura}), o tráfego normal de um notebook deu 8 das 23 janelas como Spoofing e abriu um incidente de Spoofing, com confiança de 0,54. Computadores e celulares têm outro tráfego normal, e o sistema foi pensado para vigiar a rede dos aparelhos IoT.
+	\item \textbf{Uma rede diferente da do dataset:} o classificador foi treinado e testado só com o tráfego do laboratório do CICIoT2023, com os mesmos dispositivos, os mesmos sete atacantes e o mesmo tráfego normal; mesmo as medidas com o pcap inteiro fora do treino vêm dessa rede. Fora dele, o modelo foi medido sem retreino numa casa, no IoT-23 e no CICIoMT2024 (seção~\ref{sec:fora}), mas são poucas redes, uma casa só, por 90 minutos, e a regra de 4 janelas foi escolhida depois de ver esses testes. O TTL (Time To Live) e o tamanho dos quadros, que pesam nas decisões do modelo, dependem dos dispositivos e de como o tráfego é capturado (itens abaixo).
+	\item \textbf{Tráfego que não é de IoT:} o tráfego benigno do treino é só de dispositivos IoT. No teste de captura de 25/10 (seção~\ref{sec:captura}), o tráfego normal de um notebook deu 8 das 23 janelas como Spoofing e abriu um incidente de Spoofing, com confiança de 0,54. Computadores e celulares têm outro tráfego normal, e o sistema foi pensado para vigiar a rede dos aparelhos IoT. Na casa, com aparelhos IoT, o sistema não abriu incidente falso em 90 minutos (seção~\ref{sec:fora}).
+	\item \textbf{Fora do CICIoT2023:} o tráfego benigno do CICIoMT2024 gerou 4 incidentes falsos em 3,9~h. A janela que leva mais de 60~s para fechar não é julgada: nas 131~h da lâmpada e da fechadura do IoT-23, só 194 das 5.729 janelas foram julgadas, e os 3 malwares silenciosos do IoT-23 não tiveram nenhuma. Um ataque lento num aparelho de pouco tráfego também não seria visto.
 	\item \textbf{IPv6:} o extrator só mede quadros IPv4 e ARP, como o código dos autores, e ignora o IPv6. No mesmo teste, 2.674 dos 5.000 quadros (53\%) eram IPv6. Um ataque feito só por IPv6 não é visto.
 	\item \textbf{Tráfego que não cruza o gateway:} o sistema só vê o que passa pelo ponto de captura. Numa rede em que o gateway não é o ponto de acesso, nem separa a rede IoT das outras, o ataque de um aparelho contra outro da mesma rede não chega a ele. Sensores em Zigbee ou Bluetooth, fora da rede IP (Internet Protocol), também ficam de fora.
 	\item \textbf{DDoS vindo da internet:} um flood volumétrico de fora lota o link da operadora antes de chegar ao gateway. Bloquear as origens no gateway não libera o link; isso pede ação do provedor.
