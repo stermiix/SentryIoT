@@ -54,6 +54,8 @@ RECUSA_DO_PROVEDOR = "recusa_do_provedor"
 # A resposta foi cortada no máximo de tokens de saída (finish_reason length).
 LIMITE_DE_SAIDA = "limite_de_saida"
 _TERMINO_INTERROMPIDO = {"content_filter": RECUSA_DO_PROVEDOR, "length": LIMITE_DE_SAIDA}
+# Quanto do texto cortado no limite de saída fica no resultado, para diagnosticar a degeneração.
+COMECO_DO_TEXTO_CORTADO = 300
 
 AVISO_DE_CHAMADA_REPETIDA = (
     "Chamada repetida, não executada: esta tool já foi chamada nesta conversa com estes mesmos argumentos, "
@@ -88,12 +90,15 @@ class ResultadoDoLaco:
 
     `mensagens` é o histórico inteiro, com o que o chamador mandou na frente. Chamadas não
     executadas recebem uma resposta de erro no histórico, sem disparar ações ao encerrar o laço.
+    Com `LIMITE_DE_SAIDA`, `comeco_do_texto_cortado` guarda o começo do que o modelo escreveu antes
+    do corte, que não vai para o log; nos outros motivos, é `None`.
     """
 
     motivo: str
     resposta: str | None
     mensagens: tuple[dict, ...]
     chamadas_ao_modelo: tuple[ChamadaAoModelo, ...]
+    comeco_do_texto_cortado: str | None = None
 
     @property
     def terminou_bem(self):
@@ -143,16 +148,16 @@ def rodar(
     # Quantas vezes cada chamada (tool e argumentos) já foi pedida neste laço.
     pedidas = Counter()
 
-    def terminar(motivo, resposta=None):
-        return ResultadoDoLaco(motivo, resposta, tuple(historico), tuple(chamadas))
+    def terminar(motivo, resposta=None, cortado=None):
+        return ResultadoDoLaco(motivo, resposta, tuple(historico), tuple(chamadas), cortado)
 
     def cabe_no_historico():
         return len(json.dumps({"messages": historico, "tools": tools}, ensure_ascii=False)) <= maximo_do_historico
 
-    def interromper(motivo, pedidos):
+    def interromper(motivo, pedidos, cortado=None):
         for pedido in pedidos:
             historico.append(_mensagem_da_tool(pedido, f"Erro da tool: não executada; laço encerrado por {motivo}."))
-        return terminar(motivo)
+        return terminar(motivo, cortado=cortado)
 
     for volta in range(1, maximo_de_voltas + 1):
         if not cabe_no_historico():
@@ -176,7 +181,8 @@ def rodar(
         if motivo == RESPOSTA_FINAL:
             return terminar(RESPOSTA_FINAL, resposta.conteudo)
         if motivo is not None:
-            return interromper(motivo, resposta.pedidos)
+            cortado = _comeco_do_texto(resposta) if motivo == LIMITE_DE_SAIDA else None
+            return interromper(motivo, resposta.pedidos, cortado)
         if volta == maximo_de_voltas:
             # O modelo não teria outra volta para ler o resultado: uma ação aplicada aqui ficaria
             # sem a verificação do efeito.
@@ -251,6 +257,12 @@ def _executar_pedidos(historico, pedidos, argumentos, repetidas, permitidas, exe
             else:
                 texto = f"Erro da tool: {resultado.texto}" if resultado.erro else resultado.texto
         historico.append(_mensagem_da_tool(pedido, texto))
+
+
+def _comeco_do_texto(resposta):
+    """O começo do que o modelo escreveu antes do corte: o texto ou, sem ele, as tools que pediu."""
+    texto = resposta.conteudo.strip() or " ".join(f"{pedido.nome}({pedido.argumentos})" for pedido in resposta.pedidos)
+    return texto[:COMECO_DO_TEXTO_CORTADO]
 
 
 def _somar_tokens(chamadas, atributo):

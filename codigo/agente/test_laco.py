@@ -7,6 +7,7 @@ import pytest
 from codigo.agente.laco import (
     AVISO_DE_CHAMADA_REPETIDA,
     CHAMADA_REPETIDA,
+    COMECO_DO_TEXTO_CORTADO,
     LIMITE_DE_SAIDA,
     LIMITE_DE_TOOLS,
     LIMITE_DE_VOLTAS,
@@ -372,6 +373,35 @@ def test_resposta_interrompida_pelo_provedor_nao_dispara_tools(motivo, esperado)
     assert executor.chamadas == []
     assert len(resultado.chamadas_ao_modelo) == 1
     assert resultado.chamadas_ao_modelo[0].motivo_termino == motivo
+
+
+def test_resposta_cortada_no_limite_de_saida_guarda_o_comeco_do_texto():
+    degenerado = "varredura de portas, " * 100
+    cortada = dataclasses.replace(resposta(degenerado), motivo_termino="length")
+
+    resultado = rodar(ProvedorFalso(cortada), "m-1", ABERTURA, TOOLS, Executor())
+
+    assert resultado.motivo == LIMITE_DE_SAIDA
+    assert resultado.comeco_do_texto_cortado == degenerado[:COMECO_DO_TEXTO_CORTADO]
+
+
+def test_sem_texto_o_comeco_cortado_vem_das_tools_pedidas_pela_metade():
+    cortada = dataclasses.replace(
+        resposta(pedidos=[pedido("propor_acao", '{"id": "inc-0001", "justificativa": "varredura, varredura')]),
+        motivo_termino="length",
+    )
+    executor = Executor()
+
+    resultado = rodar(ProvedorFalso(cortada), "m-1", ABERTURA, TOOLS, executor)
+
+    assert executor.chamadas == []
+    assert resultado.comeco_do_texto_cortado == 'propor_acao({"id": "inc-0001", "justificativa": "varredura, varredura)'
+
+
+def test_so_o_limite_de_saida_guarda_o_texto():
+    recusa = dataclasses.replace(resposta("Não posso."), motivo_termino="content_filter")
+    assert rodar(ProvedorFalso(recusa), "m-1", ABERTURA, TOOLS, Executor()).comeco_do_texto_cortado is None
+    assert rodar(ProvedorFalso(resposta("Pronto.")), "m-1", ABERTURA, TOOLS, Executor()).comeco_do_texto_cortado is None
 
 
 def test_cada_chamada_guarda_o_finish_reason_do_provedor():
