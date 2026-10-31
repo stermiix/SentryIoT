@@ -6,6 +6,12 @@ número escrito à mão; os diagramas são fontes Mermaid (`.mmd`). Todos os com
 partir da raiz do repositório, com o ambiente do `requirements.txt` e do `requirements-figuras.txt`
 ativo (`pip install -r requirements.txt -r requirements-figuras.txt`).
 
+Um único comando regera as figuras que o artigo em LaTeX (`artigo/latex/`) inclui, tanto os
+gráficos quanto os diagramas:
+
+    python -m artigo.figuras                        # tudo
+    python -m artigo.figuras graficos               # ou só uma parte: graficos, diagramas
+
 | Figura | Script ou fonte | Dados usados | Comando para regerar |
 |---|---|---|---|
 | 1. Arquitetura do sistema | `arquitetura.mmd` | ROADMAP.md e `codigo/mcp/README.md` (descrição, sem dados) | `python -m artigo.figuras.diagramas arquitetura` |
@@ -14,17 +20,13 @@ ativo (`pip install -r requirements.txt -r requirements-figuras.txt`).
 | 4. Teste da janela | `teste_da_janela.py` | `experimentos/resultados/teste_da_janela.csv` | `python -m artigo.figuras.teste_da_janela` |
 | 5. Janelas sem atacante | `janelas_sem_atacante.py` | `experimentos/resultados/janelas_sem_atacante.csv` | `python -m artigo.figuras.janelas_sem_atacante` |
 
-A numeração segue a ordem em que o `artigo/esqueleto.md` cita as figuras.
+A numeração segue a ordem em que o artigo em LaTeX inclui as figuras.
 
-As capturas da interface ainda não têm número, porque o esqueleto não as cita:
-
-| Captura | Como foi gerada | Dados usados | Como refazer |
-|---|---|---|---|
-| `interface_fila.png`: tela 1, resumo e fila de incidentes | Interface em modo replay, janela de 1440 px de largura e resolução 2x | `codigo/mcp/exemplos/incidente_flood.jsonl`, o log de exemplo do MCP | A interface não traz log: em `frontend/`, copiar esse arquivo para `public/dados/`, `npm ci` e `VITE_LOG_DE_EVENTOS=/dados/incidente_flood.jsonl npm run dev`; capturar de `http://localhost:5173` até o fim da fila |
-| `interface_detalhe.png`: tela 2, detalhe do `inc-0001` | Igual à anterior, só a seção de detalhe, com o primeiro incidente da fila selecionado | Igual à anterior | Igual à anterior, com o `inc-0001` selecionado |
-
-Os números das capturas são ilustrativos, do roteiro do stub MCP, como a própria tela avisa, e não
-podem ser citados como resultado. As horas aparecem no fuso de quem abre a página.
+As capturas da interface não são figuras do artigo e não ficam nesta pasta. Para os slides, a
+interface se fotografa em modo replay com o log de uma execução real que possa ser publicada (como
+abrir o log está no `frontend/README.md`, em "Log do replay"). O log de exemplo do stub
+(`codigo/mcp/exemplos/incidente_flood.jsonl`) é só dos testes e não serve para captura: a interface
+não mostra dado simulado (decisão de 15/10 no `ROADMAP.md`).
 
 **A matriz de confusão é a do modelo do sistema.** É o modelo da configuração 5, treinado com o
 fundo da parte de treino dos pcaps de ataque como benigno, no ponto de operação escolhido na
@@ -41,11 +43,24 @@ codigo.classificador.treinar_regerado` regravar o CSV, basta rodar `matriz_confu
 ## Dependências
 
 - Gráficos: `matplotlib` e `pillow`, fixados no `requirements-figuras.txt`, à parte do
-  `requirements.txt` para não entrar no CI nem no `pip-audit` dos testes. `estilo.py` guarda o que as três figuras
-  têm em comum: fonte serifada (Times New Roman, ou DejaVu Serif onde ela não existir), 16 cm de
-  largura, tons de cinza e hachuras para a leitura em preto e branco.
+  `requirements.txt` para não entrar no CI nem no `pip-audit` dos testes. `estilo.py` guarda o que
+  os gráficos têm em comum: fonte serifada (Times New Roman, ou DejaVu Serif onde ela não existir),
+  16 cm de largura, tons de cinza e hachuras para a leitura em preto e branco.
 - Diagramas: Node.js, para o `npx` rodar o mermaid-cli, com a versão fixada em `diagramas.py`.
   Na primeira execução, o `npx` baixa o mermaid-cli e o navegador que ele usa para desenhar.
   `python -m artigo.figuras.diagramas`, sem nome, exporta todos os `.mmd` da pasta.
+
+## Gráfico de análise fora do artigo
+
+`pcap_fora_do_treino.py` desenha o recall de cada um dos 21 pcaps retirados nas rodadas de teste
+(`experimentos/resultados/rodadas_normalizadas_pcap_fora.csv`, linhas do modelo do sistema), no
+trecho de teste do pcap e na média das sementes 42, 1 e 2, em duas barras: com o começo do pcap no
+treino (corte por tempo, hachurada) e com o pcap inteiro fora do treino. As duas usam a categoria
+mais provável, que é o ponto de operação do modelo do sistema. Somadas as janelas dos pcaps de cada
+categoria, as barras hachuradas reproduzem a coluna de recall da Tabela 1 do artigo, menos em
+DDoS+DoS, em que só 4 pcaps foram retirados (93,2% contra 98,4%); o título de cada painel, com o
+pcap fora, reproduz a última coluna. O gráfico não está no artigo nem no `python -m
+artigo.figuras`, e o PNG e o PDF não são versionados (`.gitignore`): `python -m
+artigo.figuras.pcap_fora_do_treino` grava os dois nesta pasta quando for preciso.
 
 O PDF dos gráficos sai sem data de criação, e por isso os mesmos dados geram o mesmo arquivo.

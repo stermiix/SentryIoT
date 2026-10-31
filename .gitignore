@@ -13,6 +13,10 @@ dados/eventos/
 # Log que a interface le no replay, posto em public/ so na maquina de quem roda: pode ter enderecos reais
 frontend/public/dados/
 
+# Grafico de analise fora do artigo, gerado so quando pedido (artigo/figuras/README.md)
+artigo/figuras/pcap_fora_do_treino.png
+artigo/figuras/pcap_fora_do_treino.pdf
+
 # Modelos treinados
 *.pkl
 *.joblib
