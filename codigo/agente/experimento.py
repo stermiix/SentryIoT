@@ -1,7 +1,7 @@
 """O executor dos experimentos ponta a ponta dos agentes.
 
-Para cada incidente do conjunto, em cada configuração (tudo local, tudo na nuvem, híbrida) e em cada
-repetição, roda o orquestrador (`codigo/agente/agentes.py`) com o aprovador automático
+Para cada incidente do conjunto, na configuração tudo local (as da nuvem saíram dos experimentos em 31/10) e em
+cada repetição, roda o orquestrador (`codigo/agente/agentes.py`) com o aprovador automático
 (`codigo/agente/aprovador.py`) e mede o que a decisão de 25/10/2026 pede:
 
 - a qualidade da recomendação: se a ação proposta é aceitável no alvo certo pelo gabarito. Cada proposta é
@@ -23,7 +23,7 @@ O trabalho é em três comandos, a partir da raiz do repositório (o `preparar` 
         CICIoT2023/DictionaryBruteForce.pcap CICIoT2023/BenignTraffic2.pcap \\
         --por-pcap 4 --saida dados/processed/agentes
     python -m codigo.agente.experimento rodar --conjunto dados/processed/agentes/conjunto.json \\
-        --configuracoes local hibrida nuvem --repeticoes 3 --saida dados/processed/agentes
+        --configuracoes local --repeticoes 3 --saida dados/processed/agentes
     python -m codigo.agente.experimento consolidar --rodadas dados/processed/agentes/rodadas \\
         --saida experimentos/resultados
 
@@ -43,8 +43,8 @@ ver os resultados. Os cenários são os do artigo (seção 3.6), DDoS, varredura
   (`reprodutor/limiar.py`) e já vêm no conjunto, sem escolha;
 - de cada pcap entram os primeiros 4 incidentes, na ordem em que abriram (`--por-pcap 4`): sem escolher incidente
   a incidente, para ninguém poder escolher os que dão certo. São no máximo 29 incidentes (4 em cada um dos sete
-  pcaps de ataque e o do benigno, que só tem 1), perto dos cerca de 30 previstos e, com 3 configurações e 3
-  repetições, perto das 270 rodadas. O que o `preparar` imprime diz quantos entraram de fato;
+  pcaps de ataque e o do benigno, que só tem 1), perto dos cerca de 30 previstos e, com a configuração
+  local e 3 repetições, perto de 87 rodadas (270 com as três configurações, antes de 31/10). O que o `preparar` imprime diz quantos entraram de fato;
 - se entrarem menos de 27, sobe-se `--por-pcap` para 5, com a mesma lista de pcaps e sem olhar nenhum resultado dos
   agentes. A lista de pcaps não muda depois disso.
 
@@ -445,7 +445,7 @@ def main(argv=None):
 
     rodar = comandos.add_parser("rodar", help="roda os agentes nos incidentes do conjunto, e retoma de onde parou")
     rodar.add_argument("--conjunto", default=f"dados/processed/agentes/{CONJUNTO}")
-    rodar.add_argument("--configuracoes", nargs="+", choices=list(CONFIGURACOES), default=list(CONFIGURACOES))
+    rodar.add_argument("--configuracoes", nargs="+", choices=list(CONFIGURACOES), default=["local"])
     rodar.add_argument("--repeticoes", type=int, default=3)
     rodar.add_argument("--limite", type=int, help="só os primeiros N incidentes do conjunto, para um teste curto")
     rodar.add_argument("--saida", default="dados/processed/agentes", help="pasta de onde saem as rodadas")
