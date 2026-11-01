@@ -37,6 +37,10 @@ BINARIO_DO_ROTULO = {
     rotulo: "Benign" if nome == "Benign" else "Attack" for rotulo, nome in CATEGORIA_DO_ROTULO.items()
 }
 
+# O modelo do sistema junta DDoS e DoS numa classe só, e quem separa os dois é a regra das origens do
+# reprodutor. Uma troca entre eles não é erro de categoria: o gabarito aceita as mesmas ações nos dois.
+_FLOODS = {"DDoS", "DoS"}
+
 # Nomes do tráfego benigno fora do dicionário dos autores: no MERGED_CSV e na pasta por ataque.
 _OUTROS_NOMES = {"benign": "BenignTraffic", "benign_final": "BenignTraffic"}
 _CANONICO = {rotulo.casefold(): rotulo for rotulo in ROTULOS} | _OUTROS_NOMES
@@ -57,6 +61,11 @@ def normalizar(rotulo):
 def categoria(rotulo):
     """Categoria do rótulo, entre as 8 de CATEGORIAS."""
     return CATEGORIA_DO_ROTULO[normalizar(rotulo)]
+
+
+def mesma_familia(categoria, outra):
+    """Se as duas categorias são a mesma, contando DDoS e DoS como uma só (decisão de 2026-10-31)."""
+    return categoria == outra or {categoria, outra} <= _FLOODS
 
 
 def binario(rotulo):

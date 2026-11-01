@@ -345,6 +345,6 @@ está implementada.
 Nos experimentos, faz o papel da pessoa que aprova as ações de risco alto: aprova o que o
 gabarito aceita, rejeita o resto, inclusive a ação nova, e grava a decisão no log como a de uma
 pessoa, com o usuário `aprovador-automatico`. Assim o tempo até a remediação não depende de alguém
-estar olhando. O papel do alvo (origem ou destino) vem dos IPs dos atacantes do dataset, que quem chama
+estar olhando. Ação em endereço protegido pela política nunca é aceita. O papel do alvo (origem ou destino) vem dos IPs dos atacantes do dataset, que quem chama
 entrega. Está em `codigo/agente/aprovador.py` (`AprovadorPorGabarito`); na demonstração à banca, a
 aprovação continua sendo da pessoa, pelo comando `python -m codigo.mcp.aprovar`.

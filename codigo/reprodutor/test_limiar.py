@@ -37,11 +37,28 @@ def test_verdadeiro_pede_pcap_de_ataque_quadro_de_atacante_e_a_categoria_do_pcap
 
 
 def test_contar_separa_falsos_pegos_de_verdadeiros_marcados(tmp_path):
-    _resultado(tmp_path, "DDoS.pcap", "DDoS", [
-        _incidente("DDoS", 0.95), _incidente("DDoS", 0.55), _incidente("DoS", 0.45), _incidente("DoS", 0.9),
+    _resultado(tmp_path, "Recon.pcap", "Recon", [
+        _incidente("Recon", 0.95), _incidente("Recon", 0.55), _incidente("Web", 0.45), _incidente("Web", 0.9),
     ])
 
     assert limiar.contar(limiar.ler(tmp_path), 0.6) == (1, 2, 1, 2)
+
+
+def test_ddos_e_dos_sao_uma_familia_so_na_verdade_de_campo(tmp_path):
+    _resultado(tmp_path, "DDoS-UDP_Flood.pcap", "DDoS", [_incidente("DoS", 0.9), _incidente("Recon", 0.9)])
+    _resultado(tmp_path, "DoS-UDP_Flood.pcap", "DoS", [_incidente("DDoS", 0.9)])
+
+    assert [i.verdadeiro for i in limiar.ler(tmp_path)] == [True, False, True]
+
+
+def test_sem_falso_fora_do_teste_a_regra_nao_escolhe_e_o_relatorio_explica(tmp_path):
+    _resultado(tmp_path, "A.pcap", "Recon", [_incidente("Recon", 0.9), _incidente("Web", 0.58, no_teste=1)])
+    incidentes = limiar.ler(tmp_path)
+
+    assert limiar.escolher(incidentes) is None
+    texto = limiar.relatorio(incidentes)
+    assert "| 0,60 (escolhido) |" in texto
+    assert "não tem o que escolher" in texto
 
 
 def test_escolhe_so_fora_do_teste_o_menor_limiar_que_pega_mais_falsos_sem_marcar_verdadeiro(tmp_path):
