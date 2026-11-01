@@ -62,6 +62,8 @@ SKILLS = {
     "decisao": ("coordenacao-do-incidente", "analise-por-categoria", "recomendacao-de-mitigacao"),
     "execucao": ("execucao-da-acao",),
 }
+# Uma ação por rodada: depois da proposta aceita, a decisão só escreve a recomendação.
+TOOLS_QUE_ENCERRAM = {"decisao": frozenset({"propor_acao"})}
 MAXIMO_DE_RODADAS = 3
 ESPERA_DA_APROVACAO_S = 600
 INTERVALO_DA_APROVACAO_S = 2
@@ -285,6 +287,7 @@ def rodar_agente(papel, incidente, abertura, *, perfil, onde, log, cenarios=None
     with abrir_cliente(papel, log, cenarios) as cliente:
         resultado = rodar(
             perfil.provedor, perfil.modelo, mensagens, cliente.tools, cliente,
+            tools_que_encerram=TOOLS_QUE_ENCERRAM.get(papel, frozenset()),
             ao_chamar=chamadas_no_log(gravador, incidente, onde), **limites_do_laco,
         )
     if depois is not None:

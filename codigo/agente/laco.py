@@ -16,6 +16,11 @@ modelo recebe um aviso de que o resultado já está no histórico. Vale também 
 de uma ação, que poderia trazer outro resultado, como `consultar_estado` antes e depois de
 `executar_acao`; nenhuma skill pede a mesma leitura duas vezes.
 
+Numa volta sem tools, o modelo só pode dar a resposta final, e uma mensagem diz isso a ele. É assim
+depois dos avisos de chamada repetida e depois de uma tool que encerra o trabalho do agente, como
+`propor_acao`. Uma resposta que escreve a chamada de tool como texto não é a final: ela não vai para
+o log como análise, e a volta seguinte é sem tools.
+
 Cada chamada ao modelo gera uma `ChamadaAoModelo`, entregue a `ao_chamar` na hora. É o que vira o
 evento `llm_chamada` do log (ver `registro.py`).
 """
@@ -36,6 +41,9 @@ MAXIMO_DE_REPETICOES = 3
 # dar a resposta final. Alternando entre duas tools repetidas, ele gastaria as voltas sem nunca parar
 # na trava de cima, e a proposta já registrada ficaria sem recomendação.
 AVISOS_ANTES_DE_TIRAR_AS_TOOLS = 2
+# Sem a lista de tools, o modelo local às vezes escreve a chamada no texto da resposta, e isso virava
+# a análise da triagem: 6 das 98 rodadas da validação de 31/10.
+CHAMADA_EM_TEXTO = "<tool_call>"
 # Medido contra o stub em 26/10/2026: `obter_janelas(id, 20)`, que a skill da triagem pede, devolve
 # de 6,9 mil a 15 mil caracteres nos quatro incidentes de exemplo, e até cerca de 22,5 mil com as 39
 # features em 6 casas decimais, como as do reprodutor. As demais tools ficam abaixo de 4 mil. Um
@@ -65,6 +73,10 @@ AVISO_DE_CHAMADA_REPETIDA = (
     "Chamada repetida, não executada: esta tool já foi chamada nesta conversa com estes mesmos argumentos, "
     "e o resultado está acima, na resposta à primeira chamada. Não repita a chamada; use aquele resultado "
     "para seguir com o próximo passo ou dar a resposta final."
+)
+AVISO_SEM_TOOLS = (
+    "Não há mais tools nesta conversa, e chamada de tool escrita em texto não é executada. "
+    "Escreva agora a resposta final, no formato pedido, com o que já está acima."
 )
 
 
@@ -129,6 +141,7 @@ def rodar(
     maximo_do_resultado=MAXIMO_DO_RESULTADO,
     maximo_de_tools_por_volta=MAXIMO_DE_TOOLS_POR_VOLTA,
     maximo_do_historico=MAXIMO_DO_HISTORICO,
+    tools_que_encerram=frozenset(),
     ao_chamar=None,
     relogio=time.perf_counter,
 ):
@@ -138,7 +151,8 @@ def rodar(
     incidente). `tools` está no formato de `tools` da API. `executar(nome, argumentos)` recebe os
     argumentos já lidos como dicionário e devolve um `ResultadoDeTool`. Falha de transporte ou do
     provedor passa para quem chamou: o laço só trata o que o modelo pode corrigir, como argumento
-    que não é JSON ou tool que recusou o pedido.
+    que não é JSON ou tool que recusou o pedido. Depois que uma das `tools_que_encerram` roda sem
+    erro, a volta seguinte vai sem tools.
     """
     _validar_limites(
         maximo_de_voltas=maximo_de_voltas, maximo_de_repeticoes=maximo_de_repeticoes,
@@ -152,6 +166,7 @@ def rodar(
     # Quantas vezes cada chamada (tool e argumentos) já foi pedida neste laço.
     pedidas = Counter()
     avisos = 0
+    sem_tools = False
 
     def terminar(motivo, resposta=None, cortado=None):
         return ResultadoDoLaco(motivo, resposta, tuple(historico), tuple(chamadas), cortado)
@@ -164,11 +179,16 @@ def rodar(
             historico.append(_mensagem_da_tool(pedido, f"Erro da tool: não executada; laço encerrado por {motivo}."))
         return terminar(motivo, cortado=cortado)
 
+    def tirar_as_tools():
+        nonlocal sem_tools
+        sem_tools = True
+        historico.append({"role": "user", "content": AVISO_SEM_TOOLS})
+
     for volta in range(1, maximo_de_voltas + 1):
         if not cabe_no_historico():
             return terminar(LIMITE_DO_HISTORICO)
         inicio = relogio()
-        resposta = provedor.conversar(modelo, historico, [] if avisos >= AVISOS_ANTES_DE_TIRAR_AS_TOOLS else tools)
+        resposta = provedor.conversar(modelo, historico, [] if sem_tools else tools)
         chamada = ChamadaAoModelo(
             volta=volta,
             modelo=resposta.modelo,
@@ -184,7 +204,10 @@ def rodar(
         historico.append(deepcopy(resposta.mensagem))
         motivo = _termino_da_resposta(resposta, cabe_no_historico(), maximo_de_tools_por_volta)
         if motivo == RESPOSTA_FINAL:
-            return terminar(RESPOSTA_FINAL, resposta.conteudo)
+            if CHAMADA_EM_TEXTO not in resposta.conteudo:
+                return terminar(RESPOSTA_FINAL, resposta.conteudo)
+            tirar_as_tools()
+            continue
         if motivo is not None:
             cortado = _comeco_do_texto(resposta) if motivo == LIMITE_DE_SAIDA else None
             return interromper(motivo, resposta.pedidos, cortado)
@@ -197,8 +220,12 @@ def rodar(
         repetidas = _repetidas(resposta.pedidos, argumentos, pedidas, maximo_de_repeticoes)
         if repetidas is None:
             return interromper(CHAMADA_REPETIDA, resposta.pedidos)
-        _executar_pedidos(historico, resposta.pedidos, argumentos, repetidas, permitidas, executar, maximo_do_resultado)
+        concluidas = _executar_pedidos(
+            historico, resposta.pedidos, argumentos, repetidas, permitidas, executar, maximo_do_resultado
+        )
         avisos += sum(repetidas)
+        if not sem_tools and (avisos >= AVISOS_ANTES_DE_TIRAR_AS_TOOLS or concluidas & set(tools_que_encerram)):
+            tirar_as_tools()
     return terminar(LIMITE_DE_VOLTAS)
 
 
@@ -242,6 +269,8 @@ def _repetidas(pedidos, argumentos, pedidas, maximo):
 
 
 def _executar_pedidos(historico, pedidos, argumentos, repetidas, permitidas, executar, maximo):
+    """Executa o lote e devolve os nomes das tools que rodaram sem erro."""
+    concluidas = set()
     for pedido, dados, repetida in zip(pedidos, argumentos, repetidas, strict=True):
         if repetida:
             # Sem executar de novo: uma ação (apontar, propor) não chega duas vezes ao servidor, e o
@@ -253,6 +282,8 @@ def _executar_pedidos(historico, pedidos, argumentos, repetidas, permitidas, exe
             texto = "Erro da tool: os argumentos precisam ser um objeto JSON válido em UTF-8, sem chaves repetidas."
         else:
             resultado = executar(pedido.nome, dados)
+            if not resultado.erro:
+                concluidas.add(pedido.nome)
             if len(resultado.texto) > maximo:
                 # Nada de JSON cortado, que poderia esconder parte do estado. O aviso diz que a
                 # chamada já aconteceu, para o modelo não repetir uma ação achando que ela falhou.
@@ -263,6 +294,7 @@ def _executar_pedidos(historico, pedidos, argumentos, repetidas, permitidas, exe
             else:
                 texto = f"Erro da tool: {resultado.texto}" if resultado.erro else resultado.texto
         historico.append(_mensagem_da_tool(pedido, texto))
+    return concluidas
 
 
 def _comeco_do_texto(resposta):

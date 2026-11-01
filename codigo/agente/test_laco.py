@@ -6,6 +6,7 @@ import pytest
 
 from codigo.agente.laco import (
     AVISO_DE_CHAMADA_REPETIDA,
+    AVISO_SEM_TOOLS,
     CHAMADA_REPETIDA,
     COMECO_DO_TEXTO_CORTADO,
     LIMITE_DE_SAIDA,
@@ -255,7 +256,8 @@ def test_a_triagem_que_refaz_a_sequencia_inteira_executa_cada_tool_uma_vez():
 
     assert resultado.motivo == RESPOSTA_FINAL
     assert [nome for nome, _ in executor.chamadas] == ["obter_incidente", "obter_janelas", "apontar_atacante"]
-    assert [m["content"] for m in resultado.mensagens[-6:-1:2]] == [AVISO_DE_CHAMADA_REPETIDA] * 3
+    respostas_das_tools = [m["content"] for m in resultado.mensagens if m["role"] == "tool"]
+    assert respostas_das_tools[-3:] == [AVISO_DE_CHAMADA_REPETIDA] * 3
 
 
 def test_a_mesma_chamada_duas_vezes_no_mesmo_lote_roda_so_a_primeira():
@@ -504,3 +506,54 @@ def test_depois_de_dois_avisos_o_modelo_so_pode_dar_a_resposta_final():
 
     assert (resultado.motivo, resultado.resposta) == (RESPOSTA_FINAL, "Recomendação final.")
     assert [bool(rodada["tools"]) for rodada in provedor.rodadas] == [True, True, True, True, False]
+
+
+def test_a_volta_sem_tools_diz_ao_modelo_que_elas_acabaram():
+    uma, outra = pedido("consultar_estado", "{}", "c1"), pedido("obter_incidente", '{"id": "inc-0001"}', "c2")
+    provedor = ProvedorFalso(
+        resposta(pedidos=[uma]), resposta(pedidos=[outra]), resposta(pedidos=[uma]), resposta(pedidos=[outra]),
+        resposta("Recomendação final."),
+    )
+
+    rodar(provedor, "m-1", ABERTURA, TOOLS, Executor())
+
+    assert provedor.rodadas[-1]["mensagens"][-1] == {"role": "user", "content": AVISO_SEM_TOOLS}
+
+
+def test_chamada_escrita_em_texto_nao_e_resposta_final():
+    em_texto = "<tool_call>\n<function=obter_janelas>\n<parameter=id>\ninc-0001\n</parameter>\n</function>\n</tool_call>"
+    provedor = ProvedorFalso(resposta(em_texto), resposta("Veredito: coerente."))
+    executor = Executor()
+
+    resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, executor)
+
+    assert (resultado.motivo, resultado.resposta) == (RESPOSTA_FINAL, "Veredito: coerente.")
+    assert executor.chamadas == []
+    assert [bool(rodada["tools"]) for rodada in provedor.rodadas] == [True, False]
+    assert provedor.rodadas[-1]["mensagens"][-1] == {"role": "user", "content": AVISO_SEM_TOOLS}
+
+
+def test_quem_so_escreve_chamada_em_texto_termina_sem_resposta():
+    provedor = ProvedorFalso(resposta("<tool_call>x</tool_call>"), resposta("<tool_call>y</tool_call>"))
+
+    resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, Executor(), maximo_de_voltas=2)
+
+    assert (resultado.motivo, resultado.resposta) == (LIMITE_DE_VOLTAS, None)
+
+
+def test_depois_de_uma_tool_que_encerra_o_modelo_so_pode_dar_a_resposta_final():
+    provedor = ProvedorFalso(resposta(pedidos=[pedido("propor_acao")]), resposta("Recomendação final."))
+
+    resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, Executor(), tools_que_encerram={"propor_acao"})
+
+    assert (resultado.motivo, resultado.resposta) == (RESPOSTA_FINAL, "Recomendação final.")
+    assert [bool(rodada["tools"]) for rodada in provedor.rodadas] == [True, False]
+
+
+def test_tool_que_encerra_e_foi_recusada_deixa_as_tools():
+    provedor = ProvedorFalso(resposta(pedidos=[pedido("propor_acao")]), resposta("Nenhuma ação foi proposta."))
+    recusada = Executor(ResultadoDeTool("incidente_duvidoso", erro=True))
+
+    rodar(provedor, "m-1", ABERTURA, TOOLS, recusada, tools_que_encerram={"propor_acao"})
+
+    assert [bool(rodada["tools"]) for rodada in provedor.rodadas] == [True, True]
