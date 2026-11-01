@@ -6,6 +6,7 @@ import pytest
 
 from codigo.agente.laco import (
     AVISO_DE_CHAMADA_REPETIDA,
+    AVISO_DE_RESPOSTA_CORTADA,
     AVISO_SEM_TOOLS,
     CHAMADA_REPETIDA,
     COMECO_DO_TEXTO_CORTADO,
@@ -363,7 +364,7 @@ def test_resposta_vazia_nao_e_sucesso(texto):
 @pytest.mark.parametrize(
     "motivo,esperado",
     # O artigo conta à parte quantas vezes o provedor recusou e quantas a resposta foi cortada.
-    [("content_filter", RECUSA_DO_PROVEDOR), ("length", LIMITE_DE_SAIDA), ("error", RESPOSTA_INCOMPLETA), (["x"], RESPOSTA_INCOMPLETA)],
+    [("content_filter", RECUSA_DO_PROVEDOR), ("error", RESPOSTA_INCOMPLETA), (["x"], RESPOSTA_INCOMPLETA)],
 )
 def test_resposta_interrompida_pelo_provedor_nao_dispara_tools(motivo, esperado):
     executor = Executor()
@@ -381,7 +382,7 @@ def test_resposta_cortada_no_limite_de_saida_guarda_o_comeco_do_texto():
     degenerado = "varredura de portas, " * 100
     cortada = dataclasses.replace(resposta(degenerado), motivo_termino="length")
 
-    resultado = rodar(ProvedorFalso(cortada), "m-1", ABERTURA, TOOLS, Executor())
+    resultado = rodar(ProvedorFalso(cortada, cortada), "m-1", ABERTURA, TOOLS, Executor())
 
     assert resultado.motivo == LIMITE_DE_SAIDA
     assert resultado.comeco_do_texto_cortado == degenerado[:COMECO_DO_TEXTO_CORTADO]
@@ -394,7 +395,7 @@ def test_sem_texto_o_comeco_cortado_vem_das_tools_pedidas_pela_metade():
     )
     executor = Executor()
 
-    resultado = rodar(ProvedorFalso(cortada), "m-1", ABERTURA, TOOLS, executor)
+    resultado = rodar(ProvedorFalso(cortada, cortada), "m-1", ABERTURA, TOOLS, executor)
 
     assert executor.chamadas == []
     assert resultado.comeco_do_texto_cortado == 'propor_acao({"id": "inc-0001", "justificativa": "varredura, varredura)'
@@ -557,3 +558,36 @@ def test_tool_que_encerra_e_foi_recusada_deixa_as_tools():
     rodar(provedor, "m-1", ABERTURA, TOOLS, recusada, tools_que_encerram={"propor_acao"})
 
     assert [bool(rodada["tools"]) for rodada in provedor.rodadas] == [True, True]
+
+
+def test_resposta_cortada_sai_do_historico_e_o_modelo_tenta_de_novo():
+    cortada = dataclasses.replace(resposta("porta, " * 100, pedidos=[pedido()]), motivo_termino="length")
+    provedor = ProvedorFalso(cortada, resposta("Rótulo da triagem: duvidoso"))
+    executor = Executor()
+
+    resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, executor)
+
+    assert (resultado.motivo, resultado.resposta) == (RESPOSTA_FINAL, "Rótulo da triagem: duvidoso")
+    assert executor.chamadas == []
+    assert provedor.rodadas[-1]["mensagens"][-1] == {"role": "user", "content": AVISO_DE_RESPOSTA_CORTADA}
+    assert not any("porta, porta" in mensagem["content"] for mensagem in resultado.mensagens)
+    assert resultado.chamadas_ao_modelo[0].motivo_termino == "length"
+
+
+def test_a_nova_tentativa_e_uma_so():
+    cortada = dataclasses.replace(resposta("porta, " * 100), motivo_termino="length")
+    provedor = ProvedorFalso(cortada, cortada, resposta("Nunca chega."))
+
+    resultado = rodar(provedor, "m-1", ABERTURA, TOOLS, Executor())
+
+    assert resultado.motivo == LIMITE_DE_SAIDA
+    assert len(provedor.rodadas) == 2
+
+
+def test_resposta_cortada_na_ultima_volta_para_o_laco():
+    cortada = dataclasses.replace(resposta("porta, " * 100), motivo_termino="length")
+
+    resultado = rodar(ProvedorFalso(cortada), "m-1", ABERTURA, TOOLS, Executor(), maximo_de_voltas=1)
+
+    assert resultado.motivo == LIMITE_DE_SAIDA
+    assert resultado.comeco_do_texto_cortado is not None

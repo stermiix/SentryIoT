@@ -21,6 +21,8 @@ depois dos avisos de chamada repetida e depois de uma tool que encerra o trabalh
 `propor_acao`. Uma resposta que escreve a chamada de tool como texto não é a final: ela não vai para
 o log como análise, e a volta seguinte é sem tools.
 
+Uma resposta cortada no limite de saída sai do histórico, e o modelo tenta de novo uma vez.
+
 Cada chamada ao modelo gera uma `ChamadaAoModelo`, entregue a `ao_chamar` na hora. É o que vira o
 evento `llm_chamada` do log (ver `registro.py`).
 """
@@ -66,6 +68,9 @@ RECUSA_DO_PROVEDOR = "recusa_do_provedor"
 # A resposta foi cortada no máximo de tokens de saída (finish_reason length).
 LIMITE_DE_SAIDA = "limite_de_saida"
 _TERMINO_INTERROMPIDO = {"content_filter": RECUSA_DO_PROVEDOR, "length": LIMITE_DE_SAIDA}
+# A resposta cortada é, quase sempre, o modelo repetindo uma lista até o fim, e ela não pode ficar no
+# histórico. Na validação de 31/10, 2 das 30 primeiras triagens pararam assim, sem veredito.
+TENTATIVAS_DEPOIS_DO_CORTE = 1
 # Quanto do texto cortado no limite de saída fica no resultado, para diagnosticar a degeneração.
 COMECO_DO_TEXTO_CORTADO = 300
 
@@ -73,6 +78,10 @@ AVISO_DE_CHAMADA_REPETIDA = (
     "Chamada repetida, não executada: esta tool já foi chamada nesta conversa com estes mesmos argumentos, "
     "e o resultado está acima, na resposta à primeira chamada. Não repita a chamada; use aquele resultado "
     "para seguir com o próximo passo ou dar a resposta final."
+)
+AVISO_DE_RESPOSTA_CORTADA = (
+    "A resposta anterior passou do limite de saída e foi descartada, sem executar nenhuma tool. "
+    "Escreva de novo, curta, sem listas de portas, protocolos ou valores."
 )
 AVISO_SEM_TOOLS = (
     "Não há mais tools nesta conversa, e chamada de tool escrita em texto não é executada. "
@@ -167,6 +176,7 @@ def rodar(
     pedidas = Counter()
     avisos = 0
     sem_tools = False
+    cortes = 0
 
     def terminar(motivo, resposta=None, cortado=None):
         return ResultadoDoLaco(motivo, resposta, tuple(historico), tuple(chamadas), cortado)
@@ -207,6 +217,11 @@ def rodar(
             if CHAMADA_EM_TEXTO not in resposta.conteudo:
                 return terminar(RESPOSTA_FINAL, resposta.conteudo)
             tirar_as_tools()
+            continue
+        if motivo == LIMITE_DE_SAIDA and cortes < TENTATIVAS_DEPOIS_DO_CORTE and volta < maximo_de_voltas:
+            cortes += 1
+            historico.pop()
+            historico.append({"role": "user", "content": AVISO_DE_RESPOSTA_CORTADA})
             continue
         if motivo is not None:
             cortado = _comeco_do_texto(resposta) if motivo == LIMITE_DE_SAIDA else None

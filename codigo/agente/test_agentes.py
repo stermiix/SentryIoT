@@ -278,7 +278,7 @@ def test_agente_que_para_no_limite_encerra_o_incidente_e_deixa_a_conclusao_no_lo
 def test_agente_cortado_no_limite_de_saida_deixa_o_comeco_do_texto_num_aviso_sem_endereco(log):
     degenerado = f"Varredura de portas\ne serviços em {ORIGEM},\x1b[31m " + "varredura de rede, " * 60
     cortada = dataclasses.replace(resposta(degenerado), motivo_termino="length")
-    modelo = ProvedorFalso(*triagem("inc-0002"), chamada("obter_resumo", {"id": "inc-0002"}, "d1"), cortada)
+    modelo = ProvedorFalso(*triagem("inc-0002"), chamada("obter_resumo", {"id": "inc-0002"}, "d1"), cortada, cortada)
 
     resultado = orquestrar("inc-0002", log=log, perfis={"local": Perfil(modelo, "qwen")}, configuracao="local")
 
@@ -295,7 +295,7 @@ def test_agente_cortado_no_limite_de_saida_deixa_o_comeco_do_texto_num_aviso_sem
 def test_agente_cortado_sem_texto_tambem_deixa_aviso(log):
     cortada = dataclasses.replace(resposta(""), motivo_termino="length")
 
-    resultado = orquestrar("inc-0002", log=log, perfis={"local": Perfil(ProvedorFalso(cortada), "qwen")}, configuracao="local")
+    resultado = orquestrar("inc-0002", log=log, perfis={"local": Perfil(ProvedorFalso(cortada, cortada), "qwen")}, configuracao="local")
 
     assert resultado.avisos == ("a triagem parou no limite de saída, sem texto",)
 
