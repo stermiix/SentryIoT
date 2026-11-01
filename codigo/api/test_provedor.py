@@ -8,6 +8,7 @@ import urllib.error
 
 import pytest
 
+from codigo.agente.laco import rodar
 from codigo.api.configuracao import Configuracao
 from codigo.api.provedor import ErroDoProvedor, Provedor
 
@@ -123,7 +124,7 @@ def test_erro_http_do_provedor_vira_erro_com_codigo_e_mensagem_cortada(codigo):
 
 
 def test_prazo_estourado_vira_erro_sem_codigo():
-    provedor = Provedor(CONFIG, abrir=abrir_que_lanca(TimeoutError("timed out")))
+    provedor = Provedor(CONFIG, abrir=abrir_que_lanca(TimeoutError("timed out")), esperar=lambda _: None)
     with pytest.raises(ErroDoProvedor) as erro:
         provedor.chat("m-1", "", [{"papel": "usuario", "conteudo": "Oi"}])
 
@@ -133,7 +134,7 @@ def test_prazo_estourado_vira_erro_sem_codigo():
 
 def test_prazo_estourado_na_conexao_tambem_vira_erro_de_prazo():
     # Na abertura da conexão, a biblioteca padrão embrulha o estouro num URLError.
-    provedor = Provedor(CONFIG, abrir=abrir_que_lanca(urllib.error.URLError(TimeoutError("timed out"))))
+    provedor = Provedor(CONFIG, abrir=abrir_que_lanca(urllib.error.URLError(TimeoutError("timed out"))), esperar=lambda _: None)
     with pytest.raises(ErroDoProvedor) as erro:
         provedor.chat("m-1", "", [{"papel": "usuario", "conteudo": "Oi"}])
 
@@ -169,3 +170,135 @@ def test_ca_do_env_entra_no_contexto_tls(tmp_path):
 
     with pytest.raises(Exception, match="(?i)pem|cert"):
         Provedor(config, abrir=lambda *a, **k: None)
+
+
+# --- nova tentativa nas falhas passageiras (teste de 31/10) -----------------------------------------
+
+CORPO_CERTO = {"choices": [{"message": {"content": "ok"}}], "usage": {"prompt_tokens": 5, "completion_tokens": 1}}
+
+
+def abrir_em_sequencia(*falhas):
+    """Lança as falhas na ordem e, depois delas, responde com o corpo certo. Conta as tentativas."""
+    pendentes = list(falhas)
+
+    def abrir(pedido, timeout=None, context=None):
+        abrir.tentativas += 1
+        if pendentes:
+            raise pendentes.pop(0)
+        return RespostaFalsa(json.dumps(CORPO_CERTO).encode("utf-8"))
+
+    abrir.tentativas = 0
+    return abrir
+
+
+def erro_http(codigo):
+    return urllib.error.HTTPError("https://g", codigo, "erro", {}, io.BytesIO(b"fora"))
+
+
+@pytest.mark.parametrize(
+    "falha",
+    [
+        ConnectionResetError(54, "Connection reset by peer"),
+        urllib.error.URLError(ConnectionRefusedError(61, "Connection refused")),
+        TimeoutError("timed out"),
+        urllib.error.URLError(TimeoutError("timed out")),
+        erro_http(502),
+        erro_http(503),
+        erro_http(504),
+    ],
+)
+def test_falha_passageira_e_tentada_de_novo_depois_de_esperar(falha):
+    abrir = abrir_em_sequencia(falha)
+    esperas = []
+    provedor = Provedor(CONFIG, abrir=abrir, esperar=esperas.append)
+
+    resposta = provedor.conversar("m-1", [{"role": "user", "content": "Oi"}])
+
+    assert resposta.conteudo == "ok"
+    assert abrir.tentativas == 2
+    assert esperas == [3]
+
+
+def test_depois_de_duas_novas_tentativas_o_erro_sobe_como_antes():
+    abrir = abrir_em_sequencia(*[ConnectionResetError(54, "Connection reset by peer")] * 3)
+    esperas = []
+    provedor = Provedor(CONFIG, abrir=abrir, esperar=esperas.append)
+
+    with pytest.raises(ErroDoProvedor) as erro:
+        provedor.conversar("m-1", [{"role": "user", "content": "Oi"}])
+
+    assert erro.value.mensagem == "falha ao falar com o provedor: [Errno 54] Connection reset by peer"
+    assert erro.value.codigo is None and erro.value.passageiro
+    assert abrir.tentativas == 3
+    assert esperas == [3, 6]
+
+
+@pytest.mark.parametrize(
+    "falha",
+    [
+        erro_http(400),
+        erro_http(401),
+        erro_http(429),
+        erro_http(500),
+        urllib.error.URLError(socket.gaierror("nome desconhecido")),
+    ],
+)
+def test_falha_que_nao_e_passageira_nao_e_tentada_de_novo(falha):
+    abrir = abrir_em_sequencia(falha)
+    esperas = []
+    provedor = Provedor(CONFIG, abrir=abrir, esperar=esperas.append)
+
+    with pytest.raises(ErroDoProvedor) as erro:
+        provedor.conversar("m-1", [{"role": "user", "content": "Oi"}])
+
+    assert not erro.value.passageiro
+    assert abrir.tentativas == 1
+    assert esperas == []
+
+
+def test_resposta_que_nao_e_json_nao_e_tentada_de_novo():
+    tentativas = []
+
+    def abrir(pedido, timeout=None, context=None):
+        tentativas.append(pedido)
+        return RespostaFalsa(b"<html>fora do ar</html>")
+
+    esperas = []
+    with pytest.raises(ErroDoProvedor):
+        Provedor(CONFIG, abrir=abrir, esperar=esperas.append).conversar("m-1", [{"role": "user", "content": "Oi"}])
+
+    assert len(tentativas) == 1 and esperas == []
+
+
+def test_content_filter_chega_numa_resposta_normal_e_nao_e_tentado_de_novo():
+    corpo = {"choices": [{"message": {"content": ""}, "finish_reason": "content_filter"}]}
+    esperas = []
+
+    resposta = Provedor(CONFIG, abrir=abrir_com(corpo, {}), esperar=esperas.append).conversar("m-1", [{"role": "user", "content": "Oi"}])
+
+    assert resposta.motivo_termino == "content_filter"
+    assert esperas == []
+
+
+def test_as_esperas_e_o_numero_de_tentativas_sao_configuraveis():
+    abrir = abrir_em_sequencia(*[erro_http(503)] * 2)
+    esperas = []
+    provedor = Provedor(CONFIG, abrir=abrir, esperar=esperas.append, esperas_s=(0.5,))
+
+    with pytest.raises(ErroDoProvedor) as erro:
+        provedor.chat("m-1", "", [{"papel": "usuario", "conteudo": "Oi"}])
+
+    assert erro.value.codigo == 503
+    assert abrir.tentativas == 2
+    assert esperas == [0.5]
+
+
+def test_no_laco_a_chamada_que_precisou_de_nova_tentativa_vira_uma_chamada_so():
+    # O llm_chamada sai de `ao_chamar`, uma vez por resposta que chegou: a tentativa que falhou não aparece.
+    recebidas = []
+    provedor = Provedor(CONFIG, abrir=abrir_em_sequencia(ConnectionResetError(54, "reset")), esperar=lambda _: None)
+
+    resultado = rodar(provedor, "m-1", [{"role": "user", "content": "Oi"}], [], lambda *_: None, ao_chamar=recebidas.append)
+
+    assert resultado.terminou_bem
+    assert len(recebidas) == 1 and (recebidas[0].tokens_entrada, recebidas[0].tokens_saida) == (5, 1)

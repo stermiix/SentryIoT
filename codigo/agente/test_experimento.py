@@ -358,6 +358,7 @@ def test_o_comando_rodar_de_ponta_a_ponta_por_um_gateway_http_de_mentira(base, t
 
 def test_o_comando_rodar_devolve_3_quando_alguma_rodada_deu_erro_e_a_registra(base, tmp_path, monkeypatch, capsys):
     # O provedor não responde (porta 1): a rodada dá erro, o comando diz isso e sai com 3.
+    monkeypatch.setattr("codigo.api.provedor.ESPERAS_ENTRE_TENTATIVAS_S", (0, 0))
     for variavel, valor in {"LLM_BASE_URL": "http://127.0.0.1:1/v1", "LLM_API_KEY": "k", "LLM_MODEL": "m"}.items():
         monkeypatch.setenv(variavel, valor)
     conjunto = gravar_conjunto([item_de(base)], tmp_path)

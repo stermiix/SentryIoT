@@ -25,6 +25,7 @@ from codigo.agente.agentes import (
 )
 from codigo.agente.pedidos import prompt_da_skill
 from codigo.agente.test_laco import ProvedorFalso, pedido, resposta
+from codigo.api import provedor
 from codigo.mcp.acoes import reconstruir
 from codigo.mcp.eventos import Registro, ler
 from codigo.mcp.stub import Stub
@@ -274,6 +275,31 @@ def test_agente_que_para_no_limite_encerra_o_incidente_e_deixa_a_conclusao_no_lo
     assert eventos_de(log, "llm_chamada")[0].dados.motivo_termino == "content_filter"
 
 
+def test_agente_cortado_no_limite_de_saida_deixa_o_comeco_do_texto_num_aviso_sem_endereco(log):
+    degenerado = f"Varredura de portas\ne serviços em {ORIGEM},\x1b[31m " + "varredura de rede, " * 60
+    cortada = dataclasses.replace(resposta(degenerado), motivo_termino="length")
+    modelo = ProvedorFalso(*triagem("inc-0002"), chamada("obter_resumo", {"id": "inc-0002"}, "d1"), cortada, cortada)
+
+    resultado = orquestrar("inc-0002", log=log, perfis={"local": Perfil(modelo, "qwen")}, configuracao="local")
+
+    assert resultado.desfecho == AGENTE_PAROU
+    assert resultado.execucoes[-1].motivo == "limite_de_saida"
+    (aviso,) = resultado.avisos
+    assert aviso.startswith("a decisão parou no limite de saída; começo do texto: Varredura de portas e serviços em [endereço], [31m varredura")
+    assert ORIGEM not in aviso and "\n" not in aviso and "\x1b" not in aviso
+    assert len(aviso) < 400
+    # O texto não vai para o log: o contrato dos eventos fica como estava.
+    assert "varredura de rede" not in log.read_text(encoding="utf-8")
+
+
+def test_agente_cortado_sem_texto_tambem_deixa_aviso(log):
+    cortada = dataclasses.replace(resposta(""), motivo_termino="length")
+
+    resultado = orquestrar("inc-0002", log=log, perfis={"local": Perfil(ProvedorFalso(cortada, cortada), "qwen")}, configuracao="local")
+
+    assert resultado.avisos == ("a triagem parou no limite de saída, sem texto",)
+
+
 def test_incidente_que_nao_existe_no_log_e_recusado(log):
     with pytest.raises(ValueError, match="não existe no log"):
         orquestrar("inc-0099", log=log, perfis={"local": Perfil(ProvedorFalso(), "q")}, configuracao="local")
@@ -371,6 +397,8 @@ def test_main_num_log_novo_abre_os_incidentes_de_exemplo_antes_de_orquestrar(tmp
     # processo filho e, sem o resto do ambiente (no Windows, o SYSTEMROOT), nem sobe.
     for variavel, valor in {**LOCAL, "LLM_BASE_URL": "http://127.0.0.1:1/v1"}.items():
         monkeypatch.setenv(variavel, valor)
+    # A conexão recusada é tentada de novo; sem as esperas de verdade entre as tentativas.
+    monkeypatch.setattr(provedor, "ESPERAS_ENTRE_TENTATIVAS_S", (0, 0))
     caminho = tmp_path / "novo.jsonl"
 
     codigo = main(["--incidente", "inc-0001", "--log", str(caminho), "--configuracao", "local", "--env", str(tmp_path / "nao.env")])

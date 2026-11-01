@@ -57,7 +57,10 @@ def perfis_da_configuracao(configuracao, ambiente):
 
 
 def resumo(resultado):
-    """O resumo de um incidente, sem texto de modelo, sem endereço e sem chave."""
+    """O resumo de um incidente, sem endereço e sem chave.
+
+    O único texto de modelo é o começo de uma resposta cortada no limite de saída, num aviso.
+    """
     linhas = [f"incidente {resultado.incidente}, configuração {resultado.configuracao}: {resultado.desfecho}"]
     for execucao in resultado.execucoes:
         r = execucao.resultado
