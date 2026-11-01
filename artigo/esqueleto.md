@@ -184,8 +184,8 @@ completas no fim):
   referência usa "et al.".
 
 Deixar explícito o que é contribuição nossa: a camada MCP, com o contrato das tools, a política
-de risco graduada com aprovação humana e a arquitetura híbrida dos agentes, e a comparação entre
-as configurações local, nuvem e híbrida; no classificador, o teste direto da janela trocada
+de risco graduada com aprovação humana e a arquitetura híbrida dos agentes, e os agentes medidos só
+na configuração tudo local; no classificador, o teste direto da janela trocada
 (`experimentos/resultados/teste_da_janela.md`) e a medida, por pcap e por tamanho de janela, das
 janelas sem quadro do atacante (`experimentos/resultados/janelas_sem_atacante.md`). A filtragem
 pelo endereço do atacante é a escolha que fizemos para regerar os dados, e não é apresentada
@@ -457,9 +457,10 @@ com credenciais, recebe o endereço. Toda resposta à linha de decisão passa ai
 que troca por um marcador qualquer endereço que tenha sobrado em texto livre. O veredito da
 triagem, texto livre escrito pelo modelo local, precisa passar pelo mesmo filtro antes de chegar
 ao agente de decisão. O orquestrador aceita três
-configurações, tudo local, tudo na nuvem e híbrida, e a comparação entre elas em qualidade, custo
-e tempo é resultado do artigo. Isso responde ao ponto da banca sobre riscos de IA em nuvem e à
-alternativa on-premises.
+configurações, tudo local, tudo na nuvem e híbrida, mas o artigo mede só a tudo local (decisão de
+2026-10-31), e a comparação com a nuvem fica fora dele. A configuração tudo local, a única medida, é a
+alternativa on-premises, sem dado da rede em nuvem nenhuma, e responde ao ponto da banca sobre riscos de
+IA em nuvem.
 
 A busca na internet dos agentes fica desligada por padrão, e por isso nenhum dado da rede sai da
 máquina por ela; a comparação com a busca ligada fica como experimento. O custo em tokens será
@@ -505,16 +506,15 @@ janela levava 1,6 ms (`experimentos/resultados/rodadas_de_teste.md`).
 
 `[PENDENTE]` Cenários: DDoS, varredura de portas e força bruta, reproduzidos a partir dos pcaps
 do CICIoT2023. Comparações: a saída isolada do classificador contra a saída integrada, com os
-agentes, no mesmo incidente, como previa o TCC I; e as três configurações dos agentes (tudo
-local, tudo na nuvem e híbrida). Medidas: qualidade da recomendação; tokens e custo por
-incidente; tempo entre a abertura do incidente e a remediação, com e sem a marca de já resolvido;
+agentes, no mesmo incidente, como previa o TCC I, com os agentes só na configuração tudo local
+(decisão de 2026-10-31). Medidas: qualidade da recomendação; tokens por incidente; tempo entre a abertura do incidente e a remediação, com e sem a marca de já resolvido;
 e propostas aprovadas, rejeitadas e desfeitas. A qualidade da recomendação é a porcentagem de
 incidentes com uma ação aceitável no alvo certo, conferida contra um gabarito por categoria fixado
 no repositório antes da primeira rodada (decisão de 2026-10-25). O gabarito diz que ações do
 catálogo são aceitáveis em cada categoria e em que alvo, e o alvo é conferido com os atacantes do
 dataset, identificados pelo MAC. O acerto da triagem vem ao lado, e uma rubrica de 1 a 5
-(adequação, alvo, proporcionalidade e justificativa) avalia uma amostra de 9 casos, um por cenário
-e configuração, para cobrir a justificativa, que a conferência automática não vê. Nos
+(adequação, alvo, proporcionalidade e justificativa) avalia uma amostra de casos `[tamanho a redefinir: eram 9, um por cenário e configuração]`,
+para cobrir a justificativa, que a conferência automática não vê. Nos
 experimentos, as propostas de risco alto passam por um aprovador automático com regra fixa
 (decisão de 2026-10-25): ele aprova a proposta que o gabarito aceita e rejeita as
 demais, inclusive a ação nova, contada à parte. Isso inclui todo bloqueio de atacante, porque os
@@ -591,7 +591,7 @@ depende ainda de um artefato da captura (seção 5).
 ### 4.2 Agentes
 
 `[PENDENTE]` As métricas dos agentes (qualidade da recomendação, custo em tokens, tempo entre
-detecção e remediação) e a comparação entre as configurações local, nuvem e híbrida.
+detecção e remediação), na configuração tudo local.
 
 ## 5. Limitações
 
