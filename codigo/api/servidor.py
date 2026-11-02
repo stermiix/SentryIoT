@@ -39,6 +39,8 @@ LIMITE_DA_SOMA = 80_000  # caracteres de sistema e mensagens somados
 # Maior pcap aceito pela simulação. O extrator lê cerca de 160 mil quadros por segundo: um pcap
 # deste tamanho leva perto de um minuto.
 LIMITE_DO_PCAP = 600 * 1024 * 1024
+# Os tipos que o servidor dá aos arquivos da interface que o `mimetypes` não conhece (ver `_tipo_do_arquivo`).
+_TIPOS_PROPRIOS = ((".gz", "application/gzip"), (".jsonl", "application/x-ndjson"))
 # O cabeçalho que só a interface manda nas rotas que gastam máquina.
 CABECALHO_DA_INTERFACE = ("X-SentryIoT", "interface")
 
@@ -101,6 +103,18 @@ def _ler_decisao(corpo):
     alvo = _campo_de_texto(corpo, "id")
     motivo = _campo_de_texto(corpo, "motivo", obrigatorio=False)
     return tipo, alvo, motivo.strip() or None
+
+
+def _tipo_do_arquivo(caminho):
+    """O tipo dos arquivos que o `mimetypes` não conhece: os logs da rodada final, em JSONL e comprimidos.
+
+    O `.jsonl.gz` vai como `application/gzip`, sem `Content-Encoding`: a interface recebe os bytes comprimidos e os
+    abre ela mesma. Para os demais, `None` deixa a escolha com o Starlette.
+    """
+    for sufixo, tipo in _TIPOS_PROPRIOS:
+        if caminho.endswith(sufixo):
+            return tipo
+    return None
 
 
 def criar_app(
@@ -261,7 +275,7 @@ def criar_app(
             # index.html, e a interface decide pela âncora o que mostrar.
             alvo = os.path.realpath(os.path.join(raiz, request.path_params.get("caminho", "")))
             if alvo.startswith(raiz + os.sep) and os.path.isfile(alvo):
-                return FileResponse(alvo)
+                return FileResponse(alvo, media_type=_tipo_do_arquivo(alvo))
             return FileResponse(index, media_type="text/html")
 
         rotas.append(Route("/{caminho:path}", arquivo, methods=["GET"]))

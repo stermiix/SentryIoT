@@ -1,6 +1,7 @@
 """Testes das rotas do servidor, chamando o app ASGI direto, sem rede e sem o provedor."""
 
 import asyncio
+import gzip
 import json
 
 import pytest
@@ -21,8 +22,8 @@ def chamar(app, metodo, caminho, corpo=None, bruto=None):
         return status, texto
 
 
-def chamar_bruto(app, metodo, caminho, corpo=None, bruto=None):
-    """Como `chamar`, mas devolve (status, cabeçalhos, texto do corpo)."""
+def chamar_bruto(app, metodo, caminho, corpo=None, bruto=None, em_texto=True):
+    """Como `chamar`, mas devolve (status, cabeçalhos, texto do corpo); com `em_texto=False`, os bytes do corpo."""
     dados = bruto if bruto is not None else (json.dumps(corpo).encode("utf-8") if corpo is not None else b"")
     scope = {
         "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": metodo, "scheme": "http",
@@ -44,7 +45,8 @@ def chamar_bruto(app, metodo, caminho, corpo=None, bruto=None):
             recebido["corpo"] += mensagem.get("body", b"")
 
     asyncio.run(app(scope, receive, send))
-    return recebido["status"], recebido["cabecalhos"], recebido["corpo"].decode("utf-8")
+    corpo_recebido = recebido["corpo"].decode("utf-8") if em_texto else recebido["corpo"]
+    return recebido["status"], recebido["cabecalhos"], corpo_recebido
 
 
 def provedor_que_responde(registro, conteudo="Resposta.", tokens=(10, 2)):
@@ -305,6 +307,32 @@ def test_com_a_pasta_construida_serve_o_index_na_raiz_e_os_arquivos_com_o_tipo_c
     status, cabecalhos, texto = chamar_bruto(app, "GET", "/assets/app.js")
     assert (status, texto) == (200, "console.log(1)")
     assert "javascript" in cabecalhos["content-type"]
+
+
+def test_os_dados_da_rodada_final_saem_com_o_tipo_certo_e_sem_descomprimir(tmp_path):
+    dist = pasta_construida(tmp_path)
+    pasta = dist / "dados" / "rodada-final" / "oficial"
+    pasta.mkdir(parents=True)
+    comprimido = gzip.compress(b'{"id":"ev-000001"}\n', mtime=0)
+    (pasta / "r1.jsonl.gz").write_bytes(comprimido)
+    (pasta / "r1.jsonl").write_text('{"id":"ev-000001"}\n', encoding="utf-8")
+    (dist / "dados" / "rodada-final" / "indice.json").write_text('{"versao": 1}', encoding="utf-8")
+    app = criar_app(CONFIG, provedor_que_responde([]), pasta_construida=dist)
+
+    status, cabecalhos, corpo = chamar_bruto(app, "GET", "/dados/rodada-final/oficial/r1.jsonl.gz", em_texto=False)
+    assert (status, corpo) == (200, comprimido)
+    assert cabecalhos["content-type"] == "application/gzip"
+    # Os bytes vão comprimidos, sem Content-Encoding: quem abre o gzip é a interface.
+    assert "content-encoding" not in cabecalhos
+
+    status, cabecalhos, _ = chamar_bruto(app, "GET", "/dados/rodada-final/oficial/r1.jsonl")
+    assert (status, cabecalhos["content-type"]) == (200, "application/x-ndjson")
+    status, cabecalhos, texto = chamar_bruto(app, "GET", "/dados/rodada-final/indice.json")
+    assert (status, texto) == (200, '{"versao": 1}')
+    assert cabecalhos["content-type"].startswith("application/json")
+    # Sem os dados no build, o caminho cai no index.html, e a interface reconhece a página pelo tipo.
+    status, cabecalhos, _ = chamar_bruto(app, "GET", "/dados/rodada-final/oficial/nao-existe.jsonl.gz")
+    assert (status, cabecalhos["content-type"].split(";")[0]) == (200, "text/html")
 
 
 def test_caminho_desconhecido_fora_de_api_devolve_o_index(tmp_path):
