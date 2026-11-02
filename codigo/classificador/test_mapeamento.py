@@ -13,6 +13,7 @@ from codigo.classificador.mapeamento import (
     ROTULOS,
     binario,
     categoria,
+    mesma_familia,
     normalizar,
 )
 
@@ -201,3 +202,11 @@ def test_rotulos_do_merged_csv_sao_os_34_conhecidos():
             vistos.add(linha.rsplit(",", 1)[1].strip())
     assert {normalizar(rotulo) for rotulo in vistos} == set(ROTULOS)
     assert "BENIGN" in vistos and "BenignTraffic" not in vistos
+
+
+@pytest.mark.parametrize(
+    ("categoria", "outra", "mesma"),
+    [("DDoS", "DoS", True), ("DoS", "DDoS", True), ("Recon", "Recon", True), ("DDoS", "Recon", False), ("DoS", "Mirai", False)],
+)
+def test_ddos_e_dos_sao_a_mesma_familia(categoria, outra, mesma):
+    assert mesma_familia(categoria, outra) is mesma

@@ -6,8 +6,9 @@ incidente cuja confiança do classificador fica abaixo de `LIMIAR_DA_TRIAGEM` (d
 (`codigo/reprodutor/avaliar.py`), sem rodar o reprodutor de novo: lê os resultados gravados.
 
 Um incidente é verdadeiro quando o pcap não é benigno, quando alguma janela dele tem quadro de um
-atacante do dataset e quando a categoria do incidente é a do pcap. Os outros são falsos: os de pcap
-benigno, os sem quadro de atacante e os de categoria trocada.
+atacante do dataset e quando a categoria do incidente é a do pcap, com DDoS e DoS como uma família só
+(`mesma_familia`). Os outros são falsos: os de pcap benigno, os sem quadro de atacante e os de
+categoria trocada. O acerto da regra que separa DDoS de DoS está em `reproducao_dos_pcaps.md`.
 
 A tabela separa os incidentes que ficam inteiros fora do trecho de teste do modelo dos que têm
 janela no teste. O limiar é escolhido só com os primeiros; os do teste servem de conferência.
@@ -22,6 +23,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from codigo.classificador.mapeamento import mesma_familia
 from codigo.reprodutor import avaliar
 
 LIMIAR_DA_TRIAGEM = 0.6
@@ -53,7 +55,7 @@ def ler(pasta=avaliar.PASTA_DOS_RESULTADOS):
             verdadeiro = (
                 not resultado["benigno"]
                 and incidente["janelas_com_atacante"] > 0
-                and incidente["categoria"] == resultado["categoria"]
+                and mesma_familia(incidente["categoria"], resultado["categoria"])
             )
             incidentes.append(Incidente(
                 resultado["arquivo"], incidente["categoria"], incidente["confianca"], incidente["janelas"],
@@ -76,11 +78,12 @@ def escolher(incidentes, limiares=LIMIARES):
     """O menor limiar que pega o máximo de falsos sem marcar nenhum verdadeiro, só fora do teste.
 
     No empate vale o menor, porque marcar um ataque verdadeiro como duvidoso custa mais do que
-    deixar passar um alarme falso. Sem limiar que deixe todos os verdadeiros passarem, devolve None.
+    deixar passar um alarme falso. Sem limiar que deixe todos os verdadeiros passarem, ou sem falso
+    fora do teste para pegar, devolve None.
     """
     fora = [i for i in incidentes if not i.no_teste]
     candidatos = [(contar(fora, limiar)[0], limiar) for limiar in limiares if contar(fora, limiar)[2] == 0]
-    if not candidatos:
+    if not candidatos or all(i.verdadeiro for i in fora):
         return None
     maximo = max(pegos for pegos, _ in candidatos)
     return min(limiar for pegos, limiar in candidatos if pegos == maximo)
@@ -120,7 +123,7 @@ def relatorio(incidentes, pcaps_benignos=None):
         ("A regra testada é a da skill de triagem: o incidente com confiança do classificador abaixo do "
         "limiar recebe o veredito \"duvidoso\". Um incidente é verdadeiro quando o pcap não é benigno, "
         "quando alguma janela dele tem quadro de um atacante do dataset e quando a categoria do incidente "
-        "é a do pcap. Os outros são falsos."),
+        "é a do pcap, com DDoS e DoS como uma família só. Os outros são falsos."),
         "",
         (f"São {len(incidentes)} incidentes: {sum(i.verdadeiro for i in incidentes)} verdadeiros e "
         f"{len(falsos)} falsos. {len(fora)} ficam inteiros fora do trecho de teste do modelo, e "
@@ -129,7 +132,8 @@ def relatorio(incidentes, pcaps_benignos=None):
     if pcaps_benignos is not None:
         linhas += [
             "",
-            (f"Dos {len(falsos)} falsos, {len(de_benigno)} são alarmes em pcap benigno e "
+            (f"Dos {len(falsos)} falsos, {len(de_benigno)} {'é alarme' if len(de_benigno) == 1 else 'são alarmes'} "
+            "em pcap benigno e "
             f"{len(falsos) - len(de_benigno)} são incidentes de um pcap de ataque com a categoria errada. "
             "Para a triagem, os dois pedem o veredito duvidoso: no segundo caso o ataque existe, mas a "
             "categoria que guia a resposta está errada."),
@@ -152,6 +156,12 @@ def relatorio(incidentes, pcaps_benignos=None):
     escolhido = escolher(incidentes)
     if escolhido == LIMIAR_DA_TRIAGEM:
         situacao = f"Com estes resultados, a regra escolhe {_decimal(escolhido)}, o limiar da skill."
+    elif all(i.verdadeiro for i in fora):
+        situacao = (
+            f"Atenção: fora do teste não sobra incidente falso, e a regra não tem o que escolher. O "
+            f"{_decimal(LIMIAR_DA_TRIAGEM)} vem da decisão de 25/10/2026, quando as trocas entre DDoS e DoS contavam "
+            "como falsas, e foi mantido sem ajuste: aqui, a conferência é só a coluna do teste."
+        )
     else:
         situacao = (
             f"Atenção: com estes resultados, a regra escolhe "
@@ -194,10 +204,11 @@ def relatorio(incidentes, pcaps_benignos=None):
         "",
         "## O que o limiar não pega",
         "",
-        (f"{len(altos)} dos {len(falsos)} falsos têm confiança de {_decimal(CONFIANCA_ALTA)} ou mais, e "
-        "nenhum limiar de confiança os separa dos verdadeiros sem marcar boa parte dos ataques."),
+        (f"{len(altos)} dos {len(falsos)} falsos {'tem' if len(altos) == 1 else 'têm'} confiança de "
+        f"{_decimal(CONFIANCA_ALTA)} ou mais, e nenhum limiar de confiança separa esses casos dos verdadeiros sem "
+        "marcar boa parte dos ataques."),
     ]
-    if pcaps_benignos is not None:
+    if pcaps_benignos is not None and altos_de_ataque:
         linhas[-1] += (
             f" Desses, {len(altos_de_ataque)} são de pcap de ataque com a categoria errada, com mediana de "
             f"{_mediana([i.janelas for i in altos_de_ataque])} janelas."
