@@ -288,8 +288,15 @@ def test_agente_cortado_no_limite_de_saida_deixa_o_comeco_do_texto_num_aviso_sem
     assert aviso.startswith("a decisão parou no limite de saída; começo do texto: Varredura de portas e serviços em [endereço], [31m varredura")
     assert ORIGEM not in aviso and "\n" not in aviso and "\x1b" not in aviso
     assert len(aviso) < 400
-    # O texto não vai para o log: o contrato dos eventos fica como estava.
-    assert "varredura de rede" not in log.read_text(encoding="utf-8")
+    # Desde o contrato 0.8.0, o texto cortado só vai ao log dentro da conversa do agente, com o caractere de
+    # controle escapado: nenhum outro evento o traz, e nenhum byte de controle chega cru ao arquivo.
+    texto_do_log = log.read_text(encoding="utf-8")
+    assert "\x1b" not in texto_do_log
+    com_o_texto = {e.tipo for e in ler(log) if "varredura de rede" in e.model_dump_json()}
+    assert com_o_texto == {"conversa_do_agente"}
+    conversa = next(e.dados for e in eventos_de(log, "conversa_do_agente") if e.dados.agente == "decisao")
+    assert conversa.motivo == "limite_de_saida"
+    assert conversa.mensagens[-1].papel == "assistant" and "\\x1b[31m" in conversa.mensagens[-1].texto
 
 
 def test_agente_cortado_sem_texto_tambem_deixa_aviso(log):
@@ -546,3 +553,56 @@ def test_sumario_sem_resposta_vira_aviso_e_nao_derruba_o_incidente(log):
     assert resultado.desfecho == SEM_PROPOSTA
     assert resultado.avisos == ("o sumário do incidente não foi escrito: o modelo da triagem não respondeu",)
     assert eventos_de(log, "sumario_emitido") == []
+
+
+# --- A conversa de cada agente no log (contrato 0.8.0) ---------------------------------------------
+
+
+def test_cada_agente_deixa_a_conversa_inteira_no_log_logo_antes_da_conclusao(log):
+    local = ProvedorFalso(*triagem("inc-0002"), *execucao("prop-0001", "exec-0001"))
+    nuvem = ProvedorFalso(*decisao("inc-0002", "bloquear_ip", "origem-1", {"duracao": 15}))
+    perfis = {"local": Perfil(local, "qwen-local"), "nuvem": Perfil(nuvem, "claude-nuvem")}
+
+    orquestrar("inc-0002", log=log, perfis=perfis, configuracao="hibrida", aprovador=aprova_tudo(log))
+
+    do_incidente = [e for e in ler(log) if e.incidente == "inc-0002" and e.tipo in ("conversa_do_agente", "agente_concluido")]
+    assert [(e.tipo, e.dados.agente) for e in do_incidente] == [
+        ("conversa_do_agente", "triagem"), ("agente_concluido", "triagem"),
+        ("conversa_do_agente", "decisao"), ("agente_concluido", "decisao"),
+        ("conversa_do_agente", "execucao"), ("agente_concluido", "execucao"),
+    ]
+    conversas = {e.dados.agente: e.dados for e in eventos_de(log, "conversa_do_agente")}
+    assert {agente: (c.modelo, c.onde, c.motivo, c.tarefa) for agente, c in conversas.items()} == {
+        "triagem": ("qwen-local", "local", "resposta_final", "incidente"),
+        "decisao": ("claude-nuvem", "nuvem", "resposta_final", "incidente"),
+        "execucao": ("qwen-local", "local", "resposta_final", "incidente"),
+    }
+    # A conversa é a que o modelo recebeu: o mesmo prompt de sistema, o mesmo pedido e cada resultado de tool.
+    decisao_enviada = nuvem.rodadas[-1]["mensagens"]
+    gravada = conversas["decisao"].mensagens
+    assert [m.papel for m in gravada[: len(decisao_enviada)]] == [m["role"] for m in decisao_enviada]
+    assert gravada[0].texto == decisao_enviada[0]["content"].strip()
+    assert gravada[1].texto == decisao_enviada[1]["content"].strip()
+    assert gravada[-1].papel == "assistant"
+    pedidas = [t for m in gravada if m.papel == "assistant" for t in m.tools_pedidas]
+    assert [t.nome for t in pedidas] == ["obter_resumo", "propor_acao"]
+    respostas = [m for m in gravada if m.papel == "tool"]
+    assert [m.resposta_a for m in respostas] == [t.id for t in pedidas]
+    # O que a decisão recebeu não traz endereço: nem o prompt, nem o pedido, nem o que as tools devolveram.
+    recebido = " ".join(m.texto for m in gravada if m.papel != "assistant")
+    assert ORIGEM not in recebido
+
+
+def test_a_conversa_do_sumario_vai_ao_log_com_a_tarefa_sumario(log):
+    modelo = ProvedorFalso(
+        *triagem("inc-0002"), chamada("obter_resumo", {"id": "inc-0002"}, "d1"), resposta("Nada a fazer."),
+        resposta("Força bruta no SSH de um dispositivo. Nenhuma ação foi proposta."),
+    )
+
+    orquestrar("inc-0002", log=log, perfis={"local": Perfil(modelo, "qwen")}, configuracao="local", sumario=True)
+
+    conversas = [(e.dados.agente, e.dados.tarefa) for e in eventos_de(log, "conversa_do_agente")]
+    assert conversas == [("triagem", "incidente"), ("decisao", "incidente"), ("triagem", "sumario")]
+    sumario = eventos_de(log, "conversa_do_agente")[-1].dados
+    assert [m.papel for m in sumario.mensagens] == ["system", "user", "assistant"]
+    assert sumario.mensagens[-1].texto == "Força bruta no SSH de um dispositivo. Nenhuma ação foi proposta."

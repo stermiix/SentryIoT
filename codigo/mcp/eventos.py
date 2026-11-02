@@ -10,8 +10,9 @@ processo: é reconstruído a partir do log (ver `acoes.py`). Por isso o servidor
 aprovação e, mais adiante, a interface web podem trabalhar sobre o mesmo arquivo.
 
 Quem grava o quê: o servidor e o comando de aprovação usam `Registro`, que aceita qualquer evento
-do contrato. O código dos agentes recebe `GravadorDoAgente`, que só aceita `llm_chamada`,
-`agente_concluido` e `recomendacao_emitida`.
+do contrato. O código dos agentes recebe `GravadorDoAgente`, que só aceita os eventos dos agentes:
+`llm_chamada`, `agente_concluido`, `conversa_do_agente`, `analise_emitida`, `recomendacao_emitida` e
+`sumario_emitido`.
 """
 import errno
 import json
@@ -26,6 +27,7 @@ from codigo.mcp.tipos import (
     AnaliseDaTriagem,
     ChamadaDeLLM,
     ConclusaoDoAgente,
+    ConversaDoAgente,
     Recomendacao,
     Sumario,
     validar_evento,
@@ -42,8 +44,8 @@ RAIZ = Path(__file__).resolve().parents[2]
 CAMINHO_PADRAO = RAIZ / "dados" / "eventos" / "eventos.jsonl"
 # O que o código de um agente pode gravar, e o formato dos dados de cada tipo.
 _DADOS_DO_AGENTE = {
-    "llm_chamada": ChamadaDeLLM, "agente_concluido": ConclusaoDoAgente, "analise_emitida": AnaliseDaTriagem,
-    "recomendacao_emitida": Recomendacao, "sumario_emitido": Sumario,
+    "llm_chamada": ChamadaDeLLM, "agente_concluido": ConclusaoDoAgente, "conversa_do_agente": ConversaDoAgente,
+    "analise_emitida": AnaliseDaTriagem, "recomendacao_emitida": Recomendacao, "sumario_emitido": Sumario,
 }
 TIPOS_DO_AGENTE = tuple(_DADOS_DO_AGENTE)
 # Caracteres que o JSON deixa passar crus dentro de um texto e que alguns leitores tratam como fim
@@ -279,7 +281,8 @@ def _linha(evento):
 class GravadorDoAgente:
     """O que o código de um agente recebe para gravar no log: só o que é dele.
 
-    Aceita `llm_chamada`, `agente_concluido`, `analise_emitida`, `recomendacao_emitida` e `sumario_emitido`,
+    Aceita `llm_chamada`, `agente_concluido`, `conversa_do_agente`, `analise_emitida`, `recomendacao_emitida` e
+    `sumario_emitido`,
     sempre em nome do próprio agente (a análise e o sumário são da triagem),
     num incidente que existe no log (ou sem incidente), e a recomendação só cita proposta que existe e
     é do mesmo incidente. Proposta, aprovação, execução e os demais eventos são gravados pelo servidor

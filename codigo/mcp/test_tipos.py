@@ -154,6 +154,18 @@ DADOS_POR_TIPO = {
         "agente": "triagem", "motivo": "resposta_final", "voltas": 2, "tokens_entrada": 1700,
         "tokens_saida": 210, "veredito": "coerente",
     },
+    "conversa_do_agente": {
+        "agente": "triagem", "modelo": "qwen3.8-27c", "onde": "local", "motivo": "resposta_final", "tarefa": "incidente",
+        "mensagens": [
+            {"papel": "system", "texto": "# Triagem do alerta\n\nLeia o incidente.", "tools_pedidas": [], "resposta_a": None},
+            {"papel": "user", "texto": "Analise o incidente inc-0001.", "tools_pedidas": [], "resposta_a": None},
+            {"papel": "assistant", "texto": "", "tools_pedidas": [
+                {"id": "c1", "nome": "obter_incidente", "argumentos": '{"id": "inc-0001"}'},
+            ], "resposta_a": None},
+            {"papel": "tool", "texto": '{"id": "inc-0001"}', "tools_pedidas": [], "resposta_a": "c1"},
+            {"papel": "assistant", "texto": "Rótulo da triagem: coerente", "tools_pedidas": [], "resposta_a": None},
+        ],
+    },
     "incidente_marcado_resolvido": {
         "incidente": "inc-0001", "canal": "interface", "usuario": "maria", "motivo": "Bloqueei a origem no roteador.",
     },
@@ -559,7 +571,8 @@ def test_ambiente_separa_as_medidas_ativas_por_tipo():
 def test_tipos_de_evento_sao_os_da_especificacao():
     assert TIPOS_DE_EVENTO == (
         "janelas_classificadas", "incidente_aberto", "incidente_atualizado", "incidente_encerrado",
-        "incidente_marcado_resolvido", "llm_chamada", "tool_chamada", "agente_concluido", "atacante_apontado",
+        "incidente_marcado_resolvido", "llm_chamada", "tool_chamada", "agente_concluido", "conversa_do_agente",
+        "atacante_apontado",
         "analise_emitida", "recomendacao_emitida", "sumario_emitido", "acao_proposta", "acao_aprovada", "acao_rejeitada", "acao_executada", "acao_desfeita", "efeito_verificado",
         "catalogo_ampliado", "recusa",
     )

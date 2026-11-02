@@ -11,13 +11,15 @@ import type {
   MOTIVOS_DE_PARADA,
   MOTIVOS_DE_RECUSA,
   ORIGENS_DE_ACAO,
+  PAPEIS_DA_CONVERSA,
   PROTOCOLOS_DE_TRANSPORTE,
   RESULTADOS_DO_EFEITO,
   RISCOS,
+  TAREFAS_DA_CONVERSA,
   VEREDITOS_DA_TRIAGEM,
 } from "./listas";
 
-// Tipos do log de eventos, escritos a partir de `codigo/mcp/contrato.json` (contrato 0.7.0, que
+// Tipos do log de eventos, escritos a partir de `codigo/mcp/contrato.json` (contrato 0.8.0, que
 // sai de `codigo/mcp/tipos.py`). Cada linha do log é um `Evento`, e o campo `tipo` diz o formato de
 // `dados`: a união abaixo é discriminada por ele. Os valores fixos vêm de `listas.ts`, que um teste
 // confere contra o `contrato.json`, e a conferência em tempo de execução fica em `contrato.ts`.
@@ -138,6 +140,36 @@ export interface ConclusaoDoAgente {
   tokens_saida: number;
   /** Só na triagem, quando a resposta traz o rótulo. */
   veredito: VereditoDaTriagem | null;
+}
+
+/** Uma tool pedida pelo modelo, com os argumentos em texto, como ele os escreveu (contrato 0.8.0). */
+export interface ToolPedida {
+  id: string;
+  nome: string;
+  argumentos: string;
+}
+
+/** Uma mensagem da conversa de um agente com o modelo (contrato 0.8.0). */
+export interface MensagemDaConversa {
+  /** system: o prompt com as skills; user: o pedido do orquestrador ou um aviso do laço; assistant: o modelo; tool: o resultado de uma tool. */
+  papel: (typeof PAPEIS_DA_CONVERSA)[number];
+  /** Vazio quando o modelo só pediu tools. */
+  texto: string;
+  /** Só em assistant. */
+  tools_pedidas?: ToolPedida[];
+  /** Só em tool: o pedido que a mensagem responde. */
+  resposta_a?: string | null;
+}
+
+/** O que um agente recebeu e respondeu num incidente, do prompt de sistema à resposta final (contrato 0.8.0). */
+export interface ConversaDoAgente {
+  agente: Agente;
+  modelo: string;
+  onde?: LugarDoModelo | null;
+  motivo: MotivoDeParada;
+  /** incidente: o trabalho do agente; sumario: o sumário que a triagem escreve no fim. */
+  tarefa?: (typeof TAREFAS_DA_CONVERSA)[number];
+  mensagens: MensagemDaConversa[];
 }
 
 /** O atacante que a triagem apontou entre os candidatos e as origens do incidente. */
@@ -268,6 +300,7 @@ export type EventoDeMarca = Linha<"incidente_marcado_resolvido", MarcaDeResolvid
 export type EventoDeLLM = Linha<"llm_chamada", ChamadaDeLLM>;
 export type EventoDeTool = Linha<"tool_chamada", ChamadaDeTool>;
 export type EventoDeConclusao = Linha<"agente_concluido", ConclusaoDoAgente>;
+export type EventoDeConversa = Linha<"conversa_do_agente", ConversaDoAgente>;
 export type EventoDeAtacante = Linha<"atacante_apontado", AtacanteApontado>;
 export type EventoDeAnalise = Linha<"analise_emitida", AnaliseDaTriagem>;
 export type EventoDeRecomendacao = Linha<"recomendacao_emitida", Recomendacao>;
@@ -286,6 +319,7 @@ export type Evento =
   | EventoDeLLM
   | EventoDeTool
   | EventoDeConclusao
+  | EventoDeConversa
   | EventoDeAtacante
   | EventoDeAnalise
   | EventoDeRecomendacao

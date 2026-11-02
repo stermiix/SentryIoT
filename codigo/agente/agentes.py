@@ -39,6 +39,7 @@ from codigo.agente.pedidos import (
 from codigo.agente.registro import (
     chamadas_no_log,
     conclusao_no_log,
+    conversa_no_log,
     veredito_da_triagem,
 )
 from codigo.agente.sumario import escrever_sumario
@@ -280,7 +281,8 @@ def rodar_agente(papel, incidente, abertura, *, perfil, onde, log, cenarios=None
     """Roda o laço de um agente num servidor MCP só da linha dele e grava no log o que ele fez.
 
     `depois(resultado)`, se houver, roda quando o laço acaba e antes do `agente_concluido`: é onde o
-    orquestrador grava a recomendação, para que ela venha antes da conclusão, como no log de exemplo.
+    orquestrador grava a recomendação, para que ela venha antes da conclusão, como no log de exemplo. A
+    conversa inteira (`conversa_do_agente`) vai logo antes da conclusão.
     """
     gravador = GravadorDoAgente(papel, log)
     sistema = "\n\n".join([*(prompt_da_skill(skill) for skill in SKILLS[papel]), COMPLEMENTO_DO_SISTEMA])
@@ -293,6 +295,7 @@ def rodar_agente(papel, incidente, abertura, *, perfil, onde, log, cenarios=None
         )
     if depois is not None:
         depois(resultado)
+    conversa_no_log(gravador, incidente, resultado, modelo=perfil.modelo, onde=onde)
     conclusao_no_log(gravador, incidente, resultado)
     return resultado
 

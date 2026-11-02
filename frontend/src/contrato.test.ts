@@ -30,6 +30,9 @@ import {
   SEMPRE_DE_RISCO_ALTO,
   TEXTO_CURTO,
   TEXTO_LONGO,
+  MAIOR_TEXTO_DA_CONVERSA,
+  MAXIMO_DE_MENSAGENS_DA_CONVERSA,
+  MAXIMO_DE_TOOLS_PEDIDAS,
   TIPOS_DE_EVENTO,
   VEREDITOS_DA_TRIAGEM,
 } from "./listas";
@@ -126,6 +129,10 @@ describe("campos de cada definição", () => {
     expect(propriedade("AtacanteApontado", "justificativa").maxLength).toBe(TEXTO_LONGO);
     expect(propriedade("AnaliseDaTriagem", "texto").maxLength).toBe(TEXTO_LONGO);
     expect(propriedade("Sumario", "texto").maxLength).toBe(TEXTO_LONGO);
+    expect(propriedade("MensagemDaConversa", "texto").maxLength).toBe(MAIOR_TEXTO_DA_CONVERSA);
+    expect(propriedade("ToolPedida", "argumentos").maxLength).toBe(MAIOR_TEXTO_DA_CONVERSA);
+    expect(propriedade("ConversaDoAgente", "mensagens").maxItems).toBe(MAXIMO_DE_MENSAGENS_DA_CONVERSA);
+    expect(propriedade("MensagemDaConversa", "tools_pedidas").maxItems).toBe(MAXIMO_DE_TOOLS_PEDIDAS);
   });
 
   it("os campos que o incidente ganhou nas versões 0.4.0 e 0.6.0 são opcionais, como no contrato", () => {

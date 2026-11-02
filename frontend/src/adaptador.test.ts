@@ -29,7 +29,7 @@ const final = agregar(eventos);
 const fim = estadoNoPasso(eventos, linhas, eventos.length);
 
 describe("vocabulário do design system contra o contrato", () => {
-  it("tem rótulo e ícone para cada um dos 20 tipos de evento do log", () => {
+  it("tem rótulo e ícone para cada um dos 21 tipos de evento do log", () => {
     expect(new Set(EVENT_TYPES)).toEqual(new Set(TIPOS_DE_EVENTO));
   });
 

@@ -165,6 +165,17 @@ export function linhaDoEvento(evento: Evento, n: number): LogEvent {
           .join(" · "),
       };
     }
+    case "conversa_do_agente": {
+      // A conversa inteira fica para a tela do incidente; na linha do tempo, só o tamanho dela.
+      const dados = evento.dados;
+      const tools = dados.mensagens.reduce((soma, mensagem) => soma + (mensagem.tools_pedidas?.length ?? 0), 0);
+      return {
+        ...base,
+        agent: dados.agente,
+        text: dados.tarefa === "sumario" ? `${EVENT[evento.tipo].label} · sumário` : EVENT[evento.tipo].label,
+        detail: [plural(dados.mensagens.length, "mensagem", "mensagens"), plural(tools, "tool pedida", "tools pedidas")].join(" · "),
+      };
+    }
     case "atacante_apontado":
       // Só a triagem aponta o atacante (`apontar_atacante` é tool da linha dela). O endereço é um
       // dos do incidente; a justificativa é texto do agente.

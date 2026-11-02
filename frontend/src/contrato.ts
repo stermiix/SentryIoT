@@ -10,16 +10,21 @@ import {
   ESTADOS_DA_PROPOSTA,
   ESTADOS_DO_INCIDENTE,
   LUGARES_DO_MODELO,
+  MAIOR_TEXTO_DA_CONVERSA,
   MAXIMO_DE_CANDIDATOS,
+  MAXIMO_DE_MENSAGENS_DA_CONVERSA,
   MAXIMO_DE_PASSOS,
   MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO,
+  MAXIMO_DE_TOOLS_PEDIDAS,
   MOTIVOS_DE_PARADA,
   MOTIVOS_DE_RECUSA,
   ORIGENS_DE_ACAO,
+  PAPEIS_DA_CONVERSA,
   PORTAS_DO_CANDIDATO,
   PROTOCOLOS_DE_TRANSPORTE,
   RESULTADOS_DO_EFEITO,
   RISCOS,
+  TAREFAS_DA_CONVERSA,
   TEXTO_CURTO,
   TEXTO_LONGO,
   VEREDITOS_DA_TRIAGEM,
@@ -91,6 +96,16 @@ function texto(maximo = TEXTO_CURTO, padrao = UMA_LINHA): Regra {
     // O Python apara os espaços antes de medir e conta pontos de código, e não unidades UTF-16.
     const tamanho = Array.from(valor.trim()).length;
     return tamanho >= 1 && tamanho <= maximo ? null : caminho;
+  };
+}
+
+/** Texto em parágrafos que pode vir vazio, como o da conversa de um agente (contrato 0.8.0). */
+function textoOuVazio(maximo: number): Regra {
+  return (valor, caminho) => {
+    if (typeof valor !== "string" || !PARAGRAFOS.test(valor) || INVISIVEL.test(valor)) {
+      return caminho;
+    }
+    return Array.from(valor.trim()).length <= maximo ? null : caminho;
   };
 }
 
@@ -228,6 +243,14 @@ const Incidente = objeto({
   janelas_por_categoria: mapa(umDe(CATEGORIAS_DO_MODELO), contagem),
   candidatos: lista(CandidatoAAtacante, MAXIMO_DE_CANDIDATOS),
 });
+const ToolPedida = objeto({ id: texto(), nome: texto(), argumentos: textoOuVazio(MAIOR_TEXTO_DA_CONVERSA) });
+const MensagemDaConversa = objeto({
+  papel: umDe(PAPEIS_DA_CONVERSA),
+  texto: textoOuVazio(MAIOR_TEXTO_DA_CONVERSA),
+}, {
+  tools_pedidas: lista(ToolPedida, MAXIMO_DE_TOOLS_PEDIDAS),
+  resposta_a: ouNulo(texto()),
+});
 const MotivoDeRiscoAlto = objeto({ codigo: umDe(CODIGOS_DE_RISCO_ALTO), descricao: textoLongo });
 const Execucao = objeto({
   id: texto(),
@@ -287,6 +310,17 @@ export const DEFINICOES: Record<string, RegraDeObjeto> = {
     tokens_saida: contagem,
     veredito: ouNulo(umDe(VEREDITOS_DA_TRIAGEM)),
   }),
+  ConversaDoAgente: objeto({
+    agente: umDe(AGENTES),
+    modelo: texto(),
+    motivo: umDe(MOTIVOS_DE_PARADA),
+    mensagens: lista(MensagemDaConversa, MAXIMO_DE_MENSAGENS_DA_CONVERSA, 1),
+  }, {
+    onde: ouNulo(umDe(LUGARES_DO_MODELO)),
+    tarefa: umDe(TAREFAS_DA_CONVERSA),
+  }),
+  MensagemDaConversa,
+  ToolPedida,
   ChamadaDeTool: objeto({
     agente: ouNulo(umDe(AGENTES)),
     nome: texto(),
@@ -343,6 +377,7 @@ export const DADOS_DO_TIPO = new Map<TipoDeEvento, string>([
   ["llm_chamada", "ChamadaDeLLM"],
   ["tool_chamada", "ChamadaDeTool"],
   ["agente_concluido", "ConclusaoDoAgente"],
+  ["conversa_do_agente", "ConversaDoAgente"],
   ["atacante_apontado", "AtacanteApontado"],
   ["analise_emitida", "AnaliseDaTriagem"],
   ["recomendacao_emitida", "Recomendacao"],
