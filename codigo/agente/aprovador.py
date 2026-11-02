@@ -15,6 +15,12 @@ O papel do alvo vem da verdade de campo, e não do que o agente escreveu:
 
 Um alvo que não é uma coisa nem outra não tem papel, e a proposta não é aceitável.
 
+Um alvo que a política do servidor MCP protege (`codigo/mcp/politica.toml`, seção rede: os endereços
+protegidos, como o gateway, e os críticos) nunca é aceitável, em nenhuma categoria e em nenhum papel, mesmo
+quando o gabarito aceita a ação e o papel. Isolar o gateway derruba a rede, e fechar a porta 53/udp nele
+derruba o DNS de todos. O servidor já marca essa proposta com o motivo `alvo_protegido`, e a conferência usa
+a mesma regra dele (`_protegido`, em `codigo/mcp/acoes.py`), sem lista própria de endereços.
+
 `conferir_proposta` é a mesma conferência sem gravar nada. Ela serve à métrica da qualidade da recomendação,
 que olha toda proposta, e não só as de risco alto, as únicas que passam pelo aprovador.
 """
@@ -24,6 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from codigo.agente.agentes import decidir_no_log
+from codigo.mcp.acoes import _protegido, carregar_politica
 from codigo.mcp.tipos import endereco_canonico
 
 GABARITO = Path(__file__).resolve().parents[2] / "experimentos" / "gabarito_da_recomendacao.toml"
@@ -67,13 +74,18 @@ def _canonico(endereco):
         return None
 
 
+def _endereco_do_alvo(alvo):
+    """O endereço canônico que vem no fim do alvo, depois da arroba, ou None se não houver um."""
+    return _canonico(alvo.rpartition("@")[2]) if isinstance(alvo, str) else None
+
+
 def papel_do_alvo(alvo, destinos, atacantes):
     """O papel do endereço de um alvo (`origem`, `destino` ou None).
 
     O alvo vem como o servidor o guarda, com o endereço no fim: `198.51.100.23`, `23/tcp@192.168.137.31` ou
     `admin@192.168.137.31`. `destinos` são os endereços que o incidente lista como destino.
     """
-    endereco = _canonico(alvo.rpartition("@")[2]) if isinstance(alvo, str) else None
+    endereco = _endereco_do_alvo(alvo)
     if endereco is None:
         return None
     if endereco in atacantes:
@@ -83,8 +95,11 @@ def papel_do_alvo(alvo, destinos, atacantes):
     return None
 
 
-def conferir_proposta(proposta, incidente, atacantes, gabarito):
-    """Confere uma proposta contra o gabarito, sem gravar nada. `atacantes` são os IPs canônicos dos atacantes."""
+def conferir_proposta(proposta, incidente, atacantes, gabarito, politica=None):
+    """Confere uma proposta contra o gabarito, sem gravar nada. `atacantes` são os IPs canônicos dos atacantes.
+
+    `politica` é a do servidor MCP, que diz os endereços protegidos; sem ela, vale a de `codigo/mcp/politica.toml`.
+    """
     categoria = incidente.categoria
     if proposta.nova:
         return Conferencia(False, None, "Rejeitada: ação nova, fora do catálogo. Entra na conta à parte, e não na automática.")
@@ -93,6 +108,12 @@ def conferir_proposta(proposta, incidente, atacantes, gabarito):
         return Conferencia(False, None, f"Rejeitada: o gabarito não aceita {proposta.acao} na categoria {categoria}.")
     destinos = {_canonico(item.endereco) for item in incidente.destinos}
     papel = papel_do_alvo(proposta.alvo, destinos, atacantes)
+    endereco = _endereco_do_alvo(proposta.alvo)
+    politica = politica if politica is not None else carregar_politica()
+    if endereco is not None and _protegido(politica, endereco):
+        return Conferencia(
+            False, papel, "Rejeitada: o alvo é um endereço protegido pela política, e nenhuma ação sobre ele é aceitável."
+        )
     if papel is None:
         return Conferencia(
             False, None, "Rejeitada: o alvo não é um atacante do dataset nem um destino listado no incidente."
@@ -108,18 +129,22 @@ def conferir_proposta(proposta, incidente, atacantes, gabarito):
 class AprovadorPorGabarito:
     """O aprovador que `orquestrar(aprovador=...)` chama com as propostas que aguardam aprovação.
 
-    `atacantes` são os IPs dos atacantes do dataset no pcap do incidente. Cada decisão fica em `decisoes`.
+    `atacantes` são os IPs dos atacantes do dataset no pcap do incidente, e `politica`, a do servidor MCP (sem
+    ela, a de `codigo/mcp/politica.toml`). Cada decisão fica em `decisoes`.
     """
 
-    def __init__(self, log, atacantes, gabarito=None):
+    def __init__(self, log, atacantes, gabarito=None, politica=None):
         self.log = log
         self.atacantes = frozenset(_canonico_ou_erro(endereco) for endereco in atacantes)
         self.gabarito = gabarito if gabarito is not None else carregar_gabarito()
+        self.politica = politica if politica is not None else carregar_politica()
         self.decisoes = []
 
     def __call__(self, estado, pendentes):
         for proposta in pendentes:
-            conferencia = conferir_proposta(proposta, estado.incidentes[proposta.incidente], self.atacantes, self.gabarito)
+            conferencia = conferir_proposta(
+                proposta, estado.incidentes[proposta.incidente], self.atacantes, self.gabarito, self.politica
+            )
             decidir_no_log(self.log, proposta.id, conferencia.aceitavel, usuario=USUARIO, motivo=conferencia.motivo)
             self.decisoes.append(
                 DecisaoAutomatica(proposta.id, proposta.incidente, proposta.acao, proposta.nova, conferencia)

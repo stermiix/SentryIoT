@@ -25,6 +25,11 @@
 #   que fica fora dos três cenários do experimento.
 # - bloquear_ip só é aceito na origem, em todas as categorias: bloquear o destino tira do ar o
 #   dispositivo atacado, como diz a política (`codigo/agente/test_gabarito.py` confere).
+# - O alvo que a política do servidor MCP protege (`codigo/mcp/politica.toml`, seção rede: os endereços
+#   protegidos, como o gateway, e os críticos) nunca é aceitável, em nenhuma categoria e em nenhum papel,
+#   ainda que a ação e o papel estejam nas tabelas abaixo. Isolar o gateway derruba a rede, e fechar a
+#   porta 53/udp nele derruba o DNS de todos. A regra é a mesma do motivo alvo_protegido do servidor, e
+#   vale na métrica e no aprovador automático (`codigo/agente/test_aprovador.py` confere).
 #
 # As ações aceitáveis saem do levantamento da equipe em `codigo/agente/recomendacoes/`: só entra
 # aqui a ação que a coluna "Ação do catálogo" liga a alguma medida da categoria
