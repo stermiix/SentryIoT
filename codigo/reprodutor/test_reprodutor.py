@@ -627,3 +627,70 @@ def test_flood_com_origem_forjada_vem_sem_candidatos(tmp_path):
     incidente = _cenario(tmp_path, [ataque(6, origens=origens), benigno(10)]).incidente
 
     assert incidente.candidatos == []
+
+
+class ModeloUdp(ModeloFalso):
+    """UDP vira DDoS+DoS, como num flood UDP da Mirai."""
+
+    def predict_proba(self, X):
+        de_udp = (X[:, COLUNAS.index("UDP")] > 0.5).astype(float)
+        return np.column_stack([1 - de_udp, de_udp, np.zeros(len(X))])
+
+
+def test_aparelhos_comuns_que_mandam_o_flood_entram_nos_candidatos(tmp_path):
+    # Como no Mirai-udpplain: os bots são aparelhos comuns, presentes em todo o tráfego normal, e cada janela
+    # do flood vem de um bot só. O destaque deles sai negativo; a vítima, que abre conexões com a nuvem no
+    # meio do flood, é a única origem que se destaca, e a regra fixa a escolhe.
+    bots = ("192.168.1.31", "192.168.1.32", "192.168.1.33")
+
+    def normal(i):
+        return tcp(bots[i % 3], "192.168.1.10", dpkt.tcp.TH_ACK)
+
+    def flood(i):
+        if i % JANELA == 0:
+            return tcp(VITIMA, "52.46.146.139", dpkt.tcp.TH_SYN, porta=443)
+        return udp(bots[(i // JANELA) % 3], VITIMA, 1900)
+
+    c = Classificador(ModeloUdp(), tuple(COLUNAS), PontoDeOperacao(None, 3), "udp.joblib")
+    incidente = _cenario(tmp_path, [(10, normal, 0.0), (9, flood, 0.0), (10, normal, 0.0)], c).incidente
+
+    assert [o.endereco for o in incidente.origens] == [VITIMA]
+    por_endereco = {candidato.endereco: candidato for candidato in incidente.candidatos}
+    assert set(por_endereco) == {VITIMA, *bots}
+    assert all(por_endereco[bot].no_trafego_normal == 1.0 for bot in bots)
+    assert [(por_endereco[bot].quadros_enviados, por_endereco[bot].quadros_recebidos) for bot in bots] == [(297, 0)] * 3
+    # A vítima continua na lista, com as medidas que a denunciam: recebe muito e manda pouco.
+    assert (por_endereco[VITIMA].quadros_enviados, por_endereco[VITIMA].quadros_recebidos) == (9, 891)
+    # A lista continua da origem que mais se destaca para a que menos.
+    assert incidente.candidatos[0].endereco == VITIMA
+
+
+def test_o_maior_emissor_entra_mesmo_com_a_regra_cheia(tmp_path):
+    # Seis origens se destacam e mandam SYN à vítima: a regra fica com as seis. Um aparelho comum manda
+    # mais quadros do que todas, sem se destacar do fundo, e mesmo assim ganha uma das cinco vagas.
+    origens = tuple(f"10.9.0.{i}" for i in range(1, 7))
+    comum = "192.168.1.31"
+
+    def normal(i):
+        return tcp(comum, "192.168.1.10", dpkt.tcp.TH_ACK)
+
+    def flood(i):
+        if i % 10 < 4:
+            return udp(comum, VITIMA, 1900)
+        return tcp(origens[i % 6], VITIMA, dpkt.tcp.TH_SYN)
+
+    incidente = _cenario(tmp_path, [(10, normal, 0.0), (6, flood, 0.0), (10, normal, 0.0)]).incidente
+
+    assert {o.endereco for o in incidente.origens} == set(origens)
+    enderecos = [candidato.endereco for candidato in incidente.candidatos]
+    assert len(enderecos) == 5 and comum in enderecos
+    assert set(enderecos) - {comum} <= set(origens)
+
+
+def test_as_filas_se_revezam_nas_vagas_sem_repetir():
+    # Regra, destaque e emissores: a segunda fila passa o "a", que já entrou, e dá o "c".
+    filas = (["a", "b"], ["a", "c"], ["d", "e", "f"])
+
+    assert reprodutor._revezadas(filas, 5) == ["a", "c", "d", "b", "e"]
+    assert reprodutor._revezadas(filas, 2) == ["a", "c"]
+    assert reprodutor._revezadas(([], [], ["d"]), 5) == ["d"]

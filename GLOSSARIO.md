@@ -265,11 +265,15 @@ servidor troca o rótulo pelo endereço antes de calcular o risco. Assim nenhum 
 sai do ambiente.
 
 **Candidato a atacante**
-Uma origem do incidente que se destaca do tráfego normal: aparece em muitas janelas do incidente e
-em poucas das benignas. O incidente traz até cinco, com as medidas de cada um (conexões abertas,
-destinos, portas), para a triagem escolher. Existe porque a regra fixa que monta as origens erra o
-atacante em quase metade dos incidentes: um aparelho comum que abre muitas conexões com a nuvem
-passa à frente dele.
+Uma origem do incidente que pode ser o atacante. O incidente traz até cinco, com as medidas de cada
+um (quadros enviados e recebidos, conexões abertas, destinos, portas), para a triagem escolher.
+Revezam-se nas vagas três grupos: as origens que a regra fixa escolheu, as que se destacam do
+tráfego normal (aparecem em muitas janelas do incidente e em poucas das benignas) e os maiores
+emissores líquidos (os que mais mandam quadros além dos que recebem). Existe porque a regra fixa que
+monta as origens erra o atacante em quase metade dos incidentes: um aparelho comum que abre muitas
+conexões com a nuvem passa à frente dele. Os emissores entram desde 31/10/2026: o aparelho
+comprometido de uma botnet é um aparelho comum da rede, presente no tráfego normal, e não se
+destaca dele.
 
 **Atacante apontado**
 O candidato que a triagem escolheu como atacante, com a justificativa, pela tool

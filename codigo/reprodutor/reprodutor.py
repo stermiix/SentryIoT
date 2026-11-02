@@ -71,9 +71,21 @@ origens são os endereços anunciados, e a lista de destinos fica vazia.
 Candidatos. A regra dos papéis acerta o atacante em pouco mais da metade dos incidentes da
 avaliação: num ataque de pouco volume, um dispositivo comum que abre muitas conexões passa à frente
 dele. Por isso o incidente traz também os candidatos (decisão de 2026-10-31): até
-`MAXIMO_DE_CANDIDATOS` origens, as que a regra escolheu e as de destaque maior, de pelo menos
-`DESTAQUE_DO_CANDIDATO`, todas presentes em `JANELAS_DO_CANDIDATO` janelas ou mais (a origem forjada
-de um flood aparece numa só), da que mais se destaca para a que menos, com as medidas que a regra usa
+`MAXIMO_DE_CANDIDATOS` origens, tiradas de três filas que se revezam nas vagas:
+- as origens que a regra escolheu, na ordem dela;
+- as origens de destaque de pelo menos `DESTAQUE_DO_CANDIDATO`, da que mais se destaca para a que
+  menos;
+- os maiores emissores líquidos do incidente (quadros enviados menos recebidos, quando positivo), do
+  maior para o menor.
+Na sua vez, cada fila dá o primeiro endereço dela que ainda não entrou, até acabarem as vagas ou as
+filas. Assim o primeiro de cada fila entra sempre, e nenhuma fila ocupa todas as vagas enquanto
+outra tem o que dar. Os emissores entraram depois do teste massivo de 2026-10-31:
+no CICIoT2023 os atacantes são aparelhos comuns da rede, presentes em quase todas as janelas
+benignas, e o destaque deles sai negativo. Num flood da Mirai, os bots mandaram dezenas de milhares
+de quadros cada um e ficaram de fora, e o único candidato era a vítima. Todo candidato aparece em
+`JANELAS_DO_CANDIDATO` janelas ou mais (a origem forjada de um flood aparece numa só), e os
+emissores e os de destaque nunca são multicast, broadcast ou endereço protegido ou crítico da
+política. A lista sai da que mais se destaca para a que menos, com as medidas que a regra usa
 (janelas, parcela no fundo, quadros e conexões enviados e recebidos) e os destinos e as portas a que
 cada uma mais mandou quadros. Quem escolhe entre eles é o agente de triagem.
 
@@ -147,8 +159,8 @@ PARCELA_DA_MAIOR_ORIGEM = 0.8
 MINIMO_DE_ABERTURAS = 3
 # Uma origem conta como candidata a atacante se o destaque dela chega a esta fração do maior.
 DESTAQUE_RELATIVO = 0.5
-# O destaque mínimo de um candidato que vai para a triagem, e em quantas janelas ele precisa aparecer:
-# tira as origens forjadas de um flood, que aparecem numa janela só.
+# O destaque mínimo de um candidato que entra pelo destaque, e em quantas janelas todo candidato precisa
+# aparecer: tira as origens forjadas de um flood, que aparecem numa janela só.
 DESTAQUE_DO_CANDIDATO = 0.1
 JANELAS_DO_CANDIDATO = 2
 LIMITE_DE_CONTADOS = 20_000
@@ -654,11 +666,25 @@ def _papeis(incidente, categoria_do_modelo, fundo=None):
     return origens, destinos, len(origens), max(origens.values()) / total < PARCELA_DA_MAIOR_ORIGEM
 
 
-def _candidatos(incidente, fundo=None, da_regra=()):
-    """As origens que mais se destacam do fundo, com as medidas de cada uma (ver "Candidatos" no docstring).
+def _revezadas(filas, vagas):
+    """Os endereços das filas, uma de cada vez: na sua vez, cada fila dá o primeiro dela que ainda não entrou."""
+    filas = [deque(fila) for fila in filas]
+    escolhidos = []
+    while len(escolhidos) < vagas and any(filas):
+        for fila in filas:
+            while fila and fila[0] in escolhidos:
+                fila.popleft()
+            if fila and len(escolhidos) < vagas:
+                escolhidos.append(fila.popleft())
+    return escolhidos
 
-    `da_regra` são as origens que a regra dos papéis escolheu: entram sempre, para a triagem poder
-    confirmá-las, mesmo com destaque menor que o dos outros.
+
+def _candidatos(incidente, fundo=None, da_regra=()):
+    """As origens que podem ser o atacante, com as medidas de cada uma (ver "Candidatos" no docstring).
+
+    `da_regra` são as origens que a regra dos papéis escolheu, na ordem dela: a triagem precisa poder
+    confirmá-las. Elas, as que mais se destacam do fundo e os maiores emissores líquidos se revezam nas
+    vagas.
     """
     if not incidente.pares:
         return []
@@ -678,17 +704,24 @@ def _candidatos(incidente, fundo=None, da_regra=()):
         if protocolo in _TRANSPORTE:
             portas[origem][porta, _TRANSPORTE[protocolo]] += n
     presenca = incidente.presenca_origem
-    pela_ordem = sorted(
-        (
-            e for e, d in como_origem.items()
-            if d >= DESTAQUE_DO_CANDIDATO and presenca[e] >= JANELAS_DO_CANDIDATO and e in enviados and _unicast(e)
-            and _ip(e) not in _nao_atacantes()
+
+    def pode_atacar(e):
+        return presenca[e] >= JANELAS_DO_CANDIDATO and _unicast(e) and _ip(e) not in _nao_atacantes()
+
+    filas = (
+        [e for e in da_regra if e in enviados and presenca[e] >= JANELAS_DO_CANDIDATO],
+        sorted(
+            (e for e, d in como_origem.items() if d >= DESTAQUE_DO_CANDIDATO and e in enviados and pode_atacar(e)),
+            key=lambda e: (-como_origem[e], -enviados[e], e),
         ),
-        key=lambda e: (-como_origem[e], -enviados[e], e),
+        sorted(
+            (e for e in enviados if enviados[e] > recebidos[e] and pode_atacar(e)),
+            key=lambda e: (recebidos[e] - enviados[e], e),
+        ),
     )
-    obrigatorios = [e for e in da_regra if e in enviados and presenca[e] >= JANELAS_DO_CANDIDATO][:MAXIMO_DE_CANDIDATOS]
-    outros = [e for e in pela_ordem if e not in obrigatorios][: MAXIMO_DE_CANDIDATOS - len(obrigatorios)]
-    escolhidos = sorted([*obrigatorios, *outros], key=lambda e: (-como_origem.get(e, 0.0), -enviados[e], e))
+    escolhidos = sorted(
+        _revezadas(filas, MAXIMO_DE_CANDIDATOS), key=lambda e: (-como_origem.get(e, 0.0), -enviados[e], e),
+    )
     return [
         CandidatoAAtacante(
             endereco=_ip(e),
