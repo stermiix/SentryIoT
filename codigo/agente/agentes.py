@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass
 
 from codigo.agente.cliente_mcp import ClienteMCP
-from codigo.agente.laco import rodar
+from codigo.agente.laco import LIMITE_DE_SAIDA, rodar
 from codigo.agente.pedidos import (
     ABERTURA_DA_TRIAGEM,
     COMPLEMENTO_DO_SISTEMA,
@@ -62,12 +62,16 @@ SKILLS = {
     "decisao": ("coordenacao-do-incidente", "analise-por-categoria", "recomendacao-de-mitigacao"),
     "execucao": ("execucao-da-acao",),
 }
+# Uma ação por rodada: depois da proposta aceita, a decisão só escreve a recomendação.
+TOOLS_QUE_ENCERRAM = {"decisao": frozenset({"propor_acao"})}
 MAXIMO_DE_RODADAS = 3
 ESPERA_DA_APROVACAO_S = 600
 INTERVALO_DA_APROVACAO_S = 2
 # O veredito é texto de um modelo local. Antes de ir à nuvem, passa pelo filtro de endereços; um texto
 # longo demais é cortado antes, e o filtro trata o fim como possível começo de um endereço.
 MAXIMO_DO_VEREDITO = 4000
+# Como o aviso de um agente que parou no limite de saída o nomeia.
+NOMES_DOS_AGENTES = {"triagem": "a triagem", "decisao": "a decisão", "execucao": "a execução"}
 
 ABERTURA_DA_DECISAO = (
     "O incidente {incidente} foi aberto e passou pela triagem. Este é o veredito dela, sem endereços:\n\n"
@@ -191,6 +195,8 @@ def orquestrar(
             cenarios=cenarios, abrir_cliente=abrir_cliente, depois=depois, **limites_do_laco,
         )
         execucoes.append(ExecucaoDoAgente(papel, rodada, onde[papel], resultado))
+        if resultado.motivo == LIMITE_DE_SAIDA:
+            avisos.append(_aviso_do_limite_de_saida(papel, resultado.comeco_do_texto_cortado))
         return resultado
 
     estado = reconstruir(ler(log))
@@ -281,6 +287,7 @@ def rodar_agente(papel, incidente, abertura, *, perfil, onde, log, cenarios=None
     with abrir_cliente(papel, log, cenarios) as cliente:
         resultado = rodar(
             perfil.provedor, perfil.modelo, mensagens, cliente.tools, cliente,
+            tools_que_encerram=TOOLS_QUE_ENCERRAM.get(papel, frozenset()),
             ao_chamar=chamadas_no_log(gravador, incidente, onde), **limites_do_laco,
         )
     if depois is not None:
@@ -310,6 +317,19 @@ def decidir_no_log(log, id_proposta, aprovar, *, usuario, motivo=None, canal="te
     return registro.atualizar(
         lambda eventos: decidir(reconstruir(eventos), id_proposta, aprovar, canal=canal, motivo=motivo, usuario=usuario)
     )[0]
+
+
+def _aviso_do_limite_de_saida(papel, comeco):
+    """O aviso de um agente cortado no limite de tokens de saída, com o começo do que ele escreveu.
+
+    O texto não vai para o log; o aviso é o único lugar onde ele aparece, para diagnosticar a saída
+    degenerada (teste de 31/10). Sai numa linha só, sem caractere de controle e sem endereço, de qualquer
+    agente: o aviso vai para o resumo da linha de comando, que não mostra endereço.
+    """
+    texto = " ".join("".join(letra if letra.isprintable() else " " for letra in comeco or "").split())
+    if not texto:
+        return f"{NOMES_DOS_AGENTES[papel]} parou no limite de saída, sem texto"
+    return f"{NOMES_DOS_AGENTES[papel]} parou no limite de saída; começo do texto: {mascarar_enderecos(texto, cortado_no_fim=True)}"
 
 
 def _ids_do_incidente(estado, incidente):
