@@ -206,8 +206,8 @@ como num ARP spoofing ou num flood ICMP, e num log gravado antes da versão 0.4.
 
 `janelas_por_categoria` diz o que o classificador disse de todas as janelas do incidente, inclusive
 as benignas entre as de ataque: é a visão de todas as janelas que `obter_janelas`, com até 20, não dá.
-`candidatos` traz até 5 origens que se destacam do tráfego normal (`codigo/reprodutor/reprodutor.py`,
-"Candidatos"), cada uma com as janelas em que aparece, a parcela das janelas benignas em que aparece
+`candidatos` traz até 5 origens, entre as da regra fixa, as que se destacam do tráfego normal e os
+maiores emissores líquidos (`codigo/reprodutor/reprodutor.py`, "Candidatos"), cada uma com as janelas em que aparece, a parcela das janelas benignas em que aparece
 (`no_trafego_normal`), os quadros e as conexões TCP enviados e recebidos e os 3 destinos e as 3
 portas a que mais mandou quadros. As `origens` são o palpite de uma regra fixa, que erra o atacante
 em quase metade dos incidentes da avaliação; quem escolhe entre os candidatos é a triagem, com
@@ -284,7 +284,7 @@ ordem do log:
  "acoes": [{"nome": "bloquear_ip", "descricao": "Bloqueia o tráfego vindo de um endereço de origem.",
             "alvo": "Rótulo de uma origem do incidente, como origem-1",
             "parametros": [{"nome": "duracao", "descricao": "Prazo da medida, em minutos (número inteiro, de 1 a 525.600)", "obrigatorio": false}],
-            "regra": "Risco baixo quando o alvo é origem do incidente fora da rede local, a duracao é de até 15 minutos, o incidente tem menos de 5 medidas de risco baixo ativas e o sistema, somando os incidentes, menos de 10: o agente de execução aplica sem aprovação. Fora disso (sem duracao, duracao maior, alvo que não consta do incidente, alvo que é destino do incidente, isto é, o dispositivo atacado, endereço da rede local, endereço protegido pela política ou limite de medidas atingido), risco alto: só com aprovação humana.",
+            "regra": "Risco baixo quando o alvo é origem do incidente fora da rede local, a duracao é de até 15 minutos, o incidente tem menos de 5 medidas de risco baixo ativas e o sistema, somando os incidentes, menos de 10: o agente de execução aplica sem aprovação. Fora disso (sem duracao, duracao maior, alvo que não consta do incidente, alvo que é destino do incidente, isto é, o dispositivo atacado, endereço da rede local, endereço protegido pela política, alvo em que a pessoa já rejeitou uma ação no incidente ou limite de medidas atingido), risco alto: só com aprovação humana.",
             "origem": "base", "passos": [], "efeito_esperado": null,
             "como_desfazer": "Retirar o bloqueio com desfazer_acao.", "fonte": null}, ...]}
 ```
@@ -449,7 +449,9 @@ todas estas condições valem:
 5. o alvo não é um endereço protegido (na política de exemplo, o gateway e a máquina de captura)
    nem crítico (o servidor MCP, o host do modelo local e o resolvedor DNS);
 6. o incidente tem menos de 5 medidas de risco baixo ativas, e o sistema, somando todos os
-   incidentes, menos de 10.
+   incidentes, menos de 10;
+7. a pessoa não rejeitou, no incidente, nenhuma proposta sobre o mesmo endereço (ver "Depois de
+   uma rejeição").
 
 O destino do incidente é o dispositivo atacado. Limitar a taxa dele o mantém em serviço.
 Bloqueá-lo o tira do ar, que é o que o ataque quer, e por isso o bloqueio de um destino é de
@@ -471,8 +473,8 @@ IPv4 dentro dele.
 
 Quando alguma das condições falha, a proposta não é recusada: é registrada como de risco alto e
 fica aguardando a pessoa. As exceções, que são recusadas, estão na tabela de recusas: endereço
-especial como alvo, proposta para incidente encerrado ou marcado como já resolvido, e os tetos
-de propostas pendentes e liberadas.
+especial como alvo, proposta para incidente encerrado ou marcado como já resolvido, proposta igual
+a uma que a pessoa já rejeitou e os tetos de propostas pendentes e liberadas.
 
 ### Por que a proposta é de risco alto
 
@@ -490,14 +492,16 @@ e na tela do comando `aprovar`. Saem todos os motivos que valem, nesta ordem:
 | `alvo_e_destino_do_incidente` | O alvo é destino do incidente, isto é, o dispositivo atacado, e esta ação só é de risco baixo sobre uma origem. | `bloquear_ip` sobre um destino |
 | `alvo_na_rede_local` | O alvo é um endereço da rede local, e bloqueá-lo equivale a isolar um dispositivo interno. | `bloquear_ip` sobre endereço de uma das `redes_locais` |
 | `alvo_protegido` | O alvo é um endereço protegido pela política. | Ação de base sobre endereço protegido ou crítico, escrito direto ou dentro de um IPv6 |
+| `alvo_rejeitado` | A pessoa já rejeitou uma ação neste alvo neste incidente. | Ação de base sobre o endereço do alvo de uma proposta rejeitada no mesmo incidente, escrito direto, com outro rótulo ou dentro de um IPv6 |
 | `orcamento_de_risco_baixo_esgotado` | O incidente já tem o máximo de medidas de risco baixo ativas. | Ação que seria de risco baixo, com 5 medidas de risco baixo ativas no incidente |
 | `orcamento_global_de_risco_baixo_esgotado` | O sistema já tem o máximo de medidas de risco baixo ativas, somando todos os incidentes. | Ação que seria de risco baixo, com 10 medidas de risco baixo ativas no total |
 
 Os códigos são estáveis: é por eles que o código dos agentes e a interface web decidem. A frase
 é para a pessoa. As duas colunas estão em `contrato.json`, em `motivos_de_risco_alto`. Nas ações
-que são sempre de risco alto, os motivos do alvo (`alvo_fora_do_incidente` e `alvo_protegido`)
-também saem, para quem aprova o isolamento de um dispositivo saber que ele é o gateway ou que é
-alheio ao incidente. O alvo de uma ação nova é texto livre e não é conferido.
+que são sempre de risco alto, os motivos do alvo (`alvo_fora_do_incidente`, `alvo_protegido` e
+`alvo_rejeitado`) também saem, para quem aprova o isolamento de um dispositivo saber que ele é o
+gateway, que é alheio ao incidente ou que outra ação nele já foi rejeitada. O alvo de uma ação nova
+é texto livre e não é conferido.
 
 Ação de risco baixo já nasce liberada, e o agente de execução a aplica sem aprovação. Na hora
 de executar, o risco é calculado de novo, com a política e o incidente daquele momento: propor
@@ -534,6 +538,39 @@ Cada incidente tem no máximo 10 propostas liberadas e ainda não executadas
 (`propostas_liberadas_por_incidente`), contando as aprovadas. A proposta de risco baixo que seria
 a décima primeira é recusada, com o motivo `limite_de_propostas_liberadas`, até o agente de
 execução aplicar alguma das liberadas.
+
+### Depois de uma rejeição
+
+A rejeição de uma pessoa vale para o resto do incidente (contrato 0.7.0). No teste de 31/10, com a
+nova rodada da decisão depois da rejeição ligada, o agente de decisão voltou a propor, idêntica, a
+proposta rejeitada 16 vezes, em 10 dos 98 incidentes; em 6 deles a mesma proposta chegou à pessoa
+três vezes. Em outros 8, trocou a ação rejeitada por `limitar_taxa` de 60 minutos no mesmo alvo, de
+risco baixo, aplicada sem ninguém. Duas regras fecham isso, no código:
+
+- **A proposta igual a uma rejeitada é recusada**, com o motivo `proposta_repetida`. Igual é a
+  mesma ação, o mesmo alvo e os mesmos parâmetros; a justificativa não conta. O alvo é comparado
+  pelo endereço, depois de trocado o rótulo: `origem-2` e `destino-1` do mesmo endereço, o endereço
+  escrito direto e o IPv4 escrito como IPv6 são o mesmo alvo. A conferência vem depois das do
+  pedido e antes da fila de aprovação: com a fila cheia, a proposta igual à rejeitada é recusada
+  por ser repetida. A mensagem não traz endereço:
+
+  ```
+  A pessoa já rejeitou neste incidente a proposta prop-0001, com a mesma ação, o mesmo alvo e os mesmos parâmetros, e esta não foi registrada. Dois rótulos do mesmo endereço são o mesmo alvo. Troque a ação ou o alvo, ou encerre com a recomendação, sem propor de novo. Qualquer outra proposta nesse alvo também vai para a aprovação da pessoa.
+  ```
+
+- **Toda ação de base sobre o endereço de um alvo rejeitado é de risco alto**, com o motivo
+  `alvo_rejeitado`, mesmo que de outra forma fosse de risco baixo. O endereço é o do alvo inteiro, ou
+  o que vem depois da arroba em `revogar_credencial` e `fechar_porta`: rejeitado o fechamento de
+  `23/tcp@destino-1`, limitar a taxa de `destino-1` também espera a pessoa. O IPv6 que leva dentro o
+  IPv4 rejeitado conta como ele. Uma ação nova já é sempre de risco alto; rejeitada, ela marca o
+  endereço do alvo quando ele veio como rótulo ou como endereço, e não quando é texto livre.
+
+As duas valem só no incidente da rejeição e só para o que vem depois dela: outra ação em outro alvo
+continua como era, e no outro incidente o mesmo alvo também. Como o risco é calculado de novo na
+hora de executar, a proposta de risco baixo registrada antes da rejeição, no mesmo alvo, não é
+aplicada sem a pessoa (`proposta_nao_liberada`). A proposta igual a uma que só aguarda aprovação,
+sem rejeição, não é recusada: a fila tem o teto de 10, e o laço do agente para quando repete a
+mesma chamada (`chamada_repetida`).
 
 O nome de uma ação nova usa letras minúsculas, números e sublinhado, como `ativar_syn_cookies`,
 e tem até 60 caracteres. Uma ação nova aprovada e aplicada pode ser promovida ao catálogo pela
@@ -604,9 +641,11 @@ continua no ar. O campo `motivo` do evento traz um destes códigos:
 | `incidente_ja_resolvido` | Proposta ou execução de proposta de incidente que a pessoa marcou como já resolvido, inclusive a proposta já aprovada |
 | `limite_de_propostas_pendentes` | Proposta de risco alto para incidente que já tem 10 propostas aguardando aprovação |
 | `limite_de_propostas_liberadas` | Proposta de risco baixo para incidente que já tem 10 propostas liberadas e não executadas |
+| `proposta_repetida` | Proposta igual (ação, alvo pelo endereço e parâmetros) a uma que a pessoa já rejeitou no incidente |
+| `incidente_duvidoso` | Proposta para incidente com confiança do classificador abaixo de `confianca_minima_para_propor`, na política (0,6): só recomendação |
 | `acao_nova_incompleta` | Ação nova sem descrição, passos, efeito esperado ou forma de desfazer, ou com texto fora dos limites |
 | `argumentos_invalidos` | Parâmetro de ação inválido, justificativa vazia ou fora dos limites, nome de ação nova inválido, parâmetro em ação promovida, consulta grande demais |
-| `proposta_nao_liberada` | Executar proposta que aguarda aprovação ou foi rejeitada, ou proposta de risco baixo que pelas regras de agora é de risco alto |
+| `proposta_nao_liberada` | Executar proposta que aguarda aprovação ou foi rejeitada, ou proposta de risco baixo que pelas regras de agora é de risco alto, como a do alvo rejeitado depois que ela foi registrada |
 | `proposta_ja_executada` | Executar a mesma proposta outra vez |
 | `acao_nao_aplicada` | Desfazer o que não está aplicado, ou verificar o efeito de ação desfeita |
 | `tool_fora_da_linha` | Tool que não é da linha do agente |
@@ -804,7 +843,19 @@ de exemplo direto daqui: depois de gerá-lo de novo, rode também o `npm test` e
 ## Versão do contrato
 
 A versão fica em `contrato.json`, no campo `versao`, e sai de `VERSAO`, em `tipos.py`. A atual é
-a 0.6.0. O que mudou em relação à 0.5.0, para quem já usava o stub:
+a 0.7.0. O que mudou em relação à 0.6.0, para quem já usava o stub:
+
+- **Incidente duvidoso.** Motivo de recusa novo, `incidente_duvidoso`: com confiança abaixo de
+  `confianca_minima_para_propor`, na política, `propor_acao` é recusada, e a decisão só recomenda.
+- **Depois de uma rejeição.** Motivo de recusa novo, `proposta_repetida`: a proposta igual a uma
+  que a pessoa já rejeitou no incidente não é registrada. Motivo de risco alto novo,
+  `alvo_rejeitado`: toda ação de base sobre o endereço de um alvo rejeitado no incidente espera a
+  pessoa. A regra de `limitar_taxa` e de `bloquear_ip` no catálogo e a descrição de `propor_acao`
+  dizem isso ao agente. Nenhum campo mudou: um log gravado com a 0.5.0 ou a 0.6.0 continua legível,
+  inclusive o que tem a proposta rejeitada repetida ou a medida de risco baixo no alvo rejeitado, que
+  a leitura do log não confere (ver "Motivos e tetos na leitura do log").
+
+O que mudou da 0.5.0 para a 0.6.0:
 
 - **A triagem aponta o atacante.** `Incidente` ganhou `janelas_por_categoria` e `candidatos`, com
   valor padrão vazio: um log gravado com a 0.5.0 continua legível. Tool nova da triagem,
@@ -911,7 +962,9 @@ O que mais fica de fora deste trabalho:
 - **Motivos e tetos na leitura do log.** A reconstrução confere que a proposta de risco alto traz
   motivo e que a frase é a do contrato, mas não refaz a conta do risco: os motivos gravados são
   os do momento da proposta, com a política e o incidente de então. Os tetos de propostas
-  pendentes e liberadas valem na hora de propor, e a leitura do log não os confere.
+  pendentes e liberadas e a recusa da proposta repetida valem na hora de propor, e a leitura do log
+  não os confere: o log gravado antes da 0.7.0, com a mesma proposta rejeitada três vezes, continua
+  legível.
 - **O filtro de endereços é uma rede de proteção, não a garantia.** A garantia é a linha de
   decisão não ter tool que devolva endereço. O filtro pega IPv4 em quatro grupos de um a quatro
   dígitos separados por ponto, inclusive o IPv4 "desarmado" (`203.0.113[.]7`, `203(.)0(.)113(.)7`);

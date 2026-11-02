@@ -149,21 +149,23 @@ def test_cada_tool_devolve_dados_validos_pelo_contrato(stub, cenario):
     solucoes = chamar(stub, "pesquisar_solucoes", consulta="limitar taxa de pacotes")
     assert solucoes.fonte == "base_local" and solucoes.trechos
 
-    # A origem do falso positivo é a câmera, da rede local: bloqueá-la é de risco alto, e limitar a taxa não.
-    acao, grupo = (LIMITE, "limites") if cenario.nome == "falso_positivo" else (BLOQUEIO, "bloqueios")
-    proposta = chamar(stub, "propor_acao", id=identificador, alvo=incidente.origens[0].endereco, **acao)
+    # O falso positivo tem confiança abaixo do mínimo: a decisão só recomenda.
+    if cenario.nome == "falso_positivo":
+        recusado(stub, "incidente_duvidoso", "propor_acao", id=identificador, alvo=incidente.origens[0].endereco, **LIMITE)
+        return
+    proposta = chamar(stub, "propor_acao", id=identificador, alvo=incidente.origens[0].endereco, **BLOQUEIO)
     assert (proposta.incidente, proposta.risco, proposta.exige_aprovacao) == (identificador, "baixo", False)
 
     execucao = chamar(stub, "executar_acao", id_proposta=proposta.id)
     assert (execucao.proposta, execucao.estado) == (proposta.id, "aplicada")
-    assert getattr(chamar(stub, "consultar_estado"), grupo) == [execucao]
+    assert chamar(stub, "consultar_estado").bloqueios == [execucao]
 
     efeito = chamar(stub, "verificar_efeito", id_execucao=execucao.id)
     assert (efeito.execucao, efeito.incidente, efeito.resultado) == (execucao.id, identificador, cenario.efeitos[0])
 
     desfeita = chamar(stub, "desfazer_acao", id_execucao=execucao.id)
     assert desfeita.estado == "desfeita"
-    assert getattr(chamar(stub, "consultar_estado"), grupo) == []
+    assert chamar(stub, "consultar_estado").bloqueios == []
 
 
 def test_mitigacoes_recomendadas_vem_da_base_local_com_a_acao_do_catalogo(stub):
@@ -285,8 +287,7 @@ def test_acao_nova_sem_passos_ou_sem_como_desfazer_e_recusada(stub, faltando):
 
 @pytest.mark.parametrize("alvo", ["192.168.137.1", "192.168.137.20", "8.8.8.8", "::ffff:192.168.137.1"])
 def test_bloqueio_curto_de_alvo_fora_do_incidente_exige_aprovacao(stub, alvo):
-    # inc-0004 é o falso positivo: a origem é a câmera e o destino é o servidor de vídeo.
-    proposta = chamar(stub, "propor_acao", id="inc-0004", alvo=alvo, **BLOQUEIO)
+    proposta = chamar(stub, "propor_acao", id="inc-0002", alvo=alvo, **BLOQUEIO)
     assert (proposta.risco, proposta.exige_aprovacao, proposta.estado) == ("alto", True, "aguardando_aprovacao")
     recusado(stub, "proposta_nao_liberada", "executar_acao", id_proposta=proposta.id)
     assert chamar(stub, "consultar_estado").bloqueios == []
@@ -370,14 +371,14 @@ def test_a_decima_primeira_proposta_pendente_do_incidente_e_recusada_e_registrad
     # O teto é de cada incidente, e a proposta de risco baixo não entra na conta.
     assert chamar(stub, "propor_acao", id="inc-0002", alvo="192.168.137.31", **ISOLAMENTO).exige_aprovacao
     assert not chamar(stub, "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO).exige_aprovacao
-    # A pessoa rejeita uma das pendentes, e a seguinte volta a entrar.
+    # A pessoa rejeita uma das pendentes, e a seguinte volta a entrar (noutro alvo: a igual à rejeitada é recusada).
     aprovar(stub, "prop-0001", aprovar=False)
-    assert chamar(stub, "propor_acao", id="inc-0001", alvo="192.168.137.20", **ISOLAMENTO).id == "prop-0013"
+    assert chamar(stub, "propor_acao", id="inc-0001", alvo="203.0.113.7", **ISOLAMENTO).id == "prop-0013"
     recusado(stub, "limite_de_propostas_pendentes", "propor_acao", id="inc-0001", alvo="192.168.137.20", **SYN_COOKIES)
 
     # Pelo servidor, a recusa chega ao cliente como erro de tool, com a mesma mensagem.
     resposta = chamar_pelo_servidor(criar_servidor(stub), "propor_acao", {
-        "id": "inc-0001", "acao": "isolar_dispositivo", "alvo": "192.168.137.20", "justificativa": "Dispositivo sob ataque.",
+        "id": "inc-0001", "acao": "isolar_dispositivo", "alvo": "203.0.113.7", "justificativa": "Dispositivo sob ataque.",
     })
     assert resposta.is_error is True and resposta.content[0].text == mensagem
 
@@ -972,6 +973,29 @@ def test_decisao_nao_propoe_com_endereco_e_a_recusa_nao_mostra_endereco(registro
     mensagem = recusado(decisao, "alvo_malformado", "propor_acao", id="inc-0001", alvo="203.0.113.7", **BLOQUEIO)
     assert "rótulo" in mensagem and "203.0.113.7" not in mensagem
     assert "acao_proposta" not in [evento.tipo for evento in registro.ler()]
+
+
+def test_depois_da_rejeicao_a_decisao_nao_repete_a_proposta_nem_contorna_a_pessoa(registro):
+    _, decisao, execucao = stubs_das_tres_linhas(registro)
+    bloqueio = {**BLOQUEIO, "parametros": {}}
+    rejeitada = chamar(decisao, "propor_acao", id="inc-0001", alvo="origem-1", **bloqueio)
+    aprovar(decisao, rejeitada.id, aprovar=False)
+
+    # A mesma proposta é recusada e fica no log como recusa, sem endereço na mensagem.
+    mensagem = recusado(decisao, "proposta_repetida", "propor_acao", id="inc-0001", alvo="origem-1", **bloqueio)
+    assert rejeitada.id in mensagem and "203.0.113.7" not in mensagem
+    resposta = chamar_pelo_servidor(criar_servidor(decisao), "propor_acao", {
+        "id": "inc-0001", "alvo": "origem-1", **bloqueio,
+    })
+    assert resposta.is_error is True and resposta.content[0].text == mensagem
+
+    # A medida de risco baixo no mesmo alvo vai para a pessoa, e a execução não a aplica antes disso.
+    limite = chamar(decisao, "propor_acao", id="inc-0001", alvo="origem-1", **LIMITE)
+    assert (limite.risco, [motivo.codigo for motivo in limite.motivos_de_risco_alto]) == ("alto", ["alvo_rejeitado"])
+    assert registro.ler()[-2].dados.resultado["motivos_de_risco_alto"] == ["alvo_rejeitado"]
+    recusado(execucao, "proposta_nao_liberada", "executar_acao", id_proposta=limite.id)
+    # Em outro alvo, nada muda.
+    assert chamar(decisao, "propor_acao", id="inc-0001", alvo="origem-2", **LIMITE).risco == "baixo"
 
 
 @pytest.mark.parametrize("agente", ["decisao", "todos"])

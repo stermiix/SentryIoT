@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "titulo": "Contrato MCP do SentryIoT",
-  "versao": "0.6.0",
+  "versao": "0.7.0",
   "limite_de_janelas": 20,
   "motivos_de_risco_alto": {
     "acao_sempre_de_risco_alto": "A ação é sempre de risco alto, qualquer que seja o alvo ou o prazo.",
@@ -11,6 +11,7 @@
     "alvo_e_destino_do_incidente": "O alvo é destino do incidente, isto é, o dispositivo atacado, e esta ação só é de risco baixo sobre uma origem.",
     "alvo_na_rede_local": "O alvo é um endereço da rede local, e bloqueá-lo equivale a isolar um dispositivo interno.",
     "alvo_protegido": "O alvo é um endereço protegido pela política.",
+    "alvo_rejeitado": "A pessoa já rejeitou uma ação neste alvo neste incidente.",
     "orcamento_de_risco_baixo_esgotado": "O incidente já tem o máximo de medidas de risco baixo ativas.",
     "orcamento_global_de_risco_baixo_esgotado": "O sistema já tem o máximo de medidas de risco baixo ativas, somando todos os incidentes."
   },
@@ -28,7 +29,7 @@
       }
     },
     "apontar_atacante": {
-      "descricao": "Registra qual dos candidatos (ou das origens) do incidente é o atacante, com a justificativa. O agente de decisão recebe o rótulo dele no resumo, como alvo das ações sobre a origem. Chamada de novo, vale a última. Não aponte quando nenhum candidato se destaca, como num flood com origem forjada.",
+      "descricao": "Registra qual dos candidatos (ou das origens) do incidente é o atacante, com a justificativa. O agente de decisão recebe o rótulo dele no resumo, como alvo das ações sobre a origem. Chamada de novo, vale a última. Não aponte quando as medidas não mostram o atacante, como num flood com origem forjada.",
       "agentes": [
         "triagem"
       ],
@@ -88,7 +89,7 @@
       }
     },
     "propor_acao": {
-      "descricao": "Registra a proposta de uma ação do catálogo ou de uma ação nova e devolve o nível de risco e se ela exige aprovação humana. O alvo usa o rótulo neutro do resumo, como origem-1: o servidor o troca pelo endereço e calcula o risco sobre ele. Ação nova é sempre de risco alto e precisa trazer em `parametros` a descrição, os passos, o efeito esperado e como desfazer. Incidente marcado como já resolvido não recebe proposta.",
+      "descricao": "Registra a proposta de uma ação do catálogo ou de uma ação nova e devolve o nível de risco e se ela exige aprovação humana. O alvo usa o rótulo neutro do resumo, como origem-1: o servidor o troca pelo endereço e calcula o risco sobre ele. Ação nova é sempre de risco alto e precisa trazer em `parametros` a descrição, os passos, o efeito esperado e como desfazer. Incidente marcado como já resolvido não recebe proposta. Proposta igual a uma que a pessoa já rejeitou no incidente é recusada, e qualquer outra sobre o mesmo alvo exige aprovação humana. Incidente com confiança abaixo de 0,6 não recebe proposta: só a recomendação.",
       "agentes": [
         "decisao"
       ],
@@ -401,7 +402,7 @@
     },
     "CandidatoAAtacante": {
       "additionalProperties": false,
-      "description": "Uma origem que pode ser o atacante, com as medidas que a separam do tráfego normal.\n\nQuem escolhe entre os candidatos é o agente de triagem (decisão de 2026-10-31), com\n`apontar_atacante`. A regra fixa do reprodutor, que dá as `origens`, acerta o atacante em pouco\nmais da metade dos incidentes da avaliação.",
+      "description": "Uma origem que pode ser o atacante, com as medidas para a triagem decidir.\n\nQuem escolhe entre os candidatos é o agente de triagem (decisão de 2026-10-31), com\n`apontar_atacante`. A regra fixa do reprodutor, que dá as `origens`, acerta o atacante em pouco\nmais da metade dos incidentes da avaliação.",
       "properties": {
         "endereco": {
           "anyOf": [
@@ -2555,7 +2556,7 @@
           "type": "object"
         },
         "candidatos": {
-          "description": "Até cinco origens que mais se destacam do tráfego normal, da que mais se destaca para a que menos, com as medidas de cada uma, para a triagem apontar o atacante. Vem vazia quando nenhuma origem se destaca, como num flood com origem forjada",
+          "description": "Até cinco origens, entre as da regra fixa, as que mais se destacam do tráfego normal e as que mais mandam do que recebem, da que mais se destaca para a que menos, com as medidas de cada uma, para a triagem apontar o atacante. Vem vazia quando nenhuma origem serve, como num flood com origem forjada",
           "items": {
             "$ref": "#/$defs/CandidatoAAtacante"
           },
@@ -2788,6 +2789,7 @@
             "alvo_e_destino_do_incidente",
             "alvo_na_rede_local",
             "alvo_protegido",
+            "alvo_rejeitado",
             "orcamento_de_risco_baixo_esgotado",
             "orcamento_global_de_risco_baixo_esgotado"
           ],
@@ -3091,7 +3093,7 @@
           "items": {
             "$ref": "#/$defs/MotivoDeRiscoAlto"
           },
-          "maxItems": 9,
+          "maxItems": 10,
           "type": "array"
         },
         "exige_aprovacao": {
@@ -3200,6 +3202,8 @@
             "incidente_ja_resolvido",
             "limite_de_propostas_pendentes",
             "limite_de_propostas_liberadas",
+            "proposta_repetida",
+            "incidente_duvidoso",
             "acao_nova_incompleta",
             "proposta_nao_liberada",
             "proposta_ja_executada",

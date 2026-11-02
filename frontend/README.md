@@ -144,7 +144,7 @@ no build: depois de mudar uma, gere o `dist/` de novo.
 - **Contrato** (`src/contrato.test.ts`): as listas de `src/listas.ts` contra o `contrato.json` e o
   `acoes.py`.
 - **Adaptador** (`src/adaptador.test.ts`): cada número e estado que a tela mostra, no log de
-  exemplo, e o vocabulário do design system contra o contrato (20 tipos de evento, 9 motivos de
+  exemplo, e o vocabulário do design system contra o contrato (20 tipos de evento, 10 motivos de
   risco alto).
 - **Telas** (`src/telas.test.tsx`): cada tela desenhada no Node em passos escolhidos do replay,
   incluindo o HTML vindo do log escapado e as duas vozes do texto, e cada tela sem log, vazia e sem

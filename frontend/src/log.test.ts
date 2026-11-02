@@ -702,6 +702,63 @@ describe("contrato 0.6.0", () => {
   });
 });
 
+// O que a versão 0.7.0 do contrato trouxe: depois de uma rejeição, a proposta igual à rejeitada é
+// recusada (`proposta_repetida`), e a ação no alvo rejeitado é de risco alto (`alvo_rejeitado`).
+// Nenhum campo mudou: o log de exemplo, que não tem nenhum dos dois, é o de antes, e continua legível.
+describe("contrato 0.7.0", () => {
+  const rejeicao = copia("acao_rejeitada");
+  const rejeitada = copia("acao_proposta", (evento) => evento.dados.id === rejeicao.dados.proposta);
+  const ARGUMENTOS = { id: rejeitada.incidente, acao: rejeitada.dados.acao, alvo: rejeitada.dados.alvo_com_rotulo, parametros: {}, justificativa: "De novo." };
+
+  /** A medida de risco baixo no alvo rejeitado, que agora espera a pessoa, e a recusa da proposta repetida. */
+  function depoisDaRejeicao() {
+    const noAlvoRejeitado = structuredClone(rejeitada);
+    noAlvoRejeitado.id = novoId();
+    noAlvoRejeitado.dados = {
+      ...noAlvoRejeitado.dados,
+      id: "prop-0098",
+      acao: "limitar_taxa",
+      parametros: { duracao: 60 },
+      motivos_de_risco_alto: [{ codigo: "alvo_rejeitado", descricao: MOTIVOS_DE_RISCO_ALTO.alvo_rejeitado }],
+    };
+    const recusa = copia("recusa");
+    recusa.id = novoId();
+    recusa.incidente = rejeitada.incidente;
+    recusa.dados = {
+      agente: "decisao",
+      tool: "propor_acao",
+      argumentos: ARGUMENTOS,
+      motivo: "proposta_repetida",
+      mensagem: `A pessoa já rejeitou neste incidente a proposta ${rejeitada.dados.id}, com a mesma ação, o mesmo alvo e os mesmos parâmetros, e esta não foi registrada.`,
+    };
+    return { noAlvoRejeitado, recusa };
+  }
+
+  it("lê a proposta com o alvo rejeitado e a recusa da proposta repetida, sem aviso", () => {
+    const { noAlvoRejeitado, recusa } = depoisDaRejeicao();
+    const resultado = ler([...base, noAlvoRejeitado, recusa]);
+    expect(resultado.avisosDaLeitura).toEqual([]);
+    expect(resultado.avisos).toEqual([]);
+    expect(resultado.propostas.get("prop-0098")).toMatchObject({
+      acao: "limitar_taxa",
+      alvo: rejeitada.dados.alvo,
+      risco: "alto",
+      motivosDeRiscoAlto: ["alvo_rejeitado"],
+      estado: "aguardando_aprovacao",
+    });
+    const view = resultado.incidentes.find((item) => item.id === rejeitada.incidente)!;
+    expect(view.eventos.map((evento) => evento.id)).toContain(recusa.id);
+  });
+
+  it("a frase do alvo rejeitado é a do contrato, e outro motivo de recusa é descartado", () => {
+    const { noAlvoRejeitado, recusa } = depoisDaRejeicao();
+    noAlvoRejeitado.dados.motivos_de_risco_alto = [{ codigo: "alvo_rejeitado", descricao: "Pode aplicar sem a pessoa." }];
+    expect(ler([...base, noAlvoRejeitado]).avisos.join(" ")).toContain("com uma frase que não é a do contrato");
+    recusa.dados.motivo = "proposta_igual";
+    expect(ler([...base, recusa]).avisosDaLeitura.join(" ")).toContain("recusa com dados.motivo fora do contrato");
+  });
+});
+
 describe("replay passo a passo", () => {
   it("só mostra o incidente depois do evento de abertura", () => {
     const { eventos } = lerLog(textoDoExemplo);

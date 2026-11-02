@@ -121,6 +121,29 @@ describe("detalhe do incidente", () => {
     expect(html).not.toContain("Uma pessoa precisa decidir antes de qualquer execução.");
   });
 
+  it("a medida no alvo que a pessoa rejeitou espera por ela, e a tela diz por quê (contrato 0.7.0)", () => {
+    const rejeicao = lido.eventos.find((evento) => evento.tipo === "acao_rejeitada")!;
+    if (rejeicao.tipo !== "acao_rejeitada") throw new Error("tipo");
+    const rejeitada = lido.eventos.find((evento) => evento.tipo === "acao_proposta" && evento.dados.id === rejeicao.dados.proposta)!;
+    if (rejeitada.tipo !== "acao_proposta") throw new Error("tipo");
+    const noAlvoRejeitado = {
+      ...rejeitada,
+      id: `ev-${String(lido.eventos.length + 1).padStart(6, "0")}`,
+      instante: lido.eventos[lido.eventos.length - 1].instante,
+      dados: {
+        ...rejeitada.dados,
+        id: "prop-0098",
+        acao: "limitar_taxa",
+        parametros: { duracao: 60 },
+        motivos_de_risco_alto: [{ codigo: "alvo_rejeitado", descricao: MOTIVOS_DE_RISCO_ALTO.alvo_rejeitado }],
+      },
+    };
+    const log = `${textoDoExemplo}${JSON.stringify(noAlvoRejeitado)}\n`;
+    const html = texto(pagina("incidente", fimDe(log), rejeitada.incidente, log));
+    expect(html).toContain("1 proposta de risco alto aguarda aprovação");
+    expect(html).toContain(MOTIVOS_DE_RISCO_ALTO.alvo_rejeitado);
+  });
+
   it("mostra o veredito com as duas categorias, as features e os endereços com rótulo neutro", () => {
     const html = texto(pagina("incidente", lido.eventos.length, "inc-0001"));
     expect(html).toContain("O modelo disse DDoS+DoS; com 37 origens, é um DDoS.");

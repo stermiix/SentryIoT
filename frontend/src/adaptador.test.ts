@@ -33,10 +33,10 @@ describe("vocabulário do design system contra o contrato", () => {
     expect(new Set(EVENT_TYPES)).toEqual(new Set(TIPOS_DE_EVENTO));
   });
 
-  it("os motivos de risco alto são os nove do contrato, com a frase do contrato", () => {
+  it("os motivos de risco alto são os dez do contrato, com a frase do contrato", () => {
     expect(Object.keys(RISK_REASON)).toEqual([...CODIGOS_DE_RISCO_ALTO]);
     expect(RISK_REASON).toEqual(contrato.motivos_de_risco_alto);
-    expect(Object.keys(RISK_REASON)).toHaveLength(9);
+    expect(Object.keys(RISK_REASON)).toHaveLength(10);
   });
 
   it("tem as palavras do sistema para cada motivo de recusa", () => {
@@ -100,6 +100,17 @@ describe("linhas da linha do tempo", () => {
     expect(recusa.ref).toBe("prop-0003");
     expect(recusa.detail?.startsWith("“")).toBe(true);
     expect(recusa.detail?.endsWith("”")).toBe(true);
+  });
+
+  it("a recusa da proposta igual a uma rejeitada diz isso com as palavras do sistema (contrato 0.7.0)", () => {
+    const evento = eventos.find((item) => item.tipo === "recusa")!;
+    if (evento.tipo !== "recusa") throw new Error("tipo");
+    const repetida = linhaDoEvento({
+      ...evento,
+      dados: { ...evento.dados, tool: "propor_acao", argumentos: { id: "inc-0001", acao: "isolar_dispositivo", alvo: "destino-1" }, motivo: "proposta_repetida" },
+    }, 1);
+    expect(repetida.text).toBe("propor_acao · proposta igual a uma já rejeitada");
+    expect(repetida.ref).toBeUndefined();
   });
 
   it("a decisão humana leva canal, usuário e o motivo como texto de pessoa", () => {
