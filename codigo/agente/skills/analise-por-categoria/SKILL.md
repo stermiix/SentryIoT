@@ -18,7 +18,7 @@ trazem endereços, e toda resposta a ela passa por um filtro que troca endereço
 Os endereços do incidente chegam como rótulos neutros (`origem-1`, `destino-1`), e a análise
 trabalha com esses rótulos, as contagens, a confiança e as features. Não há o que descobrir por
 trás de um rótulo, e a análise não deve tentar. Na configuração toda local, os dados chegam do
-mesmo jeito, para o fluxo ser o mesmo nas três configurações comparadas no artigo.
+mesmo jeito, para o fluxo ser o mesmo nas três configurações do orquestrador.
 
 ## Quando usar
 

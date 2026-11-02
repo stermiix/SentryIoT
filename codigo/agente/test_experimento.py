@@ -285,6 +285,19 @@ def test_o_comando_rodar_sem_o_ambiente_completo_para_antes_de_chamar_qualquer_c
 
     erro = capsys.readouterr().err
     assert codigo == 2
+    assert "LLM_BASE_URL" in erro and "LLM_NUVEM_BASE_URL" not in erro
+
+
+def test_o_comando_rodar_com_a_nuvem_pede_tambem_o_ambiente_da_nuvem(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(os, "environ", {})
+
+    codigo = main([
+        "rodar", "--conjunto", str(tmp_path / "nao.json"), "--env", str(tmp_path / "nao.env"),
+        "--configuracoes", "local", "hibrida",
+    ])
+
+    erro = capsys.readouterr().err
+    assert codigo == 2
     assert "LLM_BASE_URL" in erro and "LLM_NUVEM_BASE_URL" in erro
 
 
