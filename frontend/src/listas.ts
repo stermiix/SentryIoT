@@ -87,6 +87,7 @@ export const TIPOS_DE_EVENTO = [
   "llm_chamada",
   "tool_chamada",
   "agente_concluido",
+  "conversa_do_agente",
   "atacante_apontado",
   "analise_emitida",
   "recomendacao_emitida",
@@ -110,6 +111,13 @@ export const MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO = 20;
 export const MAXIMO_DE_CANDIDATOS = 5;
 export const DESTINOS_DO_CANDIDATO = 3;
 export const PORTAS_DO_CANDIDATO = 3;
+// A conversa de um agente (contrato 0.8.0): tamanho de cada texto, mensagens e tools pedidas por evento.
+export const MAIOR_TEXTO_DA_CONVERSA = 100_000;
+export const MAXIMO_DE_MENSAGENS_DA_CONVERSA = 400;
+export const MAXIMO_DE_TOOLS_PEDIDAS = 50;
+// Os papéis de mensagem da conversa, no formato da API, e o que o agente fazia nela.
+export const PAPEIS_DA_CONVERSA = ["system", "user", "assistant", "tool"] as const;
+export const TAREFAS_DA_CONVERSA = ["incidente", "sumario"] as const;
 
 // O catálogo de base e as ações que são sempre de risco alto não estão no contrato: vêm de
 // `BASE` e `_SEMPRE_DE_RISCO_ALTO`, em `codigo/mcp/acoes.py`, e `contrato.test.ts` também as confere

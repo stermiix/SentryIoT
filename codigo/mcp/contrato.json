@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "titulo": "Contrato MCP do SentryIoT",
-  "versao": "0.7.0",
+  "versao": "0.8.0",
   "limite_de_janelas": 20,
   "motivos_de_risco_alto": {
     "acao_sempre_de_risco_alto": "A ação é sempre de risco alto, qualquer que seja o alvo ou o prazo.",
@@ -668,6 +668,83 @@
       "title": "ConclusaoDoAgente",
       "type": "object"
     },
+    "ConversaDoAgente": {
+      "additionalProperties": false,
+      "description": "O que um agente recebeu e respondeu num incidente, do prompt de sistema à resposta final (desde a 0.8.0).\n\nÉ o histórico que o laço mandou ao modelo na última volta, com a última resposta: a resposta cortada no\nlimite de saída, que o laço tira do histórico antes de pedir de novo, não aparece. Os tokens e o tempo de\ncada chamada continuam nos `llm_chamada`.",
+      "properties": {
+        "agente": {
+          "enum": [
+            "triagem",
+            "decisao",
+            "execucao"
+          ],
+          "type": "string"
+        },
+        "modelo": {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "onde": {
+          "anyOf": [
+            {
+              "enum": [
+                "local",
+                "nuvem"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Onde o modelo rodou: local, no gateway, ou nuvem"
+        },
+        "motivo": {
+          "description": "Por que o laço parou, como no agente_concluido",
+          "enum": [
+            "resposta_final",
+            "limite_de_voltas",
+            "chamada_repetida",
+            "limite_de_tools",
+            "limite_do_historico",
+            "resposta_incompleta",
+            "resposta_vazia",
+            "recusa_do_provedor",
+            "limite_de_saida"
+          ],
+          "type": "string"
+        },
+        "tarefa": {
+          "default": "incidente",
+          "description": "incidente é o trabalho do agente no incidente; sumario, o sumário da triagem no fim",
+          "enum": [
+            "incidente",
+            "sumario"
+          ],
+          "type": "string"
+        },
+        "mensagens": {
+          "description": "A conversa, na ordem",
+          "items": {
+            "$ref": "#/$defs/MensagemDaConversa"
+          },
+          "maxItems": 400,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "agente",
+        "modelo",
+        "motivo",
+        "mensagens"
+      ],
+      "title": "ConversaDoAgente",
+      "type": "object"
+    },
     "Decisao": {
       "additionalProperties": false,
       "description": "Aprovação ou rejeição de uma proposta. Só uma pessoa decide, nunca um agente.",
@@ -1015,6 +1092,7 @@
           "analise_emitida": "#/$defs/EventoDeAnalise",
           "atacante_apontado": "#/$defs/EventoDeAtacante",
           "catalogo_ampliado": "#/$defs/EventoDeCatalogo",
+          "conversa_do_agente": "#/$defs/EventoDeConversa",
           "efeito_verificado": "#/$defs/EventoDeEfeito",
           "incidente_aberto": "#/$defs/EventoDeIncidente",
           "incidente_atualizado": "#/$defs/EventoDeIncidente",
@@ -1047,6 +1125,9 @@
         },
         {
           "$ref": "#/$defs/EventoDeConclusao"
+        },
+        {
+          "$ref": "#/$defs/EventoDeConversa"
         },
         {
           "$ref": "#/$defs/EventoDeAtacante"
@@ -1263,6 +1344,52 @@
         "dados"
       ],
       "title": "EventoDeConclusao",
+      "type": "object"
+    },
+    "EventoDeConversa": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Identificador do evento, sequencial dentro do arquivo",
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "instante": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "tipo": {
+          "const": "conversa_do_agente",
+          "type": "string"
+        },
+        "incidente": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Incidente a que o evento se refere, quando houver"
+        },
+        "dados": {
+          "$ref": "#/$defs/ConversaDoAgente"
+        }
+      },
+      "required": [
+        "id",
+        "instante",
+        "tipo",
+        "incidente",
+        "dados"
+      ],
+      "title": "EventoDeConversa",
       "type": "object"
     },
     "EventoDeDecisao": {
@@ -2735,6 +2862,58 @@
       "title": "MarcaDeResolvido",
       "type": "object"
     },
+    "MensagemDaConversa": {
+      "additionalProperties": false,
+      "description": "Uma mensagem da conversa de um agente com o modelo, no formato da API, com nomes do contrato.",
+      "properties": {
+        "papel": {
+          "description": "system é o prompt com as skills; user, o pedido do orquestrador ou um aviso do laço; assistant, a resposta do modelo; tool, o resultado de uma tool",
+          "enum": [
+            "system",
+            "user",
+            "assistant",
+            "tool"
+          ],
+          "type": "string"
+        },
+        "texto": {
+          "description": "O conteúdo da mensagem; vazio quando o modelo só pediu tools",
+          "maxLength": 100000,
+          "minLength": 0,
+          "pattern": "^[^\\x00-\\x09\\x0b-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "tools_pedidas": {
+          "description": "As tools pedidas, só em assistant",
+          "items": {
+            "$ref": "#/$defs/ToolPedida"
+          },
+          "maxItems": 50,
+          "type": "array"
+        },
+        "resposta_a": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "O pedido que a mensagem responde, só em tool"
+        }
+      },
+      "required": [
+        "papel",
+        "texto"
+      ],
+      "title": "MensagemDaConversa",
+      "type": "object"
+    },
     "Mitigacoes": {
       "additionalProperties": false,
       "properties": {
@@ -3425,6 +3604,40 @@
         "texto"
       ],
       "title": "Sumario",
+      "type": "object"
+    },
+    "ToolPedida": {
+      "additionalProperties": false,
+      "description": "Uma tool que o modelo pediu numa resposta, com os argumentos como ele os escreveu.",
+      "properties": {
+        "id": {
+          "description": "Identificador do pedido, que a resposta da tool repete",
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "nome": {
+          "description": "Nome da tool pedida",
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        },
+        "argumentos": {
+          "description": "Os argumentos em texto, como vieram do modelo, mesmo inválidos",
+          "maxLength": 100000,
+          "minLength": 0,
+          "pattern": "^[^\\x00-\\x09\\x0b-\\x1f\\x7f-\\x9f\\u2028-\\u202e\\u2066-\\u2069]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "nome",
+        "argumentos"
+      ],
+      "title": "ToolPedida",
       "type": "object"
     },
     "Trecho": {

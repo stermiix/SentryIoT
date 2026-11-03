@@ -8,7 +8,7 @@ e o texto como `sumario_emitido`. O sumário não tem `agente_concluido` própri
 """
 
 from codigo.agente.laco import rodar
-from codigo.agente.registro import chamadas_no_log
+from codigo.agente.registro import chamadas_no_log, conversa_no_log
 from codigo.mcp.acoes import reconstruir
 from codigo.mcp.eventos import GravadorDoAgente, ler, novo
 from codigo.mcp.tipos import TEXTO_LONGO
@@ -121,6 +121,7 @@ def escrever_sumario(incidente, *, log, perfil, onde, desfecho=None, **limites_d
         perfil.provedor, perfil.modelo, mensagens, [], _sem_tools,
         ao_chamar=chamadas_no_log(gravador, incidente, onde), **limites_do_laco,
     )
+    conversa_no_log(gravador, incidente, resultado, modelo=perfil.modelo, onde=onde, tarefa="sumario")
     # O texto em parágrafos do contrato não aceita caractere de controle além da quebra de linha.
     texto = "".join(letra for letra in (resultado.resposta or "") if letra == "\n" or letra.isprintable()).strip()
     if not resultado.terminou_bem or not texto:

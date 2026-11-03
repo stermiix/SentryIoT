@@ -81,7 +81,9 @@ def test_no_roteiro_o_papel_dos_agentes_grava_pelo_gravador_restrito(tmp_path, m
 def test_toda_linha_do_exemplo_e_valida_e_todos_os_tipos_de_evento_aparecem():
     # `ler` confere cada linha contra o contrato.
     eventos = ler(SAIDA_PADRAO)
-    assert {evento.tipo for evento in eventos} == set(TIPOS_DE_EVENTO)
+    # A conversa dos agentes (contrato 0.8.0) fica fora do exemplo: ele é escrito por roteiro, sem modelo, e
+    # uma conversa inventada não diria nada. Quem a confere são os testes do orquestrador e do registro.
+    assert {evento.tipo for evento in eventos} == set(TIPOS_DE_EVENTO) - {"conversa_do_agente"}
     assert [evento.id for evento in eventos] == [f"ev-{n:06d}" for n in range(1, len(eventos) + 1)]
     assert [evento.instante for evento in eventos] == sorted(evento.instante for evento in eventos)
     assert {evento.incidente for evento in eventos if evento.tipo != "janelas_classificadas"} == {"inc-0001", "inc-0002"}

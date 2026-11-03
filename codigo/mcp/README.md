@@ -843,7 +843,19 @@ de exemplo direto daqui: depois de gerá-lo de novo, rode também o `npm test` e
 ## Versão do contrato
 
 A versão fica em `contrato.json`, no campo `versao`, e sai de `VERSAO`, em `tipos.py`. A atual é
-a 0.7.0. O que mudou em relação à 0.6.0, para quem já usava o stub:
+a 0.8.0. O que mudou em relação à 0.7.0:
+
+- **Conversa de cada agente.** Evento novo, `conversa_do_agente`, gravado pelo orquestrador logo antes de
+  cada `agente_concluido` (e no fim do sumário, com `tarefa` igual a `sumario`): o histórico que o laço
+  mandou ao modelo, com o prompt de sistema das skills, o pedido do orquestrador, cada tool pedida com os
+  argumentos e cada resultado de tool, até a última resposta. É o que permite conferir, incidente a
+  incidente, o que cada agente recebeu e respondeu, e que nenhum endereço chegou ao agente de decisão. O
+  caractere que não aparece na tela vai escapado, e o texto acima de `MAIOR_TEXTO_DA_CONVERSA` é cortado
+  com aviso. A resposta cortada no limite de saída, que o laço tira do histórico antes de pedir de novo,
+  não aparece; os tokens e o tempo de cada chamada continuam nos `llm_chamada`. O log de exemplo não traz
+  esse evento: ele é escrito por roteiro, sem modelo.
+
+O que mudou da 0.6.0 para a 0.7.0, para quem já usava o stub:
 
 - **Incidente duvidoso.** Motivo de recusa novo, `incidente_duvidoso`: com confiança abaixo de
   `confianca_minima_para_propor`, na política, `propor_acao` é recusada, e a decisão só recomenda.

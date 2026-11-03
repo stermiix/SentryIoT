@@ -38,7 +38,7 @@ from typing_extensions import TypedDict
 from codigo.captura.extrator import COLUNAS
 from codigo.classificador.mapeamento import CATEGORIAS
 
-VERSAO = "0.7.0"
+VERSAO = "0.8.0"
 # Máximo de janelas que o agente recebe por chamada. Um flood tem milhares de janelas, e mandar
 # todas para a LLM custaria tokens demais.
 LIMITE_DE_JANELAS = 20
@@ -61,6 +61,12 @@ TEXTO_LONGO = 2_000
 MAXIMO_DE_PASSOS = 20
 MAIOR_NOME_DE_ACAO = 60
 MAXIMO_DE_PROPOSTAS_POR_RECOMENDACAO = 20
+# A conversa de um agente (desde a versão 0.8.0): cada texto e quantas mensagens e tools pedidas cabem
+# num evento. O prompt de sistema com as skills passa de 30 mil caracteres; uma conversa maior é cortada
+# por quem grava, com o aviso do corte no próprio texto (`registro.py`).
+MAIOR_TEXTO_DA_CONVERSA = 100_000
+MAXIMO_DE_MENSAGENS_DA_CONVERSA = 400
+MAXIMO_DE_TOOLS_PEDIDAS = 50
 # Caracteres que nenhum texto do contrato aceita: os de controle (C0, DEL e C1, que inclui U+0085),
 # os separadores de linha e de parágrafo do Unicode (U+2028 e U+2029) e os que invertem a direção
 # do texto (U+202A a U+202E e U+2066 a U+2069). Com eles, o que a pessoa lê no terminal pode não
@@ -331,6 +337,7 @@ TextoLongo = _texto(TEXTO_LONGO)
 # Texto em parágrafos: a recomendação do agente de decisão e os trechos da base de conhecimento.
 Paragrafos = _texto(TEXTO_LONGO, _PARAGRAFOS)
 Consulta = _texto(TEXTO_LONGO, _PARAGRAFOS, minimo=0)
+TextoDaConversa = _texto(MAIOR_TEXTO_DA_CONVERSA, _PARAGRAFOS, minimo=0)
 NomeDeAcao = Annotated[str, StringConstraints(max_length=MAIOR_NOME_DE_ACAO, pattern=_NOME_DE_ACAO)]
 NomeDeFeature = Literal[COLUNAS]
 # O maior endereço escrito por extenso é um IPv6 com um IPv4 no fim, de 45 caracteres.
@@ -956,6 +963,48 @@ class Sumario(Modelo):
     texto: Paragrafos
 
 
+class ToolPedida(Modelo):
+    """Uma tool que o modelo pediu numa resposta, com os argumentos como ele os escreveu."""
+
+    id: Texto = Field(description="Identificador do pedido, que a resposta da tool repete")
+    nome: Texto = Field(description="Nome da tool pedida")
+    argumentos: TextoDaConversa = Field(description="Os argumentos em texto, como vieram do modelo, mesmo inválidos")
+
+
+class MensagemDaConversa(Modelo):
+    """Uma mensagem da conversa de um agente com o modelo, no formato da API, com nomes do contrato."""
+
+    papel: Literal["system", "user", "assistant", "tool"] = Field(
+        description="system é o prompt com as skills; user, o pedido do orquestrador ou um aviso do laço; "
+        "assistant, a resposta do modelo; tool, o resultado de uma tool"
+    )
+    texto: TextoDaConversa = Field(description="O conteúdo da mensagem; vazio quando o modelo só pediu tools")
+    tools_pedidas: list[ToolPedida] = Field(
+        default_factory=list, max_length=MAXIMO_DE_TOOLS_PEDIDAS, description="As tools pedidas, só em assistant"
+    )
+    resposta_a: Texto | None = Field(default=None, description="O pedido que a mensagem responde, só em tool")
+
+
+class ConversaDoAgente(Modelo):
+    """O que um agente recebeu e respondeu num incidente, do prompt de sistema à resposta final (desde a 0.8.0).
+
+    É o histórico que o laço mandou ao modelo na última volta, com a última resposta: a resposta cortada no
+    limite de saída, que o laço tira do histórico antes de pedir de novo, não aparece. Os tokens e o tempo de
+    cada chamada continuam nos `llm_chamada`.
+    """
+
+    agente: Agente
+    modelo: Texto
+    onde: LugarDoModelo | None = Field(default=None, description="Onde o modelo rodou: local, no gateway, ou nuvem")
+    motivo: MotivoDeParada = Field(description="Por que o laço parou, como no agente_concluido")
+    tarefa: Literal["incidente", "sumario"] = Field(
+        default="incidente", description="incidente é o trabalho do agente no incidente; sumario, o sumário da triagem no fim"
+    )
+    mensagens: list[MensagemDaConversa] = Field(
+        min_length=1, max_length=MAXIMO_DE_MENSAGENS_DA_CONVERSA, description="A conversa, na ordem"
+    )
+
+
 class Recomendacao(Modelo):
     agente: Agente
     texto: Paragrafos
@@ -1008,6 +1057,7 @@ EVENTOS = (
     ("EventoDeLLM", ("llm_chamada",), ChamadaDeLLM),
     ("EventoDeTool", ("tool_chamada",), ChamadaDeTool),
     ("EventoDeConclusao", ("agente_concluido",), ConclusaoDoAgente),
+    ("EventoDeConversa", ("conversa_do_agente",), ConversaDoAgente),
     ("EventoDeAtacante", ("atacante_apontado",), AtacanteApontado),
     ("EventoDeAnalise", ("analise_emitida",), AnaliseDaTriagem),
     ("EventoDeRecomendacao", ("recomendacao_emitida",), Recomendacao),

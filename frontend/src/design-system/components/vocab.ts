@@ -97,6 +97,7 @@ export const EVENT: Record<EventType, StateInfo> = {
   'llm_chamada':                 { label: 'Chamada à IA',              tone: 'neutral', icon: 'brain-circuit' },
   'tool_chamada':                { label: 'Chamada de tool',           tone: 'neutral', icon: 'plug' },
   'agente_concluido':            { label: 'Agente concluiu',           tone: 'neutral', icon: 'list-checks' },
+  'conversa_do_agente':          { label: 'Conversa do agente',        tone: 'neutral', icon: 'messages-square' },
   'atacante_apontado':           { label: 'Atacante apontado',         tone: 'info',    icon: 'crosshair' },
   'analise_emitida':             { label: 'Análise da triagem',        tone: 'neutral', icon: 'scan-search' },
   'recomendacao_emitida':        { label: 'Recomendação emitida',      tone: 'neutral', icon: 'message-square-quote' },
