@@ -8,61 +8,98 @@ tipografia, as duas vozes do texto, marca) e `src/design-system/COMPONENTES.md` 
 ## Como a interface se liga ao backend
 
 O backend grava um log de eventos com formato fixo: janela classificada, incidente aberto, tool
-chamada, recomendação emitida, ação aprovada, rejeitada ou desfeita. A interface não fala com o
-classificador nem com os agentes. Ela só lê esse log, o que dá dois modos com o mesmo código:
+chamada, conversa de cada agente, recomendação emitida, ação aprovada, rejeitada ou desfeita. A
+interface não fala com o classificador nem com os agentes. Ela só lê esse log, em replay, de uma
+destas fontes:
 
-- **Replay:** reproduz uma execução gravada, lida do log que `VITE_LOG_DE_EVENTOS` indica. É o
-  modo que protege a demonstração na banca, porque não depende de internet nem de a LLM responder
-  na hora. Sem a variável, nenhum log é carregado e as telas abrem vazias.
-- **Ao vivo:** acompanha o log enquanto o sistema roda (planejado; ver "Ao vivo" abaixo).
-
-A tela Simulação é a exceção: ela manda um pcap ao backend, que roda o reprodutor e os agentes, e a
-interface acompanha o log enquanto ele é gravado, em todas as telas.
+- **Rodada final (o padrão):** sem `VITE_LOG_DE_EVENTOS`, a interface abre os dados da rodada final
+  dos experimentos, que vão junto com ela em `public/dados/rodada-final/`: um `indice.json` com os
+  grupos (a rodada oficial no CICIoT2023, o teste com o Kali Linux numa rede isolada e os exemplos
+  por categoria), as medidas de cada execução e um resumo por grupo, e o log real de cada execução,
+  em gzip. Quem clona o repositório e roda a interface vê a rodada sem configurar nada, e a
+  demonstração na banca não depende de internet nem de a LLM responder na hora. Um seletor no alto
+  das telas escolhe a execução: grupo, pcap, incidente e repetição.
+- **Log de uma variável:** com `VITE_LOG_DE_EVENTOS`, a interface lê esse log, uma vez, ao abrir,
+  como antes da rodada final (ver "Log de outra execução", abaixo).
+- **Simulação:** a tela Simulação manda um pcap ao backend, que roda o reprodutor e os agentes, e o
+  log dela passa a ser o das telas enquanto ele é gravado. Quando os agentes param, a barra no alto
+  das telas e a própria tela Simulação oferecem voltar à rodada final (ou ao log da variável).
 
 O formato do log é o contrato da tool MCP, em `codigo/mcp/contrato.json`. A interface não traz
-dado simulado: nenhum log vai no build, e o log de exemplo do stub (`codigo/mcp/exemplos/`) só
-entra nos testes.
+dado simulado: os dados da rodada final são as rodadas reais dos experimentos, e o log de exemplo
+do stub (`codigo/mcp/exemplos/`) só entra nos testes.
+
+### Como gerar os dados da rodada final
+
+Depois que as três rodadas terminarem (`python -m codigo.agente.experimento rodar`, nas pastas
+`dados/processed/agentes`, `dados/processed/agentes_kali` e `dados/processed/agentes_exemplos`), na
+raiz do repositório:
+
+```
+python -m codigo.agente.vitrine
+cd frontend && npm run build
+```
+
+O comando lê o `conjunto.json` e as rodadas (`rodadas/*.json` e `rodadas/*.jsonl`) de cada pasta e
+grava `public/dados/rodada-final/indice.json` e os logs em `public/dados/rodada-final/<grupo>/`,
+comprimidos. Ele é idempotente e falha sem gravar nada quando falta um arquivo, quando um item do
+conjunto não tem rodada, quando uma rodada não é da configuração local ou quando um log não segue o
+contrato. `--oficial`, `--kali` e `--exemplos` trocam as pastas, `--omitir kali` deixa um grupo de
+fora e `--inicial <id>` escolhe a execução em que a interface abre (sem ele, a primeira da rodada
+oficial em que a triagem, a ação e o atacante deram certo). A pasta `public/dados/rodada-final/`
+vai para o git com a interface; o resto de `public/dados/` continua fora dele.
+
+Os logs vão em `.jsonl.gz`. A interface confere os bytes mágicos do gzip (1f 8b) e abre o arquivo com
+o `DecompressionStream` do navegador; quando o servidor já o descomprime (o Vite manda
+`Content-Encoding: gzip`), ela lê o texto direto, e um `.jsonl` puro também serve. O backend
+(`codigo/api/servidor.py`) serve o `.jsonl.gz` como `application/gzip`, sem descomprimir.
 
 ## Telas
 
 | Tela | Âncora | Estado |
 |---|---|---|
-| Visão geral: funil janelas → incidentes → chamadas à IA, cartões e fila | `#/visao-geral` | funciona com o log |
-| Detalhe do incidente: veredito, features, propostas, endereços, rastro dos agentes, recomendações, histórico | `#/incidentes/<id>` | funciona com o log; as decisões só são oferecidas no fim do replay |
-| Ao vivo | `#/ao-vivo` | planejada; liga com `VITE_LOG_AO_VIVO`, e sem ela fica vazia |
-| Simulação: anexa um pcap, que passa pelo extrator, pelo classificador e pela política de acionamento, e cada incidente segue para os agentes, com a aprovação de uma pessoa na própria tela | `#/simulacao` | funciona com o backend (`/api/simulacao`, com o cabeçalho `X-SentryIoT: interface`), o modelo do sistema em `modelos/` e o modelo local no `.env`; por padrão classifica só o trecho do pcap que ficou fora do treino; o log da simulação passa a ser o das outras telas |
+| Rodada final: os grupos da rodada, o resumo de cada um (triagem certa, primeira ação aceitável, atacante certo, incidentes abaixo de 0,6, tokens e tempo) e a tabela das execuções, de onde se abre qualquer uma | `#/rodada-final` | funciona com os dados do build; sem eles, diz como gerá-los |
+| Visão geral: funil janelas → incidentes → chamadas à IA, cartões e fila, com o incidente que os agentes trataram em destaque | `#/visao-geral` | funciona com o log |
+| Detalhe do incidente: veredito, features, propostas, endereços, rastro dos agentes, recomendações, histórico e, numa execução da rodada, o que ela mediu | `#/incidentes/<id>` | funciona com o log; as decisões só são oferecidas no fim do replay e nunca numa execução gravada da rodada |
+| Conversa dos agentes, aba do detalhe: o incidente de ponta a ponta, com o prompt de sistema (recolhido), o pedido do orquestrador, cada tool pedida e o resultado dela, os avisos do laço e a resposta final de cada agente, e as decisões entre eles | `#/incidentes/<id>/conversa` | funciona com o log do contrato 0.8.0; num log anterior, mostra as etapas sem as mensagens |
+| Simulação: anexa um pcap, que passa pelo extrator, pelo classificador e pela política de acionamento, e cada incidente segue para os agentes, com a aprovação de uma pessoa na própria tela | `#/simulacao` | funciona com o backend (`/api/simulacao`, com o cabeçalho `X-SentryIoT: interface`), o modelo do sistema em `modelos/` e o modelo local no `.env`; por padrão classifica só o trecho do pcap que ficou fora do treino; o log da simulação passa a ser o das outras telas até a pessoa voltar à rodada final |
 | Tela 3, isolado × integrado | `#/isolado-integrado` | funciona com o log |
-| Tela 4, custo e latência | `#/custo-latencia` | funciona com o log; local × nuvem depende de `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM` |
+| Tela 4, custo e latência | `#/custo-latencia` | funciona com o log; com a rodada, o grupo dela por agente e o custo de nuvem, zero |
 | Tela 5, qualidade do modelo | `#/qualidade-do-modelo` | matriz real da configuração 5 |
-| Chat com o modelo | `#/chat` (e o antigo `#chat`) | funciona com o backend |
 | Relatório do incidente, em A4: sumário, fatos, o que o classificador viu, triagem (veredito, atacante apontado, análise e candidatos), ações, recomendações e decisões | `#/relatorio/<id>` | funciona com o log; com um log anterior ao contrato 0.6.0, diz o que o log não traz |
-| Entrar | `#/entrar` | visual pronto; o login ainda não existe |
-| Componentes (catálogo do design system) | `#/componentes` | os blocos de dados usam o log; os outros mostram cada componente com valores de amostra |
+| Chat com o modelo | `#/chat` (e o antigo `#chat`) | funciona com o backend; ferramenta da equipe |
+
+Ficam fora da navegação, só pela âncora: **Ao vivo** (`#/ao-vivo`), cortada da versão final em
+02/11, que só lê um log que outro processo grava quando `VITE_LOG_AO_VIVO` aponta para ele;
+**Entrar** (`#/entrar`), só o visual, porque o SentryIoT não tem login; e **Componentes**
+(`#/componentes`), o catálogo do design system, ferramenta da equipe.
 
 Todas as telas que dependem do log mostram o estado até o cursor do replay, que fica no pé:
 botões, trilha com marcas (incidente aberto, proposta que pede uma pessoa, decisões humanas),
 teclado (← → Home End Espaço) e clique numa linha do histórico. Sem log, o replay some do pé, a
 visão geral fica em zero e cada tela diz que nenhum log foi carregado.
 
-### O que ainda não funciona, e onde ligar
+### O que a versão final não faz, e onde ligar
 
 - **Decisões pela interface** (aprovar, rejeitar, marcar como já resolvido) passam por
-  `src/operacao.ts` e chegam ao backend enquanto os agentes de uma simulação rodam. Num log só de
-  leitura, não há agente para agir: os botões abrem o diálogo de confirmação, e ele mostra que a
-  decisão não foi gravada e o comando de terminal que faz a mesma coisa
-  (`python -m codigo.mcp.aprovar …`).
-- **Login:** ainda não existe; passa pela mesma `src/operacao.ts`.
-- **Log do replay:** a interface lê o log que `VITE_LOG_DE_EVENTOS` indica, uma vez, ao abrir.
-  Hoje o backend não serve o log que o sistema grava (`dados/eventos/eventos.jsonl`): para ver um
-  log, ponha o arquivo em `public/dados/` (ignorada pelo git, porque o log pode ter endereços
-  reais) e aponte a variável para ele, como `/dados/eventos.jsonl`.
-- **Ao vivo:** com `VITE_LOG_AO_VIVO` apontando para um log que está sendo gravado (servido por
-  HTTP), a tela o lê a cada 3 segundos e ignora a última linha incompleta. Sem a variável, ela
-  fica vazia, com o selo de planejada.
-- **Onde cada modelo roda:** o log não diz. Liste os modelos em `VITE_MODELOS_LOCAIS` e
-  `VITE_MODELOS_NA_NUVEM` (separados por vírgula) para a tela mostrar "local" ou "nuvem" nas
-  chamadas e para a Tela 4 comparar os dois. No chat, um modelo fora das listas aparece como
-  nuvem: é o caso que pede cuidado.
+  `src/operacao.ts` e chegam ao backend enquanto os agentes de uma simulação rodam. Uma execução
+  da rodada final é só leitura: os botões não aparecem. Num log da variável, não há agente para
+  agir: os botões abrem o diálogo de confirmação, e ele mostra que a decisão não foi gravada e o
+  comando de terminal que faz a mesma coisa (`python -m codigo.mcp.aprovar …`).
+- **Login:** não existe; passa pela mesma `src/operacao.ts`.
+- **Log de outra execução:** com `VITE_LOG_DE_EVENTOS`, a interface lê esse log em vez da rodada
+  final. O backend não serve o log que o sistema grava (`dados/eventos/eventos.jsonl`): ponha o
+  arquivo em `public/dados/` (fora do git, porque o log pode ter endereços reais) e aponte a
+  variável para ele, como `/dados/eventos.jsonl`.
+- **Ao vivo:** fora da versão final e da navegação. Com `VITE_LOG_AO_VIVO` apontando para um log
+  que está sendo gravado (servido por HTTP), a tela `#/ao-vivo` o lê a cada 3 segundos e ignora a
+  última linha incompleta.
+- **Onde cada modelo roda:** desde o contrato 0.5.0, cada `llm_chamada` diz se rodou no modelo
+  local ou na nuvem. Para um log mais antigo, liste os modelos em `VITE_MODELOS_LOCAIS` e
+  `VITE_MODELOS_NA_NUVEM` (separados por vírgula). No chat, o backend diz que os modelos dele são
+  locais (o perfil `LLM_*`); um modelo sem lugar nenhum aparece como nuvem, o caso que pede
+  cuidado. Os experimentos rodam só no modelo local: a Tela 4 mostra a comparação com a nuvem só
+  num log que tenha chamadas dos dois lados.
 
 ## Leitura do log e reconstrução
 
@@ -105,8 +142,8 @@ O chat fala com o backend fino de `codigo/api/`: suba `python -m codigo.api` na 
 repositório, com o `.env` preenchido (ver `codigo/api/README.md`), e o Vite encaminha `/api` para
 ele. Com a porta 8000 ocupada, suba o backend em outra e aponte `VITE_API_URL` para ela. Sem o
 backend, o chat abre e avisa que ele não está no ar, e o rodapé da barra lateral diz o mesmo.
-As outras telas abrem vazias até `VITE_LOG_DE_EVENTOS` apontar para um log (ver "O que ainda não
-funciona", acima).
+As outras telas abrem na rodada final que vem em `public/dados/rodada-final/`; sem ela (antes de
+gerá-la), abrem vazias e dizem como gerar.
 
 **Em produção** (o servidor da equipe) não há Vite: `npm run build` gera `dist/`, e o mesmo
 backend serve essa pasta na raiz e a API em `/api`, num processo só:
@@ -117,7 +154,8 @@ cd .. && python -m codigo.api --host <endereço Tailscale> --port 8000
 ```
 
 A receita completa está em `codigo/api/README.md`. O replay funciona sem API e sem conexão
-externa: fontes e imagens vão no build, e o log é lido do caminho configurado.
+externa: fontes, imagens e os dados da rodada final vão no build. Para só ver a rodada, sem
+backend, `npm run build && npm run preview` basta.
 
 As variáveis `VITE_*` vão no ambiente ou num `.env.local` desta pasta (ignorado pelo git) e entram
 no build: depois de mudar uma, gere o `dist/` de novo.
@@ -137,6 +175,15 @@ no build: depois de mudar uma, gere o `dist/` de novo.
 
 `npm test` roda os testes (Vitest):
 
+- **Rodada final** (`src/rodada.test.ts`): o índice conferido, a leitura do gzip pelos bytes
+  mágicos e do texto já aberto, o log ausente e o seletor de grupo, pcap, incidente e repetição.
+- **Conversa dos agentes** (`src/conversa.test.ts`): o papel de cada mensagem, a ligação de cada
+  resultado à tool pedida e as etapas do incidente na ordem, com e sem a conversa no log
+  (`src/conversa-de-teste.ts` acrescenta ao log de exemplo uma conversa curta, feita à mão).
+- **Telas na rodada** (`src/telas-rodada.test.tsx`): a navegação da versão final, a barra da
+  execução, a tela Rodada final, o detalhe só leitura com as medidas, a aba da conversa, a Tela 4
+  só local, o relatório com o aprovador automático e a volta da simulação, com o índice de
+  `src/rodada-de-teste.ts`.
 - **Leitura e reconstrução** (`src/log.test.ts`): o log de exemplo do stub, lido direto de
   `codigo/mcp/exemplos/incidente_flood.jsonl`, e variações dele (duplicados, ordem trocada,
   incidente sem abertura, campo ausente, HTML no log, linha cortada) e um caso para cada regra de
@@ -144,7 +191,7 @@ no build: depois de mudar uma, gere o `dist/` de novo.
 - **Contrato** (`src/contrato.test.ts`): as listas de `src/listas.ts` contra o `contrato.json` e o
   `acoes.py`.
 - **Adaptador** (`src/adaptador.test.ts`): cada número e estado que a tela mostra, no log de
-  exemplo, e o vocabulário do design system contra o contrato (20 tipos de evento, 10 motivos de
+  exemplo, e o vocabulário do design system contra o contrato (21 tipos de evento, 10 motivos de
   risco alto).
 - **Telas** (`src/telas.test.tsx`): cada tela desenhada no Node em passos escolhidos do replay,
   incluindo o HTML vindo do log escapado e as duas vozes do texto, e cada tela sem log, vazia e sem
@@ -163,6 +210,8 @@ a cada PR, os testes, o `npm audit --omit=dev --audit-level=high` e o build.
 | `src/listas.ts`, `src/types.ts` | Os valores fixos e os tipos do contrato do log |
 | `src/contrato.ts` | Confere cada linha do log contra o contrato |
 | `src/log.ts` | Lê o JSONL, reconstrói o estado e agrega os eventos por incidente |
+| `src/rodada.ts` | O índice da rodada final, o log de cada execução (gzip ou texto) e o seletor de execução |
+| `src/conversa.ts` | O incidente de ponta a ponta: as etapas dos agentes, com a conversa de cada um, e as decisões entre elas |
 | `src/adaptador.ts` | Do log aos objetos que os componentes desenham |
 | `src/paginacao.ts` | Onde cada página A4 do relatório quebra, a partir das alturas medidas no navegador |
 | `src/formato.ts` | A hora dos eventos no fuso de quem abre a página |
@@ -170,7 +219,7 @@ a cada PR, os testes, o `npm audit --omit=dev --audit-level=high` e o build.
 | `src/operacao.ts` | Decisões e login; hoje, o comando de terminal equivalente |
 | `src/chat.ts` | As chamadas de `/api/chat`, `/api/modelos` e `/api/prompts` |
 | `src/dados/qualidade.ts` | A matriz de confusão da Tela 5 e as métricas tiradas dela |
-| `src/App.tsx` | Carrega o log, guarda a rota e o replay e escolhe a tela |
+| `src/App.tsx` | Carrega a rodada final (ou o log da variável), troca a execução, liga e desliga a simulação, guarda a rota e o replay e escolhe a tela |
 | `src/telas/` | As telas, a moldura (`Moldura.tsx`), o replay (`replay.ts`) e as peças comuns (`comum.tsx`) |
 | `src/design-system/` | O design system: guia, componentes, tokens, fontes e marca |
 | `src/estilo.css` | O pouco que as telas acrescentam ao design system |

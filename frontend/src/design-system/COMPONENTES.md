@@ -104,7 +104,7 @@ Navegação lateral flutuante, nas versões larga e só com ícones. Só preto e
 - O item ativo é a única área de gelo da barra: preenchimento `ice` com texto e ícone `on-ice`, sem brilho. Contagem âmbar (`attention`) quando há proposta aguardando; tela planejada leva um círculo tracejado e o rótulo esmaecido. No rodapé, o ponto do modelo no ar também é gelo.
 - Recolhida, cada item mostra o nome como dica e `aria-label`.
 - Ocupa sempre a altura da janela, do topo ao pé, em qualquer tela.
-- Seções do SentryIoT: Operação (Visão geral, Incidentes, Ao vivo), Telas do artigo (3 a 5), Equipe (Chat com o modelo, Relatórios).
+- Seções do SentryIoT: Operação (Rodada final, Visão geral, Incidentes, Simulação), Telas do artigo (3 a 5), Equipe (Relatórios, Chat com o modelo). Ao vivo, Entrar e Componentes ficam fora da navegação, só pela âncora.
 
 ### PageHeader
 
@@ -228,7 +228,7 @@ Proposta de ação com o estado em destaque, alvo neutro, prazo, risco, a justif
 
 - **Você fornece:** `proposal` (`Proposal`), `onApprove`/`onReject` (os botões só aparecem enquanto "Aguardando aprovação"), `showAddress`.
 - Aguardando: borda e halo âmbar e a frase "Uma pessoa precisa decidir antes de qualquer execução." Ação fora do catálogo leva o selo "ação nova"; a que entrou no catálogo, "promovida ao catálogo".
-- A decisão humana aparece sempre como "Aprovada" ou "Rejeitada" com o canal, e o motivo, quando há, vem embaixo na voz de pessoa. No replay, as telas só passam `onApprove`/`onReject` no fim do log: num ponto passado, a decisão já está adiante.
+- A decisão humana aparece sempre como "Aprovada" ou "Rejeitada" com o canal, e o motivo, quando há, vem embaixo na voz de pessoa. Com `decision.automatic` (o aprovador automático dos experimentos), o motivo é texto do sistema: "Regra do aprovador automático, não uma pessoa". No replay, as telas só passam `onApprove`/`onReject` no fim do log: num ponto passado, a decisão já está adiante.
 - Aprovar e rejeitar sempre abrem o `ConfirmDialog`; nada é executado direto do cartão.
 
 ### VoiceQuote
@@ -372,9 +372,30 @@ Detalhe do incidente, no ponto do replay em que o cursor está.
 - Veredito com as duas categorias, features contra o benigno, propostas (aguardando primeiro), origens e destinos (com o atacante apontado pela triagem marcado, ou numa linha à parte quando ele não está entre as origens listadas), rastro dos agentes, recomendações na voz de agente e o histórico de decisões com os eventos futuros esmaecidos.
 - "Já resolvido", "Aprovar" e "Rejeitar" abrem o `ConfirmDialog`.
 
+### TelaRodada
+
+A rodada final que vai no build: cada grupo (rodada oficial no CICIoT2023, Kali Linux numa rede isolada, exemplos por categoria) com o resumo das medidas e a tabela das execuções.
+
+- O resumo sai do `indice.json` (`vitrine.resumir`): triagem certa, primeira ação aceitável pelo gabarito e atacante certo, com a regra fixa ao lado, incidentes abaixo da confiança mínima, tokens e tempo dos agentes (medianas).
+- O nome do pcap, na tabela, abre a execução nas outras telas, na conversa dos agentes. A execução aberta fica marcada com `--sx-select`.
+- Medidas de sim ou não sempre com ícone e palavra (`Marca`, em `Medidas.tsx`).
+
+### Barra da execução
+
+No alto das telas que mostram o log (visão geral, incidente, Telas 3 e 4, relatório): de onde vem o log. Na rodada final, o seletor de grupo, pcap, incidente e repetição (`Select`), as medidas da execução e o lembrete de que os agentes trataram só um incidente do pcap; numa simulação, o arquivo e "Voltar à rodada final", travado enquanto os agentes rodam. Não sai na impressão.
+
+### Conversa dos agentes
+
+Aba do detalhe do incidente (`Tabs`): o incidente de ponta a ponta, do classificador ao efeito.
+
+- Cada etapa é um agente (com `AgentBadge`, onde rodou e o modelo), na ordem do log: a triagem, a decisão e a execução de cada rodada do orquestrador e o sumário. O cabeçalho traz chamadas, tokens, tempo, por que o laço parou e o veredito.
+- As mensagens, na ordem: o prompt de sistema com as skills (recolhido, com o tamanho), o pedido do orquestrador, cada tool pedida com os argumentos (borda tracejada: escritos pelo modelo), cada resultado de tool (recolhível; o curto já abre), os avisos do laço e a resposta final, na voz de agente (`VoiceQuote`).
+- Embaixo de cada etapa, o que o agente deixou no log (`EventTimeline` compacta); entre as etapas, a abertura e as decisões. O que vem depois do cursor do replay esmaece.
+- Num log anterior ao contrato 0.8.0, as etapas aparecem sem as mensagens, e um `Alert` diz por quê.
+
 ### TelaAoVivo
 
-Modo ao vivo (planejado): o incidente aparece assim que o classificador o abre, antes dos agentes. Com `VITE_LOG_AO_VIVO`, a tela lê o log que está sendo gravado; sem a variável, fica vazia.
+Modo ao vivo, fora da versão final e da navegação (só `#/ao-vivo`): o incidente aparece assim que o classificador o abre, antes dos agentes. Com `VITE_LOG_AO_VIVO`, a tela lê o log que está sendo gravado; sem a variável, fica vazia.
 
 - Decisões pendentes à esquerda com aprovar/rejeitar pela interface; incidente recém-aberto com o andamento de cada agente e "Marcar como já resolvido"; eventos chegando. A barra de provedores entra quando a escolha do provedor dos agentes existir: o log não diz onde cada modelo roda.
 
@@ -388,7 +409,7 @@ Tela 3 (vira figura do artigo): o mesmo incidente com a saída crua do classific
 
 Tela 4: tokens, tempo de resposta e chamadas por agente, calculados das chamadas à IA do log até o cursor.
 
-- Cartões de tokens, latência média, chamadas à IA e chamadas evitadas; gráfico de tokens e latência por chamada; comparação local × nuvem, que aparece quando `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM` dizem onde cada modelo roda; tabela por agente.
+- Cartões de tokens, latência média, chamadas à IA e chamadas evitadas; gráfico de tokens e latência por chamada; onde o modelo rodou (o `onde` de cada `llm_chamada`): só local, com o modelo e o custo de nuvem zero, ou a comparação local × nuvem quando o log tem chamadas dos dois lados; tabela por agente; numa execução da rodada final, o grupo dela por agente, com as medianas por execução.
 
 ### TelaQualidadeModelo
 
