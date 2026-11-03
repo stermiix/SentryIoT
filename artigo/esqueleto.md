@@ -512,9 +512,7 @@ e propostas aprovadas, rejeitadas e desfeitas. A qualidade da recomendação é 
 incidentes com uma ação aceitável no alvo certo, conferida contra um gabarito por categoria fixado
 no repositório antes da primeira rodada (decisão de 2026-10-25). O gabarito diz que ações do
 catálogo são aceitáveis em cada categoria e em que alvo, e o alvo é conferido com os atacantes do
-dataset, identificados pelo MAC. O acerto da triagem vem ao lado, e uma rubrica de 1 a 5
-(adequação, alvo, proporcionalidade e justificativa) avalia uma amostra de casos `[tamanho a redefinir: eram 9, um por cenário e configuração]`,
-para cobrir a justificativa, que a conferência automática não vê. Nos
+dataset, identificados pelo MAC. O acerto da triagem vem ao lado. Nos
 experimentos, as propostas de risco alto passam por um aprovador automático com regra fixa
 (decisão de 2026-10-25): ele aprova a proposta que o gabarito aceita e rejeita as
 demais, inclusive a ação nova, contada à parte. Isso inclui todo bloqueio de atacante, porque os

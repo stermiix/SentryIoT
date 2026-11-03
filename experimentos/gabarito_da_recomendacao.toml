@@ -34,7 +34,7 @@
 # As ações aceitáveis saem do levantamento da equipe em `codigo/agente/recomendacoes/`: só entra
 # aqui a ação que a coluna "Ação do catálogo" liga a alguma medida da categoria
 # (`codigo/agente/test_gabarito.py` confere). A ação nova, fora do catálogo, não entra na conta
-# automática: é contada à parte e avaliada na amostra de 9 casos com a rubrica.
+# automática: é contada à parte.
 #
 # Os três cenários do experimento são DDoS, Recon e BruteForce. As demais categorias ficam aqui
 # para o gabarito cobrir todas as que o classificador entrega.
