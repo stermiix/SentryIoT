@@ -242,9 +242,10 @@ describe("telas do artigo", () => {
 });
 
 describe("ao vivo e relatório", () => {
-  it("sem log ao vivo configurado, a tela é a planejada e fica vazia: não usa o log do replay", () => {
+  it("fora da versão final e sem log ao vivo configurado, a tela diz isso e fica vazia: não usa o log do replay", () => {
     const html = texto(pagina("ao-vivo"));
-    expect(html).toContain("Planejada");
+    expect(html).toContain("Fora da versão final");
+    expect(html).not.toContain("Planejad");
     expect(html).toContain("Nada aguarda você");
     expect(html).toContain("Nenhum incidente aberto");
     expect(html).toContain("Nenhum evento ainda");

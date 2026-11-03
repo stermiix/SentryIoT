@@ -1,15 +1,13 @@
-import { AggregationFunnel, EmptyState, IncidentQueue, MetricCard, ModeIndicator, PageHeader, Panel, Segmented, fmtInt } from "../design-system";
+import { AggregationFunnel, EmptyState, IncidentQueue, MetricCard, ModeIndicator, PageHeader, Panel, fmtInt } from "../design-system";
 import { AvisosDoLog } from "./comum";
 import type { PropsDaTela } from "./replay";
-
-const AO_VIVO_CONFIGURADO = Boolean(import.meta.env.VITE_LOG_AO_VIVO);
 
 function contagem(quantidade: number, singular: string, varios: string): string | null {
   return quantidade > 0 ? `${fmtInt(quantidade)} ${quantidade === 1 ? singular : varios}` : null;
 }
 
 /** Visão geral: o funil do argumento (janelas → incidentes → chamadas à IA), três números e a fila. */
-export function TelaVisaoGeral({ replay, navegar }: PropsDaTela) {
+export function TelaVisaoGeral({ replay, navegar, rodada = null }: PropsDaTela) {
   const { estado } = replay;
   const semLog = estado.total === 0;
   const views = estado.agregado.incidentes;
@@ -28,20 +26,7 @@ export function TelaVisaoGeral({ replay, navegar }: PropsDaTela) {
       <PageHeader
         eyebrow="SentryIoT"
         title="Visão geral"
-        actions={
-          <>
-            <ModeIndicator mode="replay" position={semLog ? undefined : estado.passo} total={semLog ? undefined : estado.total} at={estado.atual?.at} />
-            <Segmented
-              label="Modo"
-              value="replay"
-              onChange={(valor) => valor === "ao-vivo" && navegar({ tela: "ao-vivo", incidente: null })}
-              options={[
-                { value: "replay", label: "Replay", icon: "history" },
-                { value: "ao-vivo", label: "Ao vivo", icon: "radio", disabled: !AO_VIVO_CONFIGURADO, hint: AO_VIVO_CONFIGURADO ? undefined : "Planejado" },
-              ]}
-            />
-          </>
-        }
+        actions={<ModeIndicator mode="replay" position={semLog ? undefined : estado.passo} total={semLog ? undefined : estado.total} at={estado.atual?.at} />}
       />
       <AvisosDoLog avisos={replay.avisos} />
       <div className="sx-grid">
@@ -86,15 +71,22 @@ export function TelaVisaoGeral({ replay, navegar }: PropsDaTela) {
           eyebrow="Fila"
           title="Incidentes"
           flush
-          actions={semLog ? undefined : <span className="data-sm sx-muted">{estado.incidentes.length} no log até aqui</span>}
+          actions={
+            semLog ? undefined : (
+              <span className="data-sm sx-muted">
+                {estado.incidentes.length} no log até aqui{rodada ? ` · em destaque, o que os agentes trataram (${rodada.execucao.incidente})` : ""}
+              </span>
+            )
+          }
         >
           <IncidentQueue
             incidents={estado.incidentes}
+            selectedId={rodada?.execucao.incidente}
             onSelect={(id) => navegar({ tela: "incidente", incidente: id })}
             empty={
               semLog ? (
                 <EmptyState icon="inbox" title="Nenhum incidente">
-                  Nenhum log de eventos carregado. A fila se preenche quando a interface lê o log gravado pelo sistema.
+                  Nenhum log de eventos carregado. A fila se preenche com o log de uma execução da rodada final ou de uma simulação.
                 </EmptyState>
               ) : (
                 <EmptyState icon="shield-check" title="Nenhum incidente até aqui">

@@ -369,7 +369,7 @@ def main(argv=None):
         return 1
     for grupo in indice["grupos"]:
         resumo = grupo["resumo"]
-        print(f"{grupo['titulo']}: {resumo['execucoes']} execuções, {resumo['com_erro']} com erro")
+        print(f"{grupo['titulo']}: {resumo['execucoes']} {'execução' if resumo['execucoes'] == 1 else 'execuções'}, {resumo['com_erro']} com erro")
         if resumo["com_erro"]:
             print(f"  aviso: {resumo['com_erro']} rodadas terminaram em erro e entram com o desfecho erro", file=sys.stderr)
     tamanho = sum(caminho.stat().st_size for caminho in Path(argumentos.saida).rglob("*") if caminho.is_file())

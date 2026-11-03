@@ -79,9 +79,8 @@ export function useLogAoVivo(fonte: string): LogAoVivo {
 }
 
 /**
- * Modo ao vivo: o incidente aparece assim que o classificador o abre, antes dos agentes, e as
- * decisões pendentes ficam à esquerda. Com `VITE_LOG_AO_VIVO`, lê o log que está sendo gravado;
- * sem ele, a tela é a planejada e fica vazia. Não usa o log do replay.
+ * Modo ao vivo, fora da versão final (cortado em 02/11) e fora da navegação: só pela âncora `#/ao-vivo`.
+ * Com `VITE_LOG_AO_VIVO`, lê o log que está sendo gravado; sem ele, fica vazia. Não usa o log do replay.
  */
 export function TelaAoVivo() {
   const aoVivo = useLogAoVivo(FONTE);
@@ -103,7 +102,7 @@ export function TelaAoVivo() {
     <div className="sx-replay app-dock-ao-vivo">
       <span className="sx-row">
         <ModeIndicator mode="ao-vivo" at={atual?.at} />
-        <span className="body-sm sx-muted">{FONTE ? "Recebendo eventos do log em tempo real" : "Planejado: nenhum log ao vivo configurado"}</span>
+        <span className="body-sm sx-muted">{FONTE ? "Recebendo eventos do log em tempo real" : "Fora da versão final: nenhum log ao vivo configurado"}</span>
       </span>
       <span className="sx-row data-sm sx-muted">{atual ? `último: ${atual.id} · ${EVENT[atual.type].label}` : "nenhum evento ainda"}</span>
     </div>
@@ -122,8 +121,10 @@ export function TelaAoVivo() {
         title="Ao vivo"
         meta={
           <>
-            {!FONTE && <Planejada />}
-            <span className="body-sm sx-muted">O incidente aparece assim que o classificador o abre, antes dos agentes.</span>
+            <Planejada>Fora da versão final</Planejada>
+            <span className="body-sm sx-muted">
+              A captura ao vivo ficou fora da versão final (02/11): a tela só lê um log que outro processo grava, quando VITE_LOG_AO_VIVO aponta para ele.
+            </span>
           </>
         }
         actions={<ModeIndicator mode="ao-vivo" at={atual?.at} />}
