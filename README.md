@@ -1,7 +1,7 @@
-# SentryIoT — MultiAgent NIDR
+# SentryIoT — MultiAgent NDR
 
-Sistema de detecção e resposta a intrusões (NIDR) em redes IoT, combinando classificação por
-Random Forest com um sistema multiagente LLM integrado via MCP.
+Sistema de detecção e resposta em rede (NDR, *Network Detection and Response*) para redes IoT,
+combinando classificação por Random Forest com um sistema multiagente LLM integrado via MCP.
 
 **TCC II — FCI Mackenzie, 2º semestre de 2026.**
 Equipe: Bernardo Souza Oliveira, Matheus Queiroz Gregorin, José Victor Roling e
@@ -43,8 +43,9 @@ cobre a detecção e a resposta.
 O item 5 das regras do orientador é "analisar e avaliar as recomendações da banca". Elas já
 mudaram o escopo do trabalho:
 
-1. **NIDS → NDR/NIDR.** O projeto foi reposicionado como detecção **e resposta** (daí "NIDR" no
-   nome). Todo texto novo usa esse enquadramento, não "NIDS".
+1. **NIDS → NDR.** O projeto foi reposicionado como detecção **e resposta** (daí "NDR" no
+   nome). Todo texto novo usa esse enquadramento, nem "NIDS" nem "NIDR": até 03/11/2026 o
+   projeto usava "NIDR", que não é termo estabelecido; o mercado e a banca usam NDR.
 2. **Deixar claro o papel do Scapy e do Wireshark.** O avaliador 2 questionou: se o trabalho usa
    datasets, onde entra a captura de pacotes? Resposta adotada: processamos tráfego bruto (PCAP)
    com um extrator calibrado contra o oficial (ver `dados/README.md`). Não há coleta in loco,
