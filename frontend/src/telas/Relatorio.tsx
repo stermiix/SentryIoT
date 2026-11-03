@@ -120,7 +120,11 @@ function Endereco({ rotulo, endereco }: { rotulo?: string; endereco: string }) {
   );
 }
 
-function secoesDoRelatorio(detalhe: DetalheDoIncidente, sumarioAdiante: boolean, efeitoSimulado: boolean): Secao[] {
+/**
+ * As seções do relatório. `daRodada`: o incidente é de uma execução gravada da rodada final, em que só o
+ * aprovador automático decide; sem decisão nenhuma, a seção das decisões não aparece.
+ */
+function secoesDoRelatorio(detalhe: DetalheDoIncidente, sumarioAdiante: boolean, efeitoSimulado: boolean, daRodada = false): Secao[] {
   const { incidente, atacante } = detalhe;
   const marcaDoAtacante = atacante ? { address: atacante.address, label: "atacante", icon: EVENT.atacante_apontado.icon } : undefined;
 
@@ -431,7 +435,13 @@ function secoesDoRelatorio(detalhe: DetalheDoIncidente, sumarioAdiante: boolean,
     ],
   };
   if (decisoes.pecas.length === 0) {
+    if (daRodada) {
+      return [sumario, fatos, classificador, triagem, acoes, recomendacoes];
+    }
     decisoes.pecas.push(<p key="sem" className="body">Nenhuma decisão humana neste incidente.</p>);
+  }
+  if (daRodada && !marcacao) {
+    decisoes.titulo = "Decisões do aprovador automático";
   }
   return [sumario, fatos, classificador, triagem, acoes, recomendacoes, decisoes];
 }
@@ -630,7 +640,7 @@ export function TelaRelatorio(props: PropsDaTela & { incidente: string | null; e
           date={data}
           mode="Modo replay"
         />
-        <PaginasDoRelatorio secoes={secoesDoRelatorio(detalhe, sumarioAdiante, props.efeitoSimulado ?? false)} titulo={`Relatório de incidente · ${incidente.id}`} data={data} />
+        <PaginasDoRelatorio secoes={secoesDoRelatorio(detalhe, sumarioAdiante, props.efeitoSimulado ?? false, Boolean(props.rodada))} titulo={`Relatório de incidente · ${incidente.id}`} data={data} />
       </div>
     </>
   );

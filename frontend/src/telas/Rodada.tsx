@@ -1,21 +1,20 @@
 import {
   AGENT,
+  Alert,
   CATEGORY,
   CategoryBadge,
   EmptyState,
   PageHeader,
   Panel,
   Skeleton,
-  VERDICT,
   cx,
   fmtConfidence,
   fmtDuration,
   fmtInt,
-  fmtNum,
   type AnyCategory,
 } from "../design-system";
 import { rotuloDoDesfecho, type ExecucaoDaRodada, type GrupoDaRodada, type IndiceDaRodada } from "../rodada";
-import { Marca, taxa } from "./Medidas";
+import { Marca, lerExecucao, soRecomenda, taxa } from "./Medidas";
 
 // A tela "Rodada final": os grupos da rodada que vai com a interface, o resumo de cada um, calculado das
 // medidas, e a tabela das execuções, de onde se abre qualquer uma nas outras telas.
@@ -43,9 +42,9 @@ function Resumo({ grupo, minima }: { grupo: GrupoDaRodada; minima: number }) {
       <Numero rotulo="Primeira ação aceitável" valor={taxa(resumo.acao_aceitavel)} contexto="pelo gabarito, nos incidentes verdadeiros" />
       <Numero rotulo="Atacante certo" valor={taxa(resumo.atacante_certo)} contexto={`a regra fixa acerta ${taxa(resumo.regra_fixa_certa)}`} />
       <Numero
-        rotulo={`Abaixo de ${fmtNum(minima, 1)}`}
+        rotulo={`Confiança abaixo de ${fmtConfidence(minima)}`}
         valor={fmtInt(resumo.abaixo_da_confianca_minima)}
-        contexto="execuções em que os agentes só podem recomendar"
+        contexto="execuções sem erro em que os agentes só podem recomendar"
       />
       <Numero rotulo="Tokens por execução" valor={resumo.mediana_tokens === null ? "–" : fmtInt(resumo.mediana_tokens)} contexto="mediana, entrada e saída" />
       <Numero rotulo="Tempo dos agentes" valor={segundos(resumo.mediana_agentes_s)} contexto={`mediana; detecção em ${segundos(resumo.mediana_deteccao_s)}`} />
@@ -53,7 +52,8 @@ function Resumo({ grupo, minima }: { grupo: GrupoDaRodada; minima: number }) {
   );
 }
 
-function Linha({ execucao, atual, abrir }: { execucao: ExecucaoDaRodada; atual: boolean; abrir: (execucao: ExecucaoDaRodada) => void }) {
+function Linha({ execucao, minima, atual, abrir }: { execucao: ExecucaoDaRodada; minima: number; atual: boolean; abrir: (execucao: ExecucaoDaRodada) => void }) {
+  const leitura = lerExecucao(execucao, minima);
   return (
     <tr className={cx(atual && "app-linha-atual")} aria-current={atual ? "true" : undefined}>
       <td>
@@ -81,20 +81,16 @@ function Linha({ execucao, atual, abrir }: { execucao: ExecucaoDaRodada; atual: 
         </span>
       </td>
       <td>
-        <Marca ok={execucao.triagem_correta}>{execucao.triagem_rotulo ? VERDICT[execucao.triagem_rotulo] : "sem rótulo"}</Marca>
+        <Marca ok={leitura.triagem.ok}>{leitura.triagem.curto}</Marca>
       </td>
       <td>
-        {execucao.verdadeiro ? (
-          <Marca ok={execucao.primeira_aceitavel}>{execucao.acao_primeira ?? "nenhuma"}</Marca>
-        ) : (
-          <Marca ok={null}>{execucao.acao_primeira ?? "nenhuma"}</Marca>
-        )}
+        <Marca ok={leitura.acao.ok}>{leitura.acao.curto}</Marca>
       </td>
       <td>
-        {execucao.verdadeiro ? (
-          <Marca ok={execucao.atacante_certo}>{execucao.atacante_certo ? "certo" : "errado"}</Marca>
+        {leitura.atacante.ok === null && !leitura.comErro ? (
+          <span className="body-sm sx-muted">{leitura.atacante.curto}</span>
         ) : (
-          <span className="body-sm sx-muted">não se aplica</span>
+          <Marca ok={leitura.atacante.ok}>{leitura.atacante.curto}</Marca>
         )}
       </td>
       <td className="body-sm">{rotuloDoDesfecho(execucao.desfecho)}</td>
@@ -110,6 +106,8 @@ function Linha({ execucao, atual, abrir }: { execucao: ExecucaoDaRodada; atual: 
 
 function Grupo({ grupo, minima, atual, abrir }: { grupo: GrupoDaRodada; minima: number; atual: string | null; abrir: (execucao: ExecucaoDaRodada) => void }) {
   const { resumo } = grupo;
+  // Os casos em que o servidor não deixa propor: na taxa, contam como não aceitáveis, como no experimento.
+  const soRecomendacao = grupo.execucoes.filter((execucao) => soRecomenda(execucao, minima)).length;
   const contagem = [
     `${fmtInt(resumo.execucoes)} ${resumo.execucoes === 1 ? "execução" : "execuções"}`,
     `${fmtInt(resumo.pcaps)} ${resumo.pcaps === 1 ? "pcap" : "pcaps"}`,
@@ -122,6 +120,13 @@ function Grupo({ grupo, minima, atual, abrir }: { grupo: GrupoDaRodada; minima: 
       <div className="app-grupo">
         <p className="body sx-muted app-nota">{grupo.descricao} O nome do pcap abre a execução nas outras telas.</p>
         <Resumo grupo={grupo} minima={minima} />
+        {soRecomendacao > 0 && (
+          <p className="body-sm sx-muted app-nota">
+            {fmtInt(soRecomendacao)} {soRecomendacao === 1 ? "execução de incidente verdadeiro" : "execuções de incidente verdadeiro"} com confiança abaixo de{" "}
+            {fmtConfidence(minima)} {soRecomendacao === 1 ? "conta" : "contam"} como não aceitável na taxa da primeira ação: nelas, por regra do servidor, os agentes só
+            recomendam.
+          </p>
+        )}
         {resumo.por_agente.length > 0 && (
           <p className="body-sm sx-muted app-nota">
             Por agente, mediana por execução:{" "}
@@ -147,7 +152,7 @@ function Grupo({ grupo, minima, atual, abrir }: { grupo: GrupoDaRodada; minima: 
           </thead>
           <tbody>
             {grupo.execucoes.map((execucao) => (
-              <Linha key={execucao.id} execucao={execucao} atual={execucao.id === atual} abrir={abrir} />
+              <Linha key={execucao.id} execucao={execucao} minima={minima} atual={execucao.id === atual} abrir={abrir} />
             ))}
           </tbody>
         </table>
@@ -158,6 +163,10 @@ function Grupo({ grupo, minima, atual, abrir }: { grupo: GrupoDaRodada; minima: 
 
 export interface PropsDaRodada {
   indice: IndiceDaRodada | null;
+  /** A interface lê a rodada final do build; falso com VITE_LOG_DE_EVENTOS, que aponta outro log. */
+  modoRodada?: boolean;
+  /** O índice existe, mas não pôde ser lido (fora do formato, por exemplo). */
+  erro?: string | null;
   /** O índice ainda está sendo lido. */
   carregando?: boolean;
   /** A execução aberta nas outras telas. */
@@ -167,7 +176,7 @@ export interface PropsDaRodada {
 }
 
 /** Os grupos da rodada final, com o resumo e as execuções. */
-export function TelaRodada({ indice, carregando = false, atual, abrir }: PropsDaRodada) {
+export function TelaRodada({ indice, modoRodada = true, erro = null, carregando = false, atual, abrir }: PropsDaRodada) {
   const cabecalho = (
     <PageHeader
       eyebrow="Operação"
@@ -182,7 +191,7 @@ export function TelaRodada({ indice, carregando = false, atual, abrir }: PropsDa
             </>
           ) : null}
           ; as propostas de risco alto passam por um aprovador automático, com regra fixa conferida no gabarito, e o efeito da ação é simulado. Abaixo de{" "}
-          {fmtNum(indice?.confianca_minima_para_propor ?? 0.6, 1)} de confiança, os agentes só recomendam.
+          {fmtConfidence(indice?.confianca_minima_para_propor ?? 0.6)} de confiança, os agentes só recomendam.
         </span>
       }
     />
@@ -192,6 +201,27 @@ export function TelaRodada({ indice, carregando = false, atual, abrir }: PropsDa
       <>
         {cabecalho}
         <Skeleton lines={8} label="Carregando a rodada final" />
+      </>
+    );
+  }
+  if (!modoRodada) {
+    return (
+      <>
+        {cabecalho}
+        <EmptyState icon="file-text" title="A interface está lendo outro log">
+          Com VITE_LOG_DE_EVENTOS definido, as telas leem o log dessa variável, e não a rodada final que vem no build. Para ver a rodada, gere a interface sem a
+          variável.
+        </EmptyState>
+      </>
+    );
+  }
+  if (erro) {
+    return (
+      <>
+        {cabecalho}
+        <Alert tone="danger" title="O índice da rodada final não pôde ser lido.">
+          {erro} Gere os dados de novo com python -m codigo.agente.vitrine e rode npm run build.
+        </Alert>
       </>
     );
   }

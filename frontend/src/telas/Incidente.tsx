@@ -92,10 +92,12 @@ export interface PropsDoIncidente extends PropsDaTela {
   /** A aba da conversa dos agentes, em vez do detalhe. */
   aba?: "conversa";
   efeitoSimulado?: boolean;
+  /** O log já terminou: uma execução gravada da rodada ou uma simulação cujos agentes pararam. */
+  logTerminado?: boolean;
 }
 
 /** Detalhe do incidente no passo do replay: veredito, features, propostas, endereços, agentes e histórico; e a conversa dos agentes, numa aba. */
-export function TelaIncidente({ replay, navegar, rodada = null, escolherExecucao, incidente: pedido, aba, efeitoSimulado = false }: PropsDoIncidente) {
+export function TelaIncidente({ replay, navegar, rodada = null, escolherExecucao, incidente: pedido, aba, efeitoSimulado = false, logTerminado = false }: PropsDoIncidente) {
   const [decisao, setDecisao] = useState<PedidoDeDecisao | null>(null);
   const [rastroCompleto, setRastroCompleto] = useState(false);
   const id = incidenteEscolhido({ replay, navegar, rodada }, pedido);
@@ -139,7 +141,7 @@ export function TelaIncidente({ replay, navegar, rodada = null, escolherExecucao
     : !noFim
       ? "Volte ao fim do replay para decidir"
       : "Só um incidente aberto e sem a marca pode ser marcado";
-  const medida = rodada && rodada.execucao.incidente === id ? rodada.execucao : null;
+  const medida = rodada && rodada.execucao.incidente === id ? { execucao: rodada.execucao, minima: rodada.indice.confianca_minima_para_propor } : null;
   const doLogInteiro = replay.final.incidentes.find((item) => item.id === id);
   const conversas = doLogInteiro ? etapasComConversa(fluxoDoIncidente(doLogInteiro.eventos)) : 0;
   return (
@@ -200,14 +202,16 @@ export function TelaIncidente({ replay, navegar, rodada = null, escolherExecucao
         ]}
       />
       {aba === "conversa" ? (
-        <ConversaDosAgentes replay={replay} incidente={id} rodada={rodada} escolherExecucao={escolherExecucao} />
+        <ConversaDosAgentes replay={replay} incidente={id} rodada={rodada} escolherExecucao={escolherExecucao} logTerminado={logTerminado || Boolean(rodada)} />
       ) : (
         <>
           {incidente.awaiting > 0 && (
             <Alert tone="attention" title={`${incidente.awaiting} ${incidente.awaiting === 1 ? "proposta de risco alto aguarda" : "propostas de risco alto aguardam"} aprovação`}>
-              Nada é executado antes de uma pessoa aprovar, pelo terminal ou pela interface.
+              {rodada
+                ? "Nada é executado antes da aprovação. Nesta execução da rodada, quem aprova ou rejeita é o aprovador automático, pela regra fixa do gabarito, e não uma pessoa."
+                : "Nada é executado antes de uma pessoa aprovar, pelo terminal ou pela interface."}
               {!noFim && " Este é um ponto passado do replay: as decisões dele estão adiante no log."}
-              {noFim && rodada && " Nesta execução gravada, ninguém decide mais: ela terminou assim."}
+              {noFim && rodada && " A execução gravada terminou assim: ninguém decide mais."}
             </Alert>
           )}
           <div className="sx-grid">
@@ -248,7 +252,7 @@ export function TelaIncidente({ replay, navegar, rodada = null, escolherExecucao
             <div className="sx-span-4 sx-stack">
               {medida && (
                 <Panel eyebrow="Rodada final" title="O que a rodada mediu">
-                  <MedidasDaExecucao execucao={medida} />
+                  <MedidasDaExecucao execucao={medida.execucao} minima={medida.minima} />
                 </Panel>
               )}
               {detalhe.marcacao && (

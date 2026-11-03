@@ -8,7 +8,7 @@ import { AVISO_DE_TESTE, PROMPT_DE_TESTE, comConversas } from "./conversa-de-tes
 import { fmtInt } from "./design-system/components/util";
 import { recorte, textoDe } from "./html-de-teste";
 import { lerLog } from "./log";
-import { acharExecucao, type IndiceDaRodada } from "./rodada";
+import { acharExecucao, type ExecucaoDaRodada, type IndiceDaRodada } from "./rodada";
 import { indiceDeTeste } from "./rodada-de-teste";
 import type { Rota } from "./rotas";
 import type { ResultadoDaSimulacao } from "./simulacao";
@@ -27,11 +27,23 @@ function replayDe(log: string, passo?: number) {
   return montarReplay(eventos, avisos, passo ?? eventos.length, { irPara: nada, tocando: false, alternar: nada });
 }
 
-function naRodada(rota: Rota, { log = COM_CONVERSAS, indice = indiceDeTeste() as IndiceDaRodada | null, execucao = EXECUCAO, ...extras }: Partial<PropsDaPagina> & { log?: string; execucao?: string } = {}): string {
+type Extras = Partial<PropsDaPagina> & { log?: string; execucao?: string; passo?: number };
+
+function naRodada(rota: Rota, { log = COM_CONVERSAS, indice = indiceDeTeste() as IndiceDaRodada | null, execucao = EXECUCAO, passo, ...extras }: Extras = {}): string {
   const rodada = indice ? acharExecucao(indice, execucao) : null;
   return renderToString(
-    <Pagina rota={rota} replay={replayDe(log)} navegar={nada} modelo={{ online: false }} modoRodada indice={indice} rodada={rodada} {...extras} />,
+    <Pagina rota={rota} replay={replayDe(log, passo)} navegar={nada} modelo={{ online: false }} modoRodada indice={indice} rodada={rodada} {...extras} />,
   );
+}
+
+/** O índice de teste com uma execução trocada. */
+function indiceCom(id: string, troca: Partial<ExecucaoDaRodada>, minima = 0.6): IndiceDaRodada {
+  const indice = indiceDeTeste();
+  indice.confianca_minima_para_propor = minima;
+  for (const grupo of indice.grupos) {
+    grupo.execucoes = grupo.execucoes.map((execucao) => (execucao.id === id ? { ...execucao, ...troca } : execucao));
+  }
+  return indice;
 }
 
 /** O log de exemplo com o lugar do modelo em cada chamada, como desde o contrato 0.5.0. */
@@ -104,7 +116,7 @@ describe("tela Rodada final", () => {
     expect(textoDaTela).toContain("Rodada oficial (CICIoT2023)");
     expect(textoDaTela).toContain("Kali Linux, rede isolada");
     expect(textoDaTela).toContain("6 execuções · 3 pcaps · 4 incidentes · 1 repetição");
-    for (const rotulo of ["Triagem certa", "Primeira ação aceitável", "Atacante certo", "Abaixo de 0,6", "Tokens por execução", "Tempo dos agentes"]) {
+    for (const rotulo of ["Triagem certa", "Primeira ação aceitável", "Atacante certo", "Confiança abaixo de 0,60", "Tokens por execução", "Tempo dos agentes"]) {
       expect(textoDaTela).toContain(rotulo);
     }
     expect(textoDaTela).toContain("aprovador automático, com regra fixa conferida no gabarito");
@@ -266,5 +278,94 @@ describe("simulação no modo da rodada", () => {
     expect(textoDaTela).toContain("A última simulação está fora das telas");
     expect(textoDaTela).toContain("Abrir esta simulação nas telas");
     expect(textoDaTela).toContain("mostram a rodada final");
+  });
+});
+
+describe("correções da revisão", () => {
+  it("rodada com erro: fica fora das taxas, sem triagem errada nem ação fora do gabarito, e o agente interrompido diz o erro", () => {
+    const erro = "ErroDoProvedor: o gateway não respondeu";
+    const indice = indiceCom(EXECUCAO, { desfecho: "erro", erro, triagem_correta: false, primeira_aceitavel: false, atacante_certo: false });
+    // Um log que para no meio da decisão do inc-0001: sem a conversa nem a conclusão dela.
+    const linhas = COM_CONVERSAS.trim().split("\n");
+    const corte = linhas.findIndex((linha) => linha.includes('"tipo":"llm_chamada"') && linha.includes('"agente":"decisao"'));
+    const log = linhas.slice(0, corte + 1).join("\n");
+
+    const barra = texto(recorte(naRodada({ tela: "visao-geral", incidente: null }, { indice, log }), "app-fonte"));
+    expect(barra).toContain("rodada com erro, fora das taxas");
+    for (const proibido of ["triagem errada", "fora do gabarito", "atacante errado"]) {
+      expect(barra).not.toContain(proibido);
+    }
+    const conversa = texto(naRodada({ tela: "incidente", incidente: "inc-0001", aba: "conversa" }, { indice, log }));
+    expect(conversa).toContain("O agente foi interrompido.");
+    expect(conversa).toContain(`Erro: ${erro}`);
+    expect(conversa).not.toContain("ainda está rodando");
+    expect(conversa).toContain("rodada com erro, fora das taxas");
+    expect(conversa).not.toContain("fora do gabarito");
+    const tabela = recorte(naRodada({ tela: "rodada", incidente: null }, { indice }), "sx-table app-tabela-da-rodada");
+    expect(texto(tabela)).toContain("rodada com erro");
+    expect(texto(tabela)).toContain("fora das taxas");
+  });
+
+  it("numa simulação ainda rodando, o agente sem conclusão continua em andamento", () => {
+    const linhas = COM_CONVERSAS.trim().split("\n");
+    const corte = linhas.findIndex((linha) => linha.includes('"tipo":"llm_chamada"') && linha.includes('"agente":"decisao"'));
+    const simulacao = { arquivo: "x.pcap", agentes: { estado: "rodando" } } as unknown as ResultadoDaSimulacao;
+    const conversa = texto(naRodada({ tela: "incidente", incidente: "inc-0001", aba: "conversa" }, { log: linhas.slice(0, corte + 1).join("\n"), simulacao, indice: null }));
+    expect(conversa).toContain("ainda está rodando");
+    expect(conversa).not.toContain("interrompido");
+  });
+
+  it("incidente verdadeiro abaixo da confiança mínima: só recomendação, pela regra do servidor, sem X, e o resumo diz que conta como não aceitável", () => {
+    const indice = indiceCom(EXECUCAO, { confianca: 0.55, n_propostas: 0, acao_primeira: null, primeira_aceitavel: false });
+    const html = naRodada({ tela: "incidente", incidente: "inc-0001" }, { indice });
+    const medidas = recorte(html, "sx-kv body-sm app-medidas");
+    expect(texto(medidas)).toContain("só recomendação: confiança abaixo de 0,60 (regra do servidor)");
+    expect(texto(medidas)).not.toContain("fora do gabarito");
+    const linhaDaAcao = medidas.slice(medidas.indexOf("Primeira ação"), medidas.indexOf("Atacante apontado"));
+    expect(linhaDaAcao).not.toContain("is-nao");
+    expect(texto(recorte(html, "app-fonte"))).toContain("só recomendação: confiança abaixo de 0,60 (regra do servidor)");
+    const rodada = texto(naRodada({ tela: "rodada", incidente: null }, { indice }));
+    expect(rodada).toContain("1 execução de incidente verdadeiro com confiança abaixo de 0,60 conta como não aceitável na taxa da primeira ação");
+    expect(rodada).toContain("só recomendação");
+  });
+
+  it("a confiança mínima aparece com duas casas, sem arredondar a regra", () => {
+    const indice = indiceCom(EXECUCAO, {}, 0.65);
+    const rodada = texto(naRodada({ tela: "rodada", incidente: null }, { indice }));
+    expect(rodada).toContain("Abaixo de 0,65 de confiança, os agentes só recomendam.");
+    expect(rodada).toContain("Confiança abaixo de 0,65");
+    expect(rodada).not.toContain("0,7");
+  });
+
+  it("triagem que não apontou atacante: nenhum atacante apontado, e não atacante errado", () => {
+    const indice = indiceCom(EXECUCAO, { atacante_apontado: false, atacante_certo: false });
+    const html = naRodada({ tela: "incidente", incidente: "inc-0001" }, { indice });
+    expect(texto(recorte(html, "app-fonte"))).toContain("nenhum atacante apontado");
+    expect(texto(recorte(html, "sx-kv body-sm app-medidas"))).toContain("nenhum atacante apontado");
+    expect(texto(html)).not.toContain("atacante errado");
+    expect(texto(recorte(naRodada({ tela: "rodada", incidente: null }, { indice }), "sx-table app-tabela-da-rodada"))).toContain("nenhum apontado");
+  });
+
+  it("proposta de risco alto à espera numa execução da rodada: quem decide é o aprovador automático, e não uma pessoa", () => {
+    const html = texto(naRodada({ tela: "incidente", incidente: "inc-0001" }, { log: textoDoExemplo, passo: 32 }));
+    expect(html).toContain("aguardam aprovação");
+    expect(html).toContain("quem aprova ou rejeita é o aprovador automático, pela regra fixa do gabarito, e não uma pessoa");
+    expect(html).not.toContain("antes de uma pessoa aprovar");
+  });
+
+  it("relatório de uma execução sem decisão nenhuma: a seção das decisões não aparece; fora da rodada, ela diz que não houve", () => {
+    const naExecucao = texto(naRodada({ tela: "relatorio", incidente: "inc-0001" }, { log: textoDoExemplo, passo: 20 }));
+    expect(naExecucao).not.toContain("Decisões humanas");
+    expect(naExecucao).not.toContain("Nenhuma decisão humana");
+    const semRodada = texto(naRodada({ tela: "relatorio", incidente: "inc-0001" }, { log: textoDoExemplo, passo: 20, indice: null }));
+    expect(semRodada).toContain("Nenhuma decisão humana neste incidente.");
+  });
+
+  it("Tela 4: a parte de cada agente e o total de chamadas saem da mesma base, a das execuções sem erro", () => {
+    const html = texto(naRodada({ tela: "custo-latencia", incidente: null }, { log: COM_LUGAR }));
+    // Triagem 30.400 e decisão 20.300 tokens nas execuções sem erro: 60% e 40%, com 4 + 3 chamadas.
+    expect(html).toContain("Triagemlocal6430.40020,0 s60%");
+    expect(html).toContain("Decisãolocal6320.30015,0 s40%");
+    expect(html).toContain("As 7 chamadas dessas execuções rodaram no modelo local");
   });
 });

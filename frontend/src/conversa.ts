@@ -135,8 +135,13 @@ export interface EtapaDoAgente {
   caracteres: number;
   /** O que o agente deixou no log nesta etapa (proposta, execução, efeito, análise...). */
   produziu: Evento[];
-  /** O agente começou e ainda não terminou, no fim do log (uma simulação em andamento). */
+  /** O agente começou e ainda não terminou, no fim de um log que ainda está sendo gravado (uma simulação). */
   emAndamento: boolean;
+  /**
+   * O agente começou e não terminou num log que já terminou (uma execução gravada da rodada): o laço parou
+   * no meio, por um erro, sem gravar a conversa nem a conclusão.
+   */
+  interrompida: boolean;
 }
 
 export interface PassoDoFluxo {
@@ -167,7 +172,7 @@ function caracteresDa(conversa: EventoDeConversa): number {
  * etapa anterior; o que vem logo depois da conversa, antes de outro agente começar (o sumário gravado
  * depois da conversa dele), também fica na etapa. A abertura e as decisões ficam entre as etapas.
  */
-export function fluxoDoIncidente(eventos: Evento[]): ItemDoFluxo[] {
+export function fluxoDoIncidente(eventos: Evento[], { terminado = false }: { terminado?: boolean } = {}): ItemDoFluxo[] {
   const fluxo: ItemDoFluxo[] = [];
   let corrente = vazia();
   let ultima: EtapaDoAgente | null = null;
@@ -198,6 +203,7 @@ export function fluxoDoIncidente(eventos: Evento[]): ItemDoFluxo[] {
       caracteres: 0,
       produziu: corrente.produziu,
       emAndamento: false,
+      interrompida: false,
     };
     fluxo.push(etapa);
     corrente = vazia();
@@ -254,11 +260,13 @@ export function fluxoDoIncidente(eventos: Evento[]): ItemDoFluxo[] {
   }
 
   // Sobrou um agente sem conversa nem conclusão: num log antigo, é o sumário da triagem, que não tinha
-  // conclusão própria; num log que ainda está sendo gravado, um agente em andamento.
+  // conclusão própria; num log que ainda está sendo gravado, um agente em andamento; num log que já
+  // terminou (`terminado`), um agente interrompido.
   if (corrente.agente) {
     const sumario = corrente.produziu.some((evento) => evento.tipo === "sumario_emitido");
     const etapa = abrirEtapa(corrente.agente, sumario ? "sumario" : "incidente", `${corrente.chamadas[corrente.chamadas.length - 1]?.id ?? "fim"}`);
-    etapa.emAndamento = !sumario;
+    etapa.emAndamento = !sumario && !terminado;
+    etapa.interrompida = !sumario && terminado;
   } else if (corrente.produziu.length > 0) {
     fluxo.push(...corrente.produziu.map((evento): PassoDoFluxo => ({ tipo: "evento", evento })));
   }

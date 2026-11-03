@@ -160,7 +160,22 @@ function resumoDaEtapa(etapa: EtapaDoAgente): string {
   return partes.join(" · ");
 }
 
-function Etapa({ etapa, numero, linhas, replay, futura }: { etapa: EtapaDoAgente; numero: number; linhas: Map<string, LogEvent>; replay: Replay; futura: boolean }) {
+function Etapa({
+  etapa,
+  numero,
+  linhas,
+  replay,
+  futura,
+  erro,
+}: {
+  etapa: EtapaDoAgente;
+  numero: number;
+  linhas: Map<string, LogEvent>;
+  replay: Replay;
+  futura: boolean;
+  /** O erro com que a execução gravada terminou, quando o índice o tem. */
+  erro: string | null;
+}) {
   const produziu = etapa.produziu.map((evento) => linhas.get(evento.id)).filter((linha): linha is LogEvent => Boolean(linha));
   return (
     <li className={cx("app-etapa", futura && "is-futura")}>
@@ -177,6 +192,11 @@ function Etapa({ etapa, numero, linhas, replay, futura }: { etapa: EtapaDoAgente
         </span>
       </header>
       {etapa.emAndamento && <p className="body-sm sx-muted app-nota">O agente ainda está rodando neste ponto do log: a conversa vai ao log quando ele termina.</p>}
+      {etapa.interrompida && (
+        <Alert tone="attention" title="O agente foi interrompido.">
+          O laço parou no meio, sem gravar a conversa nem a conclusão: a execução terminou com erro.{erro ? ` Erro: ${erro}` : ""}
+        </Alert>
+      )}
       {etapa.conversa ? (
         <ol className="app-msgs" aria-label={`Conversa da ${AGENT[etapa.agente].label.toLowerCase()}`}>
           {etapa.conversa.map((item, indice) => (
@@ -184,7 +204,8 @@ function Etapa({ etapa, numero, linhas, replay, futura }: { etapa: EtapaDoAgente
           ))}
         </ol>
       ) : (
-        !etapa.emAndamento && <p className="body-sm sx-muted app-nota">O log não traz a conversa deste agente: foi gravado antes do contrato 0.8.0.</p>
+        !etapa.emAndamento &&
+        !etapa.interrompida && <p className="body-sm sx-muted app-nota">O log não traz a conversa deste agente: foi gravado antes do contrato 0.8.0.</p>
       )}
       {produziu.length > 0 && (
         <div className="app-etapa__log">
@@ -217,15 +238,17 @@ export interface PropsDaConversa {
   incidente: string;
   rodada?: ContextoDaRodada | null;
   escolherExecucao?: (id: string) => void;
+  /** O log já terminou (uma execução gravada, uma simulação parada): agente sem conclusão foi interrompido. */
+  logTerminado?: boolean;
 }
 
 /** O incidente de ponta a ponta: a abertura, cada agente com a conversa e o que deixou no log, e as decisões. */
-export function ConversaDosAgentes({ replay, incidente, rodada = null, escolherExecucao }: PropsDaConversa) {
+export function ConversaDosAgentes({ replay, incidente, rodada = null, escolherExecucao, logTerminado = false }: PropsDaConversa) {
   const view = replay.final.incidentes.find((item) => item.id === incidente);
-  const fluxo: ItemDoFluxo[] = view ? fluxoDoIncidente(view.eventos) : [];
+  const fluxo: ItemDoFluxo[] = view ? fluxoDoIncidente(view.eventos, { terminado: logTerminado }) : [];
   const linhas = new Map(replay.linhas.map((linha) => [linha.id, linha]));
   const etapas = fluxo.filter((item): item is EtapaDoAgente => item.tipo === "agente");
-  const medida = rodada && rodada.execucao.incidente === incidente ? rodada.execucao : null;
+  const medida = rodada && rodada.execucao.incidente === incidente ? { execucao: rodada.execucao, minima: rodada.indice.confianca_minima_para_propor } : null;
   const outra = rodada && !medida ? execucaoDoIncidente(rodada, incidente) : null;
 
   // Os eventos entre as etapas vão juntos numa linha do tempo; cada etapa é um bloco.
@@ -249,7 +272,7 @@ export function ConversaDosAgentes({ replay, incidente, rodada = null, escolherE
     fecharPassos();
     numero += 1;
     const fim = linhas.get(item.id)?.n ?? 0;
-    blocos.push(<Etapa key={item.id} etapa={item} numero={numero} linhas={linhas} replay={replay} futura={fim > replay.estado.passo} />);
+    blocos.push(<Etapa key={item.id} etapa={item} numero={numero} linhas={linhas} replay={replay} futura={fim > replay.estado.passo} erro={medida?.execucao.erro ?? null} />);
   }
   fecharPassos();
 
@@ -257,7 +280,7 @@ export function ConversaDosAgentes({ replay, incidente, rodada = null, escolherE
     <div className="sx-stack">
       {medida && (
         <Panel eyebrow="Rodada final" title="O que a rodada mediu nesta execução">
-          <MedidasDaExecucao execucao={medida} />
+          <MedidasDaExecucao execucao={medida.execucao} minima={medida.minima} />
         </Panel>
       )}
       <Panel

@@ -97,12 +97,24 @@ describe("o incidente de ponta a ponta", () => {
     expect(resumo(fluxo(comConversas(textoDoExemplo), "inc-0002"))).toEqual(["incidente_aberto", "incidente_marcado_resolvido", "triagem:1", "decisao:1", "triagem:sumario"]);
   });
 
+  it("num log que já terminou (execução gravada), o agente sem conclusão foi interrompido, e não está em andamento", () => {
+    const linhas = comConversas(textoDoExemplo).trim().split("\n");
+    const corte = linhas.findIndex((linha) => linha.includes('"tipo":"llm_chamada"') && linha.includes('"agente":"decisao"'));
+    const lido = lerLog(linhas.slice(0, corte + 1).join("\n"));
+    const view = agregar(lido.eventos).incidentes.find((item) => item.id === "inc-0001")!;
+    const ultima = etapas(fluxoDoIncidente(view.eventos, { terminado: true })).pop()!;
+    expect([ultima.agente, ultima.interrompida, ultima.emAndamento]).toEqual(["decisao", true, false]);
+    // O sumário de um log antigo, sem conclusão própria, não é interrupção.
+    const antigo = agregar(lerLog(textoDoExemplo).eventos).incidentes.find((item) => item.id === "inc-0001")!;
+    expect(etapas(fluxoDoIncidente(antigo.eventos, { terminado: true })).some((etapa) => etapa.interrompida)).toBe(false);
+  });
+
   it("um agente que começou e não terminou fica em andamento, no fim", () => {
     const linhas = comConversas(textoDoExemplo).trim().split("\n");
     // Corta o log logo depois da primeira chamada da decisão do inc-0001.
     const corte = linhas.findIndex((linha) => linha.includes('"tipo":"llm_chamada"') && linha.includes('"agente":"decisao"'));
     const itens = fluxo(linhas.slice(0, corte + 1).join("\n"), "inc-0001");
     const ultima = etapas(itens)[etapas(itens).length - 1];
-    expect([ultima.agente, ultima.emAndamento, ultima.motivo]).toEqual(["decisao", true, null]);
+    expect([ultima.agente, ultima.emAndamento, ultima.interrompida, ultima.motivo]).toEqual(["decisao", true, false, null]);
   });
 });

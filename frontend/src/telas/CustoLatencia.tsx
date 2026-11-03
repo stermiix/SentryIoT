@@ -43,7 +43,9 @@ function modelosDe(chamadas: LogEvent[]): string {
 function NaRodada({ rodada }: { rodada: ContextoDaRodada }) {
   const { grupo, indice } = rodada;
   const { resumo } = grupo;
-  const tokens = resumo.tokens_entrada + resumo.tokens_saida;
+  // Tudo na mesma base, a das execuções sem erro (as de `por_agente`): a parte de cada agente e o total.
+  const tokens = resumo.por_agente.reduce((soma, linha) => soma + linha.tokens_entrada + linha.tokens_saida, 0);
+  const chamadas = resumo.por_agente.reduce((soma, linha) => soma + linha.chamadas, 0);
   return (
     <Panel
       className="sx-span-12"
@@ -52,7 +54,7 @@ function NaRodada({ rodada }: { rodada: ContextoDaRodada }) {
       flush
       footer={
         <span className="body-sm sx-muted">
-          Todas as {fmtInt(resumo.chamadas)} chamadas do grupo rodaram no modelo local ({indice.modelos.join(", ")}): nenhuma foi à nuvem, e o custo de nuvem é US$ 0,00. A
+          As {fmtInt(chamadas)} chamadas dessas execuções rodaram no modelo local ({indice.modelos.join(", ")}): nenhuma foi à nuvem, e o custo de nuvem é US$ 0,00. A
           mediana é por execução em que o agente rodou, contada na coluna Execuções; o agente de execução só roda depois de uma proposta liberada.
         </span>
       }
