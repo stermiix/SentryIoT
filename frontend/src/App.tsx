@@ -1,10 +1,20 @@
 import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { listarModelos } from "./chat";
-import { Alert, Skeleton } from "./design-system";
+import { Alert, Button, Skeleton } from "./design-system";
 import { CAMINHO_DO_LOG, agregar, carregarLog, lerLog, type LogLido } from "./log";
 import { ligarSimulacao } from "./operacao";
-import { acharExecucao, carregarExecucao, carregarIndice, execucaoInicial, type IndiceDaRodada } from "./rodada";
-import { ancoraDa, lerRota, type Rota } from "./rotas";
+import {
+  CargaMaisRecente,
+  acharExecucao,
+  ancoraCorrigida,
+  carregarExecucao,
+  carregarIndice,
+  navegacaoNaFonte,
+  rotaNaExecucao,
+  type ContextoDaRodada,
+  type IndiceDaRodada,
+} from "./rodada";
+import { ancoraDa, lerRota, temIncidente, type Rota } from "./rotas";
 import { agentesAtivos, consultarSimulacao, type ResultadoDaSimulacao } from "./simulacao";
 import { TelaAoVivo } from "./telas/AoVivo";
 import { ChatDoModelo } from "./telas/Chat";
@@ -73,6 +83,7 @@ export class LimiteDeErro extends Component<PropsDoLimite, { erro: Error | null 
 export interface PropsDaPagina extends PropsDaTela {
   rota: Rota;
   modelo: ModeloDoBackend;
+  /** O índice da rodada final ou o log da variável não puderam ser lidos. */
   erroDoLog?: string | null;
   /**
    * A interface abre a rodada final que vem no build: é o modo sem `VITE_LOG_DE_EVENTOS`. Falso, as telas
@@ -81,7 +92,15 @@ export interface PropsDaPagina extends PropsDaTela {
   modoRodada?: boolean;
   /** O índice da rodada final; nulo quando o build não trouxe os dados. */
   indice?: IndiceDaRodada | null;
+  /**
+   * A execução que a âncora pede. Enquanto o log dela não chega (ou se ele falha), as telas do log não
+   * aparecem: o incidente da âncora é de outro log, e mostrá-lo no log de antes seria mostrar outro incidente.
+   */
+  rodadaPedida?: ContextoDaRodada | null;
   carregandoExecucao?: boolean;
+  /** O log da execução pedida não pôde ser lido. */
+  erroDaExecucao?: string | null;
+  tentarDeNovo?: () => void;
   /** A simulação cujo log está nas telas, e o que fazer com uma nova (ver a tela Simulação). */
   simulacao?: ResultadoDaSimulacao | null;
   aoSimular?: (resultado: ResultadoDaSimulacao) => void;
@@ -89,7 +108,7 @@ export interface PropsDaPagina extends PropsDaTela {
   ultimaSimulacao?: ResultadoDaSimulacao | null;
   /** Tira a simulação das telas e volta ao log de antes (a rodada final ou o da variável). */
   voltar?: () => void;
-  /** Abre uma execução da rodada final e, depois que o log dela carrega, vai para a rota pedida. */
+  /** Abre uma execução da rodada final; `destino` é a rota depois dela (sem ela, a mesma tela, no incidente da execução). */
   abrirExecucao?: (id: string, destino: Rota | null) => void;
 }
 
@@ -102,7 +121,10 @@ export function Pagina({
   erroDoLog = null,
   modoRodada = false,
   indice = null,
+  rodadaPedida = null,
   carregandoExecucao = false,
+  erroDaExecucao = null,
+  tentarDeNovo,
   simulacao = null,
   aoSimular,
   ultimaSimulacao = null,
@@ -111,14 +133,29 @@ export function Pagina({
   ...props
 }: PropsDaPagina) {
   const simulacaoAtiva = simulacao !== null && agentesAtivos(simulacao.agentes);
-  // Ao trocar a execução no seletor, o detalhe e o relatório passam ao incidente da execução nova.
-  const escolher = (id: string) => {
-    const alvo = indice && acharExecucao(indice, id);
-    const segue = alvo && (rota.tela === "incidente" || rota.tela === "relatorio") ? { ...rota, incidente: alvo.execucao.incidente } : null;
-    abrirExecucao?.(id, segue);
-  };
   const daTela = { ...props, escolherExecucao: (id: string) => abrirExecucao?.(id, null) };
+  // A âncora pede uma execução cujo log ainda não está nas telas.
+  const esperando = modoRodada && !simulacao && rodadaPedida !== null && rodadaPedida.execucao.id !== props.rodada?.execucao.id;
   const tela = (() => {
+    if (esperando && DO_LOG.has(rota.tela)) {
+      return erroDaExecucao ? (
+        <Alert
+          tone="danger"
+          title={`O log da execução ${rodadaPedida.execucao.rodada} não pôde ser lido.`}
+          action={
+            tentarDeNovo ? (
+              <Button size="sm" variant="secondary" icon="refresh-cw" onClick={tentarDeNovo}>
+                Tentar de novo
+              </Button>
+            ) : undefined
+          }
+        >
+          {erroDaExecucao}
+        </Alert>
+      ) : (
+        <Skeleton lines={8} label={`Carregando a execução ${rodadaPedida.execucao.rodada}`} />
+      );
+    }
     switch (rota.tela) {
       case "rodada":
         return (
@@ -130,7 +167,9 @@ export function Pagina({
             )}
             <TelaRodada
               indice={indice}
-              atual={simulacao ? null : (props.rodada?.execucao.id ?? null)}
+              modoRodada={modoRodada}
+              erro={erroDoLog}
+              atual={simulacao ? null : (rodadaPedida?.execucao.id ?? props.rodada?.execucao.id ?? null)}
               abrir={(execucao) => abrirExecucao?.(execucao.id, { tela: "incidente", incidente: execucao.incidente, aba: "conversa" })}
             />
           </>
@@ -138,7 +177,15 @@ export function Pagina({
       case "visao-geral":
         return <TelaVisaoGeral {...daTela} />;
       case "incidente":
-        return <TelaIncidente {...daTela} incidente={rota.incidente} aba={rota.aba} efeitoSimulado={simulacao !== null} />;
+        return (
+          <TelaIncidente
+            {...daTela}
+            incidente={rota.incidente}
+            aba={rota.aba}
+            efeitoSimulado={simulacao !== null}
+            logTerminado={Boolean(props.rodada) || (simulacao !== null && !simulacaoAtiva)}
+          />
+        );
       case "ao-vivo":
         return <TelaAoVivo />;
       case "simulacao":
@@ -177,21 +224,28 @@ export function Pagina({
   const barra =
     DO_LOG.has(rota.tela) && (modoRodada || simulacao) ? (
       <BarraDaFonte
-        rodada={simulacao ? null : (props.rodada ?? null)}
+        rodada={simulacao ? null : (rodadaPedida ?? props.rodada ?? null)}
         semDados={modoRodada && !indice && !erroDoLog}
         simulacao={simulacao}
         simulacaoAtiva={simulacaoAtiva}
         carregando={carregandoExecucao}
-        escolher={escolher}
+        escolher={(id) => abrirExecucao?.(id, null)}
         voltar={voltar}
         abrirRodada={modoRodada ? () => props.navegar({ tela: "rodada", incidente: null }) : undefined}
         voltarPara={modoRodada ? "à rodada final" : "ao log configurado"}
       />
     ) : null;
   return (
-    <Moldura {...props} ativa={rota.tela} modelo={modelo} dock={semReplay ? null : undefined} cheia={rota.tela === "chat"} modoRodada={modoRodada}>
+    <Moldura
+      {...props}
+      ativa={rota.tela}
+      modelo={modelo}
+      dock={semReplay || (esperando && DO_LOG.has(rota.tela)) ? null : undefined}
+      cheia={rota.tela === "chat"}
+      modoRodada={modoRodada}
+    >
       {erroDoLog && !semReplay && (
-        <Alert tone="danger" title="O log de eventos não pôde ser lido. As telas ficam vazias.">
+        <Alert tone="danger" title={modoRodada ? "A rodada final não pôde ser lida. As telas ficam vazias." : "O log de eventos não pôde ser lido. As telas ficam vazias."}>
           {erroDoLog}
         </Alert>
       )}
@@ -203,18 +257,26 @@ export function Pagina({
   );
 }
 
-function useRota(): [Rota, (rota: Rota) => void] {
+/** A rota da âncora, `navegar` (uma entrada nova no histórico) e `substituir` (a mesma entrada, sem voltar a ela). */
+function useRota(): [Rota, (rota: Rota) => void, (rota: Rota) => void] {
   const [rota, setRota] = useState<Rota>(() => lerRota(typeof window === "undefined" ? "" : window.location.hash));
   useEffect(() => {
     const ler = () => setRota(lerRota(window.location.hash));
     window.addEventListener("hashchange", ler);
     return () => window.removeEventListener("hashchange", ler);
   }, []);
+  // O estado acompanha a âncora já na mesma vez, sem esperar o hashchange: um efeito que leia a rota logo
+  // depois não vê a de antes.
   const navegar = useCallback((nova: Rota) => {
     window.location.hash = ancoraDa(nova);
+    setRota(lerRota(window.location.hash));
     window.scrollTo({ top: 0 });
   }, []);
-  return [rota, navegar];
+  const substituir = useCallback((nova: Rota) => {
+    window.history.replaceState(window.history.state, "", ancoraDa(nova));
+    setRota(lerRota(window.location.hash));
+  }, []);
+  return [rota, navegar, substituir];
 }
 
 /** O modelo padrão do backend do chat, para o rodapé da barra lateral. */
@@ -243,47 +305,67 @@ function comAvisos(lido: LogLido): LogLido {
 const MODO_RODADA = !CAMINHO_DO_LOG;
 
 export default function App() {
-  const [rota, navegar] = useRota();
+  const [rota, navegarNaAncora, substituir] = useRota();
   const modelo = useModeloDoBackend();
-  // O log de base: o da execução da rodada final escolhida ou o da variável.
+  // O log de base: o da execução da rodada final carregada ou o da variável.
   const [base, setBase] = useState<LogLido>(SEM_LOG);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [indice, setIndice] = useState<IndiceDaRodada | null>(null);
-  // A execução pedida no seletor e a que está carregada: as telas só mudam quando o log novo chega.
-  const [pedida, setPedida] = useState<string | null>(null);
+  // A execução carregada nas telas; a pedida vem da âncora (`?execucao=`), e a mais recente sempre vence.
   const [carregada, setCarregada] = useState<string | null>(null);
   const [carregandoExecucao, setCarregandoExecucao] = useState(false);
-  const destino = useRef<Rota | null>(null);
+  const [erroDaExecucao, setErroDaExecucao] = useState<{ id: string; mensagem: string } | null>(null);
+  const [tentativa, setTentativa] = useState(0);
   // A simulação cujo log está nas telas, e a última do backend que ficou fora delas.
   const [simulacao, setSimulacao] = useState<ResultadoDaSimulacao | null>(null);
   const [logDaSimulacao, setLogDaSimulacao] = useState<LogLido | null>(null);
   const [ultimaSimulacao, setUltimaSimulacao] = useState<ResultadoDaSimulacao | null>(null);
   const textoDaSimulacao = useRef<string | null>(null);
+  const naSimulacao = logDaSimulacao !== null;
   const atual = logDaSimulacao ?? base;
   const replay = useReplay(atual.eventos, atual.avisos);
-  const rodada = MODO_RODADA && !logDaSimulacao && indice ? acharExecucao(indice, carregada) : null;
+  // Na simulação, a âncora não leva execução, e a rodada fica onde estava.
+  const pedida = MODO_RODADA && indice ? (naSimulacao ? carregada : (acharExecucao(indice, rota.execucao)?.execucao.id ?? null)) : null;
+  const rodada = MODO_RODADA && !naSimulacao && indice ? acharExecucao(indice, carregada) : null;
+  const rodadaPedida = MODO_RODADA && !naSimulacao && indice ? acharExecucao(indice, pedida) : null;
+
+  // As telas navegam sem saber da execução: a navegação a mantém na âncora, e a tira dela na simulação e no log da variável.
+  const estado = useRef({ rota, naSimulacao });
+  estado.current = { rota, naSimulacao };
+  const navegar = useCallback(
+    (nova: Rota) => {
+      const { rota: daAncora, naSimulacao: simulando } = estado.current;
+      navegarNaAncora(navegacaoNaFonte(nova, daAncora, { modoRodada: MODO_RODADA, simulando }));
+    },
+    [navegarNaAncora],
+  );
 
   // O log da simulação passa a ser o das telas: a fila, o detalhe e o relatório mostram os incidentes do pcap.
-  const aoSimular = useCallback((resultado: ResultadoDaSimulacao) => {
-    ligarSimulacao(agentesAtivos(resultado.agentes));
-    setSimulacao(resultado);
-    setUltimaSimulacao(null);
-    // Sem evento novo, só o estado dos agentes mudou: o replay fica onde está.
-    if (resultado.eventos === textoDaSimulacao.current) {
-      return;
-    }
-    textoDaSimulacao.current = resultado.eventos;
-    // A última linha sem quebra pode estar no meio da gravação, porque os agentes escrevem no log.
-    setLogDaSimulacao(comAvisos(lerLog(resultado.eventos, { ignorarUltimaIncompleta: true })));
-    setErro(null);
-  }, []);
+  const aoSimular = useCallback(
+    (resultado: ResultadoDaSimulacao) => {
+      ligarSimulacao(agentesAtivos(resultado.agentes));
+      setSimulacao(resultado);
+      setUltimaSimulacao(null);
+      // Sem evento novo, só o estado dos agentes mudou: o replay fica onde está.
+      if (resultado.eventos === textoDaSimulacao.current) {
+        return;
+      }
+      // Ao entrar na simulação, a âncora larga a execução e o incidente dela: o inc-0001 da simulação é outro.
+      const entrando = textoDaSimulacao.current === null;
+      textoDaSimulacao.current = resultado.eventos;
+      if (entrando && (estado.current.rota.execucao || (temIncidente(estado.current.rota) && estado.current.rota.incidente))) {
+        substituir(rotaNaExecucao(estado.current.rota, null));
+      }
+      // A última linha sem quebra pode estar no meio da gravação, porque os agentes escrevem no log.
+      setLogDaSimulacao(comAvisos(lerLog(resultado.eventos, { ignorarUltimaIncompleta: true })));
+      setErro(null);
+    },
+    [substituir],
+  );
 
-  // Volta ao log de antes da simulação. Enquanto os agentes rodam, não: eles esperam decisões nas telas.
-  const voltar = useCallback(() => {
-    if (simulacao && agentesAtivos(simulacao.agentes)) {
-      return;
-    }
+  /** Tira a simulação das telas; o log de antes volta a ser o delas. */
+  const largarSimulacao = useCallback(() => {
     textoDaSimulacao.current = null;
     ligarSimulacao(false);
     setUltimaSimulacao(simulacao);
@@ -291,27 +373,35 @@ export default function App() {
     setLogDaSimulacao(null);
   }, [simulacao]);
 
+  // Volta ao log de antes da simulação, na execução e no incidente certos: nunca o inc-000N da simulação no
+  // log da rodada. Enquanto os agentes rodam, não: eles esperam decisões nas telas.
+  const voltar = useCallback(() => {
+    if (simulacao && agentesAtivos(simulacao.agentes)) {
+      return;
+    }
+    largarSimulacao();
+    navegarNaAncora(rotaNaExecucao(rota, indice ? acharExecucao(indice, carregada) : null));
+  }, [simulacao, largarSimulacao, navegarNaAncora, rota, indice, carregada]);
+
   const abrirExecucao = useCallback(
     (id: string, rotaDepois: Rota | null) => {
-      if (simulacao && agentesAtivos(simulacao.agentes)) {
+      const alvo = indice ? acharExecucao(indice, id) : null;
+      if (!alvo || (simulacao && agentesAtivos(simulacao.agentes))) {
         return;
       }
       if (simulacao) {
-        voltar();
+        largarSimulacao();
       }
-      if (id === carregada) {
-        if (rotaDepois) {
-          navegar(rotaDepois);
-        }
-        return;
+      // Repetir a escolha que falhou tenta de novo.
+      if (erroDaExecucao?.id === id) {
+        setTentativa((n) => n + 1);
       }
-      destino.current = rotaDepois;
-      setPedida(id);
+      navegarNaAncora(rotaDepois ? { ...rotaDepois, execucao: id } : rotaNaExecucao(rota, alvo));
     },
-    [simulacao, voltar, carregada, navegar],
+    [indice, simulacao, largarSimulacao, erroDaExecucao, navegarNaAncora, rota],
   );
 
-  // Ao abrir: o log da variável, quando ela existe; senão, o índice da rodada final e a execução inicial dele.
+  // Ao abrir: o log da variável, quando ela existe; senão, o índice da rodada final.
   useEffect(() => {
     let ativo = true;
     if (!MODO_RODADA) {
@@ -322,14 +412,11 @@ export default function App() {
     } else {
       carregarIndice()
         .then((lido) => {
-          if (!ativo) {
-            return;
-          }
-          setIndice(lido);
-          if (lido) {
-            setPedida(execucaoInicial(lido));
-          } else {
-            setCarregando(false);
+          if (ativo) {
+            setIndice(lido);
+            if (!lido) {
+              setCarregando(false);
+            }
           }
         })
         .catch((falha: Error) => {
@@ -344,38 +431,46 @@ export default function App() {
     };
   }, []);
 
-  // A execução pedida: o log dela substitui o de antes só quando chega inteiro.
+  // Âncora sem execução (ou com uma que o índice não tem): a carregada, ou a inicial na primeira vez. Sem
+  // saber de que log era o incidente da âncora (uma entrada antiga do histórico, da simulação), ele passa a
+  // ser o que os agentes trataram na execução.
+  useEffect(() => {
+    const corrigida = MODO_RODADA && indice && !naSimulacao ? ancoraCorrigida(indice, rota, carregada) : null;
+    if (corrigida) {
+      substituir(corrigida);
+    }
+  }, [indice, rota, naSimulacao, carregada, substituir]);
+
+  // A execução pedida: o log dela substitui o de antes só quando chega inteiro. Outra escolha no meio
+  // cancela esta, e a mais recente vence; voltar à carregada cancela a que estava a caminho.
+  const carga = useRef(new CargaMaisRecente<LogLido>());
   useEffect(() => {
     const alvo = indice && pedida ? acharExecucao(indice, pedida) : null;
     if (!alvo) {
       return;
     }
-    let ativo = true;
+    if (alvo.execucao.id === carregada) {
+      carga.current.cancelar();
+      setCarregandoExecucao(false);
+      setErroDaExecucao(null);
+      return;
+    }
     setCarregandoExecucao(true);
-    carregarExecucao(alvo.execucao)
-      .then((lido) => {
-        if (!ativo) {
-          return;
-        }
-        setBase(comAvisos(lido));
+    setErroDaExecucao(null);
+    void carga.current.carregar(() => carregarExecucao(alvo.execucao)).then((resultado) => {
+      if (resultado.tipo === "superada") {
+        return;
+      }
+      if (resultado.tipo === "ok") {
+        setBase(comAvisos(resultado.valor));
         setCarregada(alvo.execucao.id);
-        setErro(null);
-        if (destino.current) {
-          navegar(destino.current);
-          destino.current = null;
-        }
-      })
-      .catch((falha: Error) => ativo && setErro(falha.message))
-      .finally(() => {
-        if (ativo) {
-          setCarregandoExecucao(false);
-          setCarregando(false);
-        }
-      });
-    return () => {
-      ativo = false;
-    };
-  }, [indice, pedida, navegar]);
+      } else {
+        setErroDaExecucao({ id: alvo.execucao.id, mensagem: resultado.erro.message });
+      }
+      setCarregandoExecucao(false);
+      setCarregando(false);
+    });
+  }, [indice, pedida, carregada, tentativa]);
 
   // Ao abrir a página, retoma a simulação que o backend tem, para um recarregamento não largar os agentes.
   // Na rodada final, a simulação que já terminou não toma as telas: ela fica à mão na tela Simulação.
@@ -461,7 +556,10 @@ export default function App() {
       modoRodada={MODO_RODADA}
       indice={indice}
       rodada={rodada}
+      rodadaPedida={rodadaPedida}
       carregandoExecucao={carregandoExecucao}
+      erroDaExecucao={erroDaExecucao && erroDaExecucao.id === pedida ? erroDaExecucao.mensagem : null}
+      tentarDeNovo={() => setTentativa((n) => n + 1)}
       simulacao={simulacao}
       aoSimular={aoSimular}
       ultimaSimulacao={ultimaSimulacao}

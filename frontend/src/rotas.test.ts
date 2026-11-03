@@ -22,6 +22,17 @@ describe("rota pela âncora", () => {
     expect(ancoraDa({ tela: "incidente", incidente: null, aba: "conversa" })).toBe("#/incidentes");
   });
 
+  it("a execução da rodada final vai na âncora, para um recarregamento abrir o mesmo log", () => {
+    const rota: Rota = { tela: "incidente", incidente: "inc-0003", aba: "conversa", execucao: "oficial/Recon-PortScan-inc-0003-local-r2" };
+    expect(ancoraDa(rota)).toBe("#/incidentes/inc-0003/conversa?execucao=oficial%2FRecon-PortScan-inc-0003-local-r2");
+    expect(lerRota(ancoraDa(rota))).toEqual(rota);
+    expect(lerRota("#/visao-geral?execucao=kali/cen5_flood_icmp-inc-0001-local-r1")).toEqual({ tela: "visao-geral", incidente: null, execucao: "kali/cen5_flood_icmp-inc-0001-local-r1" });
+    // Um valor fora da forma `<grupo>/<rodada>` não entra na rota.
+    expect(lerRota("#/visao-geral?execucao=https://outro.site/x")).toEqual({ tela: "visao-geral", incidente: null });
+    expect(lerRota("#/visao-geral?execucao=semgrupo")).toEqual({ tela: "visao-geral", incidente: null });
+    expect(ancoraDa({ tela: "rodada", incidente: null, execucao: "../x" })).toBe("#/rodada-final");
+  });
+
   it("a âncora antiga #chat ainda abre o chat", () => {
     expect(lerRota("#chat").tela).toBe("chat");
   });

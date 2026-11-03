@@ -5,6 +5,7 @@
 
 import type { AgentName } from "./design-system";
 import { lerLog, type LogLido } from "./log";
+import { temIncidente, type Rota } from "./rotas";
 import type { VereditoDaTriagem } from "./types";
 
 /** A pasta dos dados, ao lado do app (respeita o `base` do Vite). */
@@ -359,4 +360,62 @@ export function trocarNoSeletor(contexto: ContextoDaRodada, campo: CampoDoSeleto
 /** A execução em que a interface abre: a que o índice indica, ou a primeira. */
 export function execucaoInicial(indice: IndiceDaRodada): string {
   return acharExecucao(indice, indice.inicial)?.execucao.id ?? indice.grupos[0].execucoes[0].id;
+}
+
+// --- A execução na âncora ----------------------------------------------------------------
+
+/**
+ * A rota numa execução: nas telas de um incidente, o incidente passa a ser o que os agentes trataram nela
+ * (cada pcap numera os incidentes do `inc-0001`, e o mesmo número noutro log é outro incidente). Sem
+ * execução, a rota larga a execução e, nas telas de um incidente, o incidente também.
+ */
+export function rotaNaExecucao(rota: Rota, contexto: ContextoDaRodada | null): Rota {
+  if (!contexto) {
+    return temIncidente(rota) ? { tela: rota.tela, incidente: null } : { ...rota, execucao: undefined };
+  }
+  return { ...rota, incidente: temIncidente(rota) ? contexto.execucao.incidente : rota.incidente, execucao: contexto.execucao.id };
+}
+
+/**
+ * A âncora corrigida quando ela não traz uma execução do índice: a carregada nesta sessão ou, na primeira
+ * vez, a inicial. Sem saber de que log era o incidente da âncora (uma entrada antiga do histórico, da
+ * simulação, ou um endereço escrito à mão), ele passa a ser o da execução. Nula quando a âncora já serve.
+ */
+export function ancoraCorrigida(indice: IndiceDaRodada, rota: Rota, carregada: string | null): Rota | null {
+  if (acharExecucao(indice, rota.execucao)) {
+    return null;
+  }
+  return rotaNaExecucao(rota, acharExecucao(indice, carregada ?? execucaoInicial(indice)));
+}
+
+/**
+ * A rota de uma navegação das telas, que não sabem da execução: na rodada final, a execução da âncora
+ * segue junto; numa simulação ou com o log da variável, a âncora não leva execução.
+ */
+export function navegacaoNaFonte(nova: Rota, daAncora: Rota, { modoRodada, simulando }: { modoRodada: boolean; simulando: boolean }): Rota {
+  return { ...nova, execucao: !modoRodada || simulando ? undefined : (nova.execucao ?? daAncora.execucao) };
+}
+
+export type ResultadoDaCarga<T> = { tipo: "ok"; valor: T } | { tipo: "erro"; erro: Error } | { tipo: "superada" };
+
+/**
+ * Cargas em que a mais recente vence: o resultado de uma carga que outra superou, ou que foi cancelada,
+ * volta como `superada` e não muda as telas. Repetir a escolha que falhou é só carregar de novo.
+ */
+export class CargaMaisRecente<T> {
+  private vez = 0;
+
+  cancelar(): void {
+    this.vez += 1;
+  }
+
+  async carregar(fazer: () => Promise<T>): Promise<ResultadoDaCarga<T>> {
+    const minha = ++this.vez;
+    try {
+      const valor = await fazer();
+      return minha === this.vez ? { tipo: "ok", valor } : { tipo: "superada" };
+    } catch (falha) {
+      return minha === this.vez ? { tipo: "erro", erro: falha instanceof Error ? falha : new Error(String(falha)) } : { tipo: "superada" };
+    }
+  }
 }

@@ -361,6 +361,32 @@ describe("correções da revisão", () => {
     expect(semRodada).toContain("Nenhuma decisão humana neste incidente.");
   });
 
+  it("execução pedida que ainda não chegou: a tela espera, sem mostrar o incidente de mesmo número do log de antes", () => {
+    const indice = indiceDeTeste();
+    const pedida = acharExecucao(indice, "oficial/Recon-PortScan-inc-0001-local-r1");
+    const carregando = naRodada({ tela: "incidente", incidente: "inc-0001", execucao: EXECUCAO }, { indice, rodadaPedida: pedida, carregandoExecucao: true });
+    expect(texto(carregando)).not.toContain("Incidentes / inc-0001");
+    expect(carregando).toContain("Carregando a execução Recon-PortScan-inc-0001-local-r1");
+    // A barra já mostra a escolha nova, e o seletor não trava: outra escolha sempre vence.
+    const barra = recorte(carregando, "app-fonte");
+    expect(barra).toContain('<option value="Recon-PortScan.pcap" selected=""');
+    expect(barra).not.toContain("disabled");
+    const falhou = texto(naRodada({ tela: "incidente", incidente: "inc-0001" }, { indice, rodadaPedida: pedida, erroDaExecucao: "HTTP 404", tentarDeNovo: nada }));
+    expect(falhou).toContain("O log da execução Recon-PortScan-inc-0001-local-r1 não pôde ser lido.");
+    expect(falhou).toContain("Tentar de novo");
+    expect(falhou).not.toContain("Incidentes / inc-0001");
+  });
+
+  it("índice fora do formato: a tela da rodada mostra o erro; com o log da variável, diz que lê outro log", () => {
+    const comErro = texto(naRodada({ tela: "rodada", incidente: null }, { indice: null, erroDoLog: "O índice da rodada final está fora do formato: a versão precisa ser 1." }));
+    expect(comErro).toContain("O índice da rodada final não pôde ser lido.");
+    expect(comErro).toContain("a versão precisa ser 1");
+    expect(comErro).not.toContain("não estão neste build");
+    const outroLog = texto(naRodada({ tela: "rodada", incidente: null }, { indice: null, modoRodada: false }));
+    expect(outroLog).toContain("A interface está lendo outro log");
+    expect(outroLog).not.toContain("não estão neste build");
+  });
+
   it("Tela 4: a parte de cada agente e o total de chamadas saem da mesma base, a das execuções sem erro", () => {
     const html = texto(naRodada({ tela: "custo-latencia", incidente: null }, { log: COM_LUGAR }));
     // Triagem 30.400 e decisão 20.300 tokens nas execuções sem erro: 60% e 40%, com 4 + 3 chamadas.

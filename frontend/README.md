@@ -18,7 +18,11 @@ destas fontes:
   por categoria), as medidas de cada execução e um resumo por grupo, e o log real de cada execução,
   em gzip. Quem clona o repositório e roda a interface vê a rodada sem configurar nada, e a
   demonstração na banca não depende de internet nem de a LLM responder na hora. Um seletor no alto
-  das telas escolhe a execução: grupo, pcap, incidente e repetição.
+  das telas escolhe a execução: grupo, pcap, incidente e repetição. A execução vai na âncora
+  (`#/incidentes/inc-0003/conversa?execucao=oficial/Recon-PortScan-inc-0003-local-r1`): cada pcap
+  numera os incidentes do `inc-0001`, e um recarregamento ou um link abre o mesmo log. Enquanto o log
+  de uma execução não chega, as telas esperam; se ele falha, a tela diz por quê e oferece tentar de
+  novo, e outra escolha no meio sempre vence.
 - **Log de uma variável:** com `VITE_LOG_DE_EVENTOS`, a interface lê esse log, uma vez, ao abrir,
   como antes da rodada final (ver "Log de outra execução", abaixo).
 - **Simulação:** a tela Simulação manda um pcap ao backend, que roda o reprodutor e os agentes, e o
@@ -58,7 +62,7 @@ o `DecompressionStream` do navegador; quando o servidor já o descomprime (o Vit
 
 | Tela | Âncora | Estado |
 |---|---|---|
-| Rodada final: os grupos da rodada, o resumo de cada um (triagem certa, primeira ação aceitável, atacante certo, incidentes abaixo de 0,6, tokens e tempo) e a tabela das execuções, de onde se abre qualquer uma | `#/rodada-final` | funciona com os dados do build; sem eles, diz como gerá-los |
+| Rodada final: os grupos da rodada, o resumo de cada um (triagem certa, primeira ação aceitável, atacante certo, execuções com confiança abaixo da mínima, tokens e tempo) e a tabela das execuções, de onde se abre qualquer uma | `#/rodada-final` | funciona com os dados do build; sem eles, diz como gerá-los |
 | Visão geral: funil janelas → incidentes → chamadas à IA, cartões e fila, com o incidente que os agentes trataram em destaque | `#/visao-geral` | funciona com o log |
 | Detalhe do incidente: veredito, features, propostas, endereços, rastro dos agentes, recomendações, histórico e, numa execução da rodada, o que ela mediu | `#/incidentes/<id>` | funciona com o log; as decisões só são oferecidas no fim do replay e nunca numa execução gravada da rodada |
 | Conversa dos agentes, aba do detalhe: o incidente de ponta a ponta, com o prompt de sistema (recolhido), o pedido do orquestrador, cada tool pedida e o resultado dela, os avisos do laço e a resposta final de cada agente, e as decisões entre eles | `#/incidentes/<id>/conversa` | funciona com o log do contrato 0.8.0; num log anterior, mostra as etapas sem as mensagens |

@@ -376,13 +376,14 @@ Detalhe do incidente, no ponto do replay em que o cursor está.
 
 A rodada final que vai no build: cada grupo (rodada oficial no CICIoT2023, Kali Linux numa rede isolada, exemplos por categoria) com o resumo das medidas e a tabela das execuções.
 
-- O resumo sai do `indice.json` (`vitrine.resumir`): triagem certa, primeira ação aceitável pelo gabarito e atacante certo, com a regra fixa ao lado, incidentes abaixo da confiança mínima, tokens e tempo dos agentes (medianas).
+- O resumo sai do `indice.json` (`vitrine.resumir`): triagem certa, primeira ação aceitável pelo gabarito e atacante certo, com a regra fixa ao lado, execuções com confiança abaixo da mínima (mostrada com duas casas, 0,60), tokens e tempo dos agentes (medianas).
+- O que a medida quer dizer vem de `lerExecucao` (`Medidas.tsx`): a rodada que terminou em erro fica "fora das taxas", sem acerto nem erro; o incidente verdadeiro abaixo da confiança mínima, sem proposta, é "só recomendação", pela regra do servidor, sem marca de erro (na taxa, conta como não aceitável, como no experimento, e o resumo diz quantos são); a triagem que não apontou atacante diz "nenhum atacante apontado".
 - O nome do pcap, na tabela, abre a execução nas outras telas, na conversa dos agentes. A execução aberta fica marcada com `--sx-select`.
 - Medidas de sim ou não sempre com ícone e palavra (`Marca`, em `Medidas.tsx`).
 
 ### Barra da execução
 
-No alto das telas que mostram o log (visão geral, incidente, Telas 3 e 4, relatório): de onde vem o log. Na rodada final, o seletor de grupo, pcap, incidente e repetição (`Select`), as medidas da execução e o lembrete de que os agentes trataram só um incidente do pcap; numa simulação, o arquivo e "Voltar à rodada final", travado enquanto os agentes rodam. Não sai na impressão.
+No alto das telas que mostram o log (visão geral, incidente, Telas 3 e 4, relatório): de onde vem o log. Na rodada final, o seletor de grupo, pcap, incidente e repetição (`Select`), as medidas da execução e o lembrete de que os agentes trataram só um incidente do pcap; numa simulação, o arquivo e "Voltar à rodada final", travado enquanto os agentes rodam. A escolha vai na âncora (`?execucao=`); enquanto o log dela não chega, as telas do log esperam, e, se ele falha, mostram o erro com "Tentar de novo". Não sai na impressão.
 
 ### Conversa dos agentes
 
