@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ondeRoda, provedoresDoChat } from "../adaptador";
 import { ErroDoChat, enviarChat, listarModelos, listarPrompts, montarPedido, textoDaSkill, type MensagemDaConversa, type Prompt } from "../chat";
-import { Alert, Button, ChatMessage, EmptyState, ModelSelect, PageHeader, Panel, PromptBox, ProviderBar, Select, Skeleton, TextField, fmtInt } from "../design-system";
+import { Alert, Button, ChatMessage, EmptyState, ModelSelect, PageHeader, Panel, PromptBox, ProviderBar, Select, Skeleton, TextField, fmtInt, type ProviderLocation } from "../design-system";
 
 /** Estimativa grosseira de tokens: cerca de quatro caracteres por token. */
 export function estimarTokens(texto: string): number {
@@ -30,9 +30,11 @@ export interface PropsDaTelaDoChat {
   onTexto: (texto: string) => void;
   onEnviar: () => void;
   onLimpar: () => void;
+  /** Onde o backend diz que os modelos dele rodam (o chat usa o perfil local). */
+  ondeDoBackend?: ProviderLocation;
 }
 
-function Mensagem({ mensagem }: { mensagem: MensagemDaConversa }) {
+function Mensagem({ mensagem, ondeDoBackend }: { mensagem: MensagemDaConversa; ondeDoBackend?: ProviderLocation }) {
   if (mensagem.papel === "usuario") {
     return <ChatMessage role="user">{mensagem.conteudo}</ChatMessage>;
   }
@@ -42,7 +44,7 @@ function Mensagem({ mensagem }: { mensagem: MensagemDaConversa }) {
       <ChatMessage
         role="assistant"
         author={mensagem.modelo}
-        location={ondeRoda(mensagem.modelo)}
+        location={ondeRoda(mensagem.modelo) ?? ondeDoBackend}
         tokens={informados ? mensagem.tokens_entrada! + mensagem.tokens_saida! : null}
         tokensDetail={informados ? `${fmtInt(mensagem.tokens_entrada!)} de entrada · ${fmtInt(mensagem.tokens_saida!)} de saída` : undefined}
         seconds={mensagem.tempo_ms / 1000}
@@ -59,9 +61,9 @@ function Mensagem({ mensagem }: { mensagem: MensagemDaConversa }) {
  * desenham em qualquer estado, e o estado fica no `ChatDoModelo`.
  */
 export function TelaDoChat(props: PropsDaTelaDoChat) {
-  const { modelos, modelo, onModelo, sistema, onSistema, prompts, skill, onCarregarPrompt, mensagens, texto, enviando, erro, erroDeCarga, onTexto, onEnviar, onLimpar } = props;
+  const { modelos, modelo, onModelo, sistema, onSistema, prompts, skill, onCarregarPrompt, mensagens, texto, enviando, erro, erroDeCarga, onTexto, onEnviar, onLimpar, ondeDoBackend } = props;
   // Sem lista (backend fora do ar), o seletor mostra o modelo atual, se houver, e fica travado.
-  const provedores = provedoresDoChat(modelos.length > 0 ? modelos : modelo ? [modelo] : []).map((provedor) =>
+  const provedores = provedoresDoChat(modelos.length > 0 ? modelos : modelo ? [modelo] : [], ondeDoBackend).map((provedor) =>
     modelos.length > 0 ? provedor : { ...provedor, status: "offline" as const },
   );
   const enviar = () => {
@@ -146,7 +148,7 @@ export function TelaDoChat(props: PropsDaTelaDoChat) {
                 </EmptyState>
               )}
               {mensagens.map((mensagem, indice) => (
-                <Mensagem key={indice} mensagem={mensagem} />
+                <Mensagem key={indice} mensagem={mensagem} ondeDoBackend={ondeDoBackend} />
               ))}
               {enviando && <Skeleton lines={3} label="Aguardando o modelo" />}
             </div>
@@ -178,6 +180,7 @@ export function ChatDoModelo() {
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [erroDeCarga, setErroDeCarga] = useState<string | null>(null);
+  const [ondeDoBackend, setOndeDoBackend] = useState<ProviderLocation | undefined>(undefined);
 
   useEffect(() => {
     let ativo = true;
@@ -191,6 +194,7 @@ export function ChatDoModelo() {
         if (ativo) {
           setModelos(lista.modelos);
           setModelo(lista.padrao);
+          setOndeDoBackend(lista.onde);
         }
       })
       .catch((falha: unknown) => avisar(falha, "Falha inesperada ao listar os modelos."));
@@ -258,6 +262,7 @@ export function ChatDoModelo() {
       onTexto={setTexto}
       onEnviar={onEnviar}
       onLimpar={onLimpar}
+      ondeDoBackend={ondeDoBackend}
     />
   );
 }

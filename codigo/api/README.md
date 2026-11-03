@@ -45,8 +45,9 @@ No desenvolvimento da interface, o Vite (`npm run dev` em `frontend/`) encaminha
 
 ## Rotas
 
-- `GET /api/modelos`: devolve `{"modelos": [...], "padrao": "..."}` a partir da lista
-  permitida, sem chamar o provedor.
+- `GET /api/modelos`: devolve `{"modelos": [...], "padrao": "...", "onde": "local"}` a partir da
+  lista permitida, sem chamar o provedor. `onde` diz à interface que os modelos do chat são os do
+  perfil local (as variáveis `LLM_*`), o mesmo dos agentes na configuração local.
 - `GET /api/prompts`: devolve `{"prompts": [{"nome", "titulo", "texto"}]}` com cada `SKILL.md`
   de `codigo/agente/skills/`, sem o cabeçalho YAML; `nome` é o da pasta e `titulo` é o primeiro
   título do arquivo. É o ponto de partida do prompt de sistema na tela.

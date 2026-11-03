@@ -32,6 +32,13 @@ import type {
 // incidente e proposta vira o objeto que os componentes desenham (`design-system/components/modelos.ts`).
 // Nada daqui inventa dado: o que o log não traz fica vazio, e a tela diz que falta.
 
+/**
+ * O usuário com que o aprovador automático dos experimentos grava as decisões (`USUARIO`, em
+ * `codigo/agente/aprovador.py`): ele aprova ou rejeita por uma regra fixa, conferida no gabarito, e não é
+ * uma pessoa. Um teste confere o nome contra o código.
+ */
+export const APROVADOR_AUTOMATICO = "aprovador-automatico";
+
 // --- Onde cada modelo roda ---------------------------------------------------------------
 
 function lista(valor: string | undefined): Set<string> {
@@ -53,12 +60,13 @@ export function ondeRoda(modelo: string): ProviderLocation | undefined {
 }
 
 /**
- * Os modelos do backend do chat como provedores do seletor. Sem lugar conhecido, o modelo entra
- * como nuvem: é o caso que pede cuidado, porque o texto pode sair da máquina.
+ * Os modelos do backend do chat como provedores do seletor. O lugar vem das listas do ambiente e,
+ * sem elas, do que o backend diz (`ondeDoBackend`: o chat usa o perfil local). Sem lugar nenhum, o
+ * modelo entra como nuvem: é o caso que pede cuidado, porque o texto pode sair da máquina.
  */
-export function provedoresDoChat(modelos: string[]): Provider[] {
+export function provedoresDoChat(modelos: string[], ondeDoBackend?: ProviderLocation): Provider[] {
   return modelos.map((modelo) => {
-    const local = ondeRoda(modelo) === "local";
+    const local = (ondeRoda(modelo) ?? ondeDoBackend) === "local";
     return { id: modelo, label: local ? "Modelo local" : "Nuvem", model: modelo, location: local ? "local" : "nuvem", status: "online" };
   });
 }
@@ -204,13 +212,15 @@ export function linhaDoEvento(evento: Evento, n: number): LogEvent {
     case "acao_aprovada":
     case "acao_rejeitada": {
       const dados = evento.dados;
+      const automatica = dados.usuario === APROVADOR_AUTOMATICO;
       return {
         ...base,
         ref: dados.proposta,
-        text: `${dados.proposta} ${evento.tipo === "acao_aprovada" ? "aprovada" : "rejeitada"}`,
+        text: `${dados.proposta} ${evento.tipo === "acao_aprovada" ? "aprovada" : "rejeitada"}${automatica ? " pelo aprovador automático" : ""}`,
         channel: dados.canal,
         user: dados.usuario,
-        quote: dados.motivo ?? undefined,
+        // O motivo do aprovador automático é uma frase do código, e não texto de pessoa.
+        ...(automatica ? { detail: dados.motivo ?? undefined } : { quote: dados.motivo ?? undefined }),
       };
     }
     case "acao_executada":
@@ -369,6 +379,7 @@ export function propostaDaTela(proposta: PropostaView, incidente: string): Propo
       user: decisao.usuario,
       at: hora(decisao.instante),
       reason: decisao.motivo ?? undefined,
+      automatic: decisao.usuario === APROVADOR_AUTOMATICO,
     },
     executions: proposta.execucoes.map((execucao) => ({ id: execucao.id, state: execucao.estado, at: hora(execucao.desfeitaEm ?? execucao.aplicadaEm) })),
     effect: efeito && { result: efeito.resultado, at: hora(efeito.instante) },

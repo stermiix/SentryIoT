@@ -163,7 +163,9 @@ def criar_app(
         )
 
     async def modelos(request: Request):
-        return JSONResponse({"modelos": list(config.modelos()), "padrao": config.modelo})
+        # O chat usa o perfil local (as variáveis LLM_*), o mesmo dos agentes na configuração local: a
+        # interface mostra o modelo como local, e não como nuvem.
+        return JSONResponse({"modelos": list(config.modelos()), "padrao": config.modelo, "onde": "local"})
 
     async def prompts(request: Request):
         return JSONResponse({"prompts": await run_in_threadpool(ler_prompts, pasta_de_skills)})

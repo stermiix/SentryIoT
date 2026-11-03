@@ -107,8 +107,13 @@ export function TelaIsoladoIntegrado(props: PropsDaTela & { incidente?: string |
         </Panel>
       </div>
       <p className="sx-caption body-sm">
-        Figura: à esquerda, o classificador isolado, com um alerta por janela; à direita, o mesmo tráfego agregado em um incidente e tratado por três agentes. Contagens,
+        Figura: à esquerda, o classificador isolado, com um alerta por janela; à direita, o mesmo tráfego agregado em um incidente e tratado pelos agentes. Contagens,
         veredito e propostas do log, {id}, até o evento {props.replay.estado.passo} de {props.replay.estado.total}.
+        {props.rodada
+          ? ` Execução ${props.rodada.execucao.rodada} da rodada final: os agentes no modelo local, a aprovação automática por regra fixa e o efeito da ação simulado.`
+          : detalhe.propostas.some((proposta) => proposta.effect)
+            ? " O efeito da ação é simulado: em replay, ela não age sobre o tráfego gravado."
+            : ""}
       </p>
     </>
   );

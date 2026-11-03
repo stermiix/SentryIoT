@@ -167,7 +167,7 @@ def test_modelos_devolve_a_lista_permitida_e_o_padrao():
 
     status, corpo = chamar(app, "GET", "/api/modelos")
 
-    assert (status, corpo) == (200, {"modelos": ["m-padrao", "m-2"], "padrao": "m-padrao"})
+    assert (status, corpo) == (200, {"modelos": ["m-padrao", "m-2"], "padrao": "m-padrao", "onde": "local"})
 
 
 def test_modelos_sem_a_variavel_tem_so_o_padrao():
@@ -175,7 +175,7 @@ def test_modelos_sem_a_variavel_tem_so_o_padrao():
 
     status, corpo = chamar(app, "GET", "/api/modelos")
 
-    assert (status, corpo) == (200, {"modelos": ["m-padrao"], "padrao": "m-padrao"})
+    assert (status, corpo) == (200, {"modelos": ["m-padrao"], "padrao": "m-padrao", "onde": "local"})
 
 
 def test_modelo_fora_da_lista_vira_400_sem_chamar_o_provedor():
@@ -359,7 +359,7 @@ def test_sem_a_pasta_construida_a_raiz_da_404_e_a_api_continua(tmp_path):
     app = criar_app(CONFIG, provedor_que_responde([]), pasta_construida=tmp_path / "nao-existe")
 
     assert chamar(app, "GET", "/")[0] == 404
-    assert chamar(app, "GET", "/api/modelos") == (200, {"modelos": ["m-padrao"], "padrao": "m-padrao"})
+    assert chamar(app, "GET", "/api/modelos") == (200, {"modelos": ["m-padrao"], "padrao": "m-padrao", "onde": "local"})
 
 
 # O servidor ASGI entrega o caminho já decodificado; os casos cobrem o `..` solto e no meio.

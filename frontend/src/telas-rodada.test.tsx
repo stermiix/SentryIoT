@@ -1,6 +1,8 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import textoDoExemplo from "../../codigo/mcp/exemplos/incidente_flood.jsonl?raw";
+import codigoDoAprovador from "../../codigo/agente/aprovador.py?raw";
+import { APROVADOR_AUTOMATICO } from "./adaptador";
 import { Pagina, type PropsDaPagina } from "./App";
 import { AVISO_DE_TESTE, PROMPT_DE_TESTE, comConversas } from "./conversa-de-teste";
 import { fmtInt } from "./design-system/components/util";
@@ -31,6 +33,13 @@ function naRodada(rota: Rota, { log = COM_CONVERSAS, indice = indiceDeTeste() as
     <Pagina rota={rota} replay={replayDe(log)} navegar={nada} modelo={{ online: false }} modoRodada indice={indice} rodada={rodada} {...extras} />,
   );
 }
+
+/** O log de exemplo com o lugar do modelo em cada chamada, como desde o contrato 0.5.0. */
+const COM_LUGAR = COM_CONVERSAS.split("\n")
+  .map((linha) => (linha.includes('"tipo":"llm_chamada"') ? linha.replace('"onde":null', '"onde":"local"') : linha))
+  .join("\n");
+/** O log de exemplo com as decisões do inc-0001 tomadas pelo aprovador automático, como nos experimentos. */
+const COM_APROVADOR = COM_CONVERSAS.replace(/"usuario":"operador"/g, `"usuario":"${APROVADOR_AUTOMATICO}"`);
 
 describe("modo da rodada final: navegação e barra da fonte", () => {
   it("a navegação mostra a rodada final e tira o que ficou fora da versão final", () => {
@@ -129,6 +138,17 @@ describe("detalhe do incidente numa execução da rodada", () => {
     const execucao = "oficial/DDoS-UDP_Flood-inc-0002-local-r1";
     expect(texto(naRodada({ tela: "incidente", incidente: null }, { execucao }))).toContain("Incidentes / inc-0002");
   });
+
+  it("a decisão do aprovador automático é texto do sistema, e não de pessoa", () => {
+    const html = naRodada({ tela: "incidente", incidente: "inc-0001" }, { log: COM_APROVADOR });
+    expect(texto(html)).toContain("Regra do aprovador automático, não uma pessoa: O dispositivo não pode sair de serviço.");
+    expect(html).not.toContain("Texto de pessoa · aprovador-automatico");
+    expect(texto(html)).toContain("prop-0002 rejeitada pelo aprovador automático");
+  });
+
+  it("o nome do aprovador automático é o do código", () => {
+    expect(codigoDoAprovador).toContain(`USUARIO = "${APROVADOR_AUTOMATICO}"`);
+  });
 });
 
 describe("conversa dos agentes", () => {
@@ -194,6 +214,33 @@ describe("conversa dos agentes", () => {
     expect(textoDaTela).toContain("Este log não traz a conversa dos agentes.");
     expect(textoDaTela).toContain("O log não traz a conversa deste agente");
     expect(textoDaTela).not.toContain("Pedido do orquestrador");
+  });
+});
+
+describe("telas do artigo e relatório com a rodada", () => {
+  it("Tela 4: tudo no modelo local, custo de nuvem zero, e o grupo da rodada por agente", () => {
+    const textoDaTela = texto(naRodada({ tela: "custo-latencia", incidente: null }, { log: COM_LUGAR }));
+    expect(textoDaTela).toContain("Onde o modelo rodou");
+    expect(textoDaTela).toContain("15chamadas no modelo local");
+    expect(textoDaTela).toContain("Na nuvemnenhuma chamada");
+    expect(textoDaTela).toContain("Custo de nuvemUS$ 0,00");
+    expect(textoDaTela).toContain("Os experimentos rodam só no modelo local");
+    expect(textoDaTela).toContain("Rodada oficial (CICIoT2023): por agente");
+    expect(textoDaTela).toContain("nenhuma foi à nuvem, e o custo de nuvem é US$ 0,00");
+  });
+
+  it("Tela 3: a legenda diz que a execução é da rodada, com aprovação automática e efeito simulado", () => {
+    const textoDaTela = texto(naRodada({ tela: "isolado-integrado", incidente: null }));
+    expect(textoDaTela).toContain("Execução DDoS-UDP_Flood-inc-0001-local-r1 da rodada final");
+    expect(textoDaTela).toContain("efeito da ação simulado");
+  });
+
+  it("relatório: as decisões do aprovador automático não são decisões humanas, e o efeito é simulado", () => {
+    const textoDaTela = texto(naRodada({ tela: "relatorio", incidente: "inc-0001" }, { log: COM_APROVADOR }));
+    expect(textoDaTela).toContain("Decisões do aprovador automático");
+    expect(textoDaTela).not.toContain("Decisões humanas");
+    expect(textoDaTela).toContain("pelo aprovador automático dos experimentos, por regra fixa conferida no gabarito, e não por uma pessoa");
+    expect(textoDaTela).toContain("a verificação do efeito é simulada");
   });
 });
 
