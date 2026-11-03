@@ -332,13 +332,23 @@ def comprimir(dados):
     return memoria.getvalue()
 
 
+def _do_sistema(caminho):
+    """Os arquivos que o macOS deixa nas pastas (`.DS_Store` e os `._*` de atributos): não são de ninguém."""
+    return caminho.is_file() and (caminho.name == ".DS_Store" or caminho.name.startswith("._"))
+
+
 def _conferir_saida(saida):
-    """Só apaga uma pasta de saída que tenha o que este comando grava: um caminho errado não leva nada junto."""
+    """Só apaga uma pasta de saída que tenha o que este comando grava: um caminho errado não leva nada junto.
+
+    Os arquivos ocultos do sistema (`_do_sistema`) não contam: eles saem junto com a pasta.
+    """
     if not saida.exists():
         return
     if not saida.is_dir():
         raise ErroDaVitrine(f"{saida} existe e não é uma pasta")
     for caminho in saida.rglob("*"):
+        if _do_sistema(caminho):
+            continue
         relativo = caminho.relative_to(saida)
         if caminho.is_dir() and len(relativo.parts) == 1 and relativo.name in POR_ID:
             continue

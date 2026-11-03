@@ -231,6 +231,19 @@ def test_nao_apaga_pasta_de_saida_com_outra_coisa(tmp_path, oficial):
     assert (saida / "importante.txt").read_text(encoding="utf-8") == "não apagar"
 
 
+def test_arquivos_ocultos_do_sistema_nao_travam_a_remontagem(tmp_path, oficial):
+    saida = tmp_path / "saida"
+    montar([("oficial", oficial)], saida)
+    (saida / ".DS_Store").write_bytes(b"\x00\x00\x00\x01Bud1")
+    (saida / "oficial" / ".DS_Store").write_bytes(b"\x00")
+    (saida / "oficial" / "._DDoS-UDP_Flood-inc-0001-local-r1.jsonl.gz").write_bytes(b"\x00")
+
+    montar([("oficial", oficial)], saida)
+
+    assert not list(saida.rglob(".DS_Store")) and not list(saida.rglob("._*"))
+    assert (saida / INDICE).is_file()
+
+
 def test_linha_de_comando(tmp_path, oficial, capsys):
     saida = tmp_path / "saida"
 
