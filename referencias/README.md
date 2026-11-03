@@ -30,10 +30,14 @@ do git). Dizem o que foi lido de cada fonte e o cuidado ao citá-la.
 - **Neto et al. (2023):** artigo do CICIoT2023, revisado por pares (*Sensors*). Conferido em
   26/10/2026 no resumo, via Crossref, porque o site da MDPI bloqueou a leitura: 33 ataques, 105
   dispositivos IoT, sete categorias (DDoS, DoS, Recon, Web-based, brute force, spoofing e Mirai),
-  todos executados por dispositivos IoT maliciosos contra outros dispositivos IoT. **As janelas de
-  10 e de 100 pacotes e as 47 features não foram vistas no texto do Neto, só no Doménech.** Os
-  pcaps e o código de extração vêm da página oficial do dataset (CANADIAN INSTITUTE FOR
-  CYBERSECURITY, 2023).
+  todos executados por dispositivos IoT maliciosos contra outros dispositivos IoT. Conferido em
+  03/11/2026 no texto completo, pelo Europe PMC (PMC10346235): a seção 4 (*Feature Extraction and
+  Data Description*) lista numa tabela as 47 features, de `ts` a `Weight`, e documenta as janelas
+  de 10 pacotes (Backdoor Malware, Benign Traffic, ..., XSS) e de 100 pacotes (DDoS, DoS e Mirai),
+  com a média dos valores de cada janela; o motivo dado é reduzir a diferença de volume entre as
+  classes (o exemplo deles é DDoS e CommandInjection). Doménech et al. (2025) confirmam. Os pcaps e
+  o código de extração vêm da página oficial do dataset (CANADIAN INSTITUTE FOR CYBERSECURITY,
+  2023).
 - **Doménech et al. (2025):** revisado por pares (*Internet of Things*, Elsevier), conferido no
   PDF em 26/10/2026. (a) A seção 3 documenta a janela de 100 pacotes para DDoS, DoS e Mirai e de
   10 para o resto, nos dois datasets (CICIoT2023 e CICIoMT2024). (b) A seção 5.1.1 recomenda janela
