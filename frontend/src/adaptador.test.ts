@@ -439,4 +439,9 @@ describe("onde cada modelo roda", () => {
   it("no chat, modelo sem lugar conhecido entra como nuvem, o caso que pede cuidado", () => {
     expect(provedoresDoChat(["qwen3.8-27c"])).toEqual([{ id: "qwen3.8-27c", label: "Nuvem", model: "qwen3.8-27c", location: "nuvem", status: "online" }]);
   });
+
+  it("no chat, o backend que diz que os modelos dele são locais (o perfil LLM_*) basta para mostrá-los como locais", () => {
+    expect(provedoresDoChat(["qwen3.8-27c"], "local")).toEqual([{ id: "qwen3.8-27c", label: "Modelo local", model: "qwen3.8-27c", location: "local", status: "online" }]);
+    expect(provedoresDoChat(["qwen3.8-27c"], "nuvem")[0].location).toBe("nuvem");
+  });
 });

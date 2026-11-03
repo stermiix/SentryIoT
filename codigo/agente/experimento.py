@@ -55,7 +55,8 @@ grava o log e os cenários de cada um e anota os IPs dos atacantes do dataset, q
 usam. `rodar` guarda um JSON por rodada, com as medidas, os avisos do orquestrador e por que cada agente parou,
 e retoma de onde parou: a rodada que já terminou, sem erro, não repete, o que importa numa conta paga. Se alguma
 rodada deu erro, o comando termina com o código 3: é só rodá-lo de novo, e só as rodadas com erro repetem.
-`consolidar` junta os JSON em `avaliacao_agentes.csv` e `custo_latencia.csv`. Os experimentos rodam em Linux ou
+`consolidar` junta os JSON em `avaliacao_agentes.csv` e `custo_latencia.csv`. Depois das rodadas (a oficial, a do
+Kali e a dos exemplos), `python -m codigo.agente.vitrine` monta delas os dados fixos da interface. Os experimentos rodam em Linux ou
 em macOS, ou em sequência: sem `fcntl` (Windows), duas rodadas ao mesmo tempo sobre um log não são seguras. Aqui
 cada rodada tem o log só dela, e elas rodam em fila.
 

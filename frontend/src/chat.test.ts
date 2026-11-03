@@ -81,6 +81,11 @@ describe("lista de modelos", () => {
     await expect(listarModelos(semRede)).rejects.toMatchObject({ tipo: "rede" });
   });
 
+  it("traz onde os modelos rodam, quando o backend diz", async () => {
+    expect(await listarModelos(fetchQueResponde(200, { modelos: ["m-1"], padrao: "m-1", onde: "local" }))).toEqual({ modelos: ["m-1"], padrao: "m-1", onde: "local" });
+    await expect(listarModelos(fetchQueResponde(200, { modelos: ["m-1"], padrao: "m-1", onde: "marte" }))).rejects.toMatchObject({ tipo: "backend" });
+  });
+
   it("resposta fora do formato vira erro de backend", async () => {
     await expect(listarModelos(fetchQueResponde(200, { modelos: "m-1" }))).rejects.toMatchObject({ tipo: "backend" });
   });

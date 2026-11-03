@@ -10,8 +10,11 @@ dados/processed/*
 
 # Log de eventos de uma execucao do sistema (o exemplo versionado fica em codigo/mcp/exemplos/)
 dados/eventos/
-# Log que a interface le no replay, posto em public/ so na maquina de quem roda: pode ter enderecos reais
-frontend/public/dados/
+# Log que a interface le no replay, posto em public/ so na maquina de quem roda: pode ter enderecos reais.
+# A excecao e a rodada final dos experimentos (python -m codigo.agente.vitrine), que vai com a interface:
+# enderecos do CICIoT2023 e da rede isolada do teste com o Kali.
+frontend/public/dados/*
+!frontend/public/dados/rodada-final/
 
 # Grafico de analise fora do artigo, gerado so quando pedido (artigo/figuras/README.md)
 artigo/figuras/pcap_fora_do_treino.png

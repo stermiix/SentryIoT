@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ASSETS, AppShell, EVENT, IconButton, ReplayControl, Sidebar, type NavSection } from "../design-system";
+import { ASSETS, AppShell, EVENT, ReplayControl, Sidebar, type NavSection } from "../design-system";
 import type { Tela } from "../rotas";
 import { OPERADOR } from "./comum";
 import type { PropsDaTela } from "./replay";
@@ -7,9 +7,10 @@ import type { PropsDaTela } from "./replay";
 /** O modelo padrão do backend do chat, para o rodapé da barra lateral. Nulo enquanto carrega. */
 export type ModeloDoBackend = { nome: string; online: true } | { online: false } | null;
 
-const AO_VIVO_CONFIGURADO = Boolean(import.meta.env.VITE_LOG_AO_VIVO);
-
-function secoes(props: PropsDaTela, ativa: Tela): NavSection[] {
+// A navegação mostra o que existe na versão final. Ficam fora dela, acessíveis só pela âncora: a tela Ao
+// vivo (`#/ao-vivo`, cortada da versão final em 02/11), o catálogo do design system (`#/componentes`,
+// ferramenta da equipe) e a tela de entrada (`#/entrar`, só o visual: o SentryIoT não tem login).
+function secoes(props: PropsDaTela, ativa: Tela, modoRodada: boolean): NavSection[] {
   const { estado } = props.replay;
   // A tela Ao vivo mostra outro ponto do log (ou outro log): a contagem do replay ali não vale.
   const contar = ativa !== "ao-vivo";
@@ -17,9 +18,9 @@ function secoes(props: PropsDaTela, ativa: Tela): NavSection[] {
     {
       label: "Operação",
       items: [
+        ...(modoRodada ? [{ id: "rodada", label: "Rodada final", icon: "clipboard-check" as const }] : []),
         { id: "visao-geral", label: "Visão geral", icon: "layout-dashboard" },
         { id: "incidente", label: "Incidentes", icon: "shield-alert", count: contar && estado.incidentes.length > 0 ? estado.incidentes.length : undefined, attention: contar && estado.aguardando > 0 },
-        { id: "ao-vivo", label: "Ao vivo", icon: "radio", planned: !AO_VIVO_CONFIGURADO },
         { id: "simulacao", label: "Simulação", icon: "upload" },
       ],
     },
@@ -34,17 +35,26 @@ function secoes(props: PropsDaTela, ativa: Tela): NavSection[] {
     {
       label: "Equipe",
       items: [
-        { id: "chat", label: "Chat com o modelo", icon: "messages-square" },
         { id: "relatorio", label: "Relatórios", icon: "file-text" },
-        { id: "componentes", label: "Componentes", icon: "layers" },
+        { id: "chat", label: "Chat com o modelo", icon: "messages-square" },
       ],
     },
   ];
 }
 
-function Rodape({ modelo, navegar }: { modelo: ModeloDoBackend; navegar: PropsDaTela["navegar"] }) {
+function Rodape({ modelo }: { modelo: ModeloDoBackend }) {
   const texto =
-    modelo === null ? "Consultando o backend…" : modelo.online ? <>Modelo <span className="data-sm">{modelo.nome}</span></> : "Backend do chat fora do ar";
+    modelo === null ? (
+      "Consultando o backend…"
+    ) : !modelo.online ? (
+      "Backend do chat fora do ar"
+    ) : modelo.nome ? (
+      <>
+        Modelo <span className="data-sm">{modelo.nome}</span>
+      </>
+    ) : (
+      "Backend sem modelo configurado"
+    );
   return (
     <>
       <div className="sx-provmini" title="Modelo padrão do backend do chat">
@@ -57,7 +67,6 @@ function Rodape({ modelo, navegar }: { modelo: ModeloDoBackend; navegar: PropsDa
           <span className="sx-op__name">{OPERADOR}</span>
           <span className="sx-op__role">sem login</span>
         </span>
-        <IconButton icon="log-in" label="Entrar" variant="ghost" size="sm" onClick={() => navegar({ tela: "entrar", incidente: null })} />
       </div>
     </>
   );
@@ -70,11 +79,13 @@ export interface PropsDaMoldura extends PropsDaTela {
   dock?: ReactNode | null;
   /** A tela ocupa exatamente a altura da janela e rola por dentro (o chat). */
   cheia?: boolean;
+  /** A interface abre a rodada final do build: a navegação ganha a tela dela. */
+  modoRodada?: boolean;
   children: ReactNode;
 }
 
 /** A moldura de todas as telas: barra lateral, conteúdo e o controle do replay no pé. */
-export function Moldura({ ativa, modelo, dock, cheia = false, children, ...props }: PropsDaMoldura) {
+export function Moldura({ ativa, modelo, dock, cheia = false, modoRodada = false, children, ...props }: PropsDaMoldura) {
   const [recolhida, setRecolhida] = useState(false);
   const { replay, navegar } = props;
   const atual = replay.estado.atual;
@@ -96,12 +107,12 @@ export function Moldura({ ativa, modelo, dock, cheia = false, children, ...props
       sidebar={
         <Sidebar
           logoSrc={ASSETS.mark128}
-          sections={secoes(props, ativa)}
+          sections={secoes(props, ativa, modoRodada)}
           activeId={ativa}
           onNavigate={(id) => navegar({ tela: id as Tela, incidente: null })}
           collapsed={recolhida}
           onToggle={() => setRecolhida((agora) => !agora)}
-          footer={<Rodape modelo={modelo} navegar={navegar} />}
+          footer={<Rodape modelo={modelo} />}
         />
       }
       dock={dock === undefined ? controle : dock}

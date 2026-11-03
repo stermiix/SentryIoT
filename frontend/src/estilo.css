@@ -81,7 +81,7 @@
 /* Impressão: só o conteúdo da tela (o relatório em A4, as figuras do artigo), sem moldura. */
 @media print {
   .sx-app { display: block; padding: 0; background: var(--bg-0); }
-  .sx-app__backdrop, .sx-app__side, .sx-app__dock, .sx-pagehead { display: none !important; }
+  .sx-app__backdrop, .sx-app__side, .sx-app__dock, .sx-pagehead, .app-fonte { display: none !important; }
   .sx-app__content { padding: 0; }
   .app-relatorio { display: block; overflow: visible; padding: 0; }
   .app-relatorio > .app-relatorio-medida { display: none; }
@@ -102,4 +102,77 @@
 @media (max-width: 720px) {
   .app-fluxo__etapa { grid-template-columns: auto auto 1fr; }
   .app-fluxo__etapa > .body-sm { grid-column: 1 / -1; }
+}
+
+/* Barra da fonte do log, no alto das telas que o mostram: a execução da rodada final ou a simulação. */
+.app-fonte {
+  display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4) var(--space-5);
+  background: var(--sx-surface) padding-box, var(--sx-edge) border-box; border: 1px solid transparent; border-radius: var(--radius-lg); box-shadow: var(--shadow-1);
+}
+.app-fonte__linha { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+.app-fonte__texto { flex: 1 1 20rem; min-width: 0; }
+.app-fonte__titulo { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--ink-2); }
+.app-fonte__seletor { display: grid; grid-template-columns: minmax(13rem, 1.4fr) minmax(14rem, 1.5fr) minmax(10rem, 1fr) minmax(12rem, 1.1fr); gap: var(--space-3); }
+.app-fonte__medidas { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+@media (max-width: 960px) {
+  .app-fonte__seletor { grid-template-columns: 1fr 1fr; }
+}
+
+/* Sim ou não de uma medida: ícone e palavra, com a cor de apoio. */
+.app-marca { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
+.app-marca.is-sim > .sx-icon { color: var(--success); }
+.app-marca.is-nao > .sx-icon { color: var(--danger); }
+
+/* As medidas de uma execução: pares de rótulo e valor. */
+.app-medidas { grid-template-columns: minmax(8rem, auto) 1fr; }
+.app-medidas__item { display: contents; }
+
+/* Tela Rodada final: o resumo de cada grupo e a tabela das execuções. */
+.app-grupo { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4) var(--space-6) var(--space-5); }
+.app-numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: var(--space-4) var(--space-5); }
+.app-tabela-da-rodada .app-empilhado { align-items: flex-start; }
+.app-tabela-da-rodada td.is-num .app-empilhado { align-items: flex-end; }
+.app-numero { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.app-numero__valor { color: var(--ink-1); }
+.app-tabela-da-rodada td { vertical-align: top; }
+.app-linha-atual { background: var(--sx-select); }
+
+/* A conversa dos agentes: as etapas, numeradas, e as mensagens de cada uma. */
+.app-ponta { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-5); }
+.app-etapa {
+  display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-5);
+  background: var(--sx-card); border: 1px solid var(--line-1); border-radius: var(--radius-lg);
+}
+.app-etapa.is-futura { opacity: var(--opacity-future); }
+.app-etapa__cabeca { display: flex; align-items: flex-start; gap: var(--space-3); }
+.app-etapa__numero {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  border-radius: var(--radius-pill); border: 1px solid var(--line-2); color: var(--ice);
+}
+.app-etapa__titulos { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.app-etapa__titulo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.app-etapa__log { display: flex; flex-direction: column; gap: var(--space-2); }
+.app-entre-etapas { padding: 0 var(--space-2); }
+.app-msgs { list-style: none; margin: 0; padding: 0 0 0 var(--space-4); border-left: 1px solid var(--line-2); display: flex; flex-direction: column; gap: var(--space-4); }
+.app-msg { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.app-msg__rotulo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--ink-2); }
+.app-nome-da-tool { font-family: var(--font-mono); text-transform: none; letter-spacing: 0; color: var(--ink-1); }
+.app-com-quebras .sx-voice__text { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Texto cru da conversa: o prompt, o pedido, os argumentos e os resultados das tools. */
+.app-bruto {
+  margin: 0; padding: var(--space-3) var(--space-4); max-height: 420px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  background: var(--scrim); border: 1px solid var(--line-1); border-radius: var(--radius-md); color: var(--ink-1);
+}
+/* Escrito pelo modelo (os argumentos das tools): a borda tracejada da voz do agente. */
+.app-bruto--modelo { background: var(--sx-card); border: 1px dashed var(--line-control); }
+.app-recolhivel { min-width: 0; }
+.app-recolhivel__resumo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); cursor: pointer; color: var(--ink-2); list-style: none; }
+.app-recolhivel__resumo::-webkit-details-marker { display: none; }
+.app-recolhivel__resumo:focus-visible { outline: 2px solid var(--glacier); outline-offset: 2px; border-radius: var(--radius-sm); }
+.app-recolhivel__seta { transition: transform var(--duration-fast) var(--ease-standard); }
+.app-recolhivel[open] > .app-recolhivel__resumo > .app-recolhivel__seta { transform: rotate(90deg); }
+.app-recolhivel__corpo { margin-top: var(--space-2); }
+@media (prefers-reduced-motion: reduce) {
+  .app-recolhivel__seta { transition: none; }
 }

@@ -120,7 +120,11 @@ function Endereco({ rotulo, endereco }: { rotulo?: string; endereco: string }) {
   );
 }
 
-function secoesDoRelatorio(detalhe: DetalheDoIncidente, sumarioAdiante: boolean, efeitoSimulado: boolean): Secao[] {
+/**
+ * As seções do relatório. `daRodada`: o incidente é de uma execução gravada da rodada final, em que só o
+ * aprovador automático decide; sem decisão nenhuma, a seção das decisões não aparece.
+ */
+function secoesDoRelatorio(detalhe: DetalheDoIncidente, sumarioAdiante: boolean, efeitoSimulado: boolean, daRodada = false): Secao[] {
   const { incidente, atacante } = detalhe;
   const marcaDoAtacante = atacante ? { address: atacante.address, label: "atacante", icon: EVENT.atacante_apontado.icon } : undefined;
 
@@ -381,13 +385,25 @@ function secoesDoRelatorio(detalhe: DetalheDoIncidente, sumarioAdiante: boolean,
       : { n: "06", titulo: "Recomendações", pecas: [<p key="sem">Nenhuma recomendação no log.</p>] };
 
   const marcacao = detalhe.marcacao;
+  // Nos experimentos, quem decide é o aprovador automático, por regra fixa: a seção diz isso, e o motivo
+  // dele é texto do sistema, e não de pessoa.
+  const automaticas = detalhe.decididas.filter((proposta) => proposta.decision?.automatic).length;
   const decisoes: Secao = {
     n: "07",
-    titulo: "Decisões humanas",
+    titulo: automaticas === 0 ? "Decisões humanas" : automaticas === detalhe.decididas.length && !marcacao ? "Decisões do aprovador automático" : "Decisões",
     blocos: true,
     pecas: [
       ...detalhe.decididas.map((proposta) => {
         const decisao = proposta.decision!;
+        if (decisao.automatic) {
+          return (
+            <p key={proposta.id} className="body app-nota">
+              <span className="data">{proposta.id}</span> <span className="data">{proposta.action}</span> {decisao.kind} pelo aprovador automático dos experimentos, por
+              regra fixa conferida no gabarito, e não por uma pessoa, às {decisao.at}
+              {decisao.reason ? `. ${decisao.reason}` : "."}
+            </p>
+          );
+        }
         return (
           <div key={proposta.id} className="sx-stack sx-stack--sm">
             <p className="body app-nota">
@@ -419,7 +435,13 @@ function secoesDoRelatorio(detalhe: DetalheDoIncidente, sumarioAdiante: boolean,
     ],
   };
   if (decisoes.pecas.length === 0) {
+    if (daRodada) {
+      return [sumario, fatos, classificador, triagem, acoes, recomendacoes];
+    }
     decisoes.pecas.push(<p key="sem" className="body">Nenhuma decisão humana neste incidente.</p>);
+  }
+  if (daRodada && !marcacao) {
+    decisoes.titulo = "Decisões do aprovador automático";
   }
   return [sumario, fatos, classificador, triagem, acoes, recomendacoes, decisoes];
 }
@@ -618,7 +640,7 @@ export function TelaRelatorio(props: PropsDaTela & { incidente: string | null; e
           date={data}
           mode="Modo replay"
         />
-        <PaginasDoRelatorio secoes={secoesDoRelatorio(detalhe, sumarioAdiante, props.efeitoSimulado ?? false)} titulo={`Relatório de incidente · ${incidente.id}`} data={data} />
+        <PaginasDoRelatorio secoes={secoesDoRelatorio(detalhe, sumarioAdiante, props.efeitoSimulado ?? false, Boolean(props.rodada))} titulo={`Relatório de incidente · ${incidente.id}`} data={data} />
       </div>
     </>
   );

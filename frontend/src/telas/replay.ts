@@ -3,6 +3,7 @@ import { estadoNoPasso, linhasDoLog, marcasDoReplay, type EstadoDaTela } from ".
 import type { ReplayMark } from "../design-system/components/Replay";
 import type { LogEvent } from "../design-system/components/modelos";
 import { agregar, type Agregado } from "../log";
+import type { ContextoDaRodada } from "../rodada";
 import type { Rota } from "../rotas";
 import type { Evento } from "../types";
 
@@ -27,6 +28,13 @@ export interface Replay {
 export interface PropsDaTela {
   replay: Replay;
   navegar: (rota: Rota) => void;
+  /**
+   * A execução da rodada final que as telas mostram, com as medidas dela. Nula quando o log é outro (o de
+   * `VITE_LOG_DE_EVENTOS` ou o de uma simulação).
+   */
+  rodada?: ContextoDaRodada | null;
+  /** Troca a execução da rodada final que as telas mostram. */
+  escolherExecucao?: (id: string) => void;
 }
 
 // Um evento a cada 700 ms quando o replay está tocando.

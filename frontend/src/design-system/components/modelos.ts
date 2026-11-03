@@ -66,7 +66,8 @@ export interface Proposal {
   justification?: string;
   /** A new action as the agent described it (agent text): what the person reads before approving. */
   newAction?: { description?: string; steps?: string[]; expected?: string; undo?: string; source?: string };
-  decision?: { kind: 'aprovada' | 'rejeitada'; channel: Channel; user: string; at: string; reason?: string };
+  /** `automatic`: decided by the experiments' fixed-rule approver, not by a person; the reason is system text. */
+  decision?: { kind: 'aprovada' | 'rejeitada'; channel: Channel; user: string; at: string; reason?: string; automatic?: boolean };
   executions?: { id: string; state: ExecutionState; at: string }[];
   effect?: { result: EffectResult; at: string };
   createdAt: string;

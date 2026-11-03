@@ -170,16 +170,18 @@ As telas ficam em `src/telas/`, montadas só com estes componentes e com os dado
 
 | Tela | Arquivo | Estado |
 |---|---|---|
+| Rodada final (grupos, resumo das medidas, execuções) | `Rodada.tsx` | funciona com os dados da rodada final que vão no build; a barra da execução, com o seletor, fica em `Medidas.tsx` |
 | Visão geral (funil, cartões, fila) | `VisaoGeral.tsx` | funciona com o log |
-| Detalhe do incidente | `Incidente.tsx` | funciona com o log; no fim do replay, aprovar, rejeitar e "já resolvido" abrem o diálogo; com os agentes de uma simulação rodando, a decisão é gravada, e fora disso ele mostra o comando do terminal |
-| Ao vivo | `AoVivo.tsx` | planejada; lê o log que está sendo gravado quando `VITE_LOG_AO_VIVO` aponta para ele; sem a variável, fica vazia |
+| Detalhe do incidente | `Incidente.tsx` | funciona com o log; no fim do replay, aprovar, rejeitar e "já resolvido" abrem o diálogo; com os agentes de uma simulação rodando, a decisão é gravada, e fora disso ele mostra o comando do terminal; numa execução gravada da rodada, é só leitura e mostra o que a rodada mediu |
+| Conversa dos agentes (aba do detalhe) | `Conversa.tsx` | o incidente de ponta a ponta: cada agente com a conversa (prompt de sistema recolhido, pedido, tools pedidas e resultados, avisos do laço, resposta final) e as decisões entre eles |
+| Ao vivo | `AoVivo.tsx` | fora da versão final e da navegação (só `#/ao-vivo`); lê o log que está sendo gravado quando `VITE_LOG_AO_VIVO` aponta para ele; sem a variável, fica vazia |
 | Tela 3, Isolado × integrado | `IsoladoIntegrado.tsx` | contagens, veredito e propostas do log |
-| Tela 4, Custo e latência | `CustoLatencia.tsx` | funciona com o log; local × nuvem aparece quando `VITE_MODELOS_LOCAIS` e `VITE_MODELOS_NA_NUVEM` dizem onde cada modelo roda |
+| Tela 4, Custo e latência | `CustoLatencia.tsx` | funciona com o log; onde o modelo rodou sai do `onde` de cada chamada (só local nos experimentos, com custo de nuvem zero); com a rodada final, o grupo da execução por agente |
 | Tela 5, Qualidade do modelo | `QualidadeModelo.tsx` | matriz real da configuração 5 (`src/dados/qualidade.ts`, conferida contra o CSV do experimento) |
 | Chat com o modelo | `Chat.tsx` | funciona com o backend (`/api/chat`, `/api/modelos`, `/api/prompts`) |
 | Relatório | `Relatorio.tsx` | capa e páginas A4 com o sumário e a análise da triagem, os fatos, o que o classificador viu, os candidatos a atacante, as recomendações e as decisões do log |
-| Entrar | `Entrar.tsx` | visual pronto; o login passa por `src/operacao.ts`, que hoje explica que ainda não há login |
-| Componentes | `Componentes.tsx` | o catálogo deste design system; os blocos de dados usam o log e, sem log, ficam vazios |
+| Entrar | `Entrar.tsx` | fora da navegação (só `#/entrar`): só o visual; o login passa por `src/operacao.ts`, que explica que não há login |
+| Componentes | `Componentes.tsx` | fora da navegação (só `#/componentes`): o catálogo deste design system; os blocos de dados usam o log e, sem log, ficam vazios |
 
 ## Uso no app
 
@@ -196,7 +198,7 @@ O repositório mudou estes pontos dos componentes do artefato. Numa nova sincron
 
 - `vocab.ts` usa os valores do contrato: `aguardando_aprovacao` em vez de `aguardando`, os 20 tipos de evento com o nome do log (`llm_chamada`, `acao_proposta`…), os motivos de risco alto do contrato, hoje dez (o artefato trazia oito, com dois juntos e um cortado) e as palavras de cada motivo de recusa do servidor (`REFUSAL_REASON`).
 - `modelos.ts` guarda os tipos que eram de `sample.ts`. Os dados de exemplo do artefato não vieram: as telas e o catálogo usam o log carregado e, sem log, ficam vazios. A interface não traz dado simulado.
-- `ProposalCard` mostra a justificativa do agente (voz de agente), o selo "promovida ao catálogo" e a decisão humana sempre com "Aprovada" ou "Rejeitada", mesmo quando há motivo.
+- `ProposalCard` mostra a justificativa do agente (voz de agente), o selo "promovida ao catálogo" e a decisão humana sempre com "Aprovada" ou "Rejeitada", mesmo quando há motivo. A decisão com `automatic` (a do aprovador automático dos experimentos, uma regra fixa) traz o motivo como texto do sistema, e não na voz de pessoa.
 - `TargetLabel` recebe `free`, para o alvo em texto livre de uma ação nova, na voz do agente.
 - `ConfirmDialog` recebe `details` (a ação nova descrita pelo agente) e `logNote` (o que vai para o log), e o Esc não cancela durante o envio.
 - `ReplayControl` não pega as teclas de um botão em foco, de um grupo de opções, de um gráfico, de um diálogo aberto nem com tecla modificadora.

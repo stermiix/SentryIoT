@@ -28,6 +28,8 @@ export interface RespostaDoChat {
 export interface ListaDeModelos {
   modelos: string[];
   padrao: string;
+  /** Onde rodam os modelos do backend: o chat usa o perfil local (`LLM_*`). Ausente num backend anterior. */
+  onde?: "local" | "nuvem";
 }
 
 /** Uma skill dos agentes, oferecida como ponto de partida do prompt de sistema. */
@@ -151,5 +153,11 @@ function ehPrompt(valor: unknown): valor is Prompt {
 }
 
 function ehListaDeModelos(valor: unknown): valor is ListaDeModelos {
-  return ehObjeto(valor) && Array.isArray(valor.modelos) && valor.modelos.every((m) => typeof m === "string") && typeof valor.padrao === "string";
+  return (
+    ehObjeto(valor) &&
+    Array.isArray(valor.modelos) &&
+    valor.modelos.every((m) => typeof m === "string") &&
+    typeof valor.padrao === "string" &&
+    (valor.onde === undefined || valor.onde === "local" || valor.onde === "nuvem")
+  );
 }

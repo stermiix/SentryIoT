@@ -39,6 +39,12 @@ export interface PropsDaSimulacao extends PropsDaTela {
   resultado?: ResultadoDaSimulacao | null;
   /** Chamado com o resultado: o app carrega o log dele nas outras telas. */
   aoSimular?: (resultado: ResultadoDaSimulacao) => void;
+  /** A última simulação do backend que não está nas telas: dá para trazê-la de volta. */
+  ultima?: ResultadoDaSimulacao | null;
+  /** Tira a simulação das telas e volta ao log de antes. */
+  voltar?: () => void;
+  /** Para onde `voltar` leva, para o botão: "à rodada final" ou "ao log configurado". */
+  voltarPara?: string;
 }
 
 interface Etapa {
@@ -150,7 +156,7 @@ function duracao(valor: number): string {
 }
 
 /** Simulação: um pcap anexado passa pelo sistema inteiro, e cada incidente segue como um incidente de verdade. */
-export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: PropsDaSimulacao) {
+export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular, ultima = null, voltar, voltarPara = "à rodada final" }: PropsDaSimulacao) {
   const entrada = useRef<HTMLInputElement>(null);
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [soTeste, setSoTeste] = useState(true);
@@ -195,12 +201,28 @@ export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: 
 
   return (
     <>
-      <PageHeader eyebrow="SentryIoT" title="Simulação com um pcap" />
+      <PageHeader
+        eyebrow="SentryIoT"
+        title="Simulação com um pcap"
+        actions={
+          resultado && voltar ? (
+            <Button
+              variant="secondary"
+              icon="history"
+              onClick={voltar}
+              disabled={ativos}
+              title={ativos ? "Os agentes ainda rodam: pare-os antes de voltar, ou espere que terminem." : undefined}
+            >
+              Voltar {voltarPara}
+            </Button>
+          ) : undefined
+        }
+      />
       <div className="sx-grid">
         <Panel className="sx-span-12" eyebrow="Captura" title="Iniciar simulação">
           <p className="body-sm sx-muted app-nota">
             O pcap passa pelo extrator, pelo classificador e pela política de acionamento, e cada incidente segue para os agentes: triagem,
-            decisão, aprovação de uma pessoa quando o risco é alto, execução e verificação do efeito.
+            decisão, aprovação de uma pessoa quando o risco é alto, execução e verificação do efeito, que é simulada.
           </p>
           <div className="app-simulacao-envio">
             <input
@@ -241,7 +263,21 @@ export function TelaSimulacao({ replay, navegar, resultado = null, aoSimular }: 
           )}
         </Panel>
 
-        {!resultado ? (
+        {!resultado && ultima ? (
+          <Panel className="sx-span-12" eyebrow="Resultado" title="A última simulação está fora das telas">
+            <EmptyState
+              icon="flask-conical"
+              title={`${ultima.arquivo}: ${fmtInt(ultima.incidentes.length)} ${ultima.incidentes.length === 1 ? "incidente" : "incidentes"}`}
+              action={
+                <Button variant="secondary" icon="upload" onClick={() => aoSimular?.(ultima)}>
+                  Abrir esta simulação nas telas
+                </Button>
+              }
+            >
+              O backend guarda a última simulação. As outras telas mostram {voltarPara === "à rodada final" ? "a rodada final" : "o log configurado"} até você abri-la ou iniciar outra.
+            </EmptyState>
+          </Panel>
+        ) : !resultado ? (
           <Panel className="sx-span-12" eyebrow="Resultado" title="Nenhuma simulação ainda">
             <EmptyState icon="flask-conical" title="Anexe um pcap e inicie a simulação">
               Os incidentes encontrados aparecem aqui e nas telas de operação, e os agentes tratam cada um deles. O que depende de uma pessoa

@@ -187,7 +187,10 @@ export function ProposalCard({ proposal: p, onApprove, onReject, showAddress = t
           <ChannelTag channel={p.decision.channel} user={p.decision.user} at={p.decision.at} />
         </div>
       )}
-      {p.decision?.reason && <VoiceQuote voice="person" author={p.decision.user} channel={p.decision.channel} at={p.decision.at}>{p.decision.reason}</VoiceQuote>}
+      {p.decision?.reason && p.decision.automatic && (
+        <p className="sx-prop__auto body-sm">Regra do aprovador automático, não uma pessoa: {p.decision.reason}</p>
+      )}
+      {p.decision?.reason && !p.decision.automatic && <VoiceQuote voice="person" author={p.decision.user} channel={p.decision.channel} at={p.decision.at}>{p.decision.reason}</VoiceQuote>}
 
       {p.executions && p.executions.length > 0 && (
         <div className="sx-prop__row">
