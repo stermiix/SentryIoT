@@ -1,7 +1,7 @@
-# SentryIoT — MultiAgent NIDR
+# SentryIoT — MultiAgent NDR
 
-Sistema de detecção e resposta a intrusões (NIDR) em redes IoT, combinando classificação por
-Random Forest com um sistema multiagente LLM integrado via MCP.
+Sistema de detecção e resposta em rede (NDR, *Network Detection and Response*) para redes IoT,
+combinando classificação por Random Forest com um sistema multiagente LLM integrado via MCP.
 
 **TCC II — FCI Mackenzie, 2º semestre de 2026.**
 Equipe: Bernardo Souza Oliveira, Matheus Queiroz Gregorin, José Victor Roling e
@@ -43,8 +43,9 @@ cobre a detecção e a resposta.
 O item 5 das regras do orientador é "analisar e avaliar as recomendações da banca". Elas já
 mudaram o escopo do trabalho:
 
-1. **NIDS → NDR/NIDR.** O projeto foi reposicionado como detecção **e resposta** (daí "NIDR" no
-   nome). Todo texto novo usa esse enquadramento, não "NIDS".
+1. **NIDS → NDR.** O projeto foi reposicionado como detecção **e resposta** (daí "NDR" no
+   nome). Todo texto novo usa esse enquadramento, nem "NIDS" nem "NIDR": até 03/11/2026 o
+   projeto usava "NIDR", que não é termo estabelecido; o mercado e a banca usam NDR.
 2. **Deixar claro o papel do Scapy e do Wireshark.** O avaliador 2 questionou: se o trabalho usa
    datasets, onde entra a captura de pacotes? Resposta adotada: processamos tráfego bruto (PCAP)
    com um extrator calibrado contra o oficial (ver `dados/README.md`). Não há coleta in loco,
@@ -56,10 +57,10 @@ mudaram o escopo do trabalho:
    interno) e só o agente de decisão num modelo de fronteira, sem endereço da rede, o que o
    servidor MCP garante. Ele coordena o incidente e o encadeamento é código, para a nuvem não
    cobrar um segundo papel a cada incidente; os agentes recebem o resumo do incidente, e não as
-   janelas (`ROADMAP.md`; seção 3.5 de `artigo/esqueleto.md`).
+   janelas (`ROADMAP.md`; seção 3.5 do artigo, em `artigo/latex/secoes/3-metodologia.tex`).
 4. **Limites de análise por NetFlow vs. PCAP.** Resposta adotada: o sistema lê o pcap, porque as
-   39 features medem cada quadro da janela, o que um registro de fluxo não guarda (seção 3.1 de
-   `artigo/esqueleto.md`).
+   39 features medem cada quadro da janela, o que um registro de fluxo não guarda (seção 3.1 do
+   artigo, em `artigo/latex/secoes/3-metodologia.tex`).
 5. **Referências pedidas pela banca:** Darktrace, Netskope, Vectra AI e o ataque
    *Denial of Wallet* (DoW), com menção curta no artigo.
 
@@ -114,7 +115,7 @@ agrupa as tarefas concluídas por semana e por responsável.
 
 | Pasta | Conteúdo |
 |---|---|
-| `artigo/` | `latex/`, o artigo no template LaTeX da FCI (no máximo 20 páginas com as referências), onde o texto é escrito e corrigido (ver `artigo/latex/README.md`); `esqueleto.md`, o rascunho anterior ao LaTeX, mantido como registro; e `figuras/`, com os scripts que geram as figuras |
+| `artigo/` | `latex/`, o artigo no template LaTeX da FCI (no máximo 20 páginas com as referências), onde o texto é escrito e corrigido (ver `artigo/latex/README.md`), e `figuras/`, com os scripts que geram as figuras |
 | `codigo/captura/` | extrator de features: pacotes → 39 números |
 | `codigo/classificador/` | regeração dos dados de treino a partir dos pcaps, preparação, treino e avaliação do Random Forest |
 | `codigo/reprodutor/` | reprodutor de tráfego: um pcap passa pelo extrator, pelo classificador e pela política de acionamento, e os incidentes vão para o log de eventos (`python -m codigo.reprodutor captura.pcap`) |
@@ -140,7 +141,7 @@ pasta-mãe, fora deste repositório.
   ambiente, o mapa completo de arquivos e scripts, e as armadilhas já mapeadas.
 - **`GLOSSARIO.md`**: os termos do projeto em português simples, com exemplos dos nossos dados.
 - **`ROADMAP.md`**: as decisões importantes do projeto, tomadas e em aberto, com o motivo de cada uma.
-- **`artigo/esqueleto.md`**: o rascunho do artigo, seção por seção.
+- **`artigo/latex/README.md`**: o artigo em LaTeX, as regras do template e como compilar.
 - **`codigo/mcp/README.md`**: por onde começar na frente de agentes, com o contrato, o stub e o
   log de eventos.
 

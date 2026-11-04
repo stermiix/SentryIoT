@@ -183,9 +183,10 @@ modelo erra; por isso, no artigo, o resultado principal é a tabela por categori
 Sistema que monitora e **detecta** intrusão. **NIDS** é o que olha a rede; **HIDS** é o que fica
 instalado dentro do aparelho.
 
-**NDR / NIDR**
-Detecção **e resposta**. Além de apontar o ataque, sugere ou executa a mitigação. Foi a
-recomendação da banca do TCC I e é o enquadramento atual do SentryIoT.
+**NDR (Network Detection and Response)**
+Detecção **e resposta** na rede. Além de apontar o ataque, sugere ou executa a mitigação. Foi a
+recomendação da banca do TCC I e é o enquadramento atual do SentryIoT. Até 03/11/2026 o projeto
+usava "NIDR", que não é termo estabelecido: o mercado e a banca usam NDR, e o texto também.
 
 **Detecção por assinatura vs. por anomalia**
 Assinatura compara o tráfego com uma lista de padrões conhecidos: preciso, mas cego para ataque

@@ -26,6 +26,7 @@ não usa. Sigla nova no artigo entra aqui, em ordem alfabética.
 | IDS | Intrusion Detection System |
 | IoT | Internet das Coisas |
 | IP | Internet Protocol |
+| IPS | Intrusion Prevention System |
 | IRC | Internet Relay Chat |
 | JSONL | JSON Lines |
 | LLM | Large Language Model |
@@ -33,7 +34,6 @@ não usa. Sigla nova no artigo entra aqui, em ordem alfabética.
 | MCP | Model Context Protocol |
 | MQTT | Message Queuing Telemetry Transport |
 | NDR | Network Detection and Response |
-| NIDR | Network Intrusion Detection and Response |
 | NIDS | Network Intrusion Detection System |
 | PoC | prova de conceito |
 | SMTP | Simple Mail Transfer Protocol |
