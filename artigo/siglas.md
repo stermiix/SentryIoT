@@ -25,8 +25,8 @@ não usa. Sigla nova no artigo entra aqui, em ordem alfabética.
 | ICMP | Internet Control Message Protocol |
 | IDS | Intrusion Detection System |
 | IoT | Internet das Coisas |
-| IPS | Intrusion Prevention System |
 | IP | Internet Protocol |
+| IPS | Intrusion Prevention System |
 | IRC | Internet Relay Chat |
 | JSONL | JSON Lines |
 | LLM | Large Language Model |
