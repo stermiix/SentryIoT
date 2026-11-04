@@ -9,7 +9,7 @@ flowchart TB
         extrator --> rf["<b>Classificador</b><br/>Random Forest, 7 categorias,<br/>+ regra DDoS/DoS pelas origens"]
     end
 
-    mcp["<b>Servidor MCP</b><br/>10 tools, separadas por agente · política de risco<br/>(baixo: executa; alto: exige aprovação humana)<br/>catálogo: limitar_taxa, bloquear_ip, isolar_dispositivo,<br/>revogar_credencial e fechar_porta<br/>log de eventos JSONL · ambiente simulado, com desfazer"]
+    mcp["<b>Servidor MCP</b><br/>11 tools, separadas por agente · política de risco<br/>(baixo: executa; alto: exige aprovação humana)<br/>catálogo: limitar_taxa, bloquear_ip, isolar_dispositivo,<br/>revogar_credencial e fechar_porta<br/>log de eventos JSONL · ambiente simulado, com desfazer"]
 
     subgraph local["<b>Modelo local</b> (qwen3.8-27c)"]
         direction LR
@@ -17,7 +17,7 @@ flowchart TB
         execucao["<b>Agente de execução</b><br/>aplica, verifica o efeito e desfaz;<br/>único com credenciais"]
     end
 
-    subgraph nuvem["<b>Modelo de fronteira na nuvem</b>"]
+    subgraph nuvem["<b>Modelo de fronteira na nuvem</b> (desenho híbrido, não medido)"]
         decisao["<b>Agente de decisão</b><br/>coordena o incidente: aceita ou descarta<br/>o veredito da triagem e propõe a ação,<br/>lendo o resumo com rótulos neutros<br/>(origem-1, destino-1), sem endereços"]
     end
 
