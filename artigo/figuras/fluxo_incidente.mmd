@@ -5,10 +5,10 @@
 %% Regerar o PNG e o PDF: python -m artigo.figuras.diagramas fluxo_incidente
 %%{init: {"theme": "neutral", "themeVariables": {"fontFamily": "Times New Roman, Times, serif", "fontSize": "15px"}, "flowchart": {"nodeSpacing": 30, "rankSpacing": 34, "wrappingWidth": 460}}}%%
 flowchart TB
-    aberto["<b>Classificador</b>: <code>janelas_classificadas</code><br/><code>incidente_aberto</code> e aviso à pessoa que opera a rede,<br/>com categoria e confiança"]
+    aberto["<b>Classificador</b>: <code>janelas_classificadas</code><br/><code>incidente_aberto</code>, com categoria e confiança"]
     triagem["<b>Agente de triagem</b> (local)<br/><code>llm_chamada</code>, <code>tool_chamada</code>, <code>agente_concluido</code><br/>obter_incidente, apontar_atacante, obter_janelas"]
-    decisao["<b>Agente de decisão</b> (nuvem, no desenho), coordena o incidente<br/>aceita ou descarta o veredito e propõe a ação<br/><code>llm_chamada</code>, <code>tool_chamada</code>, <code>agente_concluido</code><br/>obter_resumo, consultar_mitigacoes,<br/>pesquisar_solucoes, propor_acao<br/><code>acao_proposta</code>, <code>recomendacao_emitida</code>"]
-    aprovacao["<b>Pessoa</b>, pelo comando aprovar<br/><code>acao_aprovada</code> ou<br/><code>acao_rejeitada</code>"]
+    decisao["<b>Agente de decisão</b> (local), coordena o incidente<br/>aceita ou descarta o veredito e propõe a ação<br/><code>llm_chamada</code>, <code>tool_chamada</code>, <code>agente_concluido</code><br/>obter_resumo, consultar_mitigacoes,<br/>pesquisar_solucoes, propor_acao<br/><code>acao_proposta</code>, <code>recomendacao_emitida</code>"]
+    aprovacao["<b>Pessoa</b>, pelo comando aprovar<br/>(na rodada, o aprovador automático)<br/><code>acao_aprovada</code> ou<br/><code>acao_rejeitada</code>"]
     execucao["<b>Agente de execução</b> (local)<br/><code>llm_chamada</code>, <code>tool_chamada</code>, <code>agente_concluido</code><br/>executar_acao, ação do catálogo ou nova já aprovada:<br/><code>acao_executada</code><br/>verificar_efeito: <code>efeito_verificado</code>"]
     encerrado["<code>incidente_encerrado</code>"]
     atualizado["<code>incidente_atualizado</code>"]

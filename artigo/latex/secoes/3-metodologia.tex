@@ -3,7 +3,7 @@
 \section{Metodologia}
 \label{sec:metodologia}
 
-Em relação à proposta da primeira etapa do Trabalho de Conclusão de Curso (TCC I), o trabalho mudou nos pontos a seguir. Não há classificação específica de MQTT (Message Queuing Telemetry Transport) e CoAP (Constrained Application Protocol), porque as 39 features só têm indicador para HTTP (Hypertext Transfer Protocol), HTTPS (Hypertext Transfer Protocol Secure), DNS, SSH (Secure Shell), Telnet, SMTP (Simple Mail Transfer Protocol), IRC (Internet Relay Chat) e DHCP (Dynamic Host Configuration Protocol). A extração lê arquivo pcap, e a captura ao vivo fica como trabalho futuro. Não houve busca de hiperparâmetros por grid search: o Random Forest usa os parâmetros padrão do scikit-learn, porque a contribuição do trabalho está na camada MCP. O N-BaIoT deixou de ser o dataset secundário, e nenhum outro o substituiu. O cenário de exfiltração de dados saiu da PoC (prova de conceito), porque o CICIoT2023 não tem essa classe. E os agentes rodam num modelo local, em vez de um único modelo comercial em nuvem; as configurações com modelo de nuvem ficam como desenho, sem medida neste trabalho.
+O trabalho tem cinco delimitações. A classificação usa as 39 features do CICIoT2023, que só têm indicador para HTTP (Hypertext Transfer Protocol), HTTPS (Hypertext Transfer Protocol Secure), SSH (Secure Shell), Telnet, SMTP (Simple Mail Transfer Protocol), IRC (Internet Relay Chat), DNS e DHCP (Dynamic Host Configuration Protocol), e por isso não há classificação específica de MQTT (Message Queuing Telemetry Transport) e CoAP (Constrained Application Protocol). A extração da PoC (prova de conceito) lê arquivos pcap gravados. O Random Forest usa os parâmetros padrão do scikit-learn, sem busca de hiperparâmetros. O único dataset é o CICIoT2023, que não tem a classe de exfiltração de dados. E os agentes rodam num modelo local. Ao contrário de um modelo comercial na nuvem, ele não cobra por chamada e, instalado dentro da rede, não envia para fora os dados do incidente; o custo passa a ser o hardware que o executa.
 
 \subsection{Captura e extração de features}
 \label{sec:captura}
@@ -72,18 +72,18 @@ O laço dos agentes e o cliente MCP são testados contra esse mesmo servidor, o 
 
 \begin{figure}[htbp]
 	\centering
-	\caption{Diagrama da arquitetura, no desenho híbrido (captura, extrator, classificador, servidor MCP, agentes e interface). Na rodada medida, os três agentes rodaram no modelo local.}
+	\caption{Diagrama da arquitetura (captura, extrator, classificador, servidor MCP, agentes e interface).}
 	\label{fig:arquitetura}
 	\includegraphics[width=\textwidth]{arquitetura.pdf}
-	\legend{Fonte: os autores. O aviso imediato à pessoa ao abrir o incidente é do desenho e não está na versão final da interface.}
+	\legend{Fonte: os autores.}
 \end{figure}
 
 \begin{figure}[htbp]
 	\centering
-	\caption{Fluxo de um incidente com os instantes medidos. Na rodada medida, o agente de decisão rodou no modelo local, e não na nuvem.}
+	\caption{Fluxo de um incidente, com os eventos que o log grava.}
 	\label{fig:fluxo}
 	\includegraphics[width=\textwidth]{fluxo_incidente.pdf}
-	\legend{Fonte: os autores. O aviso imediato à pessoa ao abrir o incidente é do desenho e não está na versão final da interface.}
+	\legend{Fonte: os autores. As setas tracejadas não ocorreram na rodada: todas as verificações deram ``cessou'', e a volta após a rejeição estava desligada.}
 \end{figure}
 
 \subsection{Avaliação da PoC e dos agentes}

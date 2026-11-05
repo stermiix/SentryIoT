@@ -13,26 +13,25 @@ flowchart TB
 
     subgraph local["<b>Modelo local</b> (qwen3.8-27c)"]
         direction LR
+        decisao["<b>Agente de decisão</b><br/>coordena o incidente: aceita ou descarta<br/>o veredito da triagem e propõe a ação,<br/>lendo o resumo com rótulos neutros<br/>(origem-1, destino-1), sem endereços"]
+        %% Nó invisível: afasta a seta da triagem do título do quadro, que o Mermaid centraliza.
+        espaco["&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"]
         triagem["<b>Agente de triagem</b><br/>lê o incidente e as janelas,<br/>com os endereços"]
         execucao["<b>Agente de execução</b><br/>aplica, verifica o efeito e desfaz;<br/>único com credenciais"]
-    end
-
-    subgraph nuvem["<b>Modelo de fronteira na nuvem</b> (desenho híbrido, não medido)"]
-        decisao["<b>Agente de decisão</b><br/>coordena o incidente: aceita ou descarta<br/>o veredito da triagem e propõe a ação,<br/>lendo o resumo com rótulos neutros<br/>(origem-1, destino-1), sem endereços"]
     end
 
     orquestrador["<b>Orquestrador</b> (código, não é um agente)<br/>chama a triagem, filtra os endereços do veredito,<br/>espera a aprovação no log e chama a execução"]
 
     pessoa(["<b>Pessoa que opera a rede</b><br/>aprova ou rejeita a proposta de risco alto<br/>e pode marcar o incidente como já resolvido"])
-    interface["<b>Interface web</b><br/>fila de incidentes e detalhe,<br/>ao vivo ou em replay do log"]
+    interface["<b>Interface web</b><br/>fila de incidentes e detalhe,<br/>em replay do log"]
 
     deteccao -- "abre o incidente" --> mcp
     mcp <--> triagem
     mcp <-- "só dados anonimizados" --> decisao
     mcp <--> execucao
     orquestrador --> local
-    orquestrador --> nuvem
-    mcp -- "aviso ao abrir o incidente" --> pessoa
     mcp -- "log de eventos" --> interface
     interface --> pessoa
-    pessoa -- "aprovação e 'já resolvido'" --> mcp
+    pessoa -- "aprovação e 'já resolvido',<br/>gravadas no log" --> mcp
+
+    style espaco fill:none,stroke:none
