@@ -36,7 +36,6 @@ não usa. Sigla nova no artigo entra aqui, em ordem alfabética.
 | PoC | prova de conceito |
 | SMTP | Simple Mail Transfer Protocol |
 | SSH | Secure Shell |
-| TCC | Trabalho de Conclusão de Curso |
 | TCP | Transmission Control Protocol |
 | TTL | Time To Live |
 | UDP | User Datagram Protocol |
