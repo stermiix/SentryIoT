@@ -21,7 +21,6 @@ não usa. Sigla nova no artigo entra aqui, em ordem alfabética.
 | HTTP | Hypertext Transfer Protocol |
 | HTTPS | Hypertext Transfer Protocol Secure |
 | IA | inteligência artificial |
-| IAT | Inter-Arrival Time |
 | ICMP | Internet Control Message Protocol |
 | IDS | Intrusion Detection System |
 | IoT | Internet das Coisas |
