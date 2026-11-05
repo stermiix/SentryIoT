@@ -5,6 +5,14 @@
 
 O trabalho tem cinco delimitações. A classificação usa as 39 features do CICIoT2023, que só têm indicador para HTTP (Hypertext Transfer Protocol), HTTPS (Hypertext Transfer Protocol Secure), SSH (Secure Shell), Telnet, SMTP (Simple Mail Transfer Protocol), IRC (Internet Relay Chat), DNS e DHCP (Dynamic Host Configuration Protocol), e por isso não há classificação específica de MQTT (Message Queuing Telemetry Transport) e CoAP (Constrained Application Protocol). A extração da PoC (prova de conceito) lê arquivos pcap gravados. O Random Forest usa os parâmetros padrão do scikit-learn, sem busca de hiperparâmetros. O único dataset é o CICIoT2023, que não tem a classe de exfiltração de dados. E os agentes rodam num modelo local. Ao contrário de um modelo comercial na nuvem, ele não cobra por chamada e, instalado dentro da rede, não envia para fora os dados do incidente; o custo passa a ser o hardware que o executa.
 
+\begin{figure}[htbp]
+	\centering
+	\caption{Diagrama da arquitetura (captura, extrator, classificador, servidor MCP, agentes e interface).}
+	\label{fig:arquitetura}
+	\includegraphics[width=\textwidth]{arquitetura.pdf}
+	\legend{Fonte: os autores.}
+\end{figure}
+
 \subsection{Captura e extração de features}
 \label{sec:captura}
 
@@ -34,9 +42,25 @@ Na fase exploratória, o Random Forest (scikit-learn, 100 árvores, parâmetros 
 
 Na configuração tomada como referência (7 categorias, sorteio estratificado, priori da amostra, 39 features), a acurácia é de 93,81\% na amostra de teste, ou 98,58\% reponderada para a distribuição natural do dataset completo, e o macro-F1 é de 74,11\% (69,96\% reponderado). A divisão por grupos dá valores da mesma ordem, e a diferença entre as duas não se distingue do ruído entre sementes. Com a priori natural, o tráfego benigno classificado como ataque cai de 46,38\% para 14,48\%, mas o recall reponderado de Recon cai de 92,52\% para 78,87\%, e o de BruteForce, de 33,55\% para 12,98\%.
 
-Um teste adicional, isolando o efeito do tamanho da janela, mostrou que o modelo treinado nas janelas do MERGED\_CSV (100 pacotes para DDoS, DoS e Mirai, 10 para as demais) não generaliza para uma janela única na operação: o recall de floods HTTP cai a menos de 2\% quando extraídos em janela de 10, e o recall de varredura de portas e força bruta cai a 0 a 18\% quando extraídos em janela de 100. Retirar as seis colunas que dependem do tamanho da janela não resolve. Foi esse resultado que levou à regeração dos dados (seção~\ref{sec:preprocessamento}).
+Um teste adicional, isolando o efeito do tamanho da janela, mostrou que o modelo treinado nas janelas do MERGED\_CSV (100 pacotes para DDoS, DoS e Mirai, 10 para as demais) não generaliza para uma janela única na operação: o recall de floods HTTP cai a menos de 2\% quando extraídos em janela de 10, e o recall de varredura de portas e força bruta cai a 0 a 18\% quando extraídos em janela de 100. Retirar as seis colunas que dependem do tamanho da janela não resolve. Foi esse resultado que levou à regeração dos dados (seção~\ref{sec:preprocessamento}; Figura~\ref{fig:janela}).
 
-O classificador do sistema é treinado de outra forma, nos dados regerados (seção~\ref{sec:preprocessamento}): um Random Forest de 100 árvores, com os parâmetros padrão do scikit-learn e sem busca de hiperparâmetros, nas 39 features, em 7 categorias, com janela de 100 quadros, teto de 50.000 janelas por rótulo, semente 42 e a divisão por tempo e por arquivo descrita na seção~\ref{sec:preprocessamento}. As janelas de fundo da parte de treino de cada pcap de ataque, sem nenhum quadro do atacante, entram no treino como benignas. São 567.732 janelas rotuladas e 40.966 de fundo no treino, e 273.566 janelas de teste.
+\begin{figure}[htbp]
+	\centering
+	\caption{Teste da janela.}
+	\label{fig:janela}
+	\includegraphics[width=\textwidth]{teste_da_janela.pdf}
+	\legend{Fonte: os autores.}
+\end{figure}
+
+O classificador do sistema é treinado de outra forma, nos dados regerados (seção~\ref{sec:preprocessamento}): um Random Forest de 100 árvores, com os parâmetros padrão do scikit-learn e sem busca de hiperparâmetros, nas 39 features, em 7 categorias, com janela de 100 quadros, teto de 50.000 janelas por rótulo, semente 42 e a divisão por tempo e por arquivo descrita na seção~\ref{sec:preprocessamento}. As janelas de fundo da parte de treino de cada pcap de ataque, sem nenhum quadro do atacante (Figura~\ref{fig:sem-atacante}), entram no treino como benignas. São 567.732 janelas rotuladas e 40.966 de fundo no treino, e 273.566 janelas de teste.
+
+\begin{figure}[htbp]
+	\centering
+	\caption{Janelas sem atacante.}
+	\label{fig:sem-atacante}
+	\includegraphics[width=\textwidth]{janelas_sem_atacante.pdf}
+	\legend{Fonte: os autores.}
+\end{figure}
 
 A janela de 100 quadros foi escolhida com os dois modelos treinados sem o fundo: macro-F1 de 82,3\% contra 75,7\% com janela de 10, e 1,9\% contra 12,7\% das janelas de um pcap benigno fora do treino classificadas como ataque.
 
@@ -66,18 +90,6 @@ A busca na internet dos agentes fica desligada por padrão, e por isso nenhum da
 
 No desenho, a pessoa que opera a rede é avisada no instante em que o incidente abre, antes dos agentes; esse aviso imediato e o modo ao vivo ficaram fora da versão final da interface. A pessoa pode marcar o incidente como já resolvido. A marca é o evento incidente\_marcado\_resolvido, gravado pelo comando de aprovação e pelo botão ``Já resolvido'' da interface, com o canal e o usuário. Daí em diante o servidor recusa qualquer proposta do incidente e a execução das propostas dele, inclusive as já aprovadas, e o comando de aprovação recusa aprovar as pendentes; o que já estava aplicado pode ser desfeito, e o agente de decisão, que vê a marca no resumo, só explica o incidente. O log grava o instante de cada etapa, da janela à verificação (Figura~\ref{fig:fluxo}), o que permite medir o tempo entre detecção e remediação. Do lado da detecção, a janela de 100 quadros fecha, na mediana, em 5 ms em DDoS e DoS e entre 1,3 s e 2,5 s em Recon, BruteForce e Web. No modelo do sistema, que ocupa 365,6 MB em disco, o dobro do de 10/10, a classificação de uma janela isolada leva 1,68 ms na mediana e 1,79 ms no p95, num núcleo, da linha do extrator à probabilidade, e um lote de 1.000 janelas, 8,6 ms. O processo com o modelo carregado ocupa cerca de 900 MB de memória. O extrator lê cerca de 151 mil quadros por segundo, e o reprodutor inteiro, com a classificação e a política de acionamento, 143 mil, também num núcleo, num MacBook Pro M5 com 16 GB. No modelo de 10/10, a janela levava 1,6 ms.
 
-Os agentes seguem skills escritas pela equipe, uma por etapa, que dizem quando usá-las, o que ler das tools e como responder. O agente de triagem segue a da triagem do alerta; o de decisão, as da coordenação do incidente, da análise por categoria de ataque e da recomendação de mitigação, esta apoiada no levantamento de mitigações da equipe, com a fonte de cada medida; e o de execução, a da execução da ação. As mesmas skills valem para o modelo local e para o de nuvem e são, com o servidor MCP, parte da contribuição do trabalho \cite{oliveira2026}.
-
-O laço dos agentes e o cliente MCP são testados contra esse mesmo servidor, o stub do repositório, aberto por stdio em outro processo, com um provedor de modelo simulado no lugar do LLM. Os testes automatizados conferem que cada agente só enxerga as tools da sua linha, que a recusa de uma tool volta ao agente como erro sem derrubar o servidor e que cada chamada fica no log com o nome do agente \cite{oliveira2026}.
-
-\begin{figure}[htbp]
-	\centering
-	\caption{Diagrama da arquitetura (captura, extrator, classificador, servidor MCP, agentes e interface).}
-	\label{fig:arquitetura}
-	\includegraphics[width=\textwidth]{arquitetura.pdf}
-	\legend{Fonte: os autores.}
-\end{figure}
-
 \begin{figure}[htbp]
 	\centering
 	\caption{Fluxo de um incidente, com os eventos que o log grava.}
@@ -85,6 +97,10 @@ O laço dos agentes e o cliente MCP são testados contra esse mesmo servidor, o 
 	\includegraphics[width=\textwidth]{fluxo_incidente.pdf}
 	\legend{Fonte: os autores. As setas tracejadas não ocorreram na rodada: todas as verificações deram ``cessou'', e a volta após a rejeição estava desligada.}
 \end{figure}
+
+Os agentes seguem skills escritas pela equipe, uma por etapa, que dizem quando usá-las, o que ler das tools e como responder. O agente de triagem segue a da triagem do alerta; o de decisão, as da coordenação do incidente, da análise por categoria de ataque e da recomendação de mitigação, esta apoiada no levantamento de mitigações da equipe, com a fonte de cada medida; e o de execução, a da execução da ação. As mesmas skills valem para o modelo local e para o de nuvem e são, com o servidor MCP, parte da contribuição do trabalho \cite{oliveira2026}.
+
+O laço dos agentes e o cliente MCP são testados contra esse mesmo servidor, o stub do repositório, aberto por stdio em outro processo, com um provedor de modelo simulado no lugar do LLM. Os testes automatizados conferem que cada agente só enxerga as tools da sua linha, que a recusa de uma tool volta ao agente como erro sem derrubar o servidor e que cada chamada fica no log com o nome do agente \cite{oliveira2026}.
 
 \subsection{Avaliação da PoC e dos agentes}
 \label{sec:avaliacao}

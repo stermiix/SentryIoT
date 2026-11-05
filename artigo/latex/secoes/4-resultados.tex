@@ -100,19 +100,3 @@ Na detecção, os resultados valem para a janela de 100 quadros e para a rede do
 Na implantação, o sistema só vê o tráfego que passa pelo ponto de captura. Numa rede em que o gateway não é o ponto de acesso, nem separa a rede IoT das outras, o ataque de um aparelho contra outro da mesma rede não chega a ele, e sensores em Zigbee ou Bluetooth, fora da rede IP, também ficam de fora. Um flood volumétrico vindo da internet lota o link da operadora antes de chegar ao gateway, e bloquear as origens ali não libera o link; isso pede ação do provedor. O modelo local, um Qwen de 27 bilhões de parâmetros, pede placa de vídeo ou bastante memória, um hardware caro para uma casa ou um pequeno negócio. Só esse modelo foi avaliado, e a versão, a quantização e o hardware do servidor de inferência usado nos experimentos são desconhecidos, o que pesa na reprodutibilidade.
 
 Na resposta, a PoC atende incidentes de pcaps reproduzidos, e aplicar uma ação é só gravar o evento no log, sem rede em que ela aja; a verificação do efeito responde sempre que o ataque cessou. Os experimentos medem, portanto, se os agentes escolhem uma ação aceitável no alvo certo e em quanto tempo ela é executada, e não se ela faria o ataque parar, e o caso em que a primeira ação não resolve não é exercitado. As ações de risco alto foram aprovadas por uma regra fixa (seção~\ref{sec:avaliacao}), e o tempo até a remediação não inclui o de uma pessoa decidir, que numa operação real pode passar de minutos. O atacante do incidente vem da presença dos endereços nas janelas: nos pcaps de ataque, a primeira origem listada é um atacante em 113 de 211 incidentes, e nunca no spoofing, em que o quadro ARP só traz o IP anunciado. Uma origem errada é contida pela política de risco, porque bloquear um endereço da rede local exige aprovação. Na segurança, os testes contra o servidor MCP existem, com três lacunas conhecidas marcadas, mas o experimento de tool poisoning, que mediria se o agente cai numa isca, não foi feito. As salvaguardas descritas são escolhas de arquitetura e, sozinhas, não demonstram resistência a esse ataque.
-
-\begin{figure}[htbp]
-	\centering
-	\caption{Teste da janela.}
-	\label{fig:janela}
-	\includegraphics[width=\textwidth]{teste_da_janela.pdf}
-	\legend{Fonte: os autores.}
-\end{figure}
-
-\begin{figure}[htbp]
-	\centering
-	\caption{Janelas sem atacante.}
-	\label{fig:sem-atacante}
-	\includegraphics[width=\textwidth]{janelas_sem_atacante.pdf}
-	\legend{Fonte: os autores.}
-\end{figure}
