@@ -20,7 +20,6 @@ não usa. Sigla nova no artigo entra aqui, em ordem alfabética.
 | DoS | Denial of Service |
 | HTTP | Hypertext Transfer Protocol |
 | HTTPS | Hypertext Transfer Protocol Secure |
-| IA | inteligência artificial |
 | ICMP | Internet Control Message Protocol |
 | IDS | Intrusion Detection System |
 | IoT | Internet das Coisas |
