@@ -23,7 +23,7 @@ flowchart TB
     orquestrador["<b>Orquestrador</b> (código, não é um agente)<br/>chama a triagem, filtra os endereços do veredito,<br/>espera a aprovação no log e chama a execução"]
 
     pessoa(["<b>Pessoa que opera a rede</b><br/>aprova ou rejeita a proposta de risco alto<br/>e pode marcar o incidente como já resolvido"])
-    interface["<b>Interface web</b><br/>fila de incidentes e detalhe,<br/>em replay do log"]
+    interface["<b>Interface web</b><br/>fila de incidentes e relatório<br/>do incidente, em replay do log"]
 
     deteccao -- "abre o incidente" --> mcp
     mcp <--> triagem
