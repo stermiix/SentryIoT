@@ -259,6 +259,12 @@ Os valores são medianas por rodada. Leitura das tabelas:
 - **Abaixo de 0,6:** o incidente custa menos, cerca de 42 mil tokens e 38 s, porque não há execução.
 - **Primeira ação:** com aprovação automática, a ação de risco alto é aplicada 64 s depois da primeira chamada; a
   de risco baixo, 51 s. Em operação, a de risco alto aguarda a decisão de uma pessoa.
+- **Até a remediação:** da primeira janela do ataque à primeira ação aplicada, a mediana é de 60,86 s nas 51
+  rodadas com ação: 54,52 s no risco baixo (18 rodadas) e 69,47 s no risco alto (33). A conta soma a detecção ao
+  tempo do início da primeira chamada ao modelo à primeira ação aplicada, e supõe que a triagem começa no instante
+  em que o incidente abre: na rodada, os agentes rodaram em fila depois da reprodução, e essa espera fica de fora.
+  Os valores por rodada estão em `tempo_ate_a_remediacao.csv`, gerado por `experimentos/tempo_ate_a_remediacao.py`
+  a partir dos logs da interface e da coluna `deteccao_s` de `custo_latencia.csv` (registrado em 06/11).
 - **Custo:** nenhum gasto com nuvem. O custo é o do gateway da equipe.
 - **Sem agregação:** é a política de acionamento que contém o volume. Uma chamada por janela de ataque daria dezenas
   de milhares de chamadas por pcap (a Tela 4 da interface mostra a conta em cada execução).
@@ -449,6 +455,7 @@ python -m codigo.agente.experimento preparar CICIoT2023/DDoS-SYN_Flood1.pcap CIC
 python -m codigo.agente.experimento rodar --conjunto dados/processed/agentes/conjunto.json \
     --configuracoes local --repeticoes 3 --saida dados/processed/agentes
 python -m codigo.agente.experimento consolidar --rodadas dados/processed/agentes/rodadas --saida experimentos/resultados
+python experimentos/tempo_ate_a_remediacao.py
 python -m codigo.agente.experimento preparar CICIoT2023/Mirai-udpplain.pcap CICIoT2023/DNS_Spoofing.pcap \
     CICIoT2023/MITM-ArpSpoofing.pcap CICIoT2023/Uploading_Attack.pcap --por-pcap 1 --saida dados/processed/agentes_exemplos
 python -m codigo.agente.experimento rodar --conjunto dados/processed/agentes_exemplos/conjunto.json \
