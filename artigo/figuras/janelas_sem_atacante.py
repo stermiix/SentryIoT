@@ -2,7 +2,8 @@
 
 Lê `experimentos/resultados/janelas_sem_atacante.csv` e mostra, para cada rótulo de ataque, a
 fração das janelas sem nenhum quadro de um dos sete atacantes, na janela de 100 quadros do sistema.
-Um painel para Recon, Spoofing, Web e BruteForce e outro para os floods (DDoS, DoS e Mirai). O tráfego benigno fica de fora. Um rótulo com
+Só Recon, Spoofing, Web e BruteForce: nos floods (DDoS, DoS e Mirai), a fração não passa de 7,2%,
+o que o texto diz sem a figura (06/11, corte de páginas). O tráfego benigno fica de fora. Um rótulo com
 mais de um pcap soma as janelas de todos.
 
     python -m artigo.figuras.janelas_sem_atacante
@@ -32,12 +33,9 @@ def carregar():
 
 
 def desenhar(por_rotulo):
-    grupos = [
-        ("demais", "(a) Recon, Spoofing, Web e BruteForce"),
-        ("floods", "(b) Floods (DDoS, DoS e Mirai)"),
-    ]
-    tamanhos = [int((por_rotulo["painel"] == janela).sum()) for janela, _ in grupos]
-    fig, eixos = figura(17, nrows=len(grupos), sharex=True, gridspec_kw={"height_ratios": tamanhos})
+    grupos = [("demais", None)]
+    fig, eixo = figura(7.5)
+    eixos = [eixo]
     for (janela, titulo), eixo, cinza, hachura in zip(grupos, eixos, CINZAS[1:], HACHURAS[1:]):
         parte = por_rotulo[por_rotulo["painel"] == janela].sort_values("fracao")
         barras = eixo.barh(
@@ -50,7 +48,8 @@ def desenhar(por_rotulo):
                 texto, (barra.get_width(), barra.get_y() + barra.get_height() / 2),
                 xytext=(2, 0), textcoords="offset points", ha="left", va="center", fontsize=6.5,
             )
-        eixo.set_title(titulo, loc="left")
+        if titulo:
+            eixo.set_title(titulo, loc="left")
         eixo.set_ylim(-0.6, len(parte) - 0.4)
         eixo.tick_params(axis="y", length=0, labelsize=7)
         eixo.spines[["top", "right"]].set_visible(False)
