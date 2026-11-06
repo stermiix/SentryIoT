@@ -63,7 +63,7 @@ A decisão sobre cada janela segue um ponto de operação escolhido numa parte d
 
 Os controles medem o que o corte por tempo não mostra: o recall de cada pcap quando nenhuma janela dele entra no treino, o alarme falso com cada um dos três pcaps benignos fora do treino e o fundo da parte de teste classificado como ataque.
 
-Fora do CICIoT2023, o modelo do sistema é testado sem retreino em capturas de outras redes: uma casa, com 90 minutos de tráfego de quatro aparelhos IoT gravado por um notebook no papel de gateway, o teste mais próximo de uma implantação real; o IoT-23, com o tráfego benigno de três aparelhos reais e capturas de malware real \cite{garcia2020iot23}; e o CICIoMT2024, um laboratório de IoT médica com tráfego benigno e 18 ataques, 5 deles de MQTT \cite{dadkhah2024}. Sem rótulo por janela, cada captura é medida inteira, pelo reprodutor: em uma benigna, todo incidente é falso; em uma de ataque, conta se o sistema alarmou, em quanto tempo e em que categoria.
+Fora do CICIoT2023, o modelo do sistema é testado sem retreino em capturas de outras redes: uma casa (seção~\ref{sec:captura}); o IoT-23, com o tráfego benigno de três aparelhos reais e capturas de malware real \cite{garcia2020iot23}; e o CICIoMT2024, um laboratório de IoT médica com tráfego benigno e 18 ataques, 5 deles de MQTT \cite{dadkhah2024}. Sem rótulo por janela, cada captura é medida inteira, pelo reprodutor: em uma benigna, todo incidente é falso; em uma de ataque, conta se o sistema alarmou, em quanto tempo e em que categoria.
 
 \subsection{Justificativa do Random Forest}
 \label{sec:justificativa}
