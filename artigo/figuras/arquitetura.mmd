@@ -1,37 +1,29 @@
 %% Arquitetura do SentryIoT. Componentes descritos no ROADMAP.md e em codigo/mcp/README.md.
 %% Regerar o PNG e o PDF: python -m artigo.figuras.diagramas arquitetura
-%%{init: {"theme": "neutral", "themeVariables": {"fontFamily": "Times New Roman, Times, serif", "fontSize": "15px"}, "flowchart": {"nodeSpacing": 22, "rankSpacing": 42, "wrappingWidth": 420}}}%%
+%% Desenho mais alto que largo (06/11), para a letra sair no tamanho do texto; o detalhe fica na 3.5.
+%%{init: {"theme": "neutral", "themeVariables": {"fontFamily": "Times New Roman, Times, serif", "fontSize": "15px"}, "flowchart": {"nodeSpacing": 18, "rankSpacing": 34, "wrappingWidth": 260}}}%%
 flowchart TB
     subgraph deteccao["<b>Detecção</b>"]
         direction LR
-        rede(["Rede IoT"]) --> captura["<b>Captura</b><br/>tcpdump no gateway,<br/>arquivo pcap"]
-        captura --> extrator["<b>Extrator</b> (dpkt)<br/>39 features por janela<br/>de 100 quadros"]
-        extrator --> rf["<b>Classificador</b><br/>Random Forest, 7 categorias,<br/>+ regra DDoS/DoS pelas origens"]
+        captura["<b>Captura</b><br/>tcpdump<br/>no gateway"] --> extrator["<b>Extrator</b><br/>39 features,<br/>janela de 100"]
+        extrator --> rf["<b>Classificador</b><br/>Random Forest<br/>+ regra DDoS/DoS"]
     end
 
-    mcp["<b>Servidor MCP</b><br/>11 tools, separadas por agente · política de risco<br/>(baixo: executa; alto: exige aprovação humana)<br/>catálogo: limitar_taxa, bloquear_ip, isolar_dispositivo,<br/>revogar_credencial e fechar_porta<br/>log de eventos JSONL · ambiente simulado, com desfazer"]
+    orquestrador["<b>Orquestrador</b><br/>(código) chama os<br/>agentes e filtra os<br/>endereços do veredito"]
+    mcp["<b>Servidor MCP</b><br/>11 tools por agente<br/>política de risco<br/>log de eventos<br/>ambiente simulado"]
+    pessoa(["<b>Pessoa</b>, na interface<br/>vê o relatório,<br/>aprova o risco alto,<br/>marca 'já resolvido'"])
 
-    subgraph local["<b>Modelo local</b> (qwen3.8-27c)"]
+    subgraph local[" "]
         direction LR
-        decisao["<b>Agente de decisão</b><br/>coordena o incidente: aceita ou descarta<br/>o veredito da triagem e propõe a ação,<br/>lendo o resumo com rótulos neutros<br/>(origem-1, destino-1), sem endereços"]
-        %% Nó invisível: afasta a seta da triagem do título do quadro, que o Mermaid centraliza.
-        espaco["&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"]
-        triagem["<b>Agente de triagem</b><br/>lê o incidente e as janelas,<br/>com os endereços"]
-        execucao["<b>Agente de execução</b><br/>aplica, verifica o efeito e desfaz;<br/>único com credenciais"]
+        triagem["<b>Triagem</b><br/>lê o incidente,<br/>com os endereços"]
+        decisao["<b>Decisão</b><br/>propõe a ação,<br/>só com rótulos"]
+        execucao["<b>Execução</b><br/>aplica e verifica;<br/>única com<br/>credenciais"]
     end
-
-    orquestrador["<b>Orquestrador</b> (código, não é um agente)<br/>chama a triagem, filtra os endereços do veredito,<br/>chama a decisão, espera a aprovação no log<br/>e chama a execução"]
-
-    pessoa(["<b>Pessoa que opera a rede</b><br/>aprova ou rejeita a proposta de risco alto<br/>e pode marcar o incidente como já resolvido"])
-    interface["<b>Interface web</b><br/>fila de incidentes e relatório<br/>do incidente, em replay do log"]
 
     deteccao -- "abre o incidente" --> mcp
+    orquestrador -- "agentes no <b>modelo local</b><br/>(qwen3.8-27c)" --> local
     mcp <--> triagem
-    mcp <-- "só rótulos, sem endereços" --> decisao
+    mcp <--> decisao
     mcp <--> execucao
-    orquestrador --> local
-    mcp -- "log de eventos" --> interface
-    interface --> pessoa
-    pessoa -- "aprovação e 'já resolvido',<br/>gravadas no log" --> mcp
-
-    style espaco fill:none,stroke:none
+    mcp -- "log" --> pessoa
+    pessoa -- "aprovação" --> mcp

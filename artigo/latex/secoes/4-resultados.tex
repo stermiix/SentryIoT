@@ -90,18 +90,17 @@ A regra de 4 janelas foi escolhida depois desses testes, entre 12 regras compara
 \subsection{Agentes}
 \label{sec:agentes}
 
-A resposta dos agentes (P2) depende do incidente, como resume a Tabela~\ref{tab:agentes} por grupo de pcap. As três repetições de cada incidente tiveram resultados iguais, portanto os números abaixo são contados por incidente, e não por rodada.
-Dentre os 28 incidentes, a triagem teve sucesso em classificar 24 deles, 86\%, que, com intervalo de confiança de 95\%, vai de 68,5\% a 94,3\%.
-Todos os incidentes verdadeiros foram classificados corretamente como coerentes. Por outro lado, dos 9 incidentes falsos, a triagem apontou 5 deles como duvidosos, sendo eles os que tinham confiança abaixo de 0,6. Já os outros 4 incidentes falsos, com confiança entre 0,64 e 0,82, passaram pela triagem como se fossem coerentes.
+A resposta dos agentes (P2) foi medida em 28 incidentes, 19 verdadeiros, e a Tabela~\ref{tab:agentes} a resume por grupo de pcap, com as contas por incidente (seção~\ref{sec:avaliacao}). A triagem acertou 24 dos 28 (86\%, de 68,5\% a 94,3\% no intervalo de confiança de 95\%): marcou como coerentes os 19 verdadeiros e como duvidosos os 5 falsos abaixo de 0,6 de confiança; os outros 4 falsos, com confiança de 0,64 a 0,82, passaram como coerentes.
 
 \begin{table}[htbp]
 	\centering
-	\caption{Rodada final por grupo de pcap (28 incidentes, 3 repetições idênticas por incidente).}
+	\caption{Rodada final por grupo de pcap (28 incidentes, 3 repetições idênticas por incidente; cada execução teve no máximo uma proposta).}
 	\label{tab:agentes}
 	\small
+	\setlength{\tabcolsep}{4pt}
 	\begin{tabular}{>{\raggedright\arraybackslash}p{3.6cm}rrrrr}
 		\hline
-		\textbf{Grupo} & \textbf{Incidentes} & \textbf{Verdadeiros} & \begin{tabular}[b]{@{}r@{}}\textbf{Triagem}\\\textbf{certa}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{1\textsuperscript{a} ação}\\\textbf{aceitável}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Falso com}\\\textbf{ação}\end{tabular} \\
+		\textbf{Grupo} & \textbf{Incidentes} & \textbf{Verdadeiros} & \begin{tabular}[b]{@{}r@{}}\textbf{Triagem}\\\textbf{certa}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Ação aceitável}\\\textbf{no alvo}\\\textbf{certo}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Falso com}\\\textbf{ação}\end{tabular} \\
 		\hline
 		DDoS (SYN, UDP e HTTP flood) & 10 & 8 & 10 & 5 de 8 & 0 de 2 \\
 		Recon (PortScan, OSScan e Host\-Discovery) & 12 & 10 & 10 & 10 de 10 & 1 de 2 \\
@@ -114,7 +113,7 @@ Todos os incidentes verdadeiros foram classificados corretamente como coerentes.
 	\legend{Fonte: os autores.}
 \end{table}
 
-Em relação à identificação do atacante, a triagem identificou corretamente 16 dos 19 incidentes verdadeiros, enquanto a saída isolada do classificador acertou 15. Os métodos deram resultados diferentes em um único incidente, o DictionaryBruteForce, em que somente a triagem acerta. De acordo com o teste exato de McNemar, p = 1,0, essa diferença não traz um significado estatístico real, assim, para essa tarefa específica, a rodada não permite concluir se um método é melhor que o outro. Desta forma, a vantagem da integração não está em apontar quem atacou, mas sim nas etapas seguintes do alerta: o veredito, a ação proposta e a execução dela.
+A ação aceitável no alvo certo saiu em 16 dos 19 verdadeiros (de 62,4\% a 94,5\%), e as 16 foram executadas. As 3 falhas são os incidentes verdadeiros do HTTP flood: nenhum dos sete atacantes do dataset está entre os candidatos do incidente, a triagem apontou o emissor dominante, e o aprovador rejeitou o bloqueio porque esse endereço está fora da lista de atacantes do dataset. Na identificação do atacante, a triagem acertou 16 dos 19, e a primeira origem do incidente, que é o que o classificador sozinho daria, acertou 15; as duas erram nos mesmos 3 do HTTP flood e só divergem no DictionaryBruteForce, em que a triagem acerta. Pelo teste exato de McNemar, p = 1,0: a rodada não mostra que a triagem aponte o atacante melhor que o classificador. O ganho da integração está no que vem depois do alerta, e o classificador sozinho não faz: o veredito, a ação proposta e a sua execução.
 
 Nas 84 execuções houve 69 propostas: 18 limitações de taxa, de risco baixo, aplicadas sem aprovação, e 51 bloqueios de endereço, de risco alto, dos quais o aprovador executou 33 e rejeitou 18. No HTTP flood inc-0002, marcado como duvidoso (confiança de 0,43), a decisão tentou propor uma ação, e o servidor a recusou, uma vez por repetição. Nenhuma ação atingiu endereço protegido. Nenhuma das 117 conversas do agente de decisão, contando o Kali e os exemplos, recebeu ou escreveu um endereço IP ou MAC: a triagem aponta o atacante por uma tool, e a decisão o recebe como rótulo. O filtro do veredito agiu em um só incidente, o Recon-OSScan inc-0003, cujo veredito citava um endereço. Como tudo rodou no modelo local, a proteção para uma decisão em um modelo de fronteira vem dos testes do servidor (seção~\ref{sec:mcp}), e não desta medida.
 
