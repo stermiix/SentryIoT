@@ -139,13 +139,7 @@ O custo e o tempo da resposta (P3) foram medidos no modelo local (Tabela~\ref{ta
 	\legend{Fonte: os autores. Por agente, o tempo é o tempo no modelo; no incidente inteiro, é o tempo de relógio dos agentes, com as tools e o orquestrador e sem a espera da aprovação, e não é a soma das linhas acima, porque mediana não soma. O tempo até a remediação está no texto.}
 \end{table}
 
-Ao realizar testes com o Kali, 7 das 8 capturas abriram incidente, tendo como única exceção o ARP spoofing, que não abriu nenhum, e 4 deles na categoria certa: a varredura do nmap como Recon e os três floods (SYN, UDP e ICMP) como DoS. Já a força bruta do hydra foi classificada como DoS,
-com confiança de 0,50 e 0,51; a triagem chegou a apontar a vítima como atacante, mas o servidor
-recusou a proposta. A varredura do nikto também virou DoS, desta vez com confiança de 0,65, e
-foi dela que vieram as 3 ações aplicadas sobre incidente falso, do total de 21 rodadas. Quanto
-aos incidentes verdadeiros, a identificação do atacante acertou em 12 das 12 rodadas, o mesmo
-desempenho da regra fixa. Neste ambiente foi adotada a política do laboratório, que protege
-apenas o computador da equipe.
+No teste com o Kali, 7 das 8 capturas abriram incidente, e 4 deles vieram na categoria certa: a varredura do nmap como Recon e os três floods (SYN, UDP e ICMP) como DoS. Nesses 4, a triagem apontou o Kali como atacante nas 12 execuções, como a regra fixa, e a ação aceitável no alvo certo saiu em 9; no flood ICMP, com confiança abaixo de 0,6, houve só recomendação. A força bruta do hydra virou DoS, com confiança de 0,50 e 0,51; a triagem apontou a vítima como atacante, e o servidor recusou a proposta porque a confiança estava abaixo de 0,6, de modo que nenhuma ação atingiu a vítima. A varredura do nikto virou DoS, e não Web, com confiança de 0,65, acima do limiar; por isso conta como incidente falso, embora as 3 ações, uma por repetição, tenham sido aplicadas no próprio Kali.
 
 Os trabalhos correlatos não medem a mesma coisa, e a comparação é sobretudo de desenho. Em \citeonline{baral2024}, os LLMs propõem a mitigação e a deixam ao administrador; aqui a ação é executada, com aprovação humana no risco alto. \citeonline{hammar2026} fazem ajuste fino de um modelo de 14 bilhões de parâmetros para planejar a resposta; aqui o modelo local foi usado sem ajuste fino. O CORTEX \cite{wei2025cortex}, com vários agentes de LLM, leva 152,4~s na mediana por alerta até concluir o chamado de triagem, sem ação de remediação; o SentryIoT chega à primeira ação aplicada em 60,86~s, em outro conjunto de dados, com outro modelo e com aprovação automática, e por isso a comparação vale só como ordem de grandeza.
 
