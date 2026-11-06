@@ -27,7 +27,15 @@ O extrator foi calibrado em duas etapas. Na primeira, contra os CSVs oficiais de
 
 Na fase exploratória, o MERGED\_CSV dos autores (45.019.234 linhas) foi amostrado com teto de 50.000 linhas por rótulo e semente 42, e os 34 rótulos foram mapeados para 7 categorias, com DDoS e DoS juntos. As features descrevem os pacotes, e não quantas máquinas atacam: 29,5\% das linhas têm o vetor das 39 features igual ao de uma linha de outra categoria, quase sempre o mesmo flood rotulado como DDoS e como DoS. Por isso o sistema separa os dois depois, pela quantidade de origens do incidente, fora do modelo.
 
-Os dados de treino finais, porém, não vêm do MERGED\_CSV, porque nele a janela de agregação varia com a classe e o rótulo é do arquivo inteiro: são regerados a partir dos 38 pcaps com o nosso extrator, em janela única. Os 34 rótulos têm pcap: 31 com um arquivo, DDoS-SYN\_Flood e DoS-SYN\_Flood com dois cada e BenignTraffic com três. O dataset não rotula janelas, e por isso a regra é deste trabalho: em uma captura benigna toda janela é benigna, e em uma captura de ataque a janela só recebe o rótulo do arquivo se contém um quadro de um dos sete Raspberry Pi atacantes documentados pelos autores. As demais, o tráfego de fundo das capturas de ataque, ficam à parte; no treino do modelo do sistema, as da parte de treino entram como benignas. A divisão treino/teste é por tempo dentro de cada pcap (os primeiros 70\% das janelas para o treino) ou por arquivo inteiro quando o rótulo tem mais de um pcap, o que evita que janelas vizinhas caiam dos dois lados. O teto de 50.000 janelas por rótulo e a semente 42 são mantidos.
+Os dados de treino finais, porém, não vêm do MERGED\_CSV, porque nele a janela de agregação varia com a classe e o rótulo é do arquivo inteiro: são regerados a partir dos 38 pcaps com o nosso extrator, em janela única. Os 34 rótulos têm pcap: 31 com um arquivo, DDoS-SYN\_Flood e DoS-SYN\_Flood com dois cada e BenignTraffic com três. O dataset não rotula janelas, e por isso a regra é deste trabalho: em uma captura benigna toda janela é benigna, e em uma captura de ataque a janela só recebe o rótulo do arquivo se contém um quadro de um dos sete Raspberry Pi atacantes documentados pelos autores. As demais formam o tráfego de fundo das capturas de ataque: de 3,3\% a 66,9\% das janelas em Recon, Spoofing, Web e BruteForce e no máximo 7,2\% nos floods (Figura~\ref{fig:sem-atacante}). No treino do modelo do sistema, as da parte de treino entram como benignas. A divisão treino/teste é por tempo dentro de cada pcap (os primeiros 70\% das janelas para o treino) ou por arquivo inteiro quando o rótulo tem mais de um pcap, o que evita que janelas vizinhas caiam dos dois lados. O teto de 50.000 janelas por rótulo e a semente 42 são mantidos.
+
+\begin{figure}[htbp]
+	\centering
+	\caption{Janelas rotuladas como ataque sem nenhum quadro de um dos sete atacantes, por captura, na janela de 100 quadros do sistema: (a) Recon, Spoofing, Web e BruteForce; (b) floods.}
+	\label{fig:sem-atacante}
+	\includegraphics[width=\textwidth]{janelas_sem_atacante.pdf}
+	\legend{Fonte: os autores.}
+\end{figure}
 
 \subsection{Treino e avaliação do classificador}
 \label{sec:treino}
@@ -38,21 +46,14 @@ Na fase exploratória, um Random Forest treinado na amostra do MERGED\_CSV mostr
 
 \begin{figure}[htbp]
 	\centering
-	\caption{Teste da janela.}
+	\caption{Janelas reconhecidas na categoria esperada por um modelo treinado no CSV oficial, com as mesmas capturas extraídas em janela de 10 e de 100 quadros: (a) com as 39 features; (b) com 33, sem as seis colunas que dependem da janela. Entre parênteses, a janela com que o dataset agrega a classe.}
 	\label{fig:janela}
 	\includegraphics[width=\textwidth]{teste_da_janela.pdf}
 	\legend{Fonte: os autores.}
 \end{figure}
 
-O classificador do sistema é um Random Forest de 100 árvores, com os parâmetros padrão do scikit-learn e sem busca de hiperparâmetros, nas 39 features, em 7 categorias, com janela de 100 quadros e a amostragem e a divisão da seção~\ref{sec:preprocessamento}. As janelas de fundo da parte de treino de cada pcap de ataque, sem nenhum quadro do atacante (Figura~\ref{fig:sem-atacante}), entram no treino como benignas. São 567.732 janelas rotuladas e 40.966 de fundo no treino, e 273.566 janelas de teste.
+O classificador do sistema é um Random Forest de 100 árvores, com os parâmetros padrão do scikit-learn e sem busca de hiperparâmetros, nas 39 features, em 7 categorias, com janela de 100 quadros e a amostragem e a divisão da seção~\ref{sec:preprocessamento}. No treino, são 567.732 janelas rotuladas e 40.966 de fundo, e 273.566 janelas de teste.
 
-\begin{figure}[htbp]
-	\centering
-	\caption{Janelas sem atacante.}
-	\label{fig:sem-atacante}
-	\includegraphics[width=\textwidth]{janelas_sem_atacante.pdf}
-	\legend{Fonte: os autores.}
-\end{figure}
 
 A janela de 100 quadros foi escolhida com os dois modelos treinados sem o fundo: macro-F1 de 82,3\% contra 75,7\% com janela de 10, e 1,9\% contra 12,7\% das janelas de um pcap benigno fora do treino classificadas como ataque.
 
