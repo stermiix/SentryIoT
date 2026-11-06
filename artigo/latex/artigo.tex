@@ -58,6 +58,8 @@
 
 % Pacotes de citações
 \usepackage[alf]{abntex2cite}	% Citações padrão ABNT
+% Mudança do SentryIoT: URL sem < >, como pede a NBR 6023 desde 2018.
+\def\UrlLeft{}\def\UrlRight{}
 
 % --- Informações de dados para CAPA e FOLHA DE ROSTO ---
 % Título do .docx do PR 60; autores e e-mails como no artigo do TCC I.
@@ -141,7 +143,6 @@
 
 % Só entra na lista o que o texto cita. Não usar \nocite{*}: com o abntex2cite, ele puxa também as
 % entradas de opções do abntex2-options.bib e o BibTeX falha.
-\pendente{acrescentar as referências do TCC I que continuarem citadas (por exemplo, FERRAG et al., 2024).}
 
 \bibliography{referencias}
 
