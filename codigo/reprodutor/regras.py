@@ -3,8 +3,8 @@
 Mede o que o sistema faz com tráfego que não é o do dataset de treino, com a regra do sistema e com
 outras regras de janela e de janelas seguidas, para a decisão de 28/10/2026 (`ROADMAP.md`):
 
-- uma casa, 90 minutos de tráfego de IoT real, gravados com o Mac como gateway (26/10). Só os números
-  agregados saem daqui: o pcap e os endereços da casa ficam fora do repositório;
+- uma casa, 90 minutos de tráfego de IoT real, gravados com o Mac como gateway (26/10). O pcap não é
+  versionado, como todo pcap; a casa é publicada desde 05/11 (`ROADMAP.md`);
 - o IoT-23 (Stratosphere Laboratory, licença CC-BY): três aparelhos reais sem ataque (Philips Hue,
   Amazon Echo e a fechadura Somfy, esta com seis dias de captura) e malware real em Raspberry Pi;
 - o CICIoMT2024 (Canadian Institute for Cybersecurity): um laboratório de IoT médica, com o tráfego
@@ -321,7 +321,7 @@ def relatorio(linhas, resumo, por_janela, manifesto):
         ("Como ler: numa captura benigna, todo incidente é falso. Numa de ataque, sem rótulo por janela, conta "
         "se o sistema abriu incidente, em quanto tempo e em que categoria. Janela que leva mais de "
         f"{_n(R.DURACAO_MAXIMA_S, 0)} s para fechar não é julgada (`DURACAO_MAXIMA_S`). Nos floods grandes, "
-        "só o começo foi lido. A casa entra só com números agregados."),
+        "só o começo foi lido."),
         "",
         f"## A regra do sistema ({sistema}), captura por captura",
         "",

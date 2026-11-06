@@ -2,7 +2,7 @@
 
 Gerado por `python -m codigo.reprodutor.regras` em 29/10/2026, com Python 3.11.2 e scikit-learn 1.9.1. O modelo é o de 13/10 (`modelos/rf_regerado_janela_100.joblib`), sem retreino. A descrição das capturas e do método está no topo de `codigo/reprodutor/regras.py`; os pcaps, com tamanho e SHA-256, no manifesto ao lado.
 
-Como ler: numa captura benigna, todo incidente é falso. Numa de ataque, sem rótulo por janela, conta se o sistema abriu incidente, em quanto tempo e em que categoria. Janela que leva mais de 60 s para fechar não é julgada (`DURACAO_MAXIMA_S`). Nos floods grandes, só o começo foi lido. A casa entra só com números agregados.
+Como ler: numa captura benigna, todo incidente é falso. Numa de ataque, sem rótulo por janela, conta se o sistema abriu incidente, em quanto tempo e em que categoria. Janela que leva mais de 60 s para fechar não é julgada (`DURACAO_MAXIMA_S`). Nos floods grandes, só o começo foi lido.
 
 ## A regra do sistema (sistema: argmax e 4 seguidas), captura por captura
 

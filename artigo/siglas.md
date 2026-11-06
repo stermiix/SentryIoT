@@ -20,8 +20,6 @@ não usa. Sigla nova no artigo entra aqui, em ordem alfabética.
 | DoS | Denial of Service |
 | HTTP | Hypertext Transfer Protocol |
 | HTTPS | Hypertext Transfer Protocol Secure |
-| IA | inteligência artificial |
-| IAT | Inter-Arrival Time |
 | ICMP | Internet Control Message Protocol |
 | IDS | Intrusion Detection System |
 | IoT | Internet das Coisas |
@@ -38,7 +36,6 @@ não usa. Sigla nova no artigo entra aqui, em ordem alfabética.
 | PoC | prova de conceito |
 | SMTP | Simple Mail Transfer Protocol |
 | SSH | Secure Shell |
-| TCC | Trabalho de Conclusão de Curso |
 | TCP | Transmission Control Protocol |
 | TTL | Time To Live |
 | UDP | User Datagram Protocol |

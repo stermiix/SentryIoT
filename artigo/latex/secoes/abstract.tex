@@ -1,7 +1,7 @@
 % Abstract: tradução do resumo, de 150 a 250 palavras (template).
-\textit{\pendente{tradução do resumo.}}
+\textit{Home and small-business networks gather Internet of Things (IoT) devices and lack security specialists. Machine learning detection systems stop at the alert, and network detection and response (NDR) platforms are closed. This work presents SentryIoT, an open NDR system that detects attacks with a Random Forest classifier and responds to them with three agents based on large language models (LLM), running on a local model. A Model Context Protocol (MCP) server enforces the risk policy and requires human approval for high-risk actions. Trained on data regenerated from the CICIoT2023 pcaps, the classifier recognized more than 98\% of the denial-of-service and Mirai windows in the test segment of each capture; port scanning, web attacks and brute force, which are harder, ranged from 34.4\% to 55.0\%. In a proof of concept, with replayed pcaps and simulated actions, the agents handled 28 incidents opened by the classifier, 19 of them real attacks, each one three times. Triage recognized all 19, and the agents applied the right action, on the right target, in 16 of them, with a median time to remediation of 60.86~s. No action reached the gateway or the critical services of the network. The results indicate that a local model is enough to take an incident from alert to response, even when deciding with labels in place of network addresses, with the security guarantees enforced outside the model.}
 
 \vspace{\onelineskip}
 
 \noindent
-\textbf{Keywords}: intrusion detection; incident response; Internet of Things; multi-agent systems; Model Context Protocol.
+\textbf{Keywords}: Internet of Things; multi-agent systems; network detection and response; Random Forest; large language models.
