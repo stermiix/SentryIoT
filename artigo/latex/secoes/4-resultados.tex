@@ -36,13 +36,13 @@ A Tabela~\ref{tab:classificador} traz a detecção (P1) no corte por tempo, no p
 	\label{tab:alarme}
 	\small
 	\setlength{\tabcolsep}{4pt}
-	\begin{tabular}{lrp{2.0cm}rrr}
+	\begin{tabular}{lr>{\raggedright\arraybackslash}p{2.4cm}rrr}
 		\hline
 		\begin{tabular}[b]{@{}l@{}}\textbf{Pcap fora}\\\textbf{do treino}\end{tabular} & \textbf{Janelas} & \begin{tabular}[b]{@{}l@{}}\textbf{Regra}\\\textbf{escolhida}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Como}\\\textbf{ataque}\end{tabular} & \textbf{Alarmes} & \begin{tabular}[b]{@{}r@{}}\textbf{Alarmes}\\\textbf{por hora}\end{tabular} \\
 		\hline
-		BenignTraffic2.pcap & 31.032 & argmax & 0,9\% & 1,3 & 0,2 \\
-		BenignTraffic.pcap & 36.228 & limiar, t de 0,52 a 0,53 & 6,0\% & 41,7 & 4,5 \\
-		BenignTraffic1.pcap & 29.549 & argmax & 0,8\% & 1,3 & 0,2 \\
+		BenignTraffic2.pcap & 31.032 & categoria mais provável & 0,9\% & 1,3 & 0,2 \\
+		BenignTraffic.pcap & 36.228 & probabilidade mínima, de 0,52 a 0,53 & 6,0\% & 41,7 & 4,5 \\
+		BenignTraffic1.pcap & 29.549 & categoria mais provável & 0,8\% & 1,3 & 0,2 \\
 		\hline
 	\end{tabular}
 	\legend{Fonte: os autores.}
@@ -147,9 +147,7 @@ aos incidentes verdadeiros, a identificação do atacante acertou em 12 das 12 r
 desempenho da regra fixa. Neste ambiente foi adotada a política do laboratório, que protege
 apenas o computador da equipe.
 
-Diferente de \citeonline{baral2024}, em que os LLMs propõem a mitigação e a deixam ao
-administrador, aqui a ação é executada, com aprovação humana no risco alto; e, ao contrário de
-\citeonline{hammar2026}, o modelo local foi usado sem ajuste fino.
+Os trabalhos correlatos não medem a mesma coisa, e a comparação é sobretudo de desenho. Em \citeonline{baral2024}, os LLMs propõem a mitigação e a deixam ao administrador; aqui a ação é executada, com aprovação humana no risco alto. \citeonline{hammar2026} fazem ajuste fino de um modelo de 14 bilhões de parâmetros para planejar a resposta; aqui o modelo local foi usado sem ajuste fino. O CORTEX \cite{wei2025cortex}, com vários agentes de LLM, leva 152,4~s na mediana por alerta até concluir o chamado de triagem, sem ação de remediação; o SentryIoT chega à primeira ação aplicada em 60,86~s, em outro conjunto de dados, com outro modelo e com aprovação automática, e por isso a comparação vale só como ordem de grandeza.
 
 \subsection{Limitações}
 \label{sec:limitacoes}
