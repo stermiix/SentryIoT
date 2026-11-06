@@ -7,7 +7,7 @@
 \subsection{Classificador}
 \label{sec:classificador}
 
-A Tabela~\ref{tab:classificador} traz o resultado principal: o modelo do sistema no corte por tempo, no ponto de operação escolhido na validação (o argmax, com N = 4 janelas de ataque seguidas), e, ao lado, o recall com o pcap inteiro fora do treino. A Tabela~\ref{tab:alarme} traz o alarme falso com cada pcap benigno fora do treino.
+A Tabela~\ref{tab:classificador} traz a detecção (P1) no corte por tempo, no ponto de operação escolhido na validação, a categoria mais provável, e, ao lado, o recall com o pcap inteiro fora do treino. A Tabela~\ref{tab:alarme} traz o alarme falso com cada pcap benigno fora do treino.
 
 \begin{table}[htbp]
 	\centering
@@ -36,21 +36,21 @@ A Tabela~\ref{tab:classificador} traz o resultado principal: o modelo do sistema
 	\label{tab:alarme}
 	\small
 	\setlength{\tabcolsep}{4pt}
-	\begin{tabular}{lrp{2.0cm}rrrr}
+	\begin{tabular}{lrp{2.0cm}rrr}
 		\hline
-		\begin{tabular}[b]{@{}l@{}}\textbf{Pcap fora}\\\textbf{do treino}\end{tabular} & \textbf{Janelas} & \begin{tabular}[b]{@{}l@{}}\textbf{Regra}\\\textbf{escolhida}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Como}\\\textbf{ataque}\end{tabular} & \textbf{Alarmes} & \begin{tabular}[b]{@{}r@{}}\textbf{Alarmes}\\\textbf{por hora}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Como ataque,}\\\textbf{modelo}\\\textbf{de 10/10}\end{tabular} \\
+		\begin{tabular}[b]{@{}l@{}}\textbf{Pcap fora}\\\textbf{do treino}\end{tabular} & \textbf{Janelas} & \begin{tabular}[b]{@{}l@{}}\textbf{Regra}\\\textbf{escolhida}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Como}\\\textbf{ataque}\end{tabular} & \textbf{Alarmes} & \begin{tabular}[b]{@{}r@{}}\textbf{Alarmes}\\\textbf{por hora}\end{tabular} \\
 		\hline
-		BenignTraffic2.pcap & 31.032 & argmax & 0,9\% & 1,3 & 0,2 & 1,1\% \\
-		BenignTraffic.pcap & 36.228 & limiar, t de 0,52 a 0,53 & 6,0\% & 41,7 & 4,5 & 36,1\% \\
-		BenignTraffic1.pcap & 29.549 & argmax & 0,8\% & 1,3 & 0,2 & 1,0\% \\
+		BenignTraffic2.pcap & 31.032 & argmax & 0,9\% & 1,3 & 0,2 \\
+		BenignTraffic.pcap & 36.228 & limiar, t de 0,52 a 0,53 & 6,0\% & 41,7 & 4,5 \\
+		BenignTraffic1.pcap & 29.549 & argmax & 0,8\% & 1,3 & 0,2 \\
 		\hline
 	\end{tabular}
 	\legend{Fonte: os autores.}
 \end{table}
 
-No corte por tempo, DDoS+DoS e Mirai passam de 98\% de recall e de precisão. Recon (55,0\%), Web (35,1\%) e BruteForce (34,4\%) ficam bem abaixo. O que Recon e Web perdem vai sobretudo para Benign (Figura~\ref{fig:matriz}), e BruteForce perde 72 janelas para Recon e 62 para Benign, o que explica a precisão de 63,3\% da categoria benigna. O macro-F1 é de 75,6\% (de 75,4\% a 75,7\% entre as sementes), e 0,85\% das janelas benignas de teste viram ataque. Com o melhor limiar (t = 0,61), que perdeu na validação, o teste teria 1,0\% do benigno como ataque, e o recall de Recon e o de Spoofing cairiam 4,6 e 6,6 pontos (o intervalo de 95\% da diferença não inclui zero). Com o pcap inteiro fora do treino, o recall cai em todas as categorias com mais de um pcap: Recon fica em 24,9\% (0,5\% no VulnerabilityScan.pcap), Spoofing em 63,0\% (40,3\% no DNS\_Spoofing.pcap), Web em 29,4\%, Mirai em 55,3\% (0\% no Mirai-udpplain.pcap) e DDoS+DoS em 74,2\% (39,8\% no DDoS-SlowLoris.pcap). BruteForce tem um pcap só: sem ele, a categoria some do treino. O alarme falso depende do pcap benigno que fica de fora, de 0,8\% a 6,0\% das janelas, e, com 4 janelas seguidas, o pior pcap chega a 4,5 alarmes por hora; nessa rotação, a validação escolheu o limiar, e com o argmax seriam 5,4\% das janelas. O fundo da parte de teste classificado como ataque é de 13,3\%. Dos 33 pcaps de ataque com trecho de teste, 32 alarmam com a regra das 4 janelas: o Recon-PingSweep.pcap, com 18 janelas de atacante no trecho, não alarma, e o BrowserHijacking.pcap não alarma em uma das três sementes.
+A detecção depende da categoria. No corte por tempo, DDoS+DoS e Mirai passam de 98\% de recall e de precisão, e Spoofing fica em 79,9\%; Recon (55,0\%), Web (35,1\%) e BruteForce (34,4\%) ficam bem abaixo. O que Recon e Web perdem vai sobretudo para Benign (Figura~\ref{fig:matriz}), e BruteForce perde 72 janelas para Recon e 62 para Benign. A precisão de 63,3\% da categoria benigna vem sobretudo das janelas de Recon e de DDoS+DoS classificadas como benignas. O macro-F1 é de 75,6\%, e 0,85\% das janelas benignas de teste viram ataque. Com o pcap inteiro fora do treino, o recall cai em todas as categorias com mais de um pcap, e em Recon, Web e BruteForce fica entre 0\% e 29,4\%; os piores casos são o VulnerabilityScan.pcap (0,5\%), o Mirai-udpplain.pcap (0\%), o DDoS-SlowLoris.pcap (39,8\%) e o DNS\_Spoofing.pcap (40,3\%). BruteForce tem um pcap só: sem ele, a categoria some do treino. O modelo reconhece bem os floods, mas generaliza pouco para uma captura nova da mesma categoria, e o macro-F1 esconde essa diferença.
 
-Em relação ao modelo de 10/10, cada um no seu ponto de operação, o modelo do sistema troca recall por alarme falso: o recall de Recon vai de 82,1\% para 55,0\% e o de Spoofing, de 99,4\% para 79,9\%, enquanto o alarme falso no BenignTraffic.pcap fora do treino vai de 36,1\% para 6,0\% e o fundo classificado como ataque, de 65,9\% para 13,3\%.
+O alarme falso depende do pcap benigno que fica de fora, de 0,8\% a 6,0\% das janelas, e, com 4 janelas seguidas, o pior pcap chega a 4,5 alarmes por hora. O fundo da parte de teste classificado como ataque é de 13,3\%. Dos 33 pcaps de ataque com trecho de teste, 32 alarmam com a regra das 4 janelas: o Recon-PingSweep.pcap, com 18 janelas de atacante no trecho, não alarma, e o BrowserHijacking.pcap não alarma em uma das três sementes.
 
 \begin{figure}[htbp]
 	\centering
@@ -59,8 +59,6 @@ Em relação ao modelo de 10/10, cada um no seu ponto de operação, o modelo do
 	\includegraphics[width=0.8\textwidth]{matriz_confusao.pdf}
 	\legend{Fonte: os autores.}
 \end{figure}
-
-O desempenho da detecção (P1) varia de acordo com a categoria do ataque. O modelo reconhece com recall acima de 98\% os floods (DDoS, DoS e Mirai), e em menor grau o Spoofing, mas fica entre 34,4\% e 55,0\% em Recon, Web e BruteForce no corte por tempo, e entre 0\% e 29,4\% nessas três quando o pcap inteiro sai do treino. O macro-F1 de 75,6\% oculta essa diferença: o modelo generaliza pouco para uma captura nova da mesma categoria.
 
 \subsection{Tráfego fora do CICIoT2023}
 \label{sec:fora}
