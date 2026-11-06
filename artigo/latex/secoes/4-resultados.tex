@@ -90,7 +90,7 @@ A regra de 4 janelas foi escolhida depois desses testes, entre 12 regras compara
 \subsection{Agentes}
 \label{sec:agentes}
 
-A resposta dos agentes (P2) foi medida em 28 incidentes, 19 verdadeiros, e a Tabela~\ref{tab:agentes} a resume por grupo de pcap, com as contas por incidente (seção~\ref{sec:avaliacao}). A triagem acertou 24 dos 28 (86\%, de 68,5\% a 94,3\% no intervalo de confiança de 95\%): marcou como coerentes os 19 verdadeiros e como duvidosos os 5 falsos abaixo de 0,6 de confiança; os outros 4 falsos, com confiança de 0,64 a 0,82, passaram como coerentes.
+A resposta dos agentes (P2) foi medida em 28 incidentes, 19 verdadeiros, e a Tabela~\ref{tab:agentes} a resume por grupo de pcap, com as contas por incidente (seção~\ref{sec:avaliacao}). A triagem acertou 24 dos 28 (86\%, de 68,5\% a 94,3\% no intervalo de confiança de 95\%): marcou como coerentes os 19 verdadeiros e como duvidosos os 5 falsos abaixo de 0,6 de confiança; os outros 4 falsos, com confiança de 0,64 a 0,82, passaram como coerentes. Esse resultado é o do limiar de 0,6, que a triagem segue (seção~\ref{sec:mcp}): o classificador com o mesmo limiar também separaria os mesmos 24.
 
 \begin{table}[htbp]
 	\centering
@@ -138,6 +138,8 @@ O custo e o tempo da resposta (P3) foram medidos no modelo local (Tabela~\ref{ta
 	\end{tabular}
 	\legend{Fonte: os autores.\\Nota: por agente, o tempo é o tempo no modelo; no incidente inteiro, é o tempo de relógio dos agentes, com as tools e o orquestrador e sem a espera da aprovação, e não é a soma das linhas acima, porque mediana não soma. O tempo até a remediação está no texto.}
 \end{table}
+
+Nos quatro exemplos, todos abertos na categoria certa, o bloqueio do atacante do Mirai foi aprovado e executado; nos dois de Spoofing, o isolamento proposto foi rejeitado, porque o endereço apontado não está entre os atacantes do dataset, o que no spoofing não mede erro dos agentes; e no ataque Web, um bloqueio de risco baixo atingiu um servidor externo, na nuvem, que não era atacante.
 
 No teste com o Kali, 7 das 8 capturas abriram incidente, e 4 deles vieram na categoria certa: a varredura do nmap como Recon e os três floods (SYN, UDP e ICMP) como DoS. Nesses 4, a triagem apontou o Kali como atacante nas 12 execuções, como a primeira origem do incidente, e a ação aceitável no alvo certo saiu em 9; no flood ICMP, com confiança abaixo de 0,6, houve só recomendação. A força bruta do hydra virou DoS, com confiança de 0,50 e 0,51; a triagem apontou a vítima como atacante, e o servidor recusou a proposta porque a confiança estava abaixo de 0,6, de modo que nenhuma ação atingiu a vítima. A varredura do nikto virou DoS, e não Web, com confiança de 0,65, acima do limiar; por isso conta como incidente falso, embora as 3 ações, uma por repetição, tenham sido aplicadas no próprio Kali.
 
