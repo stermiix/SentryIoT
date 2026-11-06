@@ -7,7 +7,7 @@
 \subsection{Classificador}
 \label{sec:classificador}
 
-A Tabela~\ref{tab:classificador} traz o resultado principal: o modelo do sistema no corte por tempo, no ponto de operação escolhido na validação (o argmax, com N = 4 janelas de ataque seguidas), e, ao lado, o recall com o pcap inteiro fora do treino. A Tabela~\ref{tab:alarme} traz o alarme falso com cada pcap benigno fora do treino.
+A Tabela~\ref{tab:classificador} traz a detecção (P1) no corte por tempo, no ponto de operação escolhido na validação, a categoria mais provável, e, ao lado, o recall com o pcap inteiro fora do treino. A Tabela~\ref{tab:alarme} traz o alarme falso com cada pcap benigno fora do treino.
 
 \begin{table}[htbp]
 	\centering
@@ -36,36 +36,34 @@ A Tabela~\ref{tab:classificador} traz o resultado principal: o modelo do sistema
 	\label{tab:alarme}
 	\small
 	\setlength{\tabcolsep}{4pt}
-	\begin{tabular}{lrp{2.0cm}rrrr}
+	\begin{tabular}{lr>{\raggedright\arraybackslash}p{2.4cm}rrr}
 		\hline
-		\begin{tabular}[b]{@{}l@{}}\textbf{Pcap fora}\\\textbf{do treino}\end{tabular} & \textbf{Janelas} & \begin{tabular}[b]{@{}l@{}}\textbf{Regra}\\\textbf{escolhida}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Como}\\\textbf{ataque}\end{tabular} & \textbf{Alarmes} & \begin{tabular}[b]{@{}r@{}}\textbf{Alarmes}\\\textbf{por hora}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Como ataque,}\\\textbf{modelo}\\\textbf{de 10/10}\end{tabular} \\
+		\begin{tabular}[b]{@{}l@{}}\textbf{Pcap fora}\\\textbf{do treino}\end{tabular} & \textbf{Janelas} & \begin{tabular}[b]{@{}l@{}}\textbf{Regra}\\\textbf{escolhida}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Como}\\\textbf{ataque}\end{tabular} & \textbf{Alarmes} & \begin{tabular}[b]{@{}r@{}}\textbf{Alarmes}\\\textbf{por hora}\end{tabular} \\
 		\hline
-		BenignTraffic2.pcap & 31.032 & argmax & 0,9\% & 1,3 & 0,2 & 1,1\% \\
-		BenignTraffic.pcap & 36.228 & limiar, t de 0,52 a 0,53 & 6,0\% & 41,7 & 4,5 & 36,1\% \\
-		BenignTraffic1.pcap & 29.549 & argmax & 0,8\% & 1,3 & 0,2 & 1,0\% \\
+		BenignTraffic2.pcap & 31.032 & categoria mais provável & 0,9\% & 1,3 & 0,2 \\
+		BenignTraffic.pcap & 36.228 & probabilidade mínima, de 0,52 a 0,53 & 6,0\% & 41,7 & 4,5 \\
+		BenignTraffic1.pcap & 29.549 & categoria mais provável & 0,8\% & 1,3 & 0,2 \\
 		\hline
 	\end{tabular}
 	\legend{Fonte: os autores.}
 \end{table}
 
-No corte por tempo, DDoS+DoS e Mirai passam de 98\% de recall e de precisão. Recon (55,0\%), Web (35,1\%) e BruteForce (34,4\%) ficam bem abaixo. O que Recon e Web perdem vai sobretudo para Benign (Figura~\ref{fig:matriz}), e BruteForce perde 72 janelas para Recon e 62 para Benign, o que explica a precisão de 63,3\% da categoria benigna. O macro-F1 é de 75,6\% (de 75,4\% a 75,7\% entre as sementes), e 0,85\% das janelas benignas de teste viram ataque. Com o melhor limiar (t = 0,61), que perdeu na validação, o teste teria 1,0\% do benigno como ataque, e o recall de Recon e o de Spoofing cairiam 4,6 e 6,6 pontos (o intervalo de 95\% da diferença não inclui zero). Com o pcap inteiro fora do treino, o recall cai em todas as categorias com mais de um pcap: Recon fica em 24,9\% (0,5\% no VulnerabilityScan.pcap), Spoofing em 63,0\% (40,3\% no DNS\_Spoofing.pcap), Web em 29,4\%, Mirai em 55,3\% (0\% no Mirai-udpplain.pcap) e DDoS+DoS em 74,2\% (39,8\% no DDoS-SlowLoris.pcap). BruteForce tem um pcap só: sem ele, a categoria some do treino. O alarme falso depende do pcap benigno que fica de fora, de 0,8\% a 6,0\% das janelas, e, com 4 janelas seguidas, o pior pcap chega a 4,5 alarmes por hora; nessa rotação, a validação escolheu o limiar, e com o argmax seriam 5,4\% das janelas. O fundo da parte de teste classificado como ataque é de 13,3\%. Dos 33 pcaps de ataque com trecho de teste, 32 alarmam com a regra das 4 janelas: o Recon-PingSweep.pcap, com 18 janelas de atacante no trecho, não alarma, e o BrowserHijacking.pcap não alarma em uma das três sementes.
+A detecção depende da categoria. No corte por tempo, DDoS+DoS e Mirai passam de 98\% de recall e de precisão, e Spoofing fica em 79,9\%; Recon (55,0\%), Web (35,1\%) e BruteForce (34,4\%) ficam bem abaixo. O que Recon e Web perdem vai sobretudo para Benign (Figura~\ref{fig:matriz}), e BruteForce perde 72 janelas para Recon e 62 para Benign. A precisão de 63,3\% da categoria benigna vem sobretudo das janelas de Recon e de DDoS+DoS classificadas como benignas. O macro-F1 é de 75,6\%, e 0,85\% das janelas benignas de teste viram ataque. Com o pcap inteiro fora do treino, o recall cai em todas as categorias com mais de um pcap, e em Recon, Web e BruteForce fica entre 0\% e 29,4\%; os piores casos são o VulnerabilityScan.pcap (0,5\%), o Mirai-udpplain.pcap (0\%), o DDoS-SlowLoris.pcap (39,8\%) e o DNS\_Spoofing.pcap (40,3\%). BruteForce tem um pcap só: sem ele, a categoria some do treino. O modelo reconhece bem os floods, mas generaliza pouco para uma captura nova da mesma categoria, e o macro-F1 esconde essa diferença.
 
-Em relação ao modelo de 10/10, cada um no seu ponto de operação, o modelo do sistema troca recall por alarme falso: o recall de Recon vai de 82,1\% para 55,0\% e o de Spoofing, de 99,4\% para 79,9\%, enquanto o alarme falso no BenignTraffic.pcap fora do treino vai de 36,1\% para 6,0\% e o fundo classificado como ataque, de 65,9\% para 13,3\%.
+O alarme falso depende do pcap benigno que fica de fora, de 0,8\% a 6,0\% das janelas, e, com 4 janelas seguidas, o pior pcap chega a 4,5 alarmes por hora. O fundo da parte de teste classificado como ataque é de 13,3\%. Dos 33 pcaps de ataque com trecho de teste, 32 alarmam com a regra das 4 janelas: o Recon-PingSweep.pcap, com 18 janelas de atacante no trecho, não alarma, e o BrowserHijacking.pcap não alarma em uma das três sementes.
 
 \begin{figure}[htbp]
 	\centering
-	\caption{Matriz de confusão do modelo do sistema no ponto de operação, que na validação foi o argmax, na parte de teste do corte por tempo, semente 42. Cada linha soma 100\% das janelas de teste da categoria real. A linha Benign vem de um único pcap fora do treino, o BenignTraffic2.pcap; com os outros dois fora do treino, o alarme falso vai a 0,8\% e a 6,0\% (Tabela~\ref{tab:alarme}). Com o pcap inteiro fora do treino, o recall é menor que o da diagonal em todas as categorias com mais de um pcap, e bem menor em Recon, Spoofing e Mirai (Tabela~\ref{tab:classificador}); o Spoofing depende ainda de um artefato da captura (seção~\ref{sec:limitacoes}).}
+	\caption{Matriz de confusão do modelo do sistema na parte de teste do corte por tempo, semente 42; os números do texto e da Tabela~\ref{tab:classificador} são a média das três sementes. Cada linha soma 100\% das janelas de teste da categoria real. A linha Benign vem só do BenignTraffic2.pcap, fora do treino.}
 	\label{fig:matriz}
 	\includegraphics[width=0.8\textwidth]{matriz_confusao.pdf}
 	\legend{Fonte: os autores.}
 \end{figure}
 
-O desempenho da detecção (P1) varia de acordo com a categoria do ataque. O modelo reconhece com recall acima de 98\% os floods (DDoS, DoS e Mirai), e em menor grau o Spoofing, mas fica entre 34,4\% e 55,0\% em Recon, Web e BruteForce no corte por tempo, e entre 0\% e 29,4\% nessas três quando o pcap inteiro sai do treino. O macro-F1 de 75,6\% oculta essa diferença: o modelo generaliza pouco para uma captura nova da mesma categoria.
-
 \subsection{Tráfego fora do CICIoT2023}
 \label{sec:fora}
 
-A Tabela~\ref{tab:fora} traz o modelo do sistema, sem retreino, em tráfego fora do conjunto de treino. As 18 capturas de ataque do CICIoMT2024 abriram incidente, inclusive as 5 de MQTT, protocolo que não aparece no treino, assim como as dos 8 malwares ativos do IoT-23. No total, com 4 janelas de ataque seguidas, 39 das 40 capturas de ataque alarmaram, e houve 6 incidentes falsos em cerca de 150 h de tráfego benigno, com a ressalva das janelas não julgadas no IoT-23 (seção~\ref{sec:limitacoes}). A captura sem alarme é o Recon-PingSweep do CICIoT2023, que também não alarma no corte por tempo (seção~\ref{sec:classificador}). Na casa, não houve incidente falso em 90 minutos, contra 4 com a regra anterior, de 3 janelas seguidas.
+A Tabela~\ref{tab:fora} traz o modelo do sistema, sem retreino, em tráfego fora do conjunto de treino, o que mede se a detecção (P1) vale fora do CICIoT2023. As 18 capturas de ataque do CICIoMT2024 abriram incidente, inclusive as 5 de MQTT, protocolo que não aparece no treino, assim como as dos 8 malwares ativos do IoT-23. No total, com 4 janelas de ataque seguidas, 39 das 40 capturas de ataque alarmaram, e houve 6 incidentes falsos em 150,4 h de tráfego benigno, com a ressalva das janelas não julgadas no IoT-23 (seção~\ref{sec:limitacoes}). O recall por janela cai em uma captura nova (seção~\ref{sec:classificador}), mas o incidente só precisa de 4 janelas de ataque seguidas, e por isso quase toda captura de ataque alarma; a exceção é o Recon-PingSweep do CICIoT2023, que também não alarma no corte por tempo. Na casa, o teste mais próximo de uma implantação, não houve incidente falso, contra 4 com a regra anterior, de 3 janelas seguidas.
 
 A regra de 4 janelas foi escolhida depois desses testes, entre 12 regras comparadas, e por isso a tabela é uma análise de sensibilidade, e não uma validação independente. Com ela, os incidentes falsos caem de 14 para 6 sem perder nenhuma captura de ataque, a classificação de cada janela não muda, e o tempo mediano até o primeiro alarme nos ataques do CICIoT2023 vai de 11,9~s para 16,3~s. Nos ataques do CICIoT2023, a categoria do primeiro alarme é a certa em 11 de 14 capturas.
 
@@ -92,21 +90,20 @@ A regra de 4 janelas foi escolhida depois desses testes, entre 12 regras compara
 \subsection{Agentes}
 \label{sec:agentes}
 
-A resposta dos agentes (P2) depende do incidente, como resume a Tabela~\ref{tab:agentes} por grupo de pcap. As três repetições de cada incidente tiveram resultados iguais, portanto os números abaixo são contados por incidente, e não por rodada.
-Dentre os 28 incidentes, a triagem teve sucesso em classificar 24 deles, 86\%, que, com intervalo de confiança de 95\%, vai de 68,5\% a 94,3\%.
-Todos os incidentes verdadeiros foram classificados corretamente como coerentes. Por outro lado, dos 9 incidentes falsos, a triagem apontou 5 deles como duvidosos, sendo eles os que tinham confiança abaixo de 0,6. Já os outros 4 incidentes falsos, com confiança entre 0,64 e 0,82, passaram pela triagem como se fossem coerentes.
+A resposta dos agentes (P2) foi medida em 28 incidentes, 19 verdadeiros, e a Tabela~\ref{tab:agentes} a resume por grupo de pcap, com as contas por incidente (seção~\ref{sec:avaliacao}). A triagem acertou 24 dos 28 (86\%, de 68,5\% a 94,3\% no intervalo de confiança de 95\%): marcou como coerentes os 19 verdadeiros e como duvidosos os 5 falsos abaixo de 0,6 de confiança; os outros 4 falsos, com confiança de 0,64 a 0,82, passaram como coerentes.
 
 \begin{table}[htbp]
 	\centering
-	\caption{Rodada final por grupo de pcap (28 incidentes, 3 repetições idênticas por incidente).}
+	\caption{Rodada final por grupo de pcap (28 incidentes, 3 repetições idênticas por incidente; cada execução teve no máximo uma proposta).}
 	\label{tab:agentes}
 	\small
-	\begin{tabular}{lrrrrr}
+	\setlength{\tabcolsep}{4pt}
+	\begin{tabular}{>{\raggedright\arraybackslash}p{3.6cm}rrrrr}
 		\hline
-		\textbf{Grupo} & \textbf{Incidentes} & \textbf{Verdadeiros} & \begin{tabular}[b]{@{}r@{}}\textbf{Triagem}\\\textbf{certa}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{1\textsuperscript{a} ação}\\\textbf{aceitável}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Falso com}\\\textbf{ação}\end{tabular} \\
+		\textbf{Grupo} & \textbf{Incidentes} & \textbf{Verdadeiros} & \begin{tabular}[b]{@{}r@{}}\textbf{Triagem}\\\textbf{certa}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Ação aceitável}\\\textbf{no alvo}\\\textbf{certo}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Falso com}\\\textbf{ação}\end{tabular} \\
 		\hline
 		DDoS (SYN, UDP e HTTP flood) & 10 & 8 & 10 & 5 de 8 & 0 de 2 \\
-		Recon (PortScan, OSScan e HostDiscovery) & 12 & 10 & 10 & 10 de 10 & 1 de 2 \\
+		Recon (PortScan, OSScan e Host\-Discovery) & 12 & 10 & 10 & 10 de 10 & 1 de 2 \\
 		BruteForce (DictionaryBruteForce) & 5 & 1 & 4 & 1 de 1 & 0 de 4 \\
 		Benigno (BenignTraffic2) & 1 & 0 & 0 & -- & 0 de 1 \\
 		\hline
@@ -116,52 +113,43 @@ Todos os incidentes verdadeiros foram classificados corretamente como coerentes.
 	\legend{Fonte: os autores.}
 \end{table}
 
-Em relação à identificação do atacante, a triagem identificou corretamente 16 dos 19 incidentes verdadeiros, enquanto a saída isolada do classificador acertou 15. Os métodos deram resultados diferentes em um único incidente, o DictionaryBruteForce, em que somente a triagem acerta. De acordo com o teste exato de McNemar, p = 1,0, essa diferença não traz um significado estatístico real, assim, para essa tarefa específica, a rodada não permite concluir se um método é melhor que o outro. Desta forma, a vantagem da integração não está em apontar quem atacou, mas sim nas etapas seguintes do alerta: o veredito, a ação proposta e a execução dela.
+A ação aceitável no alvo certo saiu em 16 dos 19 verdadeiros (de 62,4\% a 94,5\%), e as 16 foram executadas. As 3 falhas são os incidentes verdadeiros do HTTP flood: nenhum dos sete atacantes do dataset está entre os candidatos do incidente, a triagem apontou o emissor dominante, e o aprovador rejeitou o bloqueio porque esse endereço está fora da lista de atacantes do dataset. Na identificação do atacante, a triagem acertou 16 dos 19, e a primeira origem do incidente, que é o que o classificador sozinho daria, acertou 15; as duas erram nos mesmos 3 do HTTP flood e só divergem no DictionaryBruteForce, em que a triagem acerta. Pelo teste exato de McNemar, p = 1,0: a rodada não mostra que a triagem aponte o atacante melhor que o classificador. O ganho da integração está no que vem depois do alerta, e o classificador sozinho não faz: o veredito, a ação proposta e a sua execução.
 
-Ao longo das 84 rodadas foram realizadas 69 propostas. O aprovador automático aprovou e executou 33 bloqueios de alto risco, rejeitou 18 e outras 18 limitações de taxa de risco baixo foram aplicadas sem necessidade de aprovação. Além disso, um incidente foi barrado antes mesmo de ser passado ao agente de decisão: a triagem marcou o HTTP flood inc-0002 como duvidoso, com confiança de 0,43, abaixo do limiar de 0,6, e por isso nenhuma ação foi proposta para esse incidente.
-Nenhuma ação executada foi desfeita, uma vez que a verificação simulada deu o ataque como cessado em 100\% dos casos, e nenhuma atingiu endereço protegido. 
-Quanto à segurança dos dados, em nenhuma das 117 conversas do agente de decisão, contando o Kali e os exemplos, foi recebida ou escrita mensagem que trouxe IP ou MAC.
-Esse resultado se deve majoritariamente ao design do sistema: a triagem aponta o atacante por uma tool, e a decisão o recebe como rótulo, não como um endereço em si. Houve apenas um caso no qual o filtro do veredito agiu, uma vez que neste incidente o veredito citava um endereço. Já que nenhuma chamada rodou na nuvem, a garantia para a configuração híbrida permanece apoiada pelos testes (seção~\ref{sec:mcp}), e não nesta medida.
+Nas 84 execuções houve 69 propostas: 18 limitações de taxa, de risco baixo, aplicadas sem aprovação, e 51 bloqueios de endereço, de risco alto, dos quais o aprovador executou 33 e rejeitou 18. No HTTP flood inc-0002, marcado como duvidoso (confiança de 0,43), a decisão tentou propor uma ação, e o servidor a recusou, uma vez por repetição. Nenhuma ação atingiu endereço protegido. Nenhuma das 117 conversas do agente de decisão, contando o Kali e os exemplos, recebeu ou escreveu um endereço IP ou MAC: a triagem aponta o atacante por uma tool, e a decisão o recebe como rótulo. O filtro do veredito agiu em um só incidente, o Recon-OSScan inc-0003, cujo veredito citava um endereço. Como tudo rodou no modelo local, a proteção para uma decisão em um modelo de fronteira vem dos testes do servidor (seção~\ref{sec:mcp}), e não desta medida.
 
-O custo e o tempo da resposta (P3) foram medidos inteiramente no modelo local. Para cada incidente analisado, houve uma mediana de 11 chamadas ao modelo por resposta fazendo uso de 64.206 tokens de entrada e 1.048,5 de saída (Tabela~\ref{tab:custo}). Levando em consideração as 51 rodadas em que uma ação foi executada, o tempo entre a primeira janela de ataque e a primeira ação aplicada teve uma mediana de 60,86~s, supondo que a triagem começa assim que o incidente abre. Como os agentes rodaram em fila depois da reprodução, esse tempo de fila ficou de fora da conta. 
-Ao tratar das ações de risco baixo, aplicadas sem aprovação, o tempo foi de 54,52~s enquanto nas ações de risco alto, que passam pelo aprovador automático, e por isso não esperam que uma pessoa tome uma decisão, foi de 69,47~s. A detecção, da primeira janela do ataque à abertura do incidente, levou 1,8~s. Triagem e decisão gastam quase todos os tokens. Os três agentes rodaram no modelo local. Por isso, nenhuma chamada foi cobrada por token, e o custo do servidor que roda o modelo não foi medido.
+O custo e o tempo da resposta (P3) foram medidos no modelo local (Tabela~\ref{tab:custo}). Na mediana, cada execução fez 11 chamadas ao modelo, com 64.206 tokens de entrada e 1.048,5 de saída, quase todos da triagem e da decisão. Nas 51 execuções com ação, o tempo até a remediação teve mediana de 60,86~s: 54,52~s nas ações de risco baixo e 69,47~s nas de risco alto, que passaram pelo aprovador automático. A detecção, da primeira janela do ataque à abertura do incidente, levou 1,8~s na mediana das 84 execuções. Nenhuma chamada foi cobrada por token, e o custo do servidor que roda o modelo, de hardware e quantização desconhecidos, não foi medido.
 
 \begin{table}[htbp]
 	\centering
-	\caption{Custo e tempo por rodada (medianas; n = 84; a execução roda em 51; entre parênteses, p25 a p75).}
+	\caption{Custo e tempo dos agentes por execução (medianas; n = 84; a execução roda em 51).}
 	\label{tab:custo}
 	\small
 	\begin{tabular}{lrrrr}
 		\hline
-		\textbf{Agente} & \textbf{Chamadas} & \begin{tabular}[b]{@{}r@{}}\textbf{Tokens de}\\\textbf{entrada}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Tokens de}\\\textbf{saída}\end{tabular} & \textbf{Tempo} \\
+		\textbf{Agente} & \textbf{Chamadas} & \begin{tabular}[b]{@{}r@{}}\textbf{Tokens de}\\\textbf{entrada}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Tokens de}\\\textbf{saída}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Tempo}\\\textbf{no modelo}\end{tabular} \\
 		\hline
-		Triagem & 4 & cerca de 27,8 mil & cerca de 420 & 24,5 s \\
-		Decisão & 4 & cerca de 30,5 mil & cerca de 520 & 27,5 s \\
+		Triagem & 4 & 27.828 & 420,5 & 24,4 s \\
+		Decisão & 4 & 30.472 & 521,5 & 27,5 s \\
 		Execução & 3 & 6.760 & 157 & 8,6 s \\
 		\hline
-		Incidente inteiro & 11 (8 a 11) & 64.206 (57.877 a 72.785) & 1.048,5 (810 a 1.132) & 60,7 s (47,7 a 64,7) \\
+		Incidente inteiro & 11 & 64.206 & 1.048,5 & 60,7 s \\
+		\quad p25 a p75 & 8 a 11 & 57.877 a 72.785 & 810 a 1.132 & 47,7 a 64,7 s \\
 		\hline
 	\end{tabular}
-	\legend{Fonte: os autores. As medianas por agente foram arredondadas; a linha do incidente inteiro não soma as dos agentes, porque mediana não soma.}
+	\legend{Fonte: os autores. Por agente, o tempo é o tempo no modelo; no incidente inteiro, é o tempo de relógio dos agentes, com as tools e o orquestrador e sem a espera da aprovação, e não é a soma das linhas acima, porque mediana não soma. O tempo até a remediação está no texto.}
 \end{table}
 
-Ao realizar testes com o Kali, 7 das 8 capturas abriram incidente, tendo como única exceção o ARP spoofing, que não abriu nenhum, e 4 deles na categoria certa: a varredura do nmap como Recon e os três floods (SYN, UDP e ICMP) como DoS. Já a força bruta do hydra foi classificada como DoS,
-com confiança de 0,50 e 0,51; a triagem chegou a apontar a vítima como atacante, mas o servidor
-recusou a proposta. A varredura do nikto também virou DoS, desta vez com confiança de 0,65, e
-foi dela que vieram as 3 ações aplicadas sobre incidente falso, do total de 21 rodadas. Quanto
-aos incidentes verdadeiros, a identificação do atacante acertou em 12 das 12 rodadas, o mesmo
-desempenho da regra fixa. Neste ambiente foi adotada a política do laboratório, que protege
-apenas o computador da equipe.
+No teste com o Kali, 7 das 8 capturas abriram incidente, e 4 deles vieram na categoria certa: a varredura do nmap como Recon e os três floods (SYN, UDP e ICMP) como DoS. Nesses 4, a triagem apontou o Kali como atacante nas 12 execuções, como a regra fixa, e a ação aceitável no alvo certo saiu em 9; no flood ICMP, com confiança abaixo de 0,6, houve só recomendação. A força bruta do hydra virou DoS, com confiança de 0,50 e 0,51; a triagem apontou a vítima como atacante, e o servidor recusou a proposta porque a confiança estava abaixo de 0,6, de modo que nenhuma ação atingiu a vítima. A varredura do nikto virou DoS, e não Web, com confiança de 0,65, acima do limiar; por isso conta como incidente falso, embora as 3 ações, uma por repetição, tenham sido aplicadas no próprio Kali.
 
-Diferente de \citeonline{baral2024}, em que os LLMs propõem a mitigação e a deixam ao
-administrador, aqui a ação é executada, com aprovação humana no risco alto; e, ao contrário de
-\citeonline{hammar2026}, o modelo local foi usado sem ajuste fino.
+Os trabalhos correlatos não medem a mesma coisa, e a comparação é sobretudo de desenho. Em \citeonline{baral2024}, os LLMs propõem a mitigação e a deixam ao administrador; aqui a ação é executada, com aprovação humana no risco alto. \citeonline{hammar2026} fazem ajuste fino de um modelo de 14 bilhões de parâmetros para planejar a resposta; aqui o modelo local foi usado sem ajuste fino. O CORTEX \cite{wei2025cortex}, com vários agentes de LLM, leva 152,4~s na mediana por alerta até concluir o chamado de triagem, sem ação de remediação; o SentryIoT chega à primeira ação aplicada em 60,86~s, em outro conjunto de dados, com outro modelo e com aprovação automática, e por isso a comparação vale só como ordem de grandeza.
 
 \subsection{Limitações}
 \label{sec:limitacoes}
 
-Na detecção, o modelo foi treinado só com o CICIoT2023, na janela de 100 quadros. No CSV oficial desse dataset, a janela é de 100 quadros para DDoS, DoS e Mirai e de 10 para as demais categorias, e um modelo treinado nele aprende o tamanho da janela, e não o comportamento do tráfego (seção~\ref{sec:treino}). Por isso o sistema treina com dados regerados dos pcaps, todos na mesma janela, e os resultados não são comparáveis aos de trabalhos que usam o CSV oficial. Nesses pcaps, entre 3,3\% e 66,9\% das janelas de varredura, força bruta, Web e spoofing não têm nenhum quadro do atacante; elas entram no treino como benignas, parte delas pode conter efeito do ataque, e isso derruba o recall de Recon e de Spoofing. Fora do CICIoT2023, o modelo foi testado sem retreino no CICIoMT2024, no IoT-23, no laboratório com o Kali e em uma única casa, gravada por 90 minutos: são poucas redes para afirmar que ele vale em qualquer rede IoT. O TTL (Time To Live) e o tamanho dos quadros, que pesam nas decisões do modelo, dependem dos dispositivos e de como o tráfego foi gravado: 84\% das janelas de Spoofing têm quadro menor que 60 bytes, e 88\% das benignas têm quadro maior que 1.514 bytes, o que em uma rede real seria diferente. Com os quadros como passam no fio, o modelo dá 18 alarmes nas 8 horas do BenignTraffic2.pcap, contra 1 com os quadros como o dataset gravou, e uma implantação assim precisaria retreinar o modelo. O tráfego benigno do treino é só de IoT, e o sistema vigia só a rede dos aparelhos IoT, e não a de computadores e celulares. O extrator ignora o IPv6, e a janela que leva mais de 60~s para fechar não é julgada: um ataque lento em um aparelho de pouco tráfego não seria visto.
+Na detecção, o modelo foi treinado só com o CICIoT2023, com dados regerados dos pcaps em uma janela única de 100 quadros (seção~\ref{sec:treino}), e por isso os resultados não são comparáveis aos de trabalhos que usam o CSV oficial. Nesses pcaps, as janelas de fundo entram no treino como benignas (seção~\ref{sec:preprocessamento}), mas parte delas pode conter efeito do ataque, o que derruba o recall de Recon e de Spoofing. Fora do CICIoT2023, o modelo foi testado sem retreino no CICIoMT2024, no IoT-23, no laboratório com o Kali e em uma única casa, gravada por 90 minutos: são poucas redes para afirmar que ele vale em qualquer rede IoT. O TTL (Time To Live) e o tamanho dos quadros, que pesam nas decisões do modelo, dependem dos dispositivos e da máquina que gravou o tráfego: 88\% das janelas benignas do dataset têm quadro maior que 1.514 bytes, o que é compatível com a placa de rede juntando segmentos TCP, e 84\% das de Spoofing têm quadro menor que 60 bytes, provavelmente gravados sem o preenchimento que a placa põe antes de transmitir. Em uma simulação com o BenignTraffic2.pcap e os quadros ajustados a esses limites, os alarmes falsos foram de 1 para 18 nas 8 horas do arquivo. Na casa, o zero de incidentes falsos depende da regra de 4 janelas seguidas, porque 29,0\% das janelas julgadas saíram como ataque, e só um período maior de operação mostraria se o modelo precisa ser retreinado em cada rede.
 
-Na implantação, o sistema só vê o tráfego que passa pelo ponto de captura. Em uma rede em que o gateway não é o ponto de acesso, nem separa a rede IoT das outras, o ataque de um aparelho contra outro da mesma rede não chega a ele, e sensores em Zigbee ou Bluetooth, fora da rede IP, também ficam de fora. Um flood volumétrico vindo da internet lota o link da operadora antes de chegar ao gateway, e bloquear as origens ali não libera o link; isso pede ação do provedor. O modelo local, de 27 bilhões de parâmetros, pede placa de vídeo ou bastante memória, um hardware caro para uma casa ou um pequeno negócio.
+Na implantação, o sistema só vê o tráfego que passa pelo ponto de captura. Em uma rede em que o gateway não é o ponto de acesso, nem separa a rede IoT das outras, o ataque de um aparelho contra outro da mesma rede não chega a ele, e sensores em Zigbee ou Bluetooth, fora da rede IP, também ficam de fora. O tráfego benigno do treino é só de IoT, e o sistema vigia só a rede dos aparelhos IoT, e não a de computadores e celulares. O extrator ignora o IPv6, e a janela que leva mais de 60~s para fechar não é julgada: um ataque lento em um aparelho de pouco tráfego não seria visto. Um flood volumétrico vindo da internet lota o link da operadora antes de chegar ao gateway, e bloquear as origens ali não libera o link; isso pede ação do provedor. O modelo local, de 27 bilhões de parâmetros, pede placa de vídeo ou bastante memória, um hardware caro para uma casa ou um pequeno negócio.
 
 Na resposta, a PoC atende incidentes de pcaps reproduzidos, e aplicar uma ação é só gravar o evento no log, sem rede em que ela aja; a verificação do efeito responde sempre que o ataque cessou. Os experimentos medem, portanto, se os agentes escolhem uma ação aceitável no alvo certo e em quanto tempo ela é executada, e não se ela faria o ataque parar, e o caso em que a primeira ação não resolve não é exercitado. O tempo até a remediação não inclui o de uma pessoa aprovar as ações de risco alto, que em uma operação real pode passar de minutos. O atacante do incidente vem da presença dos endereços nas janelas: nos pcaps de ataque, a primeira origem listada é um atacante em 113 de 211 incidentes, e nunca no spoofing, em que o quadro ARP só traz o IP anunciado. Um bloqueio em origem errada vai para aprovação, porque bloquear um endereço da rede local é de risco alto: na rodada final, os 6 bloqueios em alvo errado foram barrados, mas pelo aprovador dos experimentos, que conhece os atacantes do dataset; em operação, a decisão seria de uma pessoa, que pode errar. A ação de risco baixo não passa por ninguém, e no incidente falso do Recon-PortScan uma limitação de taxa foi aplicada em um endereço que não é atacante.
+
+A amostra tem tamanho razoável, mas limitado: como o treino do modelo usou parte de cada pcap, a rodada final só pode usar o trecho que ficou fora dele, e dali saíram 28 incidentes, de 8 pcaps do CICIoT2023, até cinco por pcap; os incidentes do Kali e os exemplos ficam fora dessas taxas, e só um modelo foi avaliado. Por isso, os intervalos de confiança da seção~\ref{sec:agentes} são largos, e as taxas valem para esse conjunto. Com temperatura 0 e semente fixa, as três repetições de cada incidente da rodada deram o mesmo resultado e, por isso, não medem quanto o modelo varia de uma execução para outra. Essa configuração também não garante repetições iguais: no teste com o Kali, 2 dos 7 incidentes tiveram resultados diferentes entre as três repetições.
