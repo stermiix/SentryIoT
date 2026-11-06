@@ -54,7 +54,7 @@ O alarme falso depende do pcap benigno que fica de fora, de 0,8\% a 6,0\% das ja
 
 \begin{figure}[htbp]
 	\centering
-	\caption{Matriz de confusão do modelo do sistema no ponto de operação, que na validação foi o argmax, na parte de teste do corte por tempo, semente 42. Cada linha soma 100\% das janelas de teste da categoria real. A linha Benign vem de um único pcap fora do treino, o BenignTraffic2.pcap; com os outros dois fora do treino, o alarme falso vai a 0,8\% e a 6,0\% (Tabela~\ref{tab:alarme}). Com o pcap inteiro fora do treino, o recall é menor que o da diagonal em todas as categorias com mais de um pcap, e bem menor em Recon, Spoofing e Mirai (Tabela~\ref{tab:classificador}); o Spoofing depende ainda de um artefato da captura (seção~\ref{sec:limitacoes}).}
+	\caption{Matriz de confusão do modelo do sistema na parte de teste do corte por tempo, semente 42; os números do texto e da Tabela~\ref{tab:classificador} são a média das três sementes. Cada linha soma 100\% das janelas de teste da categoria real. A linha Benign vem só do BenignTraffic2.pcap, fora do treino.}
 	\label{fig:matriz}
 	\includegraphics[width=0.8\textwidth]{matriz_confusao.pdf}
 	\legend{Fonte: os autores.}

@@ -20,14 +20,14 @@ flowchart TB
         execucao["<b>Agente de execução</b><br/>aplica, verifica o efeito e desfaz;<br/>único com credenciais"]
     end
 
-    orquestrador["<b>Orquestrador</b> (código, não é um agente)<br/>chama a triagem, filtra os endereços do veredito,<br/>espera a aprovação no log e chama a execução"]
+    orquestrador["<b>Orquestrador</b> (código, não é um agente)<br/>chama a triagem, filtra os endereços do veredito,<br/>chama a decisão, espera a aprovação no log<br/>e chama a execução"]
 
     pessoa(["<b>Pessoa que opera a rede</b><br/>aprova ou rejeita a proposta de risco alto<br/>e pode marcar o incidente como já resolvido"])
     interface["<b>Interface web</b><br/>fila de incidentes e relatório<br/>do incidente, em replay do log"]
 
     deteccao -- "abre o incidente" --> mcp
     mcp <--> triagem
-    mcp <-- "só dados anonimizados" --> decisao
+    mcp <-- "só rótulos, sem endereços" --> decisao
     mcp <--> execucao
     orquestrador --> local
     mcp -- "log de eventos" --> interface
