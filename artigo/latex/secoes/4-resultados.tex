@@ -60,6 +60,8 @@ Em relação ao modelo de 10/10, cada um no seu ponto de operação, o modelo do
 	\legend{Fonte: os autores.}
 \end{figure}
 
+O desempenho da detecção (P1) varia de acordo com a categoria do ataque. O modelo reconhece com recall acima de 98\% os floods (DDoS, DoS e Mirai), e em menor grau o Spoofing, mas fica entre 34,4\% e 55,0\% em Recon, Web e BruteForce no corte por tempo, e entre 0\% e 29,4\% nessas três quando o pcap inteiro sai do treino. O macro-F1 de 75,6\% oculta essa diferença: o modelo generaliza pouco para uma captura nova da mesma categoria.
+
 \subsection{Tráfego fora do CICIoT2023}
 \label{sec:fora}
 
@@ -90,7 +92,70 @@ A regra de 4 janelas foi escolhida depois desses testes, entre 12 regras compara
 \subsection{Agentes}
 \label{sec:agentes}
 
-\pendente{métricas dos agentes (qualidade da recomendação, custo em tokens, tempo entre detecção e remediação) nos cenários DDoS, port scan e brute force, na configuração tudo local, a única medida; as configurações nuvem e híbrida ficam como trabalho futuro.}
+A resposta dos agentes (P2) depende do incidente, como resume a Tabela~\ref{tab:agentes} por grupo de pcap. As três repetições de cada incidente tiveram resultados iguais, portanto os números abaixo são contados por incidente, e não por rodada.
+Dentre os 28 incidentes, a triagem teve sucesso em classificar 24 deles, 86\%, que, com intervalo de confiança de 95\%, vai de 68,5\% a 94,3\%.
+Todos os incidentes verdadeiros foram classificados corretamente como coerentes. Por outro lado, dos 9 incidentes falsos, a triagem apontou 5 deles como duvidosos, sendo eles os que tinham confiança abaixo de 0,6. Já os outros 4 incidentes falsos, com confiança entre 0,64 e 0,82, passaram pela triagem como se fossem coerentes.
+
+\begin{table}[htbp]
+	\centering
+	\caption{Rodada final por grupo de pcap (28 incidentes, 3 repetições idênticas por incidente).}
+	\label{tab:agentes}
+	\small
+	\begin{tabular}{lrrrrr}
+		\hline
+		\textbf{Grupo} & \textbf{Incidentes} & \textbf{Verdadeiros} & \begin{tabular}[b]{@{}r@{}}\textbf{Triagem}\\\textbf{certa}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{1\textsuperscript{a} ação}\\\textbf{aceitável}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Falso com}\\\textbf{ação}\end{tabular} \\
+		\hline
+		DDoS (SYN, UDP e HTTP flood) & 10 & 8 & 10 & 5 de 8 & 0 de 2 \\
+		Recon (PortScan, OSScan e HostDiscovery) & 12 & 10 & 10 & 10 de 10 & 1 de 2 \\
+		BruteForce (DictionaryBruteForce) & 5 & 1 & 4 & 1 de 1 & 0 de 4 \\
+		Benigno (BenignTraffic2) & 1 & 0 & 0 & -- & 0 de 1 \\
+		\hline
+		Total & 28 & 19 & 24 & 16 de 19 & 1 de 9 \\
+		\hline
+	\end{tabular}
+	\legend{Fonte: os autores.}
+\end{table}
+
+Em relação à identificação do atacante, a triagem identificou corretamente 16 dos 19 incidentes verdadeiros, enquanto a saída isolada do classificador acertou 15. Os métodos deram resultados diferentes em um único incidente, o DictionaryBruteForce, em que somente a triagem acerta. De acordo com o teste exato de McNemar, p = 1,0, essa diferença não traz um significado estatístico real, assim, para essa tarefa específica, a rodada não permite concluir se um método é melhor que o outro. Desta forma, a vantagem da integração não está em apontar quem atacou, mas sim nas etapas seguintes do alerta: o veredito, a ação proposta e a execução dela.
+
+Ao longo das 84 rodadas foram realizadas 69 propostas. O aprovador automático aprovou e executou 33 bloqueios de alto risco, rejeitou 18 e outras 18 limitações de taxa de risco baixo foram aplicadas sem necessidade de aprovação. Além disso, um incidente foi barrado antes mesmo de ser passado ao agente de decisão: a triagem marcou o HTTP flood inc-0002 como duvidoso, com confiança de 0,43, abaixo do limiar de 0,6, e por isso nenhuma ação foi proposta para esse incidente.
+Nenhuma ação executada foi desfeita, uma vez que a verificação simulada deu o ataque como cessado em 100\% dos casos, e nenhuma atingiu endereço protegido. 
+Quanto à segurança dos dados, em nenhuma das 117 conversas do agente de decisão, contando o Kali e os exemplos, foi recebida ou escrita mensagem que trouxe IP ou MAC.
+Esse resultado se deve majoritariamente ao design do sistema: a triagem aponta o atacante por uma tool, e a decisão o recebe como rótulo, não como um endereço em si. Houve apenas um caso no qual o filtro do veredito agiu, uma vez que neste incidente o veredito citava um endereço. Já que nenhuma chamada rodou na nuvem, a garantia para a configuração híbrida permanece apoiada pelos testes (seção~\ref{sec:mcp}), e não nesta medida.
+
+O custo e o tempo da resposta (P3) foram medidos inteiramente no modelo local. Para cada incidente analisado, houve uma mediana de 11 chamadas ao modelo por resposta fazendo uso de 64.206 tokens de entrada e 1.048,5 de saída (Tabela~\ref{tab:custo}). Levando em consideração as 51 rodadas em que uma ação foi executada, o tempo entre a primeira janela de ataque e a primeira ação aplicada teve uma mediana de 60,86~s, supondo que a triagem começa assim que o incidente abre. Como os agentes rodaram em fila depois da reprodução, esse tempo de fila ficou de fora da conta. 
+Ao tratar das ações de risco baixo, aplicadas sem aprovação, o tempo foi de 54,52~s enquanto nas ações de risco alto, que passam pelo aprovador automático, e por isso não esperam que uma pessoa tome uma decisão, foi de 69,47~s. A detecção, da primeira janela do ataque à abertura do incidente, levou 1,8~s. Triagem e decisão gastam quase todos os tokens. Os três agentes rodaram no modelo local. Por isso, nenhuma chamada foi cobrada por token, e o custo do servidor que roda o modelo não foi medido.
+
+\begin{table}[htbp]
+	\centering
+	\caption{Custo e tempo por rodada (medianas; n = 84; a execução roda em 51; entre parênteses, p25 a p75).}
+	\label{tab:custo}
+	\small
+	\begin{tabular}{lrrrr}
+		\hline
+		\textbf{Agente} & \textbf{Chamadas} & \begin{tabular}[b]{@{}r@{}}\textbf{Tokens de}\\\textbf{entrada}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{Tokens de}\\\textbf{saída}\end{tabular} & \textbf{Tempo} \\
+		\hline
+		Triagem & 4 & cerca de 27,8 mil & cerca de 420 & 24,5 s \\
+		Decisão & 4 & cerca de 30,5 mil & cerca de 520 & 27,5 s \\
+		Execução & 3 & 6.760 & 157 & 8,6 s \\
+		\hline
+		Incidente inteiro & 11 (8 a 11) & 64.206 (57.877 a 72.785) & 1.048,5 (810 a 1.132) & 60,7 s (47,7 a 64,7) \\
+		\hline
+	\end{tabular}
+	\legend{Fonte: os autores. As medianas por agente foram arredondadas; a linha do incidente inteiro não soma as dos agentes, porque mediana não soma.}
+\end{table}
+
+Ao realizar testes com o Kali, 7 das 8 capturas abriram incidente, tendo como única exceção o ARP spoofing, que não abriu nenhum, e 4 deles na categoria certa: a varredura do nmap como Recon e os três floods (SYN, UDP e ICMP) como DoS. Já a força bruta do hydra foi classificada como DoS,
+com confiança de 0,50 e 0,51; a triagem chegou a apontar a vítima como atacante, mas o servidor
+recusou a proposta. A varredura do nikto também virou DoS, desta vez com confiança de 0,65, e
+foi dela que vieram as 3 ações aplicadas sobre incidente falso, do total de 21 rodadas. Quanto
+aos incidentes verdadeiros, a identificação do atacante acertou em 12 das 12 rodadas, o mesmo
+desempenho da regra fixa. Neste ambiente foi adotada a política do laboratório, que protege
+apenas o computador da equipe.
+
+Diferente de \citeonline{baral2024}, em que os LLMs propõem a mitigação e a deixam ao
+administrador, aqui a ação é executada, com aprovação humana no risco alto; e, ao contrário de
+\citeonline{hammar2026}, o modelo local foi usado sem ajuste fino.
 
 \subsection{Limitações}
 \label{sec:limitacoes}
